@@ -1,0 +1,557 @@
+const functions = require('@google-cloud/functions-framework');
+const https = require('https');
+const { google } = require('googleapis');
+
+// ─── Configuração via variáveis de ambiente ─────────────────────
+const WEBHOOK_SECRET         = process.env.WEBHOOK_SECRET;
+const SUPABASE_URL           = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY   = process.env.SUPABASE_SERVICE_KEY;
+const SEND_WHATSAPP_URL      = process.env.SEND_WHATSAPP_URL;
+const SYNC_LEADS_URL         = process.env.SYNC_LEADS_URL;
+const SERVICE_ACCOUNT_EMAIL  = process.env.SERVICE_ACCOUNT_EMAIL;
+const GOOGLE_CALENDAR_ID     = process.env.GOOGLE_CALENDAR_ID;
+// Schema do Supabase: 'public' em PRD, 'uat' em UAT, 'dev' em DEV
+const SUPABASE_SCHEMA        = process.env.SUPABASE_SCHEMA || 'public';
+const RAW_KEY                = process.env.SERVICE_ACCOUNT_PRIVATE_KEY || '';
+const SERVICE_ACCOUNT_PRIVATE_KEY = RAW_KEY
+  .replace(/^["']|["']$/g, '')
+  .replace(/\\n/g, '\n')
+  .replace(/\\\\n/g, '\n');
+
+// ─── Log estruturado ───────────────────────────────────────────
+const log = (level, action, details = {}) => {
+  console.log(JSON.stringify({ level, action, ...details }));
+};
+
+// ─── Requisição HTTPS genérica com timeout ─────────────────────
+const httpRequest = (url, options, postData) => {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+    const reqOptions = {
+      hostname: parsedUrl.hostname,
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: options.method || 'GET',
+      headers: options.headers || {},
+    };
+
+    const req = https.request(reqOptions, (res) => {
+      let body = '';
+      res.on('data', (chunk) => (body += chunk));
+      res.on('end', () => resolve({ statusCode: res.statusCode, body }));
+    });
+
+    req.on('error', (e) => reject(e));
+    req.setTimeout(30000, () => {
+      req.destroy();
+      reject(new Error('Request timeout (30s)'));
+    });
+
+    if (postData) req.write(postData);
+    req.end();
+  });
+};
+
+// ─── Delay entre leads (anti-ban) ──────────────────────────────
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ─── Verificar se lead agendou reunião via Google Calendar API ─
+// Busca eventos no calendário do Leandro onde o e-mail do responsável
+// apareça como participante, a partir da data de envio do WhatsApp inicial.
+const checkMeetingScheduled = async (guardianEmail, whatsappSentAt) => {
+  if (!GOOGLE_CALENDAR_ID || !SERVICE_ACCOUNT_EMAIL || !SERVICE_ACCOUNT_PRIVATE_KEY) {
+    log('WARN', 'calendar_check_skip', { reason: 'Env vars do Calendar não configuradas' });
+    return false;
+  }
+
+  try {
+    const auth = new google.auth.JWT(
+      SERVICE_ACCOUNT_EMAIL,
+      null,
+      SERVICE_ACCOUNT_PRIVATE_KEY,
+      ['https://www.googleapis.com/auth/calendar.readonly']
+    );
+
+    const calendar = google.calendar({ version: 'v3', auth });
+
+    // Janela de busca: desde o envio do WhatsApp até 60 dias à frente
+    const timeMin = new Date(whatsappSentAt).toISOString();
+    const timeMax = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
+
+    const response = await calendar.events.list({
+      calendarId: GOOGLE_CALENDAR_ID,
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      maxResults: 100,
+      orderBy: 'startTime',
+    });
+
+    const events = response.data.items || [];
+    const normalizedEmail = guardianEmail.trim().toLowerCase();
+
+    const matchedEvent = events.find((event) =>
+      event.attendees?.some(
+        (attendee) => attendee.email?.toLowerCase() === normalizedEmail
+      )
+    );
+
+    const booked = !!matchedEvent;
+
+    log('INFO', 'calendar_check_result', {
+      guardianEmail,
+      eventsChecked: events.length,
+      booked,
+    });
+
+    return booked ? matchedEvent : false;
+  } catch (error) {
+    log('ERROR', 'calendar_check_failed', {
+      guardianEmail,
+      error: error.message,
+    });
+    // Em caso de erro na API, não assume que agendou — deixa o follow-up ocorrer
+    return false;
+  }
+};
+
+// ─── Buscar leads pendentes de follow-up ───────────────────────
+const fetchFollowupLeads = async (followupNumber, executionStartTime) => {
+  const isFollowup1 = followupNumber === 1;
+
+  // Follow-up 1: 48h após whatsapp_sent_at, sem followup_1_sent_at
+  // Follow-up 2: 7 dias (168h) após whatsapp_sent_at, com followup_1_sent_at, sem followup_2_sent_at
+  const hoursThreshold = isFollowup1 ? 48 : 168;
+  const cutoffTime = new Date(Date.now() - hoursThreshold * 60 * 60 * 1000).toISOString();
+
+  const baseFilters = [
+    'qualification_classification=in.(QUENTE,MORNO)',
+    `whatsapp_sent_at=lt.${cutoffTime}`,
+    'whatsapp_sent_at=not.is.null',
+    'meeting_scheduled=not.is.true',  // IS NOT TRUE captura FALSE e NULL
+    isFollowup1 ? 'followup_1_sent_at=is.null' : 'followup_2_sent_at=is.null',
+  ];
+
+  if (!isFollowup1) {
+    // Follow-up 2 só ocorre se o follow-up 1 já foi enviado
+    baseFilters.push('followup_1_sent_at=not.is.null');
+    // Garante que followup_1 foi enviado em execução ANTERIOR, nunca na mesma execução.
+    // Evita que um lead com whatsapp_sent_at > 168h receba followup_1 e followup_2 no mesmo ciclo.
+    if (executionStartTime) {
+      baseFilters.push(`followup_1_sent_at=lt.${executionStartTime}`);
+    }
+  }
+
+  const filters = baseFilters.join('&');
+  const url = `${SUPABASE_URL}/rest/v1/form_submissions?${filters}&select=*&order=whatsapp_sent_at.asc&limit=20`;
+
+  const result = await httpRequest(url, {
+    method: 'GET',
+    headers: {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept-Profile': SUPABASE_SCHEMA,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (result.statusCode >= 400) {
+    throw new Error(`Supabase GET followup ${followupNumber}: ${result.statusCode} ${result.body}`);
+  }
+
+  return JSON.parse(result.body);
+};
+
+// ─── Marcar reunião como agendada no Supabase ──────────────────
+const markMeetingScheduled = async (email, athleteName) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const url = `${SUPABASE_URL}/rest/v1/form_submissions?email=eq.${encodeURIComponent(normalizedEmail)}&athlete_name=eq.${encodeURIComponent(athleteName.trim())}`;
+
+  const result = await httpRequest(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Profile': SUPABASE_SCHEMA,
+      'Prefer': 'return=representation',
+    },
+  }, JSON.stringify({
+    meeting_scheduled: true,
+    meeting_scheduled_at: new Date().toISOString(),
+  }));
+
+  if (result.statusCode >= 400) {
+    throw new Error(`Supabase PATCH meeting_scheduled: ${result.statusCode} ${result.body}`);
+  }
+
+  return true;
+};
+
+// ─── Marcar follow-up como enviado no Supabase (CAS atômico) ───
+// Inclui o filtro `column=is.null` na query para garantir atomicidade:
+// somente a instância que chegar primeiro consegue fazer o PATCH —
+// a segunda encontra 0 rows atualizadas e sabe que deve pular o lead.
+// Isso elimina race conditions mesmo com execuções simultâneas.
+const markFollowupSent = async (email, athleteName, followupNumber) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const column = followupNumber === 1 ? 'followup_1_sent_at' : 'followup_2_sent_at';
+
+  // CAS: só atualiza se o campo ainda for NULL (garante que apenas 1 instância vence)
+  const url = `${SUPABASE_URL}/rest/v1/form_submissions`
+    + `?email=eq.${encodeURIComponent(normalizedEmail)}`
+    + `&athlete_name=eq.${encodeURIComponent(athleteName.trim())}`
+    + `&${column}=is.null`;
+
+  const result = await httpRequest(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Profile': SUPABASE_SCHEMA,
+      'Prefer': 'return=representation',
+    },
+  }, JSON.stringify({
+    [column]: new Date().toISOString(),
+  }));
+
+  if (result.statusCode >= 400) {
+    throw new Error(`Supabase PATCH ${column}: ${result.statusCode} ${result.body}`);
+  }
+
+  // Retorna true se atualizou (fomos os primeiros), false se outra instância ganhou a corrida
+  const updated = JSON.parse(result.body);
+  return Array.isArray(updated) && updated.length > 0;
+};
+
+// ─── Sincronizar lead atualizado com Google Sheets ─────────────
+// Chama sync-elite-leads com o registro completo + campos atualizados.
+// Fire-and-forget: erros de sync não bloqueiam o fluxo principal.
+const triggerSyncLeads = async (lead) => {
+  if (!SYNC_LEADS_URL) {
+    log('WARN', 'sync_leads_skip', { reason: 'SYNC_LEADS_URL não configurada' });
+    return;
+  }
+
+  const payload = JSON.stringify({ record: { ...lead } });
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  };
+  if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
+
+  try {
+    const result = await httpRequest(SYNC_LEADS_URL, { method: 'POST', headers }, payload);
+    if (result.statusCode >= 400) {
+      log('WARN', 'sync_leads_failed', { email: lead.email, statusCode: result.statusCode });
+    } else {
+      log('INFO', 'sync_leads_ok', { email: lead.email });
+    }
+  } catch (err) {
+    log('WARN', 'sync_leads_error', { email: lead.email, error: err.message });
+  }
+};
+
+// ─── Disparar envio de WhatsApp de follow-up ──────────────────
+const triggerFollowupWhatsApp = async (lead, followupNumber) => {
+  const messageType = followupNumber === 1 ? 'followup_1' : 'followup_2';
+
+  const payload = JSON.stringify({
+    record: { ...lead },
+    messageType,
+  });
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  };
+  if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
+
+  const result = await httpRequest(SEND_WHATSAPP_URL, {
+    method: 'POST',
+    headers,
+  }, payload);
+
+  return {
+    statusCode: result.statusCode,
+    body: result.body.substring(0, 300),
+  };
+};
+
+// ─── Processar lote de follow-ups ──────────────────────────────
+const processFollowupBatch = async (followupNumber, executionStartTime) => {
+  const leads = await fetchFollowupLeads(followupNumber, executionStartTime);
+
+  if (leads.length === 0) {
+    log('INFO', `no_followup_${followupNumber}_leads`);
+    return { processed: 0, sent: 0, skipped: 0, failed: 0, results: [] };
+  }
+
+  log('INFO', `followup_${followupNumber}_leads_found`, { count: leads.length });
+
+  const results = [];
+
+  for (const lead of leads) {
+    try {
+      log('INFO', `processing_followup_${followupNumber}`, {
+        email: lead.email,
+        athlete: lead.athlete_name,
+        whatsappSentAt: lead.whatsapp_sent_at,
+      });
+
+      // Verifica se o responsável já agendou a reunião via Google Calendar
+      const emailToCheck = lead.guardian_email || lead.email;
+      const bookedEvent = await checkMeetingScheduled(emailToCheck, lead.whatsapp_sent_at);
+
+      if (bookedEvent) {
+        log('INFO', 'meeting_already_scheduled', {
+          email: lead.email,
+          athlete: lead.athlete_name,
+          followup: followupNumber,
+        });
+
+        const meetingScheduledAt = new Date().toISOString();
+        await markMeetingScheduled(lead.email, lead.athlete_name);
+
+        // Update CRM deal to reuniao_marcada if it exists
+        try {
+          // Find the atleta linked to this form_submission
+          const atletaRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/atletas?form_submission_id=eq.${lead.id}&deleted_at=is.null&select=id`,
+            {
+              headers: {
+                'apikey': SUPABASE_SERVICE_KEY,
+                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+                'Accept-Profile': SUPABASE_SCHEMA,
+              },
+            }
+          );
+          const atletas = await atletaRes.json();
+
+          if (atletas && atletas.length > 0) {
+            const atletaId = atletas[0].id;
+
+            // Find the active deal for this atleta
+            const dealRes = await fetch(
+              `${SUPABASE_URL}/rest/v1/deals?atleta_id=eq.${atletaId}&etapa=eq.lead&deleted_at=is.null&select=id`,
+              {
+                headers: {
+                  'apikey': SUPABASE_SERVICE_KEY,
+                  'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+                  'Accept-Profile': SUPABASE_SCHEMA,
+                },
+              }
+            );
+            const deals = await dealRes.json();
+
+            if (deals && deals.length > 0) {
+              const dealId = deals[0].id;
+
+              // Move deal to reuniao_marcada
+              const updateRes = await fetch(
+                `${SUPABASE_URL}/rest/v1/deals?id=eq.${dealId}`,
+                {
+                  method: 'PATCH',
+                  headers: {
+                    'apikey': SUPABASE_SERVICE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+                    'Content-Profile': SUPABASE_SCHEMA,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    etapa: 'reuniao_marcada',
+                    etapa_anterior: 'lead',
+                    google_calendar_event_id: bookedEvent.id || bookedEvent.htmlLink || 'detected',
+                    next_action: 'Preparar para reunião',
+                    data_proxima_acao: bookedEvent.start?.dateTime?.split('T')[0] || new Date().toISOString().split('T')[0],
+                    reuniao_agendada_at: new Date().toISOString(),
+                    reuniao_data: bookedEvent.start?.dateTime || bookedEvent.start?.date || null,
+                    reuniao_link: bookedEvent.htmlLink || bookedEvent.hangoutLink || null,
+                  }),
+                }
+              );
+
+              if (updateRes.ok) {
+                log('INFO', 'deal_moved_to_reuniao', { dealId, atletaId, submissionId: lead.id });
+              } else {
+                log('WARN', 'deal_update_failed', { dealId, status: updateRes.status });
+              }
+            }
+          }
+        } catch (err) {
+          log('WARN', 'crm_deal_update_error', { error: err.message, submissionId: lead.id });
+        }
+
+        // Sync Sheets: linha reflete meeting_scheduled = true imediatamente
+        await triggerSyncLeads({
+          ...lead,
+          meeting_scheduled: true,
+          meeting_scheduled_at: meetingScheduledAt,
+        });
+
+        results.push({
+          email: lead.email,
+          athlete: lead.athlete_name,
+          status: 'meeting_scheduled',
+        });
+
+        // Delay mesmo quando skipa, para não sobrecarregar o Calendar API
+        if (leads.indexOf(lead) < leads.length - 1) {
+          const randomDelay = 5000 + Math.floor(Math.random() * 5000);
+          await delay(randomDelay);
+        }
+        continue;
+      }
+
+      // CAS atômico: marca ANTES de enviar com filtro IS NULL na query.
+      // PostgreSQL garante que só 1 instância vence: a que chegar primeiro
+      // atualiza 1 row (marked=true) e envia; a segunda recebe 0 rows
+      // (marked=false) e pula — impossível duplicar mesmo com N instâncias simultâneas.
+      const marked = await markFollowupSent(lead.email, lead.athlete_name, followupNumber);
+
+      if (!marked) {
+        log('INFO', `followup_${followupNumber}_already_processed`, {
+          email: lead.email,
+          athlete: lead.athlete_name,
+          reason: 'Outra instância concorrente já marcou este lead',
+        });
+
+        results.push({
+          email: lead.email,
+          athlete: lead.athlete_name,
+          status: 'already_processed',
+        });
+
+        continue;
+      }
+
+      // Somos a instância que ganhou o CAS — podemos enviar com segurança
+      const followupSentAt = new Date().toISOString();
+      const followupColumn = followupNumber === 1 ? 'followup_1_sent_at' : 'followup_2_sent_at';
+      const whatsappResult = await triggerFollowupWhatsApp(lead, followupNumber);
+
+      log('INFO', `followup_${followupNumber}_whatsapp_result`, {
+        email: lead.email,
+        statusCode: whatsappResult.statusCode,
+      });
+
+      // Sync Sheets: DB já foi marcado pelo CAS — sincroniza independente do resultado do WhatsApp
+      await triggerSyncLeads({ ...lead, [followupColumn]: followupSentAt });
+
+      if (whatsappResult.statusCode < 400) {
+        results.push({
+          email: lead.email,
+          athlete: lead.athlete_name,
+          status: `followup_${followupNumber}_sent`,
+        });
+      } else {
+        log('ERROR', `followup_${followupNumber}_send_failed`, {
+          email: lead.email,
+          statusCode: whatsappResult.statusCode,
+          body: whatsappResult.body,
+        });
+
+        results.push({
+          email: lead.email,
+          athlete: lead.athlete_name,
+          status: 'failed',
+          error: `HTTP ${whatsappResult.statusCode}`,
+        });
+      }
+
+    } catch (leadError) {
+      log('ERROR', `followup_${followupNumber}_lead_error`, {
+        email: lead.email,
+        error: leadError.message,
+      });
+
+      results.push({
+        email: lead.email,
+        athlete: lead.athlete_name,
+        status: 'error',
+        error: leadError.message,
+      });
+    }
+
+    // Delay anti-ban entre leads (45-60s)
+    if (leads.indexOf(lead) < leads.length - 1) {
+      const randomDelay = 45000 + Math.floor(Math.random() * 15000);
+      log('INFO', 'delay_between_leads', { delayMs: randomDelay, followup: followupNumber });
+      await delay(randomDelay);
+    }
+  }
+
+  return {
+    processed: results.length,
+    sent: results.filter(r => r.status.endsWith('_sent')).length,
+    skipped: results.filter(r => r.status === 'meeting_scheduled').length,
+    failed: results.filter(r => r.status === 'failed' || r.status === 'error').length,
+    results,
+  };
+};
+
+// ─── Cloud Function principal ──────────────────────────────────
+functions.http('processFollowupWhatsApp', async (req, res) => {
+  const startTime = Date.now();
+
+  // Permite chamadas do Cloud Scheduler (sem secret) e chamadas autenticadas
+  if (WEBHOOK_SECRET && req.headers['x-webhook-secret']) {
+    const incoming = req.headers['x-webhook-secret'];
+    if (incoming !== WEBHOOK_SECRET) {
+      log('WARN', 'auth_failed', { ip: req.ip });
+      return res.status(401).send({ success: false, error: 'Unauthorized' });
+    }
+  }
+
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !SEND_WHATSAPP_URL) {
+      throw new Error('Variáveis de ambiente obrigatórias não configuradas');
+    }
+
+    // executionStartTime: registrado ANTES de qualquer batch para servir como cutoff.
+    // O filtro `followup_1_sent_at < executionStartTime` no batch 2 garante que leads
+    // cujo followup_1 foi marcado NESTA execução não sejam imediatamente elegíveis para
+    // followup_2 — evitando o envio de 2 mensagens em um único ciclo do scheduler.
+    const executionStartTime = new Date().toISOString();
+    log('INFO', 'followup_scheduler_start', { timestamp: executionStartTime });
+
+    // Processa follow-up 1 (48h) e follow-up 2 (7 dias) em sequência
+    const followup1 = await processFollowupBatch(1, executionStartTime);
+
+    // Pequena pausa entre os dois batches
+    if (followup1.processed > 0) {
+      await delay(5000);
+    }
+
+    const followup2 = await processFollowupBatch(2, executionStartTime);
+
+    const durationMs = Date.now() - startTime;
+    const totalProcessed = followup1.processed + followup2.processed;
+
+    log('INFO', 'followup_scheduler_complete', {
+      followup1: { processed: followup1.processed, sent: followup1.sent, skipped: followup1.skipped, failed: followup1.failed },
+      followup2: { processed: followup2.processed, sent: followup2.sent, skipped: followup2.skipped, failed: followup2.failed },
+      totalProcessed,
+      durationMs,
+    });
+
+    return res.status(200).send({
+      success: true,
+      followup1,
+      followup2,
+      totalProcessed,
+      durationMs,
+    });
+
+  } catch (error) {
+    log('CRITICAL', 'followup_scheduler_failed', {
+      error: error.message,
+      durationMs: Date.now() - startTime,
+    });
+
+    return res.status(500).send({
+      success: false,
+      error: 'Erro no processamento de follow-ups',
+    });
+  }
+});

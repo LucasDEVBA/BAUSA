@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Tipografia */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Cores base — tema escuro profissional */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  /* Paleta CRM */
+  --color-sidebar: #0f1117;
+  --color-sidebar-border: #1e2130;
+  --color-surface: #141720;
+  --color-surface-hover: #1a1f2e;
+  --color-border: #1e2130;
+  --color-muted: #64748b;
+
+  /* Classificação de leads */
+  --color-hot: #22c55e;
+  --color-warm: #f59e0b;
+  --color-cold: #3b82f6;
+}
+
+:root {
+  --background: #0c0e16;
+  --foreground: #e2e8f0;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2d3448;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3d4561;
+}

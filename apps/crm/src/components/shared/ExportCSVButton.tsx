@@ -1,0 +1,56 @@
+"use client";
+
+import { Download } from "lucide-react";
+import { generateCSV, downloadCSV } from "@/lib/export-csv";
+import { cn } from "@/lib/utils";
+
+interface ExportCSVButtonProps {
+  filename: string;
+  headers: string[];
+  rows: string[][];
+  label?: string;
+  className?: string;
+  variant?: "default" | "small";
+}
+
+export function ExportCSVButton({
+  filename,
+  headers,
+  rows,
+  label = "Exportar CSV",
+  className,
+  variant = "default",
+}: ExportCSVButtonProps) {
+  const handleExport = () => {
+    const csv = generateCSV(headers, rows);
+    downloadCSV(filename, csv);
+  };
+
+  if (variant === "small") {
+    return (
+      <button
+        onClick={handleExport}
+        className={cn(
+          "flex items-center gap-1.5 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-[#1a1f2e] hover:text-zinc-200",
+          className,
+        )}
+      >
+        <Download className="h-3 w-3" />
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleExport}
+      className={cn(
+        "flex items-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-[#1a1f2e] hover:text-zinc-200",
+        className,
+      )}
+    >
+      <Download className="h-4 w-4" />
+      {label}
+    </button>
+  );
+}

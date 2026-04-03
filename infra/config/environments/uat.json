@@ -1,0 +1,33 @@
+{
+  "env": "uat",
+  "gcpProject": "elite-portal-forms",
+  "region": "us-central1",
+  "supabaseProjectRef": "nikrlikwghqcxcjzthmc",
+  "supabaseSchema": "uat",
+  "functionSuffix": "-uat",
+  "gitBranch": "develop",
+  "vercelEnv": "preview",
+  "schedulerEnabled": true,
+  "schedulerJobs": [
+    {
+      "name": "process-whatsapp-job-uat",
+      "function": "whatsapp-scheduler-uat",
+      "schedule": "0 * * * *",
+      "attemptDeadline": "960s"
+    },
+    {
+      "name": "process-followup-job-uat",
+      "function": "followup-scheduler-uat",
+      "schedule": "0 * * * *",
+      "attemptDeadline": "960s"
+    }
+  ],
+  "functions": [
+    { "dir": "send-messages",              "name": "messenger-service-uat",     "entry": "sendMessages",           "timeout": "120s" },
+    { "dir": "sync-leads",                 "name": "sync-elite-leads-uat",      "entry": "syncLeads",              "timeout": "120s" },
+    { "dir": "qualify-lead",               "name": "lead-qualifier-uat",        "entry": "qualifyLead",            "timeout": "120s" },
+    { "dir": "send-whatsapp",              "name": "send-whatsapp-uat",         "entry": "sendWhatsApp",           "timeout": "120s" },
+    { "dir": "process-pending-whatsapp",   "name": "whatsapp-scheduler-uat",    "entry": "processPendingWhatsApp", "timeout": "900s" },
+    { "dir": "process-followup-whatsapp",  "name": "followup-scheduler-uat",    "entry": "processFollowupWhatsApp","timeout": "900s" }
+  ]
+}

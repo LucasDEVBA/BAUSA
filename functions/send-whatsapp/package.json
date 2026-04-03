@@ -1,0 +1,12 @@
+{
+  "name": "send-whatsapp",
+  "version": "1.0.0",
+  "description": "Cloud Function - envio de WhatsApp via Z-API para leads qualificados",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  }
+}

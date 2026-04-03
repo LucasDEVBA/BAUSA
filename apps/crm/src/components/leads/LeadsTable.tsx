@@ -1,0 +1,427 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  type ColumnDef,
+  type SortingState,
+  flexRender,
+} from "@tanstack/react-table";
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, MessageCircle, Check, Calendar, Send, Clock, AlertTriangle, X, Users, EyeOff } from "lucide-react";
+import { type Lead, type LeadClassification } from "@/types/lead";
+import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
+import { LeadStatusBadge } from "./LeadStatusBadge";
+import { LeadFullDetail } from "./LeadFullDetail";
+import { formatRelativeTime, formatInvestmentRange, formatPhone } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+interface LeadsTableProps {
+  leads: Lead[];
+}
+
+const CLASSIFICATION_FILTERS: Array<{ label: string; value: LeadClassification | "ALL" }> = [
+  { label: "Todos", value: "ALL" },
+  { label: "Quente", value: "QUENTE" },
+  { label: "Morno", value: "MORNO" },
+  { label: "Frio", value: "FRIO" },
+];
+
+function SortIcon({ isSorted }: { isSorted: false | "asc" | "desc" }) {
+  if (isSorted === "asc") return <ArrowUp className="h-3 w-3" />;
+  if (isSorted === "desc") return <ArrowDown className="h-3 w-3" />;
+  return <ArrowUpDown className="h-3 w-3 opacity-40" />;
+}
+
+export function LeadsTable({ leads }: LeadsTableProps) {
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "submitted_at", desc: true },
+  ]);
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [classificationFilter, setClassificationFilter] = useState<LeadClassification | "ALL">("ALL");
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(new Set());
+  const [linkedSiblings, setLinkedSiblings] = useState<Set<string>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("crm_linked_siblings");
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+      } catch { return new Set(); }
+    }
+    return new Set();
+  });
+  const [openDuplicatePopover, setOpenDuplicatePopover] = useState<string | null>(null);
+
+  const filteredLeads = useMemo(() => {
+    if (classificationFilter === "ALL") return leads;
+    return leads.filter((l) => l.qualification_classification === classificationFilter);
+  }, [leads, classificationFilter]);
+
+  const columns = useMemo<ColumnDef<Lead>[]>(
+    () => [
+      {
+        accessorKey: "athlete_name",
+        header: "Atleta",
+        cell: ({ row }) => {
+          const lead = row.original;
+          return (
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-zinc-700 to-zinc-800 text-[10px] font-bold text-zinc-300">
+                {lead.athlete_name
+                  .split(" ")
+                  .slice(0, 2)
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()}
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-medium text-zinc-100">{lead.athlete_name}</p>
+                  {lead.possible_duplicate && !dismissedDuplicates.has(lead.id) && !linkedSiblings.has(lead.id) && (
+                    <span className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenDuplicatePopover(openDuplicatePopover === lead.id ? null : lead.id);
+                        }}
+                        className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400 hover:bg-amber-500/20 transition-colors"
+                      >
+                        <AlertTriangle className="h-2.5 w-2.5" />
+                        Duplicata?
+                      </button>
+                      {openDuplicatePopover === lead.id && (
+                        <div
+                          className="absolute left-0 top-full z-30 mt-1 w-52 rounded-lg border border-[#1e2130] bg-[#0f1117] shadow-xl"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => {
+                              setDismissedDuplicates((prev) => new Set([...prev, lead.id]));
+                              setOpenDuplicatePopover(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 transition-colors rounded-t-lg"
+                          >
+                            <EyeOff className="h-3.5 w-3.5 text-zinc-500" />
+                            Ignorar
+                          </button>
+                          <button
+                            onClick={() => {
+                              const updated = new Set([...linkedSiblings, lead.id]);
+                              setLinkedSiblings(updated);
+                              try { localStorage.setItem("crm_linked_siblings", JSON.stringify([...updated])); } catch { /* noop */ }
+                              setOpenDuplicatePopover(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 transition-colors border-t border-[#1e2130]"
+                          >
+                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            E o mesmo lead
+                          </button>
+                          <button
+                            onClick={() => {
+                              toast.success("Vinculado como irmao");
+                              setOpenDuplicatePopover(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 transition-colors border-t border-[#1e2130] rounded-b-lg"
+                          >
+                            <Users className="h-3.5 w-3.5 text-indigo-400" />
+                            Novo atleta, mesma familia
+                          </button>
+                        </div>
+                      )}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-zinc-500">{lead.email}</p>
+              </div>
+            </div>
+          );
+        },
+        size: 220,
+      },
+      {
+        accessorKey: "qualification_classification",
+        header: "Classificação",
+        cell: ({ getValue }) => (
+          <LeadStatusBadge
+            classification={getValue() as LeadClassification | null}
+          />
+        ),
+        size: 110,
+      },
+      {
+        accessorKey: "investment_range",
+        header: "Investimento",
+        cell: ({ getValue }) => {
+          const v = getValue() as string | null;
+          return (
+            <span className="text-sm text-zinc-300">
+              {v ? formatInvestmentRange(v) : "—"}
+            </span>
+          );
+        },
+        size: 170,
+      },
+      {
+        accessorKey: "position",
+        header: "Posição",
+        cell: ({ getValue }) => (
+          <span className="text-sm text-zinc-400">
+            {(getValue() as string | null) ?? "—"}
+          </span>
+        ),
+        size: 130,
+      },
+      {
+        id: "location",
+        header: "Local",
+        accessorFn: (row) => row.address_state ?? row.school_city_state,
+        cell: ({ getValue }) => (
+          <span className="text-sm text-zinc-400">
+            {(getValue() as string | null) ?? "—"}
+          </span>
+        ),
+        size: 90,
+      },
+      {
+        id: "comunicacao",
+        header: "Comunicação",
+        accessorFn: (row) => {
+          if (row.meeting_scheduled) return "reuniao";
+          if (row.followup_2_sent_at) return "followup_2";
+          if (row.followup_1_sent_at) return "followup_1";
+          if (row.whatsapp_sent_at) return "whatsapp";
+          return "pendente";
+        },
+        cell: ({ row }) => {
+          const lead = row.original;
+          if (lead.meeting_scheduled) {
+            return (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+                <Calendar className="h-3.5 w-3.5" />
+                Reunião
+              </div>
+            );
+          }
+          if (lead.followup_2_sent_at) {
+            return (
+              <div className="flex items-center gap-1.5 text-xs text-amber-400 font-medium">
+                <MessageCircle className="h-3.5 w-3.5" />
+                Follow-up 2
+              </div>
+            );
+          }
+          if (lead.followup_1_sent_at) {
+            return (
+              <div className="flex items-center gap-1.5 text-xs text-amber-400 font-medium">
+                <MessageCircle className="h-3.5 w-3.5" />
+                Follow-up 1
+              </div>
+            );
+          }
+          if (lead.whatsapp_sent_at) {
+            return (
+              <div className="flex items-center gap-1.5 text-xs text-blue-400 font-medium">
+                <Send className="h-3.5 w-3.5" />
+                Enviado
+              </div>
+            );
+          }
+          return (
+            <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <Clock className="h-3.5 w-3.5" />
+              Pendente
+            </div>
+          );
+        },
+        size: 120,
+      },
+      {
+        id: "pipeline",
+        header: "Pipeline",
+        accessorFn: (row) => row.pipeline_stage ?? "",
+        cell: ({ row }) => {
+          const lead = row.original;
+          if (!lead.is_in_pipeline) {
+            return <span className="text-xs text-zinc-600">—</span>;
+          }
+          const stage = lead.pipeline_stage as DealStage | null;
+          const config = stage ? DEAL_STAGE_CONFIG[stage] : null;
+          const label = config?.shortLabel ?? "No Pipeline";
+          return (
+            <span className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium",
+              config
+                ? "bg-indigo-500/10 text-indigo-300 border border-indigo-500/20"
+                : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20",
+            )}>
+              {config && (
+                <span className={cn("h-1.5 w-1.5 rounded-full", config.dotColor)} />
+              )}
+              {label}
+            </span>
+          );
+        },
+        size: 140,
+      },
+      {
+        accessorKey: "submitted_at",
+        header: "Recebido",
+        cell: ({ getValue }) => (
+          <span className="text-xs text-zinc-500">
+            {formatRelativeTime(getValue() as string)}
+          </span>
+        ),
+        size: 100,
+      },
+    ],
+    []
+  );
+
+  const table = useReactTable({
+    data: filteredLeads,
+    columns,
+    state: { sorting, globalFilter },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 10 } },
+  });
+
+  return (
+    <>
+      {/* Filtros */}
+      <div className="mb-4 flex items-center gap-3">
+        {/* Search */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+          <input
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            placeholder="Buscar por nome, email..."
+            className="w-full rounded-lg border border-[#1e2130] bg-[#141720] py-2 pl-9 pr-4 text-sm text-zinc-200 placeholder-zinc-500 outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+          />
+        </div>
+
+        {/* Filtro por classificação */}
+        <div className="flex rounded-lg border border-[#1e2130] bg-[#141720] p-0.5">
+          {CLASSIFICATION_FILTERS.map((filter) => (
+            <button
+              key={filter.value}
+              onClick={() => setClassificationFilter(filter.value)}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                classificationFilter === filter.value
+                  ? "bg-indigo-600/30 text-indigo-300"
+                  : "text-zinc-500 hover:text-zinc-300"
+              )}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="ml-auto text-xs text-zinc-500">
+          {table.getFilteredRowModel().rows.length} leads
+        </div>
+      </div>
+
+      {/* Tabela */}
+      <div className="overflow-hidden rounded-xl border border-[#1e2130] bg-[#141720]">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[#1e2130]">
+                {table.getHeaderGroups().map((headerGroup) =>
+                  headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      onClick={header.column.getToggleSortingHandler()}
+                      style={{ width: header.getSize() }}
+                      className={cn(
+                        "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500",
+                        header.column.getCanSort() &&
+                          "cursor-pointer select-none hover:text-zinc-300"
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <SortIcon isSorted={header.column.getIsSorted()} />
+                        )}
+                      </div>
+                    </th>
+                  ))
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.map((row, i) => (
+                <tr
+                  key={row.id}
+                  onClick={() => setSelectedLead(row.original)}
+                  className={cn(
+                    "cursor-pointer border-b border-[#1e2130] transition-colors last:border-0 hover:bg-white/[0.03]",
+                    i % 2 === 0 ? "" : "bg-white/[0.01]"
+                  )}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-4 py-3">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {table.getRowModel().rows.length === 0 && (
+                <tr>
+                  <td colSpan={columns.length} className="py-12 text-center text-sm text-zinc-500">
+                    Nenhum lead encontrado
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Paginação */}
+        <div className="flex items-center justify-between border-t border-[#1e2130] px-4 py-3">
+          <p className="text-xs text-zinc-500">
+            Página {table.getState().pagination.pageIndex + 1} de{" "}
+            {table.getPageCount()}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/10 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/10 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Full-screen Detail */}
+      {selectedLead && (
+        <LeadFullDetail
+          key={selectedLead.id}
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+        />
+      )}
+    </>
+  );
+}

@@ -1,0 +1,452 @@
+// ─── Fonte da verdade — Português Brasileiro ──────────────────────
+export const pt = {
+  header: {
+    contact: "Fale Conosco",
+    protectedData: "Dados protegidos",
+  },
+
+  form: {
+    stage1Badge: "Etapa 1",
+    stage2Badge: "Etapa 2",
+    stageOf: "de",
+    complete: "% completo",
+    optional: "opcional",
+    selectPlaceholder: "Selecione uma opção",
+
+    welcome: {
+      badge: "Avaliação Estratégica",
+      title1: "Projetos de vida exigem",
+      title2: "critério e direção.",
+      line1: "A Bolsa Atleta USA conduz projetos de vida dentro do sistema educacional esportivo dos Estados Unidos, com acompanhamento contínuo da High School à universidade, e além.",
+      line2: "Trabalhamos com um grupo seleto por ciclo, assegurando proximidade e responsabilidade compatíveis com o que está em jogo:",
+      line2Bold: "o futuro de um jovem.",
+      line3: "Cada candidatura é analisada individualmente, considerando momento, visão familiar e potencial de acesso a oportunidades de excelência.",
+      line4: "Candidaturas alinhadas são convidadas para uma conversa estratégica com o fundador da Bolsa Atleta USA.",
+      cta: "Prosseguir para Análise Estratégica",
+      footer: "Suas informações são confidenciais e utilizadas somente para esta avaliação.",
+    },
+
+    step1: {
+      header: "Informações Iniciais",
+      name: { label: "Nome completo do(a) atleta", placeholder: "Nome completo" },
+      birth: { label: "Data de Nascimento" },
+      whatsapp: { label: "WhatsApp", placeholder: "(11) 99999-9999" },
+      schoolYear: {
+        label: "Série / Ano atual",
+        placeholder: "Selecione sua série",
+        opt_before_7th:  "Anterior ao 7º Ano",
+        opt_8th:         "8º Ano — Ensino Fundamental",
+        opt_9th:         "9º Ano — Ensino Fundamental",
+        opt_hs1:         "1º Ano — Ensino Médio",
+        opt_hs2:         "2º Ano — Ensino Médio",
+        opt_hs3:         "3º Ano — Ensino Médio",
+        opt_grad_last:   "Concluí o Ensino Médio no último ano",
+        opt_grad_2plus:  "Concluí o Ensino Médio há mais de dois anos",
+      },
+    },
+
+    step2: {
+      header: "Base Educacional Atual",
+      school: { label: "Nome da escola", placeholder: "Nome da escola" },
+      cityState: { label: "Cidade / Estado", placeholder: "Ex: São Paulo, SP" },
+      educationModel: {
+        label: "Modelo educacional",
+        bilingual: "Bilíngue",
+        international: "Internacional",
+        traditional: "Tradicional",
+        other: "Outro",
+      },
+    },
+
+    step3: {
+      header: "Trajetória Esportiva",
+      position: { label: "Posição", placeholder: "Ex: Meio-campista" },
+      clubs: { label: "Clube atual e histórico de equipes", placeholder: "Descreva seu clube atual e clubes anteriores..." },
+      achievements: { label: "Principais conquistas", placeholder: "Campeonatos, títulos, convocações..." },
+      instagram: { label: "Instagram", placeholder: "@usuario" },
+      video: { label: "Link para vídeo de jogo ou highlights do atleta", placeholder: "https://youtube.com/...", helper: "YouTube, Vimeo ou similar" },
+    },
+
+    step4: {
+      header: "Momento de Início",
+      question: "Quando a família pretende iniciar o projeto estruturado no sistema esportivo educacional americano?",
+      nextYear: "Próximo ano letivo",
+      twoYears: "Em até 2 anos",
+      exploring: "Apenas avaliando possibilidades",
+      undefined: "Ainda sem definição",
+    },
+
+    step5: {
+      header: "Direção do Projeto",
+      question: "Qual é a principal prioridade da família neste projeto?",
+      academic: "Formação acadêmica de excelência",
+      university: "Planejamento universitário estruturado",
+      sports: "Desenvolvimento esportivo consistente",
+      human: "Formação humana com visão de longo prazo",
+      integrated: "Integração entre todos os pilares",
+    },
+
+    stage2: {
+      badge: "Etapa 2 — Leitura Estratégica",
+      title1: "Alinhamento",
+      title2: "do Perfil",
+      line1: "Nesta etapa aprofundamos a compreensão do jovem e da estrutura familiar que sustenta essa decisão.",
+      line2: "Cada resposta contribui para organizar a direção com segurança estratégica, alinhando escolhas ao momento do jovem e à visão de longo prazo da família.",
+      cta: "Prosseguir",
+    },
+
+    step7: {
+      header: "Base Acadêmica",
+      performance: {
+        label: "Desempenho acadêmico atual",
+        high: "Alto e consistente",
+        good: "Bom com potencial de evolução",
+        average: "Mediano, mas comprometido",
+        needs: "Necessita redirecionamento acadêmico",
+      },
+      english: {
+        label: "Nível atual de inglês",
+        fluent: "Fluente",
+        advanced: "Avançado",
+        intermediate: "Intermediário",
+        basic: "Básico",
+      },
+    },
+
+    step8: {
+      header: "Perfil Comportamental",
+      question: "Como você percebe o estágio atual do jovem em relação a uma experiência nos Estados Unidos?",
+      ready: "Preparado para avançar",
+      interested: "Interessado, com necessidade de orientação",
+      exploring: "Está conhecendo melhor essa possibilidade",
+    },
+
+    step9: {
+      header: "Comprometimento do Jovem",
+      question: "O jovem demonstra disposição real para assumir um projeto estruturado fora do país?",
+      initiative: "Sim, demonstra iniciativa",
+      guidance: "Sim, mas precisa de direcionamento",
+      maturing: "Ainda em processo de maturação",
+    },
+
+    step10: {
+      header: "Estrutura da Decisão Familiar",
+      question: "Em que momento está a decisão da sua família em relação a essa oportunidade nos Estados Unidos?",
+      mature: "É uma decisão amadurecida ao longo do tempo, já integrada ao planejamento familiar",
+      recent: "É uma decisão recente, mas com intenção clara de avançar",
+      exploring: "Estamos conhecendo melhor essa possibilidade antes de decidir",
+    },
+
+    step11: {
+      header: "Estrutura Estratégica",
+      desc1: "Investimento anual (USD) para uma estrutura completa: educação, moradia, plano de saúde e desenvolvimento esportivo.",
+      desc2: "Projetos com maior estrutura oferecem maior controle estratégico e acesso a ambientes mais seletivos.",
+      question: "Qual o investimento anual (USD) que sua família está preparada para alocar nesse projeto nos EUA?",
+      helper: "Valores estimados em USD por ano.",
+      footer: "Informação utilizada exclusivamente para alinhamento estratégico.",
+      range1: "US$ 15.000 a US$ 20.000",
+      range2: "US$ 20.000 a US$ 30.000",
+      range3: "US$ 30.000 a US$ 40.000",
+      range4: "US$ 40.000 a US$ 50.000",
+      range5: "US$ 50.000 a US$ 70.000",
+      range6: "Acima de US$ 70.000",
+    },
+
+    step12: {
+      header: "Responsável Legal",
+      name: { label: "Nome completo", placeholder: "Nome completo" },
+      profession: { label: "Profissão", placeholder: "Profissão" },
+      phone: { label: "Telefone / WhatsApp" },
+      email: { label: "E-mail", placeholder: "email@exemplo.com" },
+    },
+
+    step13: {
+      header: "Endereço Residencial",
+      country: { label: "País" },
+      cep: { label: "CEP", placeholder: "00000-000", searching: "Buscando endereço..." },
+      street: { label: "Rua / Avenida", placeholder: "Nome da rua" },
+      number: { label: "Número", placeholder: "123" },
+      complement: { label: "Complemento", placeholder: "Apto 45" },
+      neighborhood: { label: "Bairro", placeholder: "Nome do bairro" },
+      city: { label: "Cidade", placeholder: "Cidade" },
+      state: { label: "UF", placeholder: "SP" },
+      postalCode: { label: "Código Postal", placeholder: "Ex: 90210" },
+      address: { label: "Endereço", placeholder: "Rua / Avenida" },
+    },
+
+    nav: {
+      back: "Voltar",
+      confirm: "Confirmar",
+      proceed: "Prosseguir para Análise Estratégica Completa",
+      submit: "Finalizar",
+      submitting: "Enviando...",
+    },
+
+    success: {
+      title: "Candidatura concluída.",
+      line1: "Nossa equipe avaliará o seu perfil e entrará em contato em até 48 horas.",
+      line2: "Boa sorte.",
+      team: "Equipe Bolsa Atleta USA",
+      edit: "Editar sua resposta",
+    },
+
+    error: {
+      title: "Erro ao enviar",
+    },
+
+    toast: {
+      title: "Candidatura concluída!",
+      description: "Nossa equipe avaliará o seu perfil e entrará em contato em até 48 horas.",
+    },
+
+    // Mapa de erros Zod (PT → tradução) — chave = mensagem original em PT
+    errors: {
+      "Nome é obrigatório": "Nome é obrigatório",
+      "Data de nascimento é obrigatória": "Data de nascimento é obrigatória",
+      "WhatsApp é obrigatório": "WhatsApp é obrigatório",
+      "Série é obrigatória": "Série é obrigatória",
+      "Escola é obrigatória": "Escola é obrigatória",
+      "Cidade/Estado é obrigatório": "Cidade/Estado é obrigatório",
+      "Modelo educacional é obrigatório": "Modelo educacional é obrigatório",
+      "Selecione uma opção": "Selecione uma opção",
+      "Selecione uma faixa": "Selecione uma faixa",
+      "Posição é obrigatória": "Posição é obrigatória",
+      "Histórico é obrigatório": "Histórico é obrigatório",
+      "URL inválida": "URL inválida",
+      "Nível atual de inglês": "Nível atual de inglês é obrigatório",
+      "Profissão é obrigatória": "Profissão é obrigatória",
+      "Telefone é obrigatório": "Telefone é obrigatório",
+      "E-mail inválido": "E-mail inválido",
+      "E-mail é obrigatório": "E-mail é obrigatório",
+      "CEP inválido": "CEP inválido",
+      "Rua é obrigatória": "Rua é obrigatória",
+      "Número é obrigatório": "Número é obrigatório",
+      "Bairro é obrigatório": "Bairro é obrigatório",
+      "Cidade é obrigatória": "Cidade é obrigatória",
+      "Estado é obrigatório": "Estado é obrigatório",
+      "País é obrigatório": "País é obrigatório",
+    },
+  },
+  landing: {
+    brandName: "Bolsa Atleta USA",
+    eeiName: "Educação Esportiva Inteligente®",
+    common: {
+      swipeHint: "Deslize para ver mais",
+    },
+    hero: {
+      activeTracking: "Acompanhamento ativo em cada etapa",
+      headline1: "Educação Esportiva",
+      headline2: "Inteligente®",
+      sub1: "Projetos de vida guiados da High School à universidade,",
+      sub2: "com critério, estratégia e visão de longo prazo",
+      sub3: "dentro do sistema educacional esportivo dos Estados Unidos.",
+      cta: "Iniciar avaliação estratégica",
+      learnMore: "Saiba mais",
+      imgAlt: "Campus universitário americano",
+    },
+    whatIsEEI: {
+      badge: "CONCEITO EXCLUSIVO",
+      title1: "O que é Educação",
+      title2: "Esportiva Inteligente®",
+      p1Before: "A ",
+      p1After: "é um modelo exclusivo de formação humana guiada que integra educação e esporte em decisões bem orientadas dentro do sistema educacional esportivo dos Estados Unidos.",
+      p2Before: "Ela organiza escolhas acadêmicas, esportivas e institucionais com",
+      p2Bold: "critério, segurança e visão de longo prazo",
+      p2After: ", sempre a serviço do desenvolvimento humano.",
+      criteria: "Critério",
+      guidance: "Orientação",
+      vision: "Visão",
+    },
+    safeMethod: {
+      badge: "O MÉTODO",
+      subtitle: "O método que sustenta a Educação Esportiva Inteligente®",
+      heading: "Método",
+      criteriaLine: "Critério antes da escolha.",
+      desc1: "O Método S.A.F.E.® é a base de cada projeto.",
+      desc2: "Ele estrutura decisões a partir de quatro pilares:",
+      pillars: {
+        s: { title: "Singularidade", description: "O jovem e sua família no centro da decisão, com alinhamento entre valores, expectativas e visão de futuro." },
+        a: { title: "Acadêmico", description: "Nível de inglês, histórico escolar e ambições universitárias." },
+        f: { title: "Financeiro", description: "Viabilidade, previsibilidade e coerência do investimento." },
+        e: { title: "Esporte", description: "Sonhos esportivos, ambiente adequado e visibilidade real no sistema universitário." },
+      },
+      closingBefore: "Cada projeto nasce do alinhamento entre",
+      closingBold: "realidade, potencial e visão de futuro",
+      closingAfter: ".",
+      cta: "Iniciar Avaliação",
+    },
+    testimonials: {
+      badge: "DEPOIMENTOS DE ATLETAS",
+      title: "Os novos líderes globais estão sendo formados na",
+      subtitle: "Aqui não guiamos apenas atletas, formamos protagonistas preparados para liderar o próprio destino.",
+      ageSuffix: "anos",
+      swipeHint: "Deslize para ver mais",
+      videoTitle: "Depoimento",
+    },
+    whyHighSchool: {
+      badge: "POR QUE HIGH SCHOOL",
+      tagline: "Onde a Educação Esportiva Inteligente® acontece",
+      title1: "Prezamos pela",
+      title2: "excelência",
+      subtitle: "Por isso, a High School é onde potencializamos o acesso universitário e construímos o futuro de cada jovem.",
+      p1Before: "É nesse ambiente que a ",
+      p1After: "se materializa: formação acadêmica sólida, desenvolvimento esportivo estruturado, adaptação real ao sistema educacional americano e visibilidade qualificada.",
+      p2Before: "Aqui construímos um histórico comprovado e valorizado pelas",
+      p2Bold: "universidades de elite",
+      p2After: "acumulando credenciais sólidas, exposição legítima e relacionamento institucional consistente, o que eleva de forma concreta o valor do atleta no processo de recrutamento.",
+      highlights: {
+        academic: {
+          title: "Formação Acadêmica Sólida",
+          topic0: "Construção de histórico acadêmico competitivo (GPA estratégico)",
+          topic1: "Preparação estruturada para SAT e exigências universitárias",
+          topic2: "Inserção em High Schools reconhecidas e valorizadas pelas universidades de elite",
+        },
+        athletic: {
+          title: "Desenvolvimento Esportivo",
+          topic0: "Adaptação ao padrão de jogo futebolístico americano",
+          topic1: "Inserção em programas com estrutura validada pelo meio NCAA",
+          topic2: "Ter acesso a algumas das estruturas de desenvolvimento esportivo mais avançadas do mundo.",
+        },
+        adaptation: {
+          title: "Adaptação Real",
+          topic0: "Imersão completa no sistema educacional americano",
+          topic1: "Aumento concreto da atratividade no processo de recrutamento",
+          topic2: "Histórico validado dentro do ambiente universitário",
+        },
+        visibility: {
+          title: "Visibilidade Qualificada",
+          subtitle: "96% das bolsas universitárias nos Estados Unidos são concedidas somente após avaliação presencial do atleta pelo treinador",
+          topic0: "Inserção direta no ambiente onde treinadores universitários tomam decisões",
+          topic1: "Presença em competições observadas e valorizadas pelo meio universitário",
+        },
+      },
+      swipeHint: "Deslize para ver mais",
+    },
+    howWeWork: {
+      badge: "COMO ATUAMOS",
+      title: "Como atuamos",
+      subtitle1: "Atuamos com leitura criteriosa, direcionamento institucional e acompanhamento contínuo.",
+      subtitle2: "Cada decisão é guiada pelo",
+      methodName: "Método S.A.F.E.®",
+      subtitle3: ", com presença ativa da equipe ao longo de toda a jornada.",
+      philosophy: {
+        pill: "FILOSOFIA",
+        line1: "Nada é isolado.",
+        line2: "Tudo é integrado.",
+      },
+      card1: {
+        tagline: "PARA QUEM É",
+        title: "Para quem faz sentido",
+        bodyBefore: "A Educação Esportiva Inteligente® é destinada a",
+        bodyBold: "famílias que valorizam critério, visão de longo prazo e decisões bem orientadas",
+        bodyAfter: ", e que compreendem que projetos de vida exigem presença, tempo e responsabilidade.",
+        footer: "Famílias comprometidas",
+      },
+      card2: {
+        tagline: "ATUAÇÃO SELETIVA",
+        title: "Número limitado",
+        bodyBefore: "Atuamos com",
+        bodyBold: "número limitado de famílias por ciclo",
+        bodyAfter: ", garantindo acompanhamento próximo e decisões bem orientadas em cada etapa.",
+        footerLabel: "Acompanhamento próximo",
+        footerBadge: "EXCLUSIVO",
+      },
+    },
+    founder: {
+      badge: "Autoridade",
+      title1: "Guiado por quem",
+      title2: "domina o sistema",
+      credentials: {
+        safe: "Método S.A.F.E.®",
+        eei: "Educação Esportiva Inteligente",
+        presence: "Presença nos EUA",
+      },
+      lead: "A Educação Esportiva Inteligente® nasce da",
+      leadBold: "prática",
+      p1: "construiu sua autoridade vivendo e operando dentro do sistema educacional-esportivo americano, como estudante-atleta, bolsista integral e profissional atuante em admissões e recrutamento universitário.",
+      p2Before: "Hoje, conduz projetos de vida completos com foco em",
+      p2Bold1: "segurança decisória",
+      p2Mid: ",",
+      p2Bold2: "desenvolvimento humano",
+      p2And: "e",
+      p2Bold3: "coerência em cada etapa",
+      p2End: ".",
+      highlightBoxBefore: "À frente da ",
+      highlightBoxAfter: "lidera um time multidisciplinar que acompanha ativamente cada jovem, entregando projetos personalizados e alinhados às exigências do sistema educacional americano.",
+      recognition1: "Reconhecido por diretores, escolas",
+      recognition2: "e treinadores universitários.",
+      cta: "Agende uma reunião",
+      founderTitle: "Fundador & Estrategista-Chefe",
+    },
+    institutionalRecognition: {
+      badge: "RECONHECIMENTO INSTITUCIONAL",
+      title1: "Acesso direto às",
+      title2: "instituições de elite",
+      subtitle: "Tours exclusivos e relacionamento direto com treinadores e diretores de admissão",
+      typeUniversity: "UNIVERSIDADE",
+      typePrepSchool: "PREP SCHOOL",
+      photoAltPrefix: "Leandro Ribeiro em",
+      bottomNote: "E muitas outras instituições parceiras em todo o território americano.",
+    },
+    parentTestimonials: {
+      badge: "Depoimentos dos Pais",
+      title1: "Famílias que escolheram",
+      title2: "excelência",
+      subtitle: "Depoimentos reais de quem confiou na Bolsa Atleta USA para direcionar o futuro dos seus filhos.",
+      swipeHint: "Deslize para ver mais",
+    },
+    universityCarousel: {
+      badge: "Instituições Parceiras",
+      title1: "Acesso às instituições mais",
+      title2: "prestigiadas do mundo",
+      swipeHint: "Deslize para ver mais",
+    },
+    finalCTA: {
+      badge: "EDUCAÇÃO ESPORTIVA INTELIGENTE®",
+      title1: "Para quem entende o",
+      title2: "valor do caminho",
+      cta: "Iniciar uma conversa",
+      note: "Acompanhamento ativo da equipe em cada etapa da jornada.",
+    },
+    footer: {
+      copyright: "© 2026 Bolsa Atleta USA. Todos os direitos reservados.",
+    },
+  },
+
+  links: {
+    brand: "Educação Esportiva Inteligente®️",
+    subtitle: "Projetos de vida estruturados para jovens atletas no sistema educacional americano.",
+    limitedSpots: "Número limitado de famílias por ciclo",
+    officialSite: "Site Oficial",
+    card1: {
+      label: "Exclusive",
+      title1: "Avaliação",
+      title2: "Estratégica",
+      description: "Conversa individual com o fundador",
+      cta: "Solicitar",
+    },
+    card2: {
+      title: "Submeter Perfil do Atleta",
+      description: "Primeiro passo para entrar no processo seletivo do Método S.A.F.E.®️",
+    },
+    card3: {
+      title: "Conversa Direta",
+      description: "Tire dúvidas pontuais com um assessor.",
+      cta: "Iniciar Chat",
+    },
+    copyright: "© 2026 Bolsa Atleta USA",
+  },
+} as const;
+
+// Tipo recursivo que preserva a estrutura mas aceita qualquer string como valor
+type DeepStringify<T> = {
+  [K in keyof T]: T[K] extends string
+    ? string
+    : T[K] extends Record<string, unknown>
+      ? DeepStringify<T[K]>
+      : T[K];
+};
+
+export type Translations = DeepStringify<typeof pt>;
+
+export default pt;

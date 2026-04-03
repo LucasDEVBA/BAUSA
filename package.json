@@ -1,0 +1,19 @@
+{
+  "name": "bolsa-atleta-usa",
+  "private": true,
+  "scripts": {
+    "dev:web": "turbo dev --filter=@bolsa-atleta/web",
+    "dev:crm": "turbo dev --filter=@bolsa-atleta/crm",
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "build:web": "turbo build --filter=@bolsa-atleta/web",
+    "build:crm": "turbo build --filter=@bolsa-atleta/crm",
+    "lint": "turbo lint",
+    "clean": "turbo clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0"
+  },
+  "packageManager": "pnpm@10.30.3"
+}

@@ -1,0 +1,607 @@
+/* ============================================================
+   BAUSA Elite — CRM Identity System
+   ============================================================
+   "Institutional Elegance meets Sports Energy"
+
+   A premium CRM visual identity for Bolsa Atleta USA.
+   Every token, every class, every detail builds the same story:
+   trust, precision, and elite performance.
+   ============================================================ */
+
+:root {
+  /* ══════════════════════════════════════════════════════════
+     1. SURFACES
+     ══════════════════════════════════════════════════════════ */
+  --crm-bg:              #f3f5fa;
+  --crm-bg-subtle:       #eaecf5;
+  --crm-surface:         #ffffff;
+  --crm-surface-hover:   #fafbfd;
+  --crm-surface-raised:  #ffffff;
+  --crm-surface-overlay: #ffffff;
+  --crm-sidebar:         #ffffff;
+
+  /* ══════════════════════════════════════════════════════════
+     2. TEXT HIERARCHY
+     ══════════════════════════════════════════════════════════ */
+  --crm-text-primary:    #0c1527;
+  --crm-text-secondary:  #3b4a68;
+  --crm-text-tertiary:   #697b9a;
+  --crm-text-disabled:   #a8b5cc;
+  --crm-text-on-brand:   #ffffff;
+  --crm-text-link:       #3558ad;
+  --crm-text-link-hover: #1e3389;
+
+  /* ══════════════════════════════════════════════════════════
+     3. BRAND — GRADIENT ACCENT SYSTEM (DNA Visual)
+     ══════════════════════════════════════════════════════════ */
+
+  /* BAU Blue */
+  --crm-accent-50:  #eff3ff;  --crm-accent-100: #dce5fe;
+  --crm-accent-200: #c0cffd;  --crm-accent-300: #94aefb;
+  --crm-accent-400: #6b8fd8;  --crm-accent-500: #476bc0;
+  --crm-accent-600: #3558ad;  --crm-accent-700: #2a46a0;
+  --crm-accent-800: #1e3389;  --crm-accent-900: #142464;
+
+  --crm-accent-text:     #3558ad;
+  --crm-accent-bg:       rgba(53, 88, 173, 0.06);
+  --crm-accent-bg-hover: rgba(53, 88, 173, 0.10);
+  --crm-accent-border:   rgba(53, 88, 173, 0.16);
+
+  /* BAU Burgundy */
+  --crm-burgundy:        #8e1824;
+  --crm-burgundy-light:  #c04753;
+  --crm-burgundy-bg:     rgba(142, 24, 36, 0.05);
+  --crm-burgundy-border: rgba(142, 24, 36, 0.12);
+
+  /* BAU Gold */
+  --crm-gold:        #9a7010;
+  --crm-gold-light:  #dca51a;
+  --crm-gold-bg:     rgba(154, 112, 16, 0.05);
+  --crm-gold-border: rgba(154, 112, 16, 0.12);
+
+  /* ── Brand Gradients ── */
+  --crm-gradient-brand:  linear-gradient(135deg, #8e1824 0%, #476bc0 100%);
+  --crm-gradient-accent: linear-gradient(135deg, #476bc0 0%, #2a46a0 100%);
+  --crm-gradient-warm:   linear-gradient(135deg, #c04753 0%, #dca51a 100%);
+  --crm-gradient-cool:   linear-gradient(135deg, #476bc0 0%, #34d399 100%);
+
+  /* ══════════════════════════════════════════════════════════
+     4. SEMANTIC COLORS
+     ══════════════════════════════════════════════════════════ */
+  --crm-success:        #047857;
+  --crm-success-subtle: rgba(4, 120, 87, 0.06);
+  --crm-success-border: rgba(4, 120, 87, 0.14);
+  --crm-success-text:   #047857;
+  --crm-success-tint:   #ecfdf5;
+
+  --crm-warning:        #b45309;
+  --crm-warning-subtle: rgba(180, 83, 9, 0.06);
+  --crm-warning-border: rgba(180, 83, 9, 0.14);
+  --crm-warning-text:   #b45309;
+  --crm-warning-tint:   #fffbeb;
+
+  --crm-error:          #b91c1c;
+  --crm-error-subtle:   rgba(185, 28, 28, 0.06);
+  --crm-error-border:   rgba(185, 28, 28, 0.14);
+  --crm-error-text:     #b91c1c;
+  --crm-error-tint:     #fef2f2;
+
+  --crm-info:           #1d4ed8;
+  --crm-info-subtle:    rgba(29, 78, 216, 0.06);
+  --crm-info-border:    rgba(29, 78, 216, 0.14);
+  --crm-info-text:      #1d4ed8;
+  --crm-info-tint:      #eff6ff;
+
+  /* ── Classification aliases ── */
+  --crm-hot:         #047857;  --crm-hot-subtle: rgba(4, 120, 87, 0.06);    --crm-hot-border: rgba(4, 120, 87, 0.18);    --crm-hot-tint: #ecfdf5;
+  --crm-warm:        #b45309;  --crm-warm-subtle: rgba(180, 83, 9, 0.06);   --crm-warm-border: rgba(180, 83, 9, 0.18);   --crm-warm-tint: #fffbeb;
+  --crm-cold:        #1d4ed8;  --crm-cold-subtle: rgba(29, 78, 216, 0.06);  --crm-cold-border: rgba(29, 78, 216, 0.18);  --crm-cold-tint: #eff6ff;
+
+  /* ── Pipeline Stage Colors ── */
+  --crm-stage-lead:                 #697b9a;
+  --crm-stage-reuniao-marcada:      #3b82f6;
+  --crm-stage-reuniao-realizada:    #2563eb;
+  --crm-stage-diagnostico-fit:      #6366f1;
+  --crm-stage-alinhamento:          #4f46e5;
+  --crm-stage-proposta:             #8b5cf6;
+  --crm-stage-followup:             #7c3aed;
+  --crm-stage-negociacao:           #d97706;
+  --crm-stage-contrato-enviado:     #b45309;
+  --crm-stage-contrato-assinado:    #059669;
+  --crm-stage-sinal-pago:          #047857;
+  --crm-stage-admission:           #065f46;
+
+  /* ══════════════════════════════════════════════════════════
+     5. BORDERS
+     ══════════════════════════════════════════════════════════ */
+  --crm-border-subtle:  rgba(12, 21, 39, 0.04);
+  --crm-border:         rgba(12, 21, 39, 0.07);
+  --crm-border-default: rgba(12, 21, 39, 0.10);
+  --crm-border-strong:  rgba(12, 21, 39, 0.14);
+  --crm-border-brand:   rgba(53, 88, 173, 0.20);
+
+  /* ══════════════════════════════════════════════════════════
+     6. NEUTRALS (Navy-tinted)
+     ══════════════════════════════════════════════════════════ */
+  --crm-neutral-0:   #ffffff;  --crm-neutral-50:  #f8f9fc;
+  --crm-neutral-100: #f0f2f7;  --crm-neutral-200: #e2e6ef;
+  --crm-neutral-300: #c8ceda;  --crm-neutral-400: #9aa3b8;
+  --crm-neutral-500: #697b9a;  --crm-neutral-600: #4a5775;
+  --crm-neutral-700: #384563;  --crm-neutral-800: #242f49;
+  --crm-neutral-900: #0e1628;  --crm-neutral-950: #080d1a;
+
+  /* ══════════════════════════════════════════════════════════
+     7. INTERACTIVE STATES
+     ══════════════════════════════════════════════════════════ */
+  --crm-hover-overlay:  rgba(12, 21, 39, 0.03);
+  --crm-active-overlay: rgba(12, 21, 39, 0.06);
+  --crm-disabled-opacity: 0.45;
+  --crm-table-stripe: rgba(12, 21, 39, 0.015);
+
+  /* ══════════════════════════════════════════════════════════
+     8. ELEVATION (Refined light shadows)
+     ══════════════════════════════════════════════════════════ */
+  --crm-shadow-xs:     0 1px 2px rgba(12, 21, 39, 0.04);
+  --crm-shadow-sm:     0 1px 3px rgba(12, 21, 39, 0.05), 0 1px 2px rgba(12, 21, 39, 0.03);
+  --crm-shadow-md:     0 4px 12px rgba(12, 21, 39, 0.07), 0 1px 3px rgba(12, 21, 39, 0.04);
+  --crm-shadow-lg:     0 8px 28px rgba(12, 21, 39, 0.09), 0 2px 6px rgba(12, 21, 39, 0.04);
+  --crm-shadow-xl:     0 20px 48px rgba(12, 21, 39, 0.12), 0 4px 12px rgba(12, 21, 39, 0.04);
+  --crm-shadow-2xl:    0 28px 64px rgba(12, 21, 39, 0.16);
+  --crm-shadow-inner:  inset 0 1px 2px rgba(12, 21, 39, 0.04);
+  --crm-shadow-accent: 0 4px 20px rgba(53, 88, 173, 0.12);
+  --crm-shadow-brand:  0 4px 20px rgba(142, 24, 36, 0.10), 0 2px 8px rgba(71, 107, 192, 0.08);
+
+  /* ══════════════════════════════════════════════════════════
+     9. TYPOGRAPHY
+     ══════════════════════════════════════════════════════════ */
+  --crm-font-sans: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
+  --crm-font-mono: "SF Mono", "Fira Code", monospace;
+
+  --crm-text-2xs: 0.625rem; --crm-text-xs: 0.6875rem; --crm-text-sm: 0.8125rem;
+  --crm-text-base: 0.875rem; --crm-text-md: 1rem; --crm-text-lg: 1.125rem;
+  --crm-text-xl: 1.25rem; --crm-text-2xl: 1.5rem; --crm-text-3xl: 1.75rem; --crm-text-4xl: 2.25rem;
+
+  --crm-weight-normal: 400; --crm-weight-medium: 500;
+  --crm-weight-semibold: 600; --crm-weight-bold: 700;
+
+  --crm-leading-none: 1; --crm-leading-tight: 1.2; --crm-leading-snug: 1.375;
+  --crm-leading-normal: 1.5; --crm-leading-relaxed: 1.625;
+
+  --crm-tracking-tighter: -0.03em; --crm-tracking-tight: -0.02em;
+  --crm-tracking-normal: 0em; --crm-tracking-wide: 0.02em;
+  --crm-tracking-wider: 0.04em; --crm-tracking-widest: 0.08em;
+
+  /* ══════════════════════════════════════════════════════════
+     10. SPACING (8px grid)
+     ══════════════════════════════════════════════════════════ */
+  --crm-space-0: 0; --crm-space-px: 1px; --crm-space-0-5: 0.125rem;
+  --crm-space-1: 0.25rem; --crm-space-1-5: 0.375rem; --crm-space-2: 0.5rem;
+  --crm-space-2-5: 0.625rem; --crm-space-3: 0.75rem; --crm-space-4: 1rem;
+  --crm-space-5: 1.25rem; --crm-space-6: 1.5rem; --crm-space-8: 2rem;
+  --crm-space-10: 2.5rem; --crm-space-12: 3rem; --crm-space-16: 4rem;
+
+  /* ══════════════════════════════════════════════════════════
+     11. SHAPE
+     ══════════════════════════════════════════════════════════ */
+  --crm-radius-xs: 4px; --crm-radius-sm: 6px; --crm-radius-md: 8px;
+  --crm-radius-DEFAULT: 10px; --crm-radius-lg: 12px; --crm-radius-xl: 14px;
+  --crm-radius-2xl: 16px; --crm-radius-3xl: 20px; --crm-radius-full: 9999px;
+
+  /* ══════════════════════════════════════════════════════════
+     12. ANIMATION
+     ══════════════════════════════════════════════════════════ */
+  --crm-duration-instant: 50ms; --crm-duration-fast: 100ms;
+  --crm-duration-base: 150ms; --crm-duration-moderate: 200ms;
+  --crm-duration-slow: 300ms; --crm-duration-slower: 500ms;
+  --crm-ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --crm-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --crm-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --crm-ease-expressive: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ══════════════════════════════════════════════════════════
+     13. LAYOUT
+     ══════════════════════════════════════════════════════════ */
+  --crm-sidebar-width: 240px;
+  --crm-header-height: 60px;
+  --crm-content-padding: 2rem;
+  --crm-card-padding: 1.5rem;
+  --crm-section-gap: 2rem;
+  --crm-card-gap: 1rem;
+
+  --crm-z-base: 0; --crm-z-raised: 1; --crm-z-dropdown: 10;
+  --crm-z-sticky: 20; --crm-z-header: 30; --crm-z-overlay: 40;
+  --crm-z-modal: 50; --crm-z-popover: 60; --crm-z-toast: 70;
+
+  --crm-table-row-height: 48px;
+  --crm-table-header-height: 44px;
+  --crm-table-cell-padding: 1rem;
+  --crm-kanban-column-width: 280px;
+  --crm-kanban-card-gap: 0.5rem;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BASE THEME
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-theme {
+  background: var(--crm-bg);
+  color: var(--crm-text-primary);
+  font-family: var(--crm-font-sans);
+  font-size: var(--crm-text-base);
+  line-height: var(--crm-leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CARD — Glassmorphism light
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-card {
+  background: var(--crm-surface);
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius-2xl);
+  padding: var(--crm-card-padding);
+  box-shadow: var(--crm-shadow-sm);
+  transition:
+    box-shadow var(--crm-duration-moderate) var(--crm-ease-out),
+    border-color var(--crm-duration-moderate) var(--crm-ease-out),
+    transform var(--crm-duration-moderate) var(--crm-ease-out);
+}
+
+.crm-card:hover {
+  border-color: var(--crm-border-strong);
+  box-shadow: var(--crm-shadow-md);
+}
+
+/* Card interactive — clickable, lifts on hover */
+.crm-card-interactive {
+  cursor: pointer;
+}
+.crm-card-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--crm-shadow-lg);
+}
+.crm-card-interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--crm-shadow-sm);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   METRIC CARD TINTS — Color-contextualized KPIs
+   Each variant gets a subtle tinted background + matching icon
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-metric-default { background: var(--crm-surface); }
+.crm-metric-success { background: var(--crm-success-tint); }
+.crm-metric-warning { background: var(--crm-warning-tint); }
+.crm-metric-error   { background: var(--crm-error-tint); }
+.crm-metric-info    { background: var(--crm-info-tint); }
+.crm-metric-accent  { background: var(--crm-accent-50); }
+.crm-metric-hot     { background: var(--crm-hot-tint); }
+.crm-metric-warm    { background: var(--crm-warm-tint); }
+.crm-metric-cold    { background: var(--crm-cold-tint); }
+
+/* ══════════════════════════════════════════════════════════════
+   GLASS — Light frosted header
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-glass {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PAGE HEADER
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-page-title {
+  font-size: var(--crm-text-3xl);
+  font-weight: var(--crm-weight-semibold);
+  color: var(--crm-text-primary);
+  letter-spacing: var(--crm-tracking-tight);
+  line-height: var(--crm-leading-tight);
+}
+
+.crm-page-subtitle {
+  font-size: var(--crm-text-base);
+  color: var(--crm-text-tertiary);
+  margin-top: 0.25rem;
+  line-height: var(--crm-leading-normal);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SECTION LABEL — With gradient underline accent
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-section-label {
+  font-size: var(--crm-text-xs);
+  font-weight: var(--crm-weight-semibold);
+  letter-spacing: var(--crm-tracking-widest);
+  text-transform: uppercase;
+  color: var(--crm-text-secondary);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BADGE SYSTEM — Dot + Text + Tinted background
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--crm-radius-full);
+  font-size: var(--crm-text-xs);
+  font-weight: var(--crm-weight-semibold);
+  line-height: 1;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* Dot element inside badge */
+.crm-badge::before {
+  content: '';
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.crm-badge-success { color: var(--crm-success); background: var(--crm-success-subtle); border-color: var(--crm-success-border); }
+.crm-badge-success::before { background: var(--crm-success); }
+
+.crm-badge-warning { color: var(--crm-warning); background: var(--crm-warning-subtle); border-color: var(--crm-warning-border); }
+.crm-badge-warning::before { background: var(--crm-warning); }
+
+.crm-badge-error { color: var(--crm-error); background: var(--crm-error-subtle); border-color: var(--crm-error-border); }
+.crm-badge-error::before { background: var(--crm-error); }
+
+.crm-badge-info { color: var(--crm-info); background: var(--crm-info-subtle); border-color: var(--crm-info-border); }
+.crm-badge-info::before { background: var(--crm-info); }
+
+.crm-badge-neutral { color: var(--crm-text-secondary); background: var(--crm-neutral-100); border-color: var(--crm-border); }
+.crm-badge-neutral::before { background: var(--crm-neutral-400); }
+
+.crm-badge-accent { color: var(--crm-accent-text); background: var(--crm-accent-bg); border-color: var(--crm-accent-border); }
+.crm-badge-accent::before { background: var(--crm-accent-500); }
+
+/* Badge without dot */
+.crm-badge-no-dot::before { display: none; }
+
+/* ══════════════════════════════════════════════════════════════
+   BUTTONS
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 0.5rem; padding: 0.5rem 1rem;
+  border-radius: var(--crm-radius-lg); font-size: var(--crm-text-sm);
+  font-weight: var(--crm-weight-medium); line-height: 1.2;
+  cursor: pointer; border: 1px solid transparent;
+  white-space: nowrap; user-select: none;
+  transition: all var(--crm-duration-fast) var(--crm-ease-default);
+}
+.crm-btn:disabled { opacity: var(--crm-disabled-opacity); cursor: not-allowed; pointer-events: none; }
+.crm-btn:active:not(:disabled) { transform: scale(0.97); }
+
+.crm-btn-primary {
+  background: var(--crm-gradient-accent);
+  color: var(--crm-text-on-brand);
+  box-shadow: var(--crm-shadow-xs);
+}
+.crm-btn-primary:hover:not(:disabled) {
+  box-shadow: var(--crm-shadow-accent);
+  filter: brightness(1.05);
+}
+
+.crm-btn-brand {
+  background: var(--crm-gradient-brand);
+  color: var(--crm-text-on-brand);
+  font-weight: var(--crm-weight-semibold);
+  box-shadow: var(--crm-shadow-xs);
+}
+.crm-btn-brand:hover:not(:disabled) {
+  box-shadow: var(--crm-shadow-brand);
+  filter: brightness(1.08);
+}
+
+.crm-btn-secondary {
+  background: var(--crm-surface);
+  border-color: var(--crm-border-default);
+  color: var(--crm-text-primary);
+}
+.crm-btn-secondary:hover:not(:disabled) {
+  background: var(--crm-neutral-50);
+  border-color: var(--crm-border-strong);
+  box-shadow: var(--crm-shadow-xs);
+}
+
+.crm-btn-ghost {
+  background: transparent; color: var(--crm-text-secondary);
+}
+.crm-btn-ghost:hover:not(:disabled) {
+  background: var(--crm-hover-overlay); color: var(--crm-text-primary);
+}
+
+.crm-btn-danger {
+  background: transparent; color: var(--crm-error);
+}
+.crm-btn-danger:hover:not(:disabled) { background: var(--crm-error-subtle); }
+
+/* ══════════════════════════════════════════════════════════════
+   INPUTS
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-input {
+  width: 100%; padding: 0.625rem 0.875rem;
+  border-radius: var(--crm-radius-lg);
+  border: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+  color: var(--crm-text-primary);
+  font-size: var(--crm-text-sm);
+  line-height: var(--crm-leading-normal);
+  outline: none;
+  transition: border-color var(--crm-duration-fast), box-shadow var(--crm-duration-fast);
+}
+.crm-input::placeholder { color: var(--crm-text-disabled); }
+.crm-input:hover { border-color: var(--crm-border-strong); }
+.crm-input:focus { border-color: var(--crm-accent-500); box-shadow: 0 0 0 3px var(--crm-accent-bg); }
+.crm-input:disabled { opacity: var(--crm-disabled-opacity); cursor: not-allowed; }
+
+/* ══════════════════════════════════════════════════════════════
+   TABLE SYSTEM
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-table { width: 100%; font-size: var(--crm-text-base); }
+
+.crm-table th {
+  height: var(--crm-table-header-height);
+  padding: 0 var(--crm-table-cell-padding);
+  text-align: left;
+  font-size: var(--crm-text-xs);
+  font-weight: var(--crm-weight-semibold);
+  letter-spacing: var(--crm-tracking-wider);
+  text-transform: uppercase;
+  color: var(--crm-text-tertiary);
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.crm-table td {
+  height: var(--crm-table-row-height);
+  padding: 0 var(--crm-table-cell-padding);
+  border-bottom: 1px solid var(--crm-border-subtle);
+  vertical-align: middle;
+}
+
+.crm-table tbody tr {
+  transition: background var(--crm-duration-fast);
+}
+.crm-table tbody tr:hover {
+  background: var(--crm-hover-overlay);
+}
+.crm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PROGRESS BAR
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-progress-track {
+  height: 6px; width: 100%; overflow: hidden;
+  border-radius: var(--crm-radius-full);
+  background: var(--crm-neutral-200);
+}
+.crm-progress-fill {
+  height: 100%; border-radius: var(--crm-radius-full);
+  transition: width var(--crm-duration-slower) var(--crm-ease-out);
+}
+
+/* Gradient variant */
+.crm-progress-fill-brand {
+  background: var(--crm-gradient-brand);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   EMPTY STATE — Premium
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 3rem 1.5rem; text-align: center; gap: 0.75rem;
+}
+.crm-empty-state-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: var(--crm-radius-xl);
+  background: var(--crm-accent-50);
+  color: var(--crm-accent-500);
+  margin-bottom: 0.25rem;
+}
+.crm-empty-state-title {
+  font-size: var(--crm-text-md); font-weight: var(--crm-weight-semibold);
+  color: var(--crm-text-primary);
+}
+.crm-empty-state-description {
+  font-size: var(--crm-text-sm); color: var(--crm-text-tertiary);
+  max-width: 340px; line-height: var(--crm-leading-relaxed);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SIDEBAR ACTIVE — Gradient indicator
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-sidebar-active-indicator {
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 20px;
+  border-radius: 0 var(--crm-radius-full) var(--crm-radius-full) 0;
+  background: var(--crm-gradient-brand);
+  transition: height var(--crm-duration-moderate) var(--crm-ease-spring);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   AVATAR — Gradient background
+   ══════════════════════════════════════════════════════════════ */
+
+.crm-avatar {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  font-weight: var(--crm-weight-bold);
+  color: var(--crm-text-on-brand);
+  background: var(--crm-gradient-accent);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.crm-avatar-sm { width: 28px; height: 28px; font-size: var(--crm-text-2xs); }
+.crm-avatar-md { width: 36px; height: 36px; font-size: var(--crm-text-xs); }
+.crm-avatar-lg { width: 48px; height: 48px; font-size: var(--crm-text-base); }
+
+/* ══════════════════════════════════════════════════════════════
+   UTILITY: .crm-dark (backward compat — no-op in light theme)
+   ══════════════════════════════════════════════════════════════ */
+.crm-dark {}
+
+/* ══════════════════════════════════════════════════════════════
+   SCROLLBAR
+   ══════════════════════════════════════════════════════════════ */
+.crm-theme ::-webkit-scrollbar { width: 6px; height: 6px; }
+.crm-theme ::-webkit-scrollbar-track { background: transparent; }
+.crm-theme ::-webkit-scrollbar-thumb { background: var(--crm-neutral-300); border-radius: var(--crm-radius-full); }
+.crm-theme ::-webkit-scrollbar-thumb:hover { background: var(--crm-neutral-400); }
+
+/* ══════════════════════════════════════════════════════════════
+   SELECTION
+   ══════════════════════════════════════════════════════════════ */
+.crm-theme ::selection { background: rgba(53, 88, 173, 0.14); }
+
+/* ══════════════════════════════════════════════════════════════
+   FOCUS
+   ══════════════════════════════════════════════════════════════ */
+.crm-theme *:focus-visible {
+  outline: 2px solid var(--crm-accent-400);
+  outline-offset: 2px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   REDUCED MOTION
+   ══════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .crm-theme *, .crm-theme *::before, .crm-theme *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SKELETON
+   ══════════════════════════════════════════════════════════════ */
+@keyframes crm-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.crm-skeleton {
+  background: linear-gradient(90deg, var(--crm-neutral-100) 25%, var(--crm-neutral-50) 50%, var(--crm-neutral-100) 75%);
+  background-size: 200% 100%; animation: crm-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--crm-radius-md);
+}

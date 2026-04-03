@@ -1,0 +1,13 @@
+{
+  "name": "process-pending-whatsapp",
+  "version": "1.0.0",
+  "description": "Cloud Function - Scheduler que processa WhatsApp pendentes (22h após qualificação)",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0",
+    "googleapis": "^140.0.1"
+  }
+}

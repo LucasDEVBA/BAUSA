@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Elite Portal Dev",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "export PATH=/usr/local/bin:$PATH && npm run dev -- --port 3001"],
+      "port": 3001,
+      "autoPort": true
+    },
+    {
+      "name": "Apresentacao",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "/Users/lucasbau/apresentacao-projeto"],
+      "port": 5173,
+      "autoPort": true
+    }
+  ]
+}
