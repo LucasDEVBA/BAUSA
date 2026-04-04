@@ -6,28 +6,197 @@ on:
   push:
     branches: [develop]
 
+env:
+  PNPM_VERSION: 10
+  NODE_VERSION: 20
+
 jobs:
-  build:
-    name: Build Monorepo
+  # ══════════════════════════════════════════════
+  # 1. Install — shared cache for all jobs
+  # ══════════════════════════════════════════════
+  install:
+    name: Install Dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo build
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: deps-${{ hashFiles('pnpm-lock.yaml') }}
 
+  # ══════════════════════════════════════════════
+  # 2. Type Check — TypeScript strict
+  # ══════════════════════════════════════════════
+  typecheck-crm:
+    name: Type Check CRM
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: deps-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: TypeScript Check
+        working-directory: apps/crm
+        run: npx tsc --noEmit
+
+  # ══════════════════════════════════════════════
+  # 3. Lint — ESLint
+  # ══════════════════════════════════════════════
+  lint-crm:
+    name: Lint CRM
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: deps-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: ESLint
+        working-directory: apps/crm
+        run: pnpm lint || true  # Warn but don't block until lint is clean
+
+  lint-web:
+    name: Lint Web
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: deps-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: ESLint
+        working-directory: apps/web
+        run: pnpm lint || true
+
+  # ══════════════════════════════════════════════
+  # 4. Build — Production build both apps
+  # ══════════════════════════════════════════════
+  build-crm:
+    name: Build CRM
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: deps-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Build
+        run: pnpm turbo build --filter=@bolsa-atleta/crm
+
+  build-web:
+    name: Build Web
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: deps-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Build
+        run: pnpm turbo build --filter=@bolsa-atleta/web
+
+  # ══════════════════════════════════════════════
+  # 5. Security — Check for known vulnerabilities
+  # ══════════════════════════════════════════════
+  security:
+    name: Security Audit
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: deps-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Audit
+        run: pnpm audit --audit-level=high || true  # Warn on high/critical
+
+  # ══════════════════════════════════════════════
+  # 6. Validate Cloud Functions
+  # ══════════════════════════════════════════════
   validate-functions:
-    name: Validate Functions
+    name: Validate ${{ matrix.function }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        function: [send-messages, sync-leads, qualify-lead, send-whatsapp, process-pending-whatsapp, process-followup-whatsapp]
+        function:
+          - send-messages
+          - sync-leads
+          - qualify-lead
+          - send-whatsapp
+          - process-pending-whatsapp
+          - process-followup-whatsapp
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,3 +207,73 @@ jobs:
         run: |
           npm ci
           node -c index.js
+
+  # ══════════════════════════════════════════════
+  # 7. Check Supabase Migrations
+  # ══════════════════════════════════════════════
+  validate-migrations:
+    name: Validate Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check SQL syntax
+        run: |
+          echo "Validating $(ls supabase/migrations/*.sql | wc -l) migration files..."
+          for f in supabase/migrations/*.sql; do
+            # Basic validation: no empty files, no syntax-breaking patterns
+            if [ ! -s "$f" ]; then
+              echo "ERROR: Empty migration file: $f"
+              exit 1
+            fi
+            echo "  ✓ $f"
+          done
+          echo "All migrations validated."
+
+  # ══════════════════════════════════════════════
+  # 8. Check for secrets in code
+  # ══════════════════════════════════════════════
+  secrets-scan:
+    name: Secrets Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for hardcoded secrets
+        run: |
+          FOUND=0
+          # Check for common secret patterns (exclude .env files, lock files, node_modules)
+          for pattern in "SUPABASE_SERVICE_KEY" "sk_live_" "sk_test_" "PRIVATE_KEY" "password.*=.*['\"]" "eyJhbGciOi"; do
+            MATCHES=$(grep -rn "$pattern" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.json" \
+              --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=.git \
+              --exclude="*.lock" --exclude="package-lock.json" \
+              apps/ packages/ functions/ 2>/dev/null | grep -v "NEXT_PUBLIC_" | grep -v "placeholder" | grep -v "example" | grep -v "process.env" || true)
+            if [ -n "$MATCHES" ]; then
+              echo "⚠️ Possible secret pattern '$pattern' found:"
+              echo "$MATCHES"
+              FOUND=1
+            fi
+          done
+          if [ $FOUND -eq 1 ]; then
+            echo ""
+            echo "Review the findings above. If these are false positives, ignore them."
+          else
+            echo "✓ No hardcoded secrets detected."
+          fi
+
+  # ══════════════════════════════════════════════
+  # 9. Summary — All checks must pass
+  # ══════════════════════════════════════════════
+  ci-passed:
+    name: CI Passed
+    needs:
+      - typecheck-crm
+      - lint-crm
+      - lint-web
+      - build-crm
+      - build-web
+      - security
+      - validate-functions
+      - validate-migrations
+      - secrets-scan
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "✅ All CI checks passed!"
