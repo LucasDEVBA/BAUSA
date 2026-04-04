@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop]
+
+jobs:
+  build:
+    name: Build Monorepo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo build
+
+  validate-functions:
+    name: Validate Functions
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        function: [send-messages, sync-leads, qualify-lead, send-whatsapp, process-pending-whatsapp, process-followup-whatsapp]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install & validate
+        working-directory: functions/${{ matrix.function }}
+        run: |
+          npm ci
+          node -c index.js
