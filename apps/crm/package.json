@@ -1,5 +1,5 @@
 {
-  "name": "@bolsa-atleta/crm",
+  "name": "@bolsa-atleta/engine",
   "version": "0.1.0",
   "private": true,
   "scripts": {

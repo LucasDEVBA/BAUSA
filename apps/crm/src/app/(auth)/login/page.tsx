@@ -66,7 +66,7 @@ export default function LoginPage() {
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-xl font-bold text-white">Elite CRM</h1>
+          <h1 className="text-xl font-bold text-white">BAUSA Engine</h1>
           <p className="mt-1 text-sm text-zinc-500">Bolsa Atleta USA</p>
         </div>
 
@@ -145,7 +145,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-zinc-600">
-          Acesso restrito a equipe Elite Portal USA
+          Acesso restrito à equipe Bolsa Atleta USA
         </p>
       </div>
     </div>

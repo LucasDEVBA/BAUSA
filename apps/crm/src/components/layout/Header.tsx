@@ -50,7 +50,7 @@ export function Header({ nome }: HeaderProps) {
     <header className="flex h-14 items-center gap-4 border-b border-[#1e2130] bg-[#0c0e16]/80 px-6 backdrop-blur-sm">
       {/* Breadcrumb */}
       <div className="flex flex-1 items-center gap-2 text-sm">
-        <span className="text-zinc-500">Elite CRM</span>
+        <span className="text-zinc-500">BAUSA Engine</span>
         <span className="text-zinc-700">/</span>
         {currentPage?.parent && (
           <>

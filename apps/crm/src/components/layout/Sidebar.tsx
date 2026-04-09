@@ -159,7 +159,7 @@ export function Sidebar({ papel, nome }: SidebarProps) {
           <Zap className="h-4 w-4 text-white" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-white leading-none">BAUSA CRM</p>
+          <p className="text-sm font-semibold text-white leading-none">BAUSA Engine</p>
           <p className="text-[10px] text-zinc-500 leading-none mt-0.5">Bolsa Atleta USA</p>
         </div>
       </div>

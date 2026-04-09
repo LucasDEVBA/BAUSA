@@ -452,7 +452,7 @@ const Forms = () => {
         'Content-Type': 'application/json',
         'apikey': anonKey,
         'Authorization': `Bearer ${anonKey}`,
-        'Prefer': 'return=minimal,resolution=ignore-duplicates',
+        'Prefer': 'return=minimal,resolution=merge-duplicates',
       };
 
       // Header de schema para PostgREST rotear para uat/dev (não necessário em PRD)

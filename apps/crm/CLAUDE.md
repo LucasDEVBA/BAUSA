@@ -1,4 +1,4 @@
-# CLAUDE.md — BAUSA CRM
+# CLAUDE.md — BAUSA Engine
 
 > Contexto do projeto para Claude Code. Complementa o CLAUDE.md global (~/.claude/CLAUDE.md).
 > Regras do CLAUDE.md global continuam valendo — este arquivo só sobrescreve/acrescenta o que é específico deste projeto.
@@ -8,10 +8,10 @@
 
 ## Identidade do Produto
 
-**BAUSA CRM** é o sistema interno de gestão da Bolsa Atleta USA.
+**BAUSA Engine** é o sistema interno de gestão da Bolsa Atleta USA.
 Centraliza pipeline comercial, acompanhamento de famílias, execução financeira e inteligência de matching atleta × escola.
 
-- **Repositório:** https://github.com/LucasDEVBA/elite-crm-bau
+- **Repositório:** https://github.com/LucasDEVBA/bausa-engine
 - **CEO/usuário principal:** Leandro Ribeiro
 
 ---
@@ -403,7 +403,7 @@ badge.variant: "danger" | "warning" | "success" | "neutral"
 
 - Branch: sempre feature branches, nunca direto em `main`
 - Commits: Conventional Commits (`feat:`, `fix:`, `refactor:`, `style:`, `chore:`)
-- Remote: `https://github.com/LucasDEVBA/elite-crm-bau.git`
+- Remote: `https://github.com/LucasDEVBA/bausa-engine.git`
 
 ---
 

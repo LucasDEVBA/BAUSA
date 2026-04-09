@@ -356,12 +356,14 @@ gcloud scheduler jobs resume process-whatsapp-job --location=us-central1 --proje
 
 ## Projetos Relacionados
 
-| Projeto | Repositório | Propósito |
+| Projeto | Localização | Propósito |
 |---------|-------------|-----------|
-| **elite-crm** | `../elite-crm` | CRM frontend (Next.js 16, dark theme, Recharts) — consome o mesmo Supabase |
-| **elite-portal-usa** | Este repo | Site público + Cloud Functions + migrations Supabase |
+| **BAUSA Engine** | `apps/crm` | Plataforma de operações (Next.js 16, dark theme, Recharts) — consome o mesmo Supabase |
+| **Site Público** | `apps/web` | Landing page + Formulário + i18n (PT/EN/ES) |
+| **Cloud Functions** | `functions/` | 6 funções GCP Gen2 (emails, sheets, qualificação, WhatsApp) |
+| **Database** | `packages/database` | Tipos, actions e auth compartilhados |
 
-O `elite-crm` é o frontend de gestão usado pelo CEO/Head. Compartilha o mesmo banco Supabase e usa os mesmos server actions. Documentação específica: `../elite-crm/CLAUDE.md`.
+O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o mesmo banco Supabase e usa os mesmos server actions. Documentação específica: `apps/crm/CLAUDE.md`.
 
 ---
 
@@ -460,7 +462,7 @@ Lead preenche formulário → form_submissions INSERT
     - Se detecta reunião → move deal para reuniao_marcada
     - Popula reuniao_agendada_at, reuniao_data, reuniao_link
     - Se sem reunião: envia follow-up 1 (48h) e follow-up 2 (7 dias)
-  → CEO vê tudo no Pipeline (elite-crm) e avança etapas
+  → CEO vê tudo no Pipeline (BAUSA Engine) e avança etapas
 ```
 
 **Separação Lead Score vs Qualificação Gemini:**

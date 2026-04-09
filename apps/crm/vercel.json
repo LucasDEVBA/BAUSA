@@ -1,5 +1,5 @@
 {
   "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "cd ../.. && pnpm turbo build --filter=@bolsa-atleta/crm",
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=@bolsa-atleta/engine",
   "framework": "nextjs"
 }

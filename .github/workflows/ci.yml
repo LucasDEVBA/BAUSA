@@ -133,7 +133,7 @@ jobs:
             packages/*/node_modules
           key: deps-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Build
-        run: pnpm turbo build --filter=@bolsa-atleta/crm
+        run: pnpm turbo build --filter=@bolsa-atleta/engine
 
   build-web:
     name: Build Web

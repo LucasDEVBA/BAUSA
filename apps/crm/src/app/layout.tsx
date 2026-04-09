@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | Elite CRM",
-    default: "Elite CRM — Bolsa Atleta USA",
+    template: "%s | BAUSA Engine",
+    default: "BAUSA Engine — Bolsa Atleta USA",
   },
   description: "Sistema de gestão de leads para o programa Bolsa Atleta USA.",
   robots: { index: false, follow: false },
