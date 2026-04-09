@@ -9,7 +9,7 @@
 
 **Produto:** Bolsa Atleta USA — assessoria exclusiva para bolsas esportivas em instituições americanas.
 **URL:** https://bolsaatletausa.com
-**Repositório:** https://github.com/LucasDEVBA/elite-portal-usa
+**Repositório:** https://github.com/LucasDEVBA/BAUSA
 **Branch principal:** `main` (nunca commitar direto — sempre feature branches)
 
 ---

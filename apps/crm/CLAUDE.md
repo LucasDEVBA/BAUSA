@@ -11,7 +11,7 @@
 **BAUSA Engine** é o sistema interno de gestão da Bolsa Atleta USA.
 Centraliza pipeline comercial, acompanhamento de famílias, execução financeira e inteligência de matching atleta × escola.
 
-- **Repositório:** https://github.com/LucasDEVBA/bausa-engine
+- **Repositório:** https://github.com/LucasDEVBA/BAUSA
 - **CEO/usuário principal:** Leandro Ribeiro
 
 ---
@@ -403,7 +403,7 @@ badge.variant: "danger" | "warning" | "success" | "neutral"
 
 - Branch: sempre feature branches, nunca direto em `main`
 - Commits: Conventional Commits (`feat:`, `fix:`, `refactor:`, `style:`, `chore:`)
-- Remote: `https://github.com/LucasDEVBA/bausa-engine.git`
+- Remote: `https://github.com/LucasDEVBA/BAUSA.git`
 
 ---
 

@@ -1,5 +1,5 @@
 {
-  "name": "bolsa-atleta-usa",
+  "name": "bausa",
   "private": true,
   "scripts": {
     "dev:web": "turbo dev --filter=@bolsa-atleta/web",
