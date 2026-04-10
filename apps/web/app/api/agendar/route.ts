@@ -3,10 +3,6 @@ import { google } from "googleapis";
 
 const SERVICE_ACCOUNT_EMAIL = process.env.SERVICE_ACCOUNT_EMAIL ?? "";
 const RAW_KEY = process.env.SERVICE_ACCOUNT_PRIVATE_KEY ?? "";
-const SERVICE_ACCOUNT_PRIVATE_KEY = RAW_KEY
-  .replace(/^["']|["']$/g, "")
-  .replace(/\\n/g, "\n")
-  .replace(/\\\\n/g, "\n");
 const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID ?? "";
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY ?? "";
@@ -15,11 +11,21 @@ const SEND_WHATSAPP_URL = process.env.SEND_WHATSAPP_URL ?? "";
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? "";
 const CEO_WHATSAPP = process.env.CEO_WHATSAPP ?? "";
 
+function parsePrivateKey(raw: string): string {
+  let key = raw;
+  // Remove wrapping quotes
+  key = key.replace(/^["']|["']$/g, "");
+  // Handle literal \n (both \\n and \n as string)
+  key = key.replace(/\\n/g, "\n");
+  return key;
+}
+
 function getCalendarAuth() {
+  const privateKey = parsePrivateKey(RAW_KEY);
   return new google.auth.JWT(
     SERVICE_ACCOUNT_EMAIL,
     undefined,
-    SERVICE_ACCOUNT_PRIVATE_KEY,
+    privateKey,
     ["https://www.googleapis.com/auth/calendar"],
   );
 }
@@ -35,20 +41,20 @@ export async function GET(req: NextRequest) {
     }
 
     // Debug: verificar env vars
-    if (!SERVICE_ACCOUNT_EMAIL || !SERVICE_ACCOUNT_PRIVATE_KEY || !GOOGLE_CALENDAR_ID) {
-      console.error("[agendar] Missing env vars:", {
-        hasEmail: !!SERVICE_ACCOUNT_EMAIL,
-        hasKey: SERVICE_ACCOUNT_PRIVATE_KEY.length > 0,
-        keyLength: SERVICE_ACCOUNT_PRIVATE_KEY.length,
-        keyStart: SERVICE_ACCOUNT_PRIVATE_KEY.substring(0, 30),
-        hasCalendarId: !!GOOGLE_CALENDAR_ID,
-      });
+    const privateKey = parsePrivateKey(RAW_KEY);
+    if (!SERVICE_ACCOUNT_EMAIL || !privateKey || !GOOGLE_CALENDAR_ID) {
       return NextResponse.json({
         error: "Calendar not configured",
         debug: {
           hasEmail: !!SERVICE_ACCOUNT_EMAIL,
-          hasKey: SERVICE_ACCOUNT_PRIVATE_KEY.length > 0,
+          email: SERVICE_ACCOUNT_EMAIL.substring(0, 20) + "...",
+          hasKey: privateKey.length > 0,
+          keyLength: privateKey.length,
+          keyStartsWith: privateKey.substring(0, 27),
+          keyContainsNewlines: privateKey.includes("\n"),
+          rawKeyLength: RAW_KEY.length,
           hasCalendarId: !!GOOGLE_CALENDAR_ID,
+          calendarId: GOOGLE_CALENDAR_ID,
         },
       }, { status: 500 });
     }
