@@ -691,10 +691,15 @@ const Forms = () => {
                 value={watch("schoolYear")}
                 onValueChange={(v) => setValue("schoolYear", v, { shouldValidate: true })}
               >
-                <SelectTrigger className="w-full bg-transparent border-0 border-b-2 border-white/30 data-[state=open]:border-white rounded-none px-1 py-3.5 sm:py-4 text-[16px] sm:text-lg text-white ring-0 outline-none focus:ring-0 h-auto shadow-none">
-                  <SelectValue placeholder={t("form.step1.schoolYear.placeholder")} className="text-white/45" />
+                <SelectTrigger className="w-full bg-transparent border-0 border-b-2 border-white/30 hover:border-white/50 data-[state=open]:border-white rounded-none px-1 py-3.5 sm:py-4 text-[16px] sm:text-lg text-white ring-0 outline-none focus:ring-0 h-auto shadow-none transition-all duration-300 [&>span]:line-clamp-1 data-[placeholder]:text-white/45">
+                  <SelectValue placeholder={t("form.step1.schoolYear.placeholder")} />
                 </SelectTrigger>
-                <SelectContent className="bg-[hsl(220,40%,10%)] border-white/15 text-white rounded-xl shadow-2xl">
+                <SelectContent 
+                  position="popper"
+                  side="bottom"
+                  sideOffset={8}
+                  className="bg-[#0A1024]/90 backdrop-blur-2xl border border-white/10 text-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] z-[100] w-[var(--radix-select-trigger-width)] max-h-[280px] overflow-hidden"
+                >
                   {[
                     { value: "before_7th",          label: t("form.step1.schoolYear.opt_before_7th") },
                     { value: "8th_grade",            label: t("form.step1.schoolYear.opt_8th") },
@@ -708,7 +713,7 @@ const Forms = () => {
                     <SelectItem
                       key={opt.value}
                       value={opt.value}
-                      className="text-white/85 focus:bg-white/10 focus:text-white cursor-pointer text-[15px] py-3"
+                      className="text-white/70 focus:bg-white/10 focus:text-white cursor-pointer text-[15px] sm:text-base py-3 sm:py-3.5 px-4 rounded-xl transition-colors duration-200 outline-none my-0.5 data-[state=checked]:text-white data-[state=checked]:font-medium data-[state=checked]:bg-white/5"
                     >
                       {opt.label}
                     </SelectItem>

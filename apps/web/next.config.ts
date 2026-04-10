@@ -43,7 +43,15 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // /agendar agora é uma página custom (não mais redirect para Google Calendar)
+  async redirects() {
+    return [
+      {
+        source: "/agendar",
+        destination: "https://calendar.app.google/zd5Q1dhmJZqoKBPD7",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default withNextIntl(nextConfig);
