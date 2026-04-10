@@ -78,4 +78,28 @@ gcloud scheduler jobs update http "${JOB_FU}" \
   --attempt-deadline=960s
 
 echo "✓ ${JOB_FU} configurado"
+
+# ─── Job 3: Renovar Calendar Watch (a cada 6 dias) ────────────
+JOB_CW="renew-calendar-watch-job${SUFFIX}"
+RENEW_WATCH_URL="${RENEW_WATCH_URL:-https://renew-calendar-watch${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_CW}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 3 */6 * *" \
+  --uri="${RENEW_WATCH_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_CW}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 3 */6 * *" \
+  --uri="${RENEW_WATCH_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s
+
+echo "✓ ${JOB_CW} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"
