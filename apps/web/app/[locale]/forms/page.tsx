@@ -1,21 +1,35 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import { SEO_DEFAULTS, PAGE_SEO } from "@/config/seo";
+import { SEO_DEFAULTS, PAGE_SEO, getSeoText, getOgLocale } from "@/config/seo";
 import FormsContent from "@/components/FormsContent";
 
-export function generateMetadata(): Metadata {
+interface PageProps {
+  params: Promise<{ locale: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { locale } = await params;
   const seo = PAGE_SEO.forms;
+  const title = getSeoText(seo.title, locale);
+  const description = getSeoText(seo.description, locale);
+
   return {
-    title: seo.title,
-    description: seo.description,
+    title,
+    description,
     robots: { index: false, follow: false },
     alternates: {
       canonical: seo.canonicalPath,
+      languages: {
+        "pt-BR": "/forms",
+        en: "/en/forms",
+        es: "/es/forms",
+      },
     },
     openGraph: {
-      title: seo.title,
-      description: seo.description,
+      title,
+      description,
       type: "website",
+      locale: getOgLocale(locale),
       images: [
         {
           url: SEO_DEFAULTS.ogImage,
@@ -26,10 +40,6 @@ export function generateMetadata(): Metadata {
       ],
     },
   };
-}
-
-interface PageProps {
-  params: Promise<{ locale: string }>;
 }
 
 export default async function FormsPage({ params }: PageProps) {
