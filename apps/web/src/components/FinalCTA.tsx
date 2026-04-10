@@ -5,6 +5,7 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import logoWatermark from "@/assets/logo-watermark.png";
 import { useLanguage } from "@/i18n";
+import { trackCtaClick } from "@/lib/tracking/events";
 
 const FinalCTA = memo(() => {
   const { t } = useLanguage();
@@ -65,6 +66,7 @@ const FinalCTA = memo(() => {
           <div>
             <Link
               href="/forms"
+              onClick={() => trackCtaClick("final")}
               className="group relative inline-flex items-center gap-3 sm:gap-4 px-8 sm:px-12 md:px-16 py-4 sm:py-5 md:py-6 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] text-white font-bold text-base sm:text-lg md:text-xl shadow-2xl hover:shadow-[0_0_60px_hsl(var(--burgundy)/0.5)] transition-all duration-500 hover:-translate-y-1"
             >
               <span>{t("landing.finalCTA.cta")}</span>
