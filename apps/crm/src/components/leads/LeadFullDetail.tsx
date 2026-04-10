@@ -1208,6 +1208,29 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </div>
                 )}
 
+                {(lead.utm_source || lead.referrer_url || lead.cta_source || lead.device_type) && (
+                  <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                    <SectionTitle>Origem do Lead</SectionTitle>
+                    <div className="divide-y divide-[#1e2130]">
+                      <DataRow label="UTM Source" value={lead.utm_source} />
+                      <DataRow label="UTM Medium" value={lead.utm_medium} />
+                      <DataRow label="UTM Campaign" value={lead.utm_campaign} />
+                      {lead.utm_content && <DataRow label="UTM Content" value={lead.utm_content} />}
+                      {lead.utm_term && <DataRow label="UTM Term" value={lead.utm_term} />}
+                      <DataRow label="CTA Clicado" value={lead.cta_source} />
+                      <DataRow label="Dispositivo" value={lead.device_type} />
+                      {lead.referrer_url && <DataRow label="Referrer" value={lead.referrer_url} />}
+                      {lead.landing_url && <DataRow label="Landing Page" value={lead.landing_url} />}
+                      {lead.form_started_at && (
+                        <DataRow
+                          label="Inicio do Form"
+                          value={new Date(lead.form_started_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {lead.notes && (
                   <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
                     <SectionTitle>Notas Internas</SectionTitle>

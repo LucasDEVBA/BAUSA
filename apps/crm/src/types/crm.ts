@@ -143,6 +143,18 @@ export interface FormSubmission {
   qualification_classification: string | null;
   qualification_reason: string | null;
   address_country: string | null;
+  // Tracking & Attribution
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  referrer_url: string | null;
+  landing_url: string | null;
+  session_id: string | null;
+  cta_source: string | null;
+  device_type: string | null;
+  form_started_at: string | null;
 }
 
 export interface AuditLog {

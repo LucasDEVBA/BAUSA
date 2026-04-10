@@ -1,4 +1,4 @@
-# Deploy — Elite Portal USA
+# Deploy — BAUSA
 
 ## Pré-requisitos
 
@@ -134,7 +134,7 @@ gcloud iam workload-identity-pools providers create-oidc "github-provider" \
   --workload-identity-pool="github-pool" \
   --display-name="GitHub Provider" \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-  --attribute-condition="assertion.repository=='LucasDEVBA/elite-portal-usa'" \
+  --attribute-condition="assertion.repository=='LucasDEVBA/BAUSA'" \
   --issuer-uri="https://token.actions.githubusercontent.com"
 
 # 3. Criar Service Account
@@ -164,7 +164,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   github-actions@elite-portal-forms.iam.gserviceaccount.com \
   --project="elite-portal-forms" \
   --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/projects/222577494676/locations/global/workloadIdentityPools/github-pool/attribute.repository/LucasDEVBA/elite-portal-usa"
+  --member="principalSet://iam.googleapis.com/projects/222577494676/locations/global/workloadIdentityPools/github-pool/attribute.repository/LucasDEVBA/BAUSA"
 ```
 
 ## GitHub Secrets necessários

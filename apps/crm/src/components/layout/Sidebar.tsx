@@ -78,7 +78,16 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/war-room/familias", label: "Famílias" },
         ],
       },
-      { href: "/analytics", label: "Analytics", icon: BarChart3, roles: ["ceo"] },
+      {
+        href: "/analytics",
+        label: "Analytics",
+        icon: BarChart3,
+        roles: ["ceo"],
+        subItems: [
+          { href: "/analytics", label: "Receita" },
+          { href: "/analytics/atribuicao", label: "Atribuição" },
+        ],
+      },
       { href: "/relatorios", label: "Relatorios", icon: BarChart3, roles: ["ceo"] },
     ],
   },

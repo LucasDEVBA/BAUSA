@@ -49,7 +49,7 @@ sonner — toasts
 
 ## Paleta e Design System
 
-> **Dark theme ativo.** O elite-portal-usa tem um light theme separado (`app/crm.css`), mas este projeto usa dark theme.
+> **Dark theme ativo.** O BAUSA tem um light theme separado (`app/crm.css`), mas este projeto usa dark theme.
 
 O CRM usa tema escuro com estas variáveis semânticas de cor:
 
@@ -87,7 +87,7 @@ O CRM usa tema escuro com estas variáveis semânticas de cor:
 
 ## Integração Supabase (Dados Reais)
 
-Este projeto está **totalmente integrado** com o Supabase do elite-portal-usa. Não usa mais dados mock.
+Este projeto está **totalmente integrado** com o Supabase do BAUSA. Não usa mais dados mock.
 
 **Credenciais:** `.env.local` com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
@@ -128,7 +128,7 @@ Este projeto está **totalmente integrado** com o Supabase do elite-portal-usa. 
 
 Leads QUENTES e MORNOS entram **automaticamente** no pipeline:
 
-1. Lead preenche formulário → `form_submissions` (elite-portal-usa)
+1. Lead preenche formulário → `form_submissions` (BAUSA)
 2. Cloud Function `qualify-lead` classifica via Gemini
 3. Se QUENTE/MORNO → auto-cria `atleta` + `deal` (etapa: `lead`)
 4. WhatsApp enviado automaticamente (22h delay)

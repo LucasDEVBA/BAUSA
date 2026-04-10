@@ -1,4 +1,4 @@
-# Variáveis de Ambiente — Elite Portal USA
+# Variáveis de Ambiente — BAUSA
 
 ## Frontend (Vercel)
 

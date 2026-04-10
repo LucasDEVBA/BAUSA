@@ -1,4 +1,4 @@
-# Arquitetura — Elite Portal USA
+# Arquitetura — BAUSA
 
 ## Fluxo de dados
 
