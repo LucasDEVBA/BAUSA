@@ -97,7 +97,9 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | `functions/qualify-lead/` | `lead-qualifier` | `lead-qualifier-uat` | Webhook Supabase INSERT | Qualificação IA via Gemini |
 | `functions/send-whatsapp/` | `send-whatsapp` | `send-whatsapp-uat` | HTTP POST | Envio WhatsApp via Z-API (initial/followup_1/followup_2) |
 | `functions/process-pending-whatsapp/` | `whatsapp-scheduler` | `whatsapp-scheduler-uat` | Cloud Scheduler (1x/hora) | Processa fila de WhatsApp inicial (22h) |
-| `functions/process-followup-whatsapp/` | `followup-scheduler` | `followup-scheduler-uat` | Cloud Scheduler (1x/hora) | Follow-ups 48h e 7 dias sem agendamento |
+| `functions/process-followup-whatsapp/` | `followup-scheduler` | `followup-scheduler-uat` | Cloud Scheduler (1x/hora) | Follow-ups 48h e 7 dias sem agendamento (fallback) |
+| `functions/calendar-webhook/` | `calendar-webhook` | `calendar-webhook-uat` | Google Calendar Push Notification | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO |
+| `functions/renew-calendar-watch/` | `renew-calendar-watch` | `renew-calendar-watch-uat` | Cloud Scheduler (cada 6 dias) | Renova watch channel do Google Calendar |
 
 **Auth entre serviços:** header `x-webhook-secret` em todos os webhooks.
 
@@ -268,10 +270,12 @@ responseMimeType: 'application/json'
 ## Comandos Úteis
 
 ```bash
-# Desenvolvimento
-npm run dev           # Dev server localhost:3000
-npm run build         # Build produção
-npm run lint          # ESLint
+# Desenvolvimento (monorepo pnpm + Turborepo)
+pnpm dev              # Dev server ambos os apps
+pnpm dev:web          # Só site público (localhost:3000)
+pnpm dev:engine       # Só BAUSA Engine
+pnpm build            # Build produção
+pnpm lint             # ESLint
 
 # Supabase
 supabase link --project-ref nikrlikwghqcxcjzthmc
@@ -327,21 +331,29 @@ gcloud scheduler jobs resume process-whatsapp-job --location=us-central1 --proje
 
 ## Variáveis de Ambiente — Referência Rápida
 
-### Frontend (Vercel)
-- `VITE_SUPABASE_URL` — URL do projeto Supabase
-- `VITE_SUPABASE_PUBLISHABLE_KEY` — Anon key pública
-- `VITE_SUPABASE_SCHEMA` — `uat` em UAT, omitir em PRD (usa `public`)
+### Frontend (Vercel — bausa-web)
+- `NEXT_PUBLIC_SUPABASE_URL` — URL do projeto Supabase
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — Anon key pública
+- `NEXT_PUBLIC_SUPABASE_SCHEMA` — `uat` em Preview, omitir em PRD (usa `public`)
+- `NEXT_PUBLIC_GTM_ID` — Google Tag Manager (`GTM-5J87JXSR`)
+- `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — Google Calendar API (agendamento)
+- `GOOGLE_CALENDAR_ID` — Calendar do CEO
+- `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — API route /agendar (server-side)
+- `SEND_WHATSAPP_URL` + `WEBHOOK_SECRET` — Envio WhatsApp via Cloud Function
+- `CEO_WHATSAPP` — Número do CEO para notificações (`5571991461565`)
 
 ### Cloud Functions (GCP)
 - `WEBHOOK_SECRET` — todas as funções (diferente por ambiente: `_UAT`, `_DEV`)
 - `SUPABASE_SCHEMA` — `public` em PRD, `uat` em UAT, `dev` em DEV
 - `GEMINI_API_KEY` — qualify-lead
-- `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — qualify-lead, process-pending, process-followup
-- `SPREADSHEET_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — qualify-lead, sync-leads
-- `ZAPI_INSTANCE_ID` + `ZAPI_TOKEN` + `ZAPI_CLIENT_TOKEN` — send-whatsapp
+- `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — qualify-lead, process-pending, process-followup, calendar-webhook
+- `SPREADSHEET_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — qualify-lead, sync-leads, calendar-webhook, renew-calendar-watch
+- `ZAPI_INSTANCE_ID` + `ZAPI_TOKEN` + `ZAPI_CLIENT_TOKEN` — send-whatsapp, calendar-webhook
 - `RESEND_API_KEY` + `BREVO_API_KEY` + `FROM_EMAIL` + `INTERNAL_EMAIL` + `LOGO_URL` — send-messages
-- `SEND_WHATSAPP_URL` + `SYNC_LEADS_URL` — process-pending, process-followup
-- `GOOGLE_CALENDAR_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — process-followup
+- `SEND_WHATSAPP_URL` + `SYNC_LEADS_URL` — process-pending, process-followup, calendar-webhook
+- `GOOGLE_CALENDAR_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — process-followup, calendar-webhook, renew-calendar-watch
+- `CEO_WHATSAPP` — calendar-webhook (notificação ao CEO)
+- `CALENDAR_WEBHOOK_URL` — renew-calendar-watch (URL do webhook para registrar no Google)
 
 ### GitHub Secrets
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` + `GCP_SERVICE_ACCOUNT` — deploy WIF
@@ -367,7 +379,7 @@ gcloud scheduler jobs resume process-whatsapp-job --location=us-central1 --proje
 |---------|-------------|-----------|
 | **BAUSA Engine** | `apps/crm` | Plataforma de operações (Next.js 16, dark theme, Recharts) — consome o mesmo Supabase |
 | **Site Público** | `apps/web` | Landing page + Formulário + i18n (PT/EN/ES) |
-| **Cloud Functions** | `functions/` | 6 funções GCP Gen2 (emails, sheets, qualificação, WhatsApp) |
+| **Cloud Functions** | `functions/` | 8 funções GCP Gen2 (emails, sheets, qualificação, WhatsApp, calendar webhook) |
 | **Database** | `packages/database` | Tipos, actions e auth compartilhados |
 
 O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o mesmo banco Supabase e usa os mesmos server actions. Documentação específica: `apps/crm/CLAUDE.md`.
@@ -390,9 +402,14 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | ✅ **CRM Fase 5 — War Room** | Dashboard executivo, KPIs, alertas automáticos, relatórios | Implementado 2026-04-01 |
 | ✅ **CRM Fase 6 — Integrações** | WhatsApp manual, convite reunião, calendário, estrutura completa | Implementado 2026-04-01 |
 | ✅ **CRM Fase 7 — Complementos** | Documentos, FAQ (10 artigos seed), indicações, configurações admin | Implementado 2026-04-01 |
+| ✅ **Tracking & Pixels** | GTM + GA4 + Meta Pixel + UTM capture + form events + CTA tracking | Implementado 2026-04-10 |
+| ✅ **SEO Multilíngue** | Metadata traduzida PT/EN/ES, og:locale, hreflang, BreadcrumbList JSON-LD | Implementado 2026-04-10 |
+| ✅ **Lead Attribution** | 11 colunas tracking no Supabase + Sheets (AW-BG), analytics no Engine | Implementado 2026-04-10 |
+| ✅ **Calendar Webhook** | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO | Implementado 2026-04-10 |
+| ✅ **UTM Generator** | Gerador de links UTM no Engine com 10 presets | Implementado 2026-04-10 |
 | 🔜 Monitoramento | Cloud Monitoring dashboards + alertas por ambiente | Não iniciado |
-| 🔜 **Next.js** | Migrar frontend público para Next.js em repo `elite-portal-web` | Planejado |
-| 🔜 **Services Repo** | Mover Cloud Functions para `elite-portal-services` + libs compartilhadas | Planejado |
+| 🔜 **CAC Meta API** | Custo de Aquisição via Meta Marketing API | Planejado (ver `docs/IMPROVEMENTS.md`) |
+| 🔜 **next/image** | Migrar `<img>` para `next/image` (Core Web Vitals) | Planejado |
 
 ---
 
@@ -456,21 +473,52 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 ### Fluxo Automatizado Lead → Pipeline
 
 ```
-Lead preenche formulário → form_submissions INSERT
+Lead preenche formulário → form_submissions INSERT (com UTM, referrer, session_id, device)
   → Cloud Functions processam:
     1. messenger-service → Email confirmação
-    2. sync-elite-leads → Google Sheets
+    2. sync-elite-leads → Google Sheets (colunas A–BG incluindo tracking)
     3. qualify-lead → Gemini classifica (QUENTE/MORNO/FRIO)
        → Se QUENTE ou MORNO: AUTO-CRIA atleta + deal (etapa: lead)
        → Popula qualificado_gemini, classificacao_gemini, motivo_gemini
-  → 22h depois: whatsapp-scheduler envia WhatsApp inicial
-  → process-followup-whatsapp (a cada hora):
-    - Verifica Google Calendar para reuniões
-    - Se detecta reunião → move deal para reuniao_marcada
-    - Popula reuniao_agendada_at, reuniao_data, reuniao_link
-    - Se sem reunião: envia follow-up 1 (48h) e follow-up 2 (7 dias)
+  → 22h depois: whatsapp-scheduler envia WhatsApp inicial (link /agendar)
+  → Lead agenda reunião no Google Calendar:
+    → calendar-webhook (push notification INSTANTÂNEA):
+      - Detecta evento por email OU telefone (últimos 10 dígitos, qualquer DDI)
+      - Envia WhatsApp confirmação ao lead (com link Meet + preview)
+      - Envia WhatsApp notificação ao CEO (com dados + link Meet + preview)
+      - Marca meeting_scheduled = true no Supabase
+      - Move deal para reuniao_marcada no pipeline
+      - Sincroniza Google Sheets
+    → Fallback: process-followup-whatsapp (a cada hora):
+      - Se sem reunião: envia follow-up 1 (48h) e follow-up 2 (7 dias)
   → CEO vê tudo no Pipeline (BAUSA Engine) e avança etapas
+  → CEO analisa atribuição em Analytics → Atribuição (6 gráficos)
+  → CEO gera links UTM em Analytics → Gerador UTM (10 presets)
 ```
+
+### Tracking & Pixels (implementado 2026-04-10)
+
+**GTM** (`GTM-5J87JXSR`) carrega automaticamente e gerencia:
+- **GA4** (`G-3GP7EFN0P9`) — page views, eventos customizados, conversões
+- **Meta Pixel** (`1521863919289394`) — PageView, Lead (form_submit), remarketing
+
+**Eventos rastreados via dataLayer → GTM:**
+- `form_start` — quando lead inicia o formulário
+- `form_step_completed` — cada step (14 steps com nome)
+- `form_submit` — formulário enviado com sucesso
+- `form_error` — erro no envio
+- `cta_click` — clique em CTA (hero/final/header) com source
+
+**Atribuição capturada no form_submissions (11 colunas):**
+- `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term` — first-touch
+- `referrer_url`, `landing_url` — de onde veio
+- `session_id` (sessionStorage), `cta_source` — jornada
+- `device_type` — mobile/tablet/desktop
+- `form_started_at` — quando iniciou o form
+
+**BAUSA Engine — Analytics:**
+- `/analytics/atribuicao` — 6 gráficos (fonte, dispositivo, meio, CTA, campanha, taxa conversão)
+- `/analytics/utm-builder` — gerador de links UTM com 10 presets
 
 **Separação Lead Score vs Qualificação Gemini:**
 - `qualificado_gemini` (boolean) — fixo, classificação da IA na entrada
