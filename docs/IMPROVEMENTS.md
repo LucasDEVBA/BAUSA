@@ -136,3 +136,38 @@ Se a Meta API não estiver disponível, implementar input manual no Engine:
 - Eventos: PageView + Lead (form_submit)
 
 ---
+
+## 7. Confirmação de Reunião via WhatsApp (pós-agendamento)
+
+**Prioridade:** Alta
+**Estimativa:** 1 sessão
+**Status:** Planejado (V2)
+
+### Contexto
+
+Página custom `/agendar` foi implementada mas a integração Google Calendar API via Vercel apresentou problemas de autenticação com Service Account. Pivotamos para usar o Google Calendar nativo com campo de telefone obrigatório.
+
+### Solução V2
+
+1. **Google Calendar Appointment Schedule** com pergunta obrigatória: "Número de WhatsApp"
+2. **Webhook do Google Calendar** (ou polling via Cloud Function) detecta novo evento
+3. Extrai o telefone da resposta do formulário de agendamento
+4. Dispara WhatsApp de confirmação para o lead com link Meet + data/hora
+5. Dispara WhatsApp para o CEO com dados do lead + link Meet
+
+### Implementação
+
+- **Opção A (webhook):** Google Calendar Push Notifications → Cloud Function → WhatsApp
+- **Opção B (polling — já existe):** `process-followup-whatsapp` já roda a cada hora e detecta reuniões. Basta adicionar envio de WhatsApp de confirmação quando detecta
+
+### Código já pronto (reutilizar)
+
+- `send-whatsapp`: messageType `meeting_confirmed` com `customMessage` já funciona
+- Templates de confirmação (lead + CEO) já escritos no API route `/api/agendar`
+- Basta extrair o telefone do evento e chamar send-whatsapp
+
+### Página /agendar
+
+A página custom pode ser reativada futuramente quando a Service Account estiver corretamente configurada para a Vercel, ou pode redirecionar para o Google Calendar Appointment Schedule.
+
+---

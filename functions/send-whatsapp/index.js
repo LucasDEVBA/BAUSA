@@ -171,18 +171,14 @@ const sendLink = async (phone, message, linkUrl, title, linkDescription, image) 
   return { success: true, response: JSON.parse(result.body) };
 };
 
-// ─── Gerar link de agendamento com dados pré-preenchidos ─────
-const buildScheduleUrl = (data) => {
-  const token = Buffer.from(JSON.stringify({
-    n: data.guardian_name || data.athlete_name || '',
-    p: data.guardian_whatsapp || data.athlete_whatsapp || '',
-    e: data.guardian_email || data.email || '',
-  })).toString('base64url');
-  return `https://bolsaatletausa.com/agendar?t=${token}`;
-};
+// ─── Link de agendamento ─────────────────────────────────────
+// V1: link fixo para Google Calendar via /agendar (redirect)
+// V2: buildScheduleUrl com token Base64 (quando página custom ativar)
+const SCHEDULE_URL = 'https://bolsaatletausa.com/agendar';
+const buildScheduleUrl = () => SCHEDULE_URL;
 
 // ─── Metadados do link de agendamento ─────────────────────────
-const CALENDAR_LINK_URL = 'https://bolsaatletausa.com/agendar';
+const CALENDAR_LINK_URL = SCHEDULE_URL;
 const CALENDAR_LINK_TITLE = 'Reunião Estratégica Individual - Leandro Ribeiro';
 const CALENDAR_LINK_IMAGE = 'https://lh3.googleusercontent.com/a-/ALV-UjXKwLrleoe7peDm_g3u_88uIfrh08RcWDpvv2VkH7XIkjMFKWko=s256';
 const CALENDAR_LINK_DESCRIPTION = 'Agende sua Reunião Estratégica com Leandro Ribeiro - Bolsa Atleta USA';

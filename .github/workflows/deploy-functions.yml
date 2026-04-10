@@ -85,6 +85,8 @@ jobs:
             send-whatsapp)               echo "entry=sendWhatsApp"             >> "$GITHUB_OUTPUT"; echo "name=send-whatsapp"         >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
             process-pending-whatsapp)    echo "entry=processPendingWhatsApp"   >> "$GITHUB_OUTPUT"; echo "name=whatsapp-scheduler"    >> "$GITHUB_OUTPUT"; echo "timeout=900s" >> "$GITHUB_OUTPUT" ;;
             process-followup-whatsapp)   echo "entry=processFollowupWhatsApp"  >> "$GITHUB_OUTPUT"; echo "name=followup-scheduler"    >> "$GITHUB_OUTPUT"; echo "timeout=900s" >> "$GITHUB_OUTPUT" ;;
+            calendar-webhook)            echo "entry=calendarWebhook"          >> "$GITHUB_OUTPUT"; echo "name=calendar-webhook"      >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
+            renew-calendar-watch)        echo "entry=renewCalendarWatch"       >> "$GITHUB_OUTPUT"; echo "name=renew-calendar-watch"  >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Deploy
         run: |
