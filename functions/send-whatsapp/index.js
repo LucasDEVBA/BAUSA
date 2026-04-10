@@ -171,7 +171,17 @@ const sendLink = async (phone, message, linkUrl, title, linkDescription, image) 
   return { success: true, response: JSON.parse(result.body) };
 };
 
-// ─── Metadados do link do Google Calendar ─────────────────────
+// ─── Gerar link de agendamento com dados pré-preenchidos ─────
+const buildScheduleUrl = (data) => {
+  const token = Buffer.from(JSON.stringify({
+    n: data.guardian_name || data.athlete_name || '',
+    p: data.guardian_whatsapp || data.athlete_whatsapp || '',
+    e: data.guardian_email || data.email || '',
+  })).toString('base64url');
+  return `https://bolsaatletausa.com/agendar?t=${token}`;
+};
+
+// ─── Metadados do link de agendamento ─────────────────────────
 const CALENDAR_LINK_URL = 'https://bolsaatletausa.com/agendar';
 const CALENDAR_LINK_TITLE = 'Reunião Estratégica Individual - Leandro Ribeiro';
 const CALENDAR_LINK_IMAGE = 'https://lh3.googleusercontent.com/a-/ALV-UjXKwLrleoe7peDm_g3u_88uIfrh08RcWDpvv2VkH7XIkjMFKWko=s256';
@@ -226,7 +236,7 @@ O próximo passo é uma *Reunião Estratégica Individual* com *Leandro Ribeiro*
 Essa etapa marca o início formal da estruturação do projeto.
 
 📅 *Agende a Reunião Estratégica:*
-https://bolsaatletausa.com/agendar
+${buildScheduleUrl(data)}
 
 ⏳ _A reserva desta etapa é mantida por período limitado, conforme o ciclo em andamento._`;
 };
@@ -257,7 +267,7 @@ O agendamento da Reunião Estratégica Individual de *${athleteName}* ainda não
 As vagas do ciclo atual estão sendo preenchidas. O perfil continua selecionado, mas a reserva é por tempo limitado.
 
 📅 *Garanta o agendamento agora:*
-https://bolsaatletausa.com/agendar
+${buildScheduleUrl(data)}
 
 ⏳ _Essa etapa é fundamental para iniciar a estruturação do projeto._`;
 };
@@ -288,7 +298,7 @@ O perfil de *${athleteName}* foi selecionado, mas a Reunião Estratégica Indivi
 Não conseguindo encaixar o horário, é só nos informar — estamos aqui para facilitar.
 
 📅 *Agende agora:*
-https://bolsaatletausa.com/agendar
+${buildScheduleUrl(data)}
 
 _Após o encerramento do ciclo, novos processos têm datas e critérios próprios._`;
 };
@@ -347,6 +357,18 @@ functions.http('sendWhatsApp', async (req, res) => {
       messageType,
     });
 
+    // Mensagem custom (meeting_confirmed): envia direto sem template
+    if (messageType === 'meeting_confirmed' && payload.customMessage && payload.phone) {
+      const phone = formatPhone(payload.phone);
+      if (!phone) {
+        return res.status(400).send({ success: false, error: 'Telefone inválido' });
+      }
+      const result = await sendMessage(payload.phone, payload.customMessage);
+      const durationMs = Date.now() - startTime;
+      log('INFO', 'custom_message_sent', { phone, durationMs });
+      return res.status(200).send({ success: true, results: [{ to: 'custom', ...result }], durationMs });
+    }
+
     // Seleciona templates com base no tipo de mensagem
     const athleteMsg =
       messageType === 'followup_2' ? buildAthleteFollowup2Message(data) :
@@ -365,13 +387,15 @@ functions.http('sendWhatsApp', async (req, res) => {
     const guardianPhone = formatPhone(data.guardian_whatsapp);
     const samePhone = athletePhone && guardianPhone && athletePhone === guardianPhone;
 
+    const scheduleUrl = buildScheduleUrl(data);
+
     if (samePhone) {
       // Mesmo número: envia apenas a copy do responsável (mais completa, com link de agendamento)
       log('INFO', 'same_phone_detected', { phone: guardianPhone });
       const guardianResult = await sendLink(
         data.guardian_whatsapp,
         guardianMsg,
-        CALENDAR_LINK_URL,
+        scheduleUrl,
         CALENDAR_LINK_TITLE,
         CALENDAR_LINK_DESCRIPTION,
         CALENDAR_LINK_IMAGE
@@ -393,12 +417,12 @@ functions.http('sendWhatsApp', async (req, res) => {
         }
       }
 
-      // 2. Mensagem para o responsável (com link preview)
+      // 2. Mensagem para o responsável (com link preview personalizado)
       if (data.guardian_whatsapp) {
         const guardianResult = await sendLink(
           data.guardian_whatsapp,
           guardianMsg,
-          CALENDAR_LINK_URL,
+          scheduleUrl,
           CALENDAR_LINK_TITLE,
           CALENDAR_LINK_DESCRIPTION,
           CALENDAR_LINK_IMAGE
