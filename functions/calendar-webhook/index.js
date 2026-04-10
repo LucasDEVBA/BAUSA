@@ -60,16 +60,15 @@ const getRecentEvents = async (sinceMinutes = 10) => {
 
   const calendar = google.calendar({ version: 'v3', auth });
 
-  const timeMin = new Date(Date.now() - sinceMinutes * 60 * 1000).toISOString();
-  const timeMax = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(); // +60 dias
+  // Buscar eventos modificados/criados nos últimos N minutos
+  const updatedMin = new Date(Date.now() - sinceMinutes * 60 * 1000).toISOString();
 
   const response = await calendar.events.list({
     calendarId: GOOGLE_CALENDAR_ID,
-    timeMin,
-    timeMax,
-    singleEvents: true,
-    maxResults: 20,
+    updatedMin,
+    maxResults: 50,
     orderBy: 'updated',
+    showDeleted: false,
   });
 
   return response.data.items || [];
@@ -96,14 +95,23 @@ const extractPhoneFromEvent = (event) => {
 };
 
 // ─── Buscar lead por email ou telefone ────────────────────────
+// Usa ilike com sufixo dos últimos 9-10 dígitos para match independente de DDI/formato
 const findLeadByContact = async (email, phone) => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
 
   const conditions = [];
-  if (email) conditions.push(`guardian_email.eq.${encodeURIComponent(email)}`);
-  if (email) conditions.push(`email.eq.${encodeURIComponent(email)}`);
-  if (phone) conditions.push(`guardian_whatsapp.eq.${encodeURIComponent(phone)}`);
-  if (phone) conditions.push(`athlete_whatsapp.eq.${encodeURIComponent(phone)}`);
+  if (email) {
+    conditions.push(`guardian_email.eq.${encodeURIComponent(email)}`);
+    conditions.push(`email.eq.${encodeURIComponent(email)}`);
+  }
+
+  if (phone) {
+    // Extrair últimos 9-10 dígitos (número local sem DDI/DDD variável)
+    const digits = phone.replace(/\D/g, '');
+    const suffix = digits.length >= 10 ? digits.slice(-10) : digits.slice(-9);
+    conditions.push(`guardian_whatsapp.like.*${suffix}`);
+    conditions.push(`athlete_whatsapp.like.*${suffix}`);
+  }
 
   if (conditions.length === 0) return null;
 
@@ -373,15 +381,28 @@ functions.http('calendarWebhook', async (req, res) => {
     let processed = 0;
 
     for (const event of events) {
-      // Só processar eventos futuros (não passados)
       const eventStart = event.start?.dateTime || event.start?.date;
-      if (!eventStart || new Date(eventStart) < new Date()) continue;
+      const isFuture = eventStart && new Date(eventStart) > new Date();
+      const updatedRecently = event.updated && (Date.now() - new Date(event.updated).getTime()) < 10 * 60 * 1000;
 
       // Extrair email e telefone do evento
       const attendeeEmails = (event.attendees || [])
         .map(a => a.email?.toLowerCase())
         .filter(Boolean);
       const phone = extractPhoneFromEvent(event);
+
+      log('INFO', 'event_check', {
+        summary: (event.summary || '').substring(0, 50),
+        eventStart,
+        isFuture,
+        updatedRecently,
+        attendees: attendeeEmails,
+        phone,
+        updated: event.updated,
+      });
+
+      // Só processar eventos futuros ou recém-criados
+      if (!isFuture && !updatedRecently) continue;
 
       if (attendeeEmails.length === 0 && !phone) continue;
 
