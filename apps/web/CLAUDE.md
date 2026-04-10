@@ -214,7 +214,7 @@ Header → HeroSection → UniversityCarousel → WhatIsEEISection → SAFEMetho
 **Padrões do formulário:**
 - Estado salvo em localStorage: chave `bolsa_atleta_form_draft_v2`
 - Supabase client importado dinamicamente dentro do `onSubmit` (evita erro de hydration)
-- Schema-awareness: `VITE_SUPABASE_SCHEMA` determina schema usado no upsert
+- Schema-awareness: `NEXT_PUBLIC_SUPABASE_SCHEMA` determina schema usado no upsert
 - Upsert com `onConflict: 'email,athlete_name'`
 - Campo `country` (default `'BR'`) com validação condicional via Zod `superRefine`
 - `address_country` enviado ao Supabase em todos os casos
@@ -321,9 +321,9 @@ gcloud scheduler jobs resume process-whatsapp-job --location=us-central1 --proje
 ## Variáveis de Ambiente — Referência Rápida
 
 ### Frontend (Vercel)
-- `VITE_SUPABASE_URL` — URL do projeto Supabase
-- `VITE_SUPABASE_PUBLISHABLE_KEY` — Anon key pública
-- `VITE_SUPABASE_SCHEMA` — `uat` em UAT, omitir em PRD (usa `public`)
+- `NEXT_PUBLIC_SUPABASE_URL` — URL do projeto Supabase
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — Anon key pública
+- `NEXT_PUBLIC_SUPABASE_SCHEMA` — `uat` em UAT, omitir em PRD (usa `public`)
 
 ### Cloud Functions (GCP)
 - `WEBHOOK_SECRET` — todas as funções (diferente por ambiente: `_UAT`, `_DEV`)
@@ -484,7 +484,7 @@ O CRM usa **light theme** com design tokens em `app/crm.css`:
 ### Configuração manual (pós-código)
 - [ ] Configurar GitHub Environments `prd`, `uat`, `dev` + required reviewers
 - [ ] Adicionar secrets `WEBHOOK_SECRET_UAT` e `WEBHOOK_SECRET_DEV` no GitHub
-- [ ] Configurar Vercel branch `develop` com `VITE_SUPABASE_SCHEMA=uat`
+- [ ] Configurar Vercel branch `develop` com `NEXT_PUBLIC_SUPABASE_SCHEMA=uat`
 - [ ] Configurar 3 webhooks Supabase para schema `uat`
 - [ ] Configurar env vars nas funções UAT após primeiro deploy
 - [ ] `bash infra/scheduler.sh uat` — criar scheduler jobs de UAT
