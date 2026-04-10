@@ -35,7 +35,7 @@ const findExistingRow = async (sheets, email, athleteName) => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Página1!A:AV',
+      range: 'Página1!A:BG',
     });
 
     const rows = response.data.values || [];
@@ -136,6 +136,19 @@ const buildRow = (data) => {
 
     // AV: PAÍS (suporte internacional)
     data.address_country || 'BR',  // AV - País do lead
+
+    // AW-BG: TRACKING & ATRIBUIÇÃO
+    data.utm_source || '',         // AW - UTM Source
+    data.utm_medium || '',         // AX - UTM Medium
+    data.utm_campaign || '',       // AY - UTM Campaign
+    data.utm_content || '',        // AZ - UTM Content
+    data.utm_term || '',           // BA - UTM Term
+    data.referrer_url || '',       // BB - Referrer URL
+    data.landing_url || '',        // BC - Landing URL
+    data.session_id || '',         // BD - Session ID
+    data.cta_source || '',         // BE - CTA Source (hero/final/header)
+    data.device_type || '',        // BF - Device Type (mobile/tablet/desktop)
+    data.form_started_at ? new Date(data.form_started_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '',  // BG - Form Started At
   ];
 };
 

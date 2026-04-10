@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import { SITE_URL, SEO_DEFAULTS, PAGE_SEO } from "@/config/seo";
+import { SITE_URL, SEO_DEFAULTS, PAGE_SEO, getSeoText, getOgLocale, getAlternateLocales } from "@/config/seo";
 import { JsonLd } from "@/lib/jsonld";
 import HomeContent from "@/components/HomeContent";
 
-export function generateMetadata(): Metadata {
+interface PageProps {
+  params: Promise<{ locale: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { locale } = await params;
   const seo = PAGE_SEO.home;
+  const title = getSeoText(seo.title, locale);
+  const description = getSeoText(seo.description, locale);
+
   return {
-    title: seo.title,
-    description: seo.description,
+    title,
+    description,
     alternates: {
       canonical: seo.canonicalPath,
       languages: {
@@ -18,10 +26,12 @@ export function generateMetadata(): Metadata {
       },
     },
     openGraph: {
-      title: seo.title,
-      description: seo.description,
+      title,
+      description,
       url: seo.canonicalPath,
       type: "website",
+      locale: getOgLocale(locale),
+      alternateLocale: getAlternateLocales(locale),
       images: [
         {
           url: SEO_DEFAULTS.ogImage,
@@ -32,8 +42,8 @@ export function generateMetadata(): Metadata {
       ],
     },
     twitter: {
-      title: seo.title,
-      description: seo.description,
+      title,
+      description,
       images: [{ url: SEO_DEFAULTS.ogImage, alt: SEO_DEFAULTS.ogImageAlt }],
     },
     keywords:
@@ -108,9 +118,18 @@ const faqSchema = {
   ],
 };
 
-interface PageProps {
-  params: Promise<{ locale: string }>;
-}
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Início",
+      item: SITE_URL,
+    },
+  ],
+};
 
 export default async function HomePage({ params }: PageProps) {
   const { locale } = await params;
@@ -121,6 +140,7 @@ export default async function HomePage({ params }: PageProps) {
       <JsonLd data={organizationSchema} />
       <JsonLd data={websiteSchema} />
       <JsonLd data={faqSchema} />
+      <JsonLd data={breadcrumbSchema} />
       <HomeContent />
     </>
   );

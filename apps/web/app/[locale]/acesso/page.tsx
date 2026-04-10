@@ -1,13 +1,22 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import { SEO_DEFAULTS, PAGE_SEO } from "@/config/seo";
+import { SITE_URL, SEO_DEFAULTS, PAGE_SEO, getSeoText, getOgLocale, getAlternateLocales } from "@/config/seo";
+import { JsonLd } from "@/lib/jsonld";
 import LinksContent from "@/components/LinksContent";
 
-export function generateMetadata(): Metadata {
+interface PageProps {
+  params: Promise<{ locale: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { locale } = await params;
   const seo = PAGE_SEO.links;
+  const title = getSeoText(seo.title, locale);
+  const description = getSeoText(seo.description, locale);
+
   return {
-    title: seo.title,
-    description: seo.description,
+    title,
+    description,
     alternates: {
       canonical: seo.canonicalPath,
       languages: {
@@ -17,10 +26,12 @@ export function generateMetadata(): Metadata {
       },
     },
     openGraph: {
-      title: seo.title,
-      description: seo.description,
+      title,
+      description,
       url: seo.canonicalPath,
       type: "website",
+      locale: getOgLocale(locale),
+      alternateLocale: getAlternateLocales(locale),
       images: [
         {
           url: SEO_DEFAULTS.ogImage,
@@ -31,19 +42,39 @@ export function generateMetadata(): Metadata {
       ],
     },
     twitter: {
-      title: seo.title,
-      description: seo.description,
+      title,
+      description,
     },
   };
 }
 
-interface PageProps {
-  params: Promise<{ locale: string }>;
-}
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Início",
+      item: SITE_URL,
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Links",
+      item: `${SITE_URL}/acesso`,
+    },
+  ],
+};
 
 export default async function LinksPage({ params }: PageProps) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  return <LinksContent />;
+  return (
+    <>
+      <JsonLd data={breadcrumbSchema} />
+      <LinksContent />
+    </>
+  );
 }
