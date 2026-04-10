@@ -234,7 +234,7 @@ O CRM interno da Bolsa Atleta USA foi implementado em todas as 7 fases planejada
 | Campos reunião no deals (reuniao_agendada_at, link, data) | ✅ Migration aplicada |
 | process-followup move deal para reuniao_marcada | ✅ Implementado |
 | 58 leads existentes migrados para pipeline | ✅ Migration aplicada |
-| elite-crm integrado com Supabase real | ✅ 20 páginas |
+| BAUSA Engine integrado com Supabase real | ✅ 20 páginas |
 | Pipeline Kanban com drag-drop + DealDetailSheet 4 abas | ✅ Implementado |
 | Separação Lead Score vs Qualificação Gemini na UI | ✅ Implementado |
 

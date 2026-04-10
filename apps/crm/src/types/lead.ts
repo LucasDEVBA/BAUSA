@@ -78,6 +78,19 @@ export interface Lead {
   pipeline_deal_id: string | null;
   pipeline_atleta_id: string | null;
 
+  // Tracking & Attribution
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  referrer_url: string | null;
+  landing_url: string | null;
+  session_id: string | null;
+  cta_source: string | null;
+  device_type: string | null;
+  form_started_at: string | null;
+
   // Deteccao de duplicatas
   possible_duplicate?: boolean;
 

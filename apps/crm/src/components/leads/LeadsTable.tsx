@@ -268,6 +268,29 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         size: 140,
       },
       {
+        id: "origem",
+        header: "Origem",
+        accessorFn: (row) => row.utm_source ?? row.cta_source ?? "",
+        cell: ({ row }) => {
+          const lead = row.original;
+          const source = lead.utm_source || lead.cta_source;
+          if (!source) return <span className="text-xs text-zinc-600">—</span>;
+
+          const device = lead.device_type;
+          return (
+            <div className="flex flex-col gap-0.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-300 border border-purple-500/20 w-fit">
+                {source}
+              </span>
+              {device && (
+                <span className="text-[10px] text-zinc-500">{device}</span>
+              )}
+            </div>
+          );
+        },
+        size: 120,
+      },
+      {
         accessorKey: "submitted_at",
         header: "Recebido",
         cell: ({ getValue }) => (
