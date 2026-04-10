@@ -12,6 +12,9 @@ const SYNC_LEADS_URL          = process.env.SYNC_LEADS_URL;
 const SERVICE_ACCOUNT_EMAIL   = process.env.SERVICE_ACCOUNT_EMAIL;
 const GOOGLE_CALENDAR_ID      = process.env.GOOGLE_CALENDAR_ID;
 const CEO_WHATSAPP            = process.env.CEO_WHATSAPP || '';
+const ZAPI_INSTANCE_ID        = process.env.ZAPI_INSTANCE_ID;
+const ZAPI_TOKEN              = process.env.ZAPI_TOKEN;
+const ZAPI_CLIENT_TOKEN       = process.env.ZAPI_CLIENT_TOKEN;
 const RAW_KEY                 = process.env.SERVICE_ACCOUNT_PRIVATE_KEY || '';
 const SERVICE_ACCOUNT_PRIVATE_KEY = RAW_KEY
   .replace(/^["']|["']$/g, '')
@@ -200,11 +203,18 @@ const moveDealToReuniao = async (leadId, event) => {
   return updateRes.statusCode < 400;
 };
 
-// ─── Enviar WhatsApp de confirmação ───────────────────────────
-const sendConfirmationWhatsApp = async (phone, name, event) => {
-  if (!SEND_WHATSAPP_URL || !phone) return;
+// ─── Formatar telefone (E.164) ────────────────────────────────
+const formatPhone = (phone) => {
+  if (!phone) return null;
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('+')) cleaned = cleaned.substring(1);
+  if (cleaned.length <= 11) cleaned = `55${cleaned}`;
+  if (cleaned.length < 12) return null;
+  return cleaned;
+};
 
-  const meetLink = event.hangoutLink || event.htmlLink || '';
+// ─── Formatar data/hora do evento ─────────────────────────────
+const formatEventDateTime = (event) => {
   const eventDate = event.start?.dateTime
     ? new Date(event.start.dateTime).toLocaleDateString('pt-BR', {
         weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
@@ -217,101 +227,98 @@ const sendConfirmationWhatsApp = async (phone, name, event) => {
         timeZone: 'America/Sao_Paulo',
       })
     : '';
+  return { eventDate, eventTime };
+};
 
-  const message = `✅ *Reunião Confirmada!*
+// ─── Enviar via Z-API com link preview ────────────────────────
+const sendLinkMessage = async (phone, message, linkUrl, title, description) => {
+  const formattedPhone = formatPhone(phone);
+  if (!formattedPhone || !ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
+    log('WARN', 'zapi_skip', { phone, hasZapi: !!ZAPI_INSTANCE_ID });
+    return false;
+  }
+
+  const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-link`;
+
+  const postData = JSON.stringify({
+    phone: formattedPhone,
+    message,
+    linkUrl,
+    title,
+    linkDescription: description,
+    image: 'https://lh3.googleusercontent.com/a-/ALV-UjXKwLrleoe7peDm_g3u_88uIfrh08RcWDpvv2VkH7XIkjMFKWko=s256',
+  });
+
+  try {
+    const result = await httpRequest(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Client-Token': ZAPI_CLIENT_TOKEN,
+      },
+    }, postData);
+
+    log('INFO', 'zapi_sent', { phone: formattedPhone, statusCode: result.statusCode });
+    return result.statusCode < 400;
+  } catch (err) {
+    log('WARN', 'zapi_error', { phone, error: err.message });
+    return false;
+  }
+};
+
+// ─── Enviar WhatsApp de confirmação para o lead ───────────────
+const sendConfirmationWhatsApp = async (phone, name, event) => {
+  if (!phone) return;
+
+  const meetLink = event.hangoutLink || event.htmlLink || '';
+  const { eventDate, eventTime } = formatEventDateTime(event);
+
+  const message = `✅ *Reunião Estratégica Individual confirmada!*
 
 Olá, *${name}*!
 
-Sua *Reunião Estratégica Individual* com *Leandro Ribeiro* está confirmada.
+Sua reunião com *Leandro Ribeiro* está confirmada.
 
 📅 *Data:* ${eventDate}
 🕐 *Horário:* ${eventTime}h (Brasília)
-${meetLink ? `📍 *Link da reunião:* ${meetLink}` : ''}
 
 _Recomendamos acessar 5 minutos antes do horário marcado._
 
 Nos vemos em breve!
 *Bolsa Atleta USA*`;
 
-  const payload = JSON.stringify({
-    record: {
-      athlete_name: name,
-      guardian_name: name,
-      guardian_whatsapp: phone,
-      athlete_whatsapp: phone,
-      qualification_classification: 'QUENTE',
-    },
-    messageType: 'meeting_confirmed',
-    customMessage: message,
-    phone,
-  });
+  const linkTitle = 'Reunião Estratégica Individual — Bolsa Atleta USA';
+  const linkDesc = `${eventDate} às ${eventTime}h — com Leandro Ribeiro`;
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'Content-Length': Buffer.byteLength(payload),
-  };
-  if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
-
-  try {
-    await httpRequest(SEND_WHATSAPP_URL, { method: 'POST', headers }, payload);
+  const sent = await sendLinkMessage(phone, message, meetLink, linkTitle, linkDesc);
+  if (sent) {
     log('INFO', 'whatsapp_confirmation_sent', { phone, name });
-  } catch (err) {
-    log('WARN', 'whatsapp_confirmation_failed', { phone, error: err.message });
   }
 };
 
 // ─── Notificar CEO ────────────────────────────────────────────
-const notifyCeo = async (name, phone, email, event) => {
-  if (!SEND_WHATSAPP_URL || !CEO_WHATSAPP) return;
+const notifyCeo = async (athleteName, guardianName, phone, email, event) => {
+  if (!CEO_WHATSAPP) return;
 
   const meetLink = event.hangoutLink || event.htmlLink || '';
-  const eventDate = event.start?.dateTime
-    ? new Date(event.start.dateTime).toLocaleDateString('pt-BR', {
-        weekday: 'long', day: '2-digit', month: 'long',
-        timeZone: 'America/Sao_Paulo',
-      })
-    : '';
-  const eventTime = event.start?.dateTime
-    ? new Date(event.start.dateTime).toLocaleTimeString('pt-BR', {
-        hour: '2-digit', minute: '2-digit',
-        timeZone: 'America/Sao_Paulo',
-      })
-    : '';
+  const { eventDate, eventTime } = formatEventDateTime(event);
 
   const message = `🔔 *Nova Reunião Agendada*
 
-*Nome:* ${name}
-*Telefone:* ${phone}
+*Atleta:* ${athleteName}
+*Responsável:* ${guardianName || athleteName}
+*Telefone:* ${phone || 'N/A'}
 ${email ? `*Email:* ${email}` : ''}
 
-📅 *Data:* ${eventDate}
-🕐 *Horário:* ${eventTime}h
-${meetLink ? `📍 *Link:* ${meetLink}` : ''}`;
+📅 *${eventDate}*
+🕐 *${eventTime}h*`;
 
-  const payload = JSON.stringify({
-    record: {
-      athlete_name: name,
-      guardian_name: 'CEO',
-      guardian_whatsapp: CEO_WHATSAPP,
-      athlete_whatsapp: CEO_WHATSAPP,
-      qualification_classification: 'QUENTE',
-    },
-    messageType: 'meeting_confirmed',
-    customMessage: message,
-    phone: CEO_WHATSAPP,
-  });
+  const linkTitle = `Nova reunião — ${athleteName}`;
+  const linkDesc = `${eventDate} às ${eventTime}h`;
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'Content-Length': Buffer.byteLength(payload),
-  };
-  if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
-
-  try {
-    await httpRequest(SEND_WHATSAPP_URL, { method: 'POST', headers }, payload);
+  const sent = await sendLinkMessage(CEO_WHATSAPP, message, meetLink, linkTitle, linkDesc);
+  if (sent) {
     log('INFO', 'ceo_notification_sent');
-  } catch (err) {
-    log('WARN', 'ceo_notification_failed', { error: err.message });
   }
 };
 
@@ -433,6 +440,7 @@ functions.http('calendarWebhook', async (req, res) => {
       // 4. Notificar CEO
       await notifyCeo(
         lead.athlete_name,
+        lead.guardian_name || lead.athlete_name,
         confirmPhone || 'N/A',
         lead.email,
         event,
