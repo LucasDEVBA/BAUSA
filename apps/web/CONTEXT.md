@@ -73,7 +73,7 @@
 
 6 funcoes GCP Gen2 que processam leads automaticamente:
 1. **messenger-service**: Emails de confirmacao (Resend/Brevo fallback)
-2. **sync-elite-leads**: Sync com Google Sheets (colunas A-AV)
+2. **sync-elite-leads**: Sync com Google Sheets (colunas A-BG)
 3. **lead-qualifier**: Qualificacao IA via Gemini (QUENTE/MORNO/FRIO)
 4. **send-whatsapp**: Templates WhatsApp via Z-API
 5. **whatsapp-scheduler**: Fila de WhatsApp inicial (22h apos qualificacao)
@@ -173,9 +173,9 @@ Dois conceitos distintos coexistem:
 - **Qualificação Gemini** (`qualificado_gemini`, `classificacao_gemini`, `motivo_gemini`): Avaliação fixa da IA baseada em profissão, investimento e contexto socioeconômico. Não muda.
 - **Lead Score** (`lead_score` 0-100): Score dinâmico calculado por trigger SQL com 7 critérios ponderados. Melhora conforme o CEO preenche dados do atleta (inglês, série, desempenho, etc).
 
-### elite-crm — Frontend de Gestão
+### BAUSA Engine — Frontend de Gestão
 
-Um segundo projeto (`../elite-crm`) foi integrado como frontend do CRM:
+Um segundo projeto (`../BAUSA Engine`) foi integrado como frontend do CRM:
 - Dark theme com Recharts (gráficos), @dnd-kit (drag-and-drop no Pipeline)
 - Todas as 20 páginas migradas de mock data para Supabase real
 - Auth via Supabase com RBAC (CEO/Head/Comercial)

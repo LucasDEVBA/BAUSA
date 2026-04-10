@@ -1,4 +1,4 @@
-# Elite Portal USA
+# BAUSA
 
 Sistema de automação de leads para a Bolsa Atleta USA.
 

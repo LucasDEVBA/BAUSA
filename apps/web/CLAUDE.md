@@ -1,4 +1,4 @@
-# CLAUDE.md — Elite Portal USA
+# CLAUDE.md — BAUSA
 
 > Instruções para o agente Claude Code neste repositório.
 > Para contexto completo do produto, ver `CONTEXT.md`.
@@ -9,7 +9,7 @@
 
 **Produto:** Bolsa Atleta USA — assessoria exclusiva para bolsas esportivas em instituições americanas.
 **URL:** https://bolsaatletausa.com
-**Repositório:** https://github.com/LucasDEVBA/elite-portal-usa
+**Repositório:** https://github.com/LucasDEVBA/BAUSA
 **Branch principal:** `main` (nunca commitar direto — sempre feature branches)
 
 ---
@@ -35,7 +35,7 @@
 ## Regras Inegociáveis
 
 ### Package manager
-- Usar **npm** — o projeto já usa npm. Não usar pnpm, yarn ou bun.
+- Usar **pnpm** — monorepo com Turborepo. Não usar npm, yarn ou bun.
 
 ### TypeScript
 - **strict mode está DESABILITADO** neste projeto (legado). Não habilitar sem alinhamento explícito com o usuário.
@@ -93,7 +93,7 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | Pasta local | Nome PRD | Nome UAT | Trigger | Responsabilidade |
 |-------------|----------|----------|---------|-----------------|
 | `functions/send-messages/` | `messenger-service` | `messenger-service-uat` | Webhook Supabase INSERT | E-mails de confirmação (Resend/Brevo) |
-| `functions/sync-leads/` | `sync-elite-leads` | `sync-elite-leads-uat` | Webhook Supabase INSERT | Sync → Google Sheets (cols A–AV) |
+| `functions/sync-leads/` | `sync-elite-leads` | `sync-elite-leads-uat` | Webhook Supabase INSERT | Sync → Google Sheets (cols A–BG) |
 | `functions/qualify-lead/` | `lead-qualifier` | `lead-qualifier-uat` | Webhook Supabase INSERT | Qualificação IA via Gemini |
 | `functions/send-whatsapp/` | `send-whatsapp` | `send-whatsapp-uat` | HTTP POST | Envio WhatsApp via Z-API (initial/followup_1/followup_2) |
 | `functions/process-pending-whatsapp/` | `whatsapp-scheduler` | `whatsapp-scheduler-uat` | Cloud Scheduler (1x/hora) | Processa fila de WhatsApp inicial (22h) |
@@ -159,7 +159,7 @@ AND meeting_scheduled IS NOT TRUE
 
 ---
 
-## Google Sheets — Layout (Página1, colunas A–AV)
+## Google Sheets — Layout (Página1, colunas A–BG)
 
 Colunas críticas para matching de linha (identificação de duplicatas):
 - **Col E (índice 4):** `athlete_name` ⭐
@@ -358,10 +358,10 @@ gcloud scheduler jobs resume process-whatsapp-job --location=us-central1 --proje
 
 | Projeto | Repositório | Propósito |
 |---------|-------------|-----------|
-| **elite-crm** | `../elite-crm` | CRM frontend (Next.js 16, dark theme, Recharts) — consome o mesmo Supabase |
-| **elite-portal-usa** | Este repo | Site público + Cloud Functions + migrations Supabase |
+| **BAUSA Engine** | `../BAUSA Engine` | CRM frontend (Next.js 16, dark theme, Recharts) — consome o mesmo Supabase |
+| **BAUSA** | Este repo | Site público + Cloud Functions + migrations Supabase |
 
-O `elite-crm` é o frontend de gestão usado pelo CEO/Head. Compartilha o mesmo banco Supabase e usa os mesmos server actions. Documentação específica: `../elite-crm/CLAUDE.md`.
+O `BAUSA Engine` é o frontend de gestão usado pelo CEO/Head. Compartilha o mesmo banco Supabase e usa os mesmos server actions. Documentação específica: `../BAUSA Engine/CLAUDE.md`.
 
 ---
 
@@ -460,7 +460,7 @@ Lead preenche formulário → form_submissions INSERT
     - Se detecta reunião → move deal para reuniao_marcada
     - Popula reuniao_agendada_at, reuniao_data, reuniao_link
     - Se sem reunião: envia follow-up 1 (48h) e follow-up 2 (7 dias)
-  → CEO vê tudo no Pipeline (elite-crm) e avança etapas
+  → CEO vê tudo no Pipeline (BAUSA Engine) e avança etapas
 ```
 
 **Separação Lead Score vs Qualificação Gemini:**

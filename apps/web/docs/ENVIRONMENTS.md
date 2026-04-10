@@ -1,4 +1,4 @@
-# Ambientes — Elite Portal USA
+# Ambientes — BAUSA
 
 ## Visão geral
 
@@ -116,7 +116,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=<anon key>
 
 **Aprovação de deploy:**
 1. Merge em `main` → GitHub Actions inicia o job mas **pausa**
-2. Vai para `github.com/LucasDEVBA/elite-portal-usa/actions`
+2. Vai para `github.com/LucasDEVBA/BAUSA/actions`
 3. Clica em "Review deployments" → "Approve and deploy"
 4. Deploy para PRD é executado
 

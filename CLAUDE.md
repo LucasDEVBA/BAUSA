@@ -1,4 +1,4 @@
-# CLAUDE.md — Elite Portal USA
+# CLAUDE.md — BAUSA
 
 > Instruções para o agente Claude Code neste repositório.
 > Para contexto completo do produto, ver `CONTEXT.md`.
@@ -35,7 +35,7 @@
 ## Regras Inegociáveis
 
 ### Package manager
-- Usar **npm** — o projeto já usa npm. Não usar pnpm, yarn ou bun.
+- Usar **pnpm** — monorepo com Turborepo. Não usar npm, yarn ou bun.
 
 ### TypeScript
 - **strict mode está DESABILITADO** neste projeto (legado). Não habilitar sem alinhamento explícito com o usuário.
@@ -93,7 +93,7 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | Pasta local | Nome PRD | Nome UAT | Trigger | Responsabilidade |
 |-------------|----------|----------|---------|-----------------|
 | `functions/send-messages/` | `messenger-service` | `messenger-service-uat` | Webhook Supabase INSERT | E-mails de confirmação (Resend/Brevo) |
-| `functions/sync-leads/` | `sync-elite-leads` | `sync-elite-leads-uat` | Webhook Supabase INSERT | Sync → Google Sheets (cols A–AV) |
+| `functions/sync-leads/` | `sync-elite-leads` | `sync-elite-leads-uat` | Webhook Supabase INSERT | Sync → Google Sheets (cols A–BG) |
 | `functions/qualify-lead/` | `lead-qualifier` | `lead-qualifier-uat` | Webhook Supabase INSERT | Qualificação IA via Gemini |
 | `functions/send-whatsapp/` | `send-whatsapp` | `send-whatsapp-uat` | HTTP POST | Envio WhatsApp via Z-API (initial/followup_1/followup_2) |
 | `functions/process-pending-whatsapp/` | `whatsapp-scheduler` | `whatsapp-scheduler-uat` | Cloud Scheduler (1x/hora) | Processa fila de WhatsApp inicial (22h) |
@@ -159,7 +159,7 @@ AND meeting_scheduled IS NOT TRUE
 
 ---
 
-## Google Sheets — Layout (Página1, colunas A–AV)
+## Google Sheets — Layout (Página1, colunas A–BG)
 
 Colunas críticas para matching de linha (identificação de duplicatas):
 - **Col E (índice 4):** `athlete_name` ⭐
@@ -178,6 +178,13 @@ Colunas de status de comunicação:
 - **Col AP:** Follow-up 1 enviado SIM/NÃO | **Col AQ:** Data Follow-up 1
 - **Col AR:** Follow-up 2 enviado SIM/NÃO | **Col AS:** Data Follow-up 2
 - **Col AT:** Reunião agendada SIM/NÃO | **Col AU:** Data detecção reunião
+
+Colunas de tracking e atribuição (preenchidas pelo formulário):
+- **Col AW:** UTM Source | **Col AX:** UTM Medium | **Col AY:** UTM Campaign
+- **Col AZ:** UTM Content | **Col BA:** UTM Term
+- **Col BB:** Referrer URL | **Col BC:** Landing URL
+- **Col BD:** Session ID | **Col BE:** CTA Source (hero/final/header)
+- **Col BF:** Device Type (mobile/tablet/desktop) | **Col BG:** Form Started At
 
 ---
 

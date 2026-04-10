@@ -372,6 +372,19 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
                 </div>
               )}
 
+              {(lead.utm_source || lead.cta_source || lead.device_type) && (
+                <div>
+                  <SectionTitle>Origem do Lead</SectionTitle>
+                  <div className="divide-y divide-[#1e2130]">
+                    <DataRow label="Fonte" value={lead.utm_source} />
+                    <DataRow label="Meio" value={lead.utm_medium} />
+                    <DataRow label="Campanha" value={lead.utm_campaign} />
+                    <DataRow label="CTA" value={lead.cta_source} />
+                    <DataRow label="Dispositivo" value={lead.device_type} />
+                  </div>
+                </div>
+              )}
+
               {lead.notes && (
                 <div>
                   <SectionTitle>Notas Internas</SectionTitle>
