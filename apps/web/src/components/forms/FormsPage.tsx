@@ -713,7 +713,7 @@ const Forms = () => {
                     <SelectItem
                       key={opt.value}
                       value={opt.value}
-                      className="text-white/70 focus:bg-white/10 focus:text-white cursor-pointer text-[15px] sm:text-base py-3 sm:py-3.5 px-4 rounded-xl transition-colors duration-200 outline-none my-0.5 data-[state=checked]:text-white data-[state=checked]:font-medium data-[state=checked]:bg-white/5"
+                      className="text-white/70 focus:bg-white/10 focus:text-white cursor-pointer text-[16px] sm:text-[15px] py-4 sm:py-3.5 pl-4 pr-12 rounded-xl transition-colors duration-200 outline-none my-0.5 data-[state=checked]:text-white data-[state=checked]:font-medium data-[state=checked]:bg-white/5 active:bg-white/10"
                     >
                       {opt.label}
                     </SelectItem>
