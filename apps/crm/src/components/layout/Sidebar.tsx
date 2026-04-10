@@ -86,6 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
         subItems: [
           { href: "/analytics", label: "Receita" },
           { href: "/analytics/atribuicao", label: "Atribuição" },
+          { href: "/analytics/utm-builder", label: "Gerador UTM" },
         ],
       },
       { href: "/relatorios", label: "Relatorios", icon: BarChart3, roles: ["ceo"] },

@@ -19,6 +19,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/war-room/familias": { label: "Famílias", parent: "War Room" },
   "/analytics": { label: "Analytics", parent: "Executivo" },
   "/analytics/atribuicao": { label: "Atribuição", parent: "Analytics" },
+  "/analytics/utm-builder": { label: "Gerador UTM", parent: "Analytics" },
   "/messages": { label: "Mensagens" },
   "/minha-area": { label: "Minha Área" },
   "/settings": { label: "Configurações" },
