@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import logoHorizontal from "@/assets/logo-horizontal.png";
 import LanguageSelector from "./LanguageSelector";
 import { useLanguage } from "@/i18n";
+import { trackCtaClick } from "@/lib/tracking/events";
 
 const Header = memo(() => {
   const { t } = useLanguage();
@@ -24,6 +25,7 @@ const Header = memo(() => {
           <LanguageSelector variant="light" size="lg" />
           <Link
             href="/forms"
+            onClick={() => trackCtaClick("header")}
             className="hidden sm:inline-flex px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
           >
             {t("header.contact")}

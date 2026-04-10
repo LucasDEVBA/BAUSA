@@ -7,6 +7,8 @@ import { Analytics } from "@vercel/analytics/next";
 import { routing } from "@/i18n/routing";
 import { inter } from "@/lib/fonts";
 import { Providers } from "@/components/Providers";
+import { CookieConsent } from "@/components/CookieConsent";
+import { GoogleTagManager } from "@/lib/tracking/gtm";
 
 import "../globals.css";
 
@@ -72,7 +74,9 @@ export default async function RootLayout({ children, params }: RootLayoutProps) 
       <body className={inter.variable}>
         <Providers locale={locale} messages={messages}>
           {children}
+          <CookieConsent />
         </Providers>
+        <GoogleTagManager />
         <Analytics />
       </body>
     </html>

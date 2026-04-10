@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,6 +20,10 @@ import { useLanguage } from "@/i18n";
 import LanguageSelector from "@/components/LanguageSelector";
 import FormPhoneInput from "@/components/ui/phone-input";
 import { CountrySelect } from "@/components/ui/country-select";
+import { captureUTMs, getStoredUTMs } from "@/lib/tracking/utm";
+import { getOrCreateSessionId, captureLandingUrl, captureReferrer, getDeviceType } from "@/lib/tracking/session";
+import { trackFormStart, trackFormStep, trackFormSubmit, trackFormError } from "@/lib/tracking/events";
+
 // supabase é importado dinamicamente dentro do onSubmit para evitar
 // que a inicialização do cliente (que exige env vars) quebre o carregamento da página
 
@@ -148,6 +152,13 @@ const stepFieldsMap: Record<number, (keyof FormData)[]> = {
 // Auto-advance steps (single radio)
 const autoAdvanceSteps = [4, 5, 8, 9, 10, 11];
 
+const STEP_NAMES: Record<number, string> = {
+  0: "intro_stage1", 1: "athlete_info", 2: "school_info", 3: "sport_info",
+  4: "start_timing", 5: "project_direction", 6: "intro_stage2",
+  7: "academic_info", 8: "behavioral", 9: "commitment", 10: "family_decision",
+  11: "investment", 12: "guardian_info", 13: "address",
+};
+
 const Forms = () => {
   // SEO handled by generateMetadata in app/[locale]/forms/page.tsx
   const { t, translateError } = useLanguage();
@@ -181,6 +192,15 @@ const Forms = () => {
 
   const { register, handleSubmit, watch, setValue, formState: { errors }, trigger, getValues } = form;
   const allFormValues = watch();
+
+  const formStartedAtRef = useRef<string | null>(null);
+
+  // --- Tracking: captura UTMs, referrer e landing URL ---
+  useEffect(() => {
+    captureUTMs();
+    captureLandingUrl();
+    captureReferrer();
+  }, []);
 
   // --- localStorage draft ---
   useEffect(() => {
@@ -364,7 +384,18 @@ const Forms = () => {
         }
       }
       setDirection("forward");
+      const nextStepNum = currentStep + 1;
       setCurrentStep(prev => prev + 1);
+
+      // Track step completion + form start
+      if (currentStep === STAGE_1_INTRO || currentStep === STAGE_2_INTRO) {
+        if (currentStep === STAGE_1_INTRO) {
+          formStartedAtRef.current = new Date().toISOString();
+          trackFormStart(getOrCreateSessionId());
+        }
+      } else {
+        trackFormStep(currentStep, STEP_NAMES[currentStep] || `step_${currentStep}`);
+      }
     } finally {
       setTimeout(() => { isNavigatingRef.current = false; }, 300);
     }
@@ -438,6 +469,18 @@ const Forms = () => {
         address_state: data.addressState?.trim() || null,
         notes: `whatsapp_stage1: ${data.whatsapp}`,
         user_agent: typeof navigator !== "undefined" ? navigator.userAgent || null : null,
+        // --- Tracking & Attribution ---
+        utm_source: getStoredUTMs().utm_source,
+        utm_medium: getStoredUTMs().utm_medium,
+        utm_campaign: getStoredUTMs().utm_campaign,
+        utm_content: getStoredUTMs().utm_content,
+        utm_term: getStoredUTMs().utm_term,
+        referrer_url: typeof sessionStorage !== "undefined" ? sessionStorage.getItem("bau_referrer") || null : null,
+        landing_url: typeof sessionStorage !== "undefined" ? sessionStorage.getItem("bau_landing_url") || null : null,
+        session_id: getOrCreateSessionId() || null,
+        cta_source: typeof sessionStorage !== "undefined" ? sessionStorage.getItem("bau_cta_source") || null : null,
+        device_type: getDeviceType(),
+        form_started_at: formStartedAtRef.current,
       };
 
       // Usa fetch direta para garantir controle total dos headers.
@@ -475,9 +518,12 @@ const Forms = () => {
 
       clearDraft();
       setIsComplete(true);
+      trackFormSubmit(submissionIdRef.current);
+      trackFormStep(currentStep, STEP_NAMES[currentStep] || "address");
       toast({ title: t("form.toast.title"), description: t("form.toast.description") });
     } catch (err) {
       console.error("[Form] Unexpected error:", err);
+      trackFormError(currentStep, err instanceof Error ? err.message : "unknown");
       if (err instanceof Error) {
         setSubmissionError(err.message);
       } else {

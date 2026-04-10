@@ -7,6 +7,7 @@ import logoWhite from "@/assets/logo-white.png";
 import logoWatermark from "@/assets/logo-watermark.png";
 import { Link } from "@/i18n/navigation";
 import { useLanguage } from "@/i18n";
+import { trackCtaClick } from "@/lib/tracking/events";
 
 // URL estática (public/) para permitir preload declarativo no index.html
 const HERO_IMAGE_URL = "/hero-campus.jpg";
@@ -152,6 +153,7 @@ const HeroSection = memo(() => {
             >
               <Link
                 href="/forms"
+                onClick={() => trackCtaClick("hero")}
                 className="group relative inline-flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 sm:py-5 rounded-xl font-medium text-[15px] sm:text-base overflow-hidden min-h-[56px] transition-all duration-500"
               >
                 {/* Button Background */}
