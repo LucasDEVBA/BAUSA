@@ -34,6 +34,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "date param required" }, { status: 400 });
     }
 
+    // Debug: verificar env vars
+    if (!SERVICE_ACCOUNT_EMAIL || !SERVICE_ACCOUNT_PRIVATE_KEY || !GOOGLE_CALENDAR_ID) {
+      console.error("[agendar] Missing env vars:", {
+        hasEmail: !!SERVICE_ACCOUNT_EMAIL,
+        hasKey: SERVICE_ACCOUNT_PRIVATE_KEY.length > 0,
+        keyLength: SERVICE_ACCOUNT_PRIVATE_KEY.length,
+        keyStart: SERVICE_ACCOUNT_PRIVATE_KEY.substring(0, 30),
+        hasCalendarId: !!GOOGLE_CALENDAR_ID,
+      });
+      return NextResponse.json({
+        error: "Calendar not configured",
+        debug: {
+          hasEmail: !!SERVICE_ACCOUNT_EMAIL,
+          hasKey: SERVICE_ACCOUNT_PRIVATE_KEY.length > 0,
+          hasCalendarId: !!GOOGLE_CALENDAR_ID,
+        },
+      }, { status: 500 });
+    }
+
     const auth = getCalendarAuth();
     const calendar = google.calendar({ version: "v3", auth });
 
@@ -77,8 +96,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ slots });
   } catch (error) {
-    console.error("[agendar] GET error:", error);
-    return NextResponse.json({ error: "Failed to fetch slots" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[agendar] GET error:", msg, error);
+    return NextResponse.json({ error: "Failed to fetch slots", detail: msg }, { status: 500 });
   }
 }
 
