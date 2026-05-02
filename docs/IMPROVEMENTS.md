@@ -132,12 +132,46 @@ Se a Meta API não estiver disponível, implementar input manual no Engine:
 **Estimativa:** 30 min
 **Status:** Futuro
 
-- Instalar via GTM (HTML personalizado)
+- Instalar via GTM (HTML personalizado) — infraestrutura GTM já pronta (ver item 7)
 - Eventos: PageView + Lead (form_submit)
 
 ---
 
-## 7. ~~Confirmação de Reunião via WhatsApp~~ ✅ IMPLEMENTADO (2026-04-10)
+## 7. ~~Google Tag Manager + GA4 + Meta Pixel~~ ✅ IMPLEMENTADO (2026-04-21)
+
+Stack de tracking implementada via GTM container `GTM-5J87JXSR`:
+
+**Tags publicadas (versão 2 — 2026-04-21):**
+- **Tag do Google** (GA4 `G-3GP7EFN0P9`) — pageviews, dispara em `Initialization - All Pages`
+- **Meta Pixel - Base** (`1521863919289394`) — fbevents.js + PageView, dispara em `All Pages`
+- **GA4 - Lead Conversion** — evento `generate_lead`, dispara em `Trigger - Form Submit`
+- **Meta Pixel - Lead** — `fbq('track','Lead')`, dispara em `Trigger - Form Submit`
+- **GA4 - CTA Click** — evento `cta_click` com parâmetro `cta_source`, dispara em `Trigger - CTA Click`
+
+**Acionadores (eventos personalizados do dataLayer):**
+- `Trigger - Form Submit` (event: `form_submit`)
+- `Trigger - CTA Click` (event: `cta_click`)
+
+**Variáveis:**
+- `cta_source` — variável da camada de dados (lê `cta_source` do dataLayer)
+
+**Integração no código** ([apps/web/src/lib/tracking/events.ts](../apps/web/src/lib/tracking/events.ts)):
+```ts
+trackFormSubmit(submissionId)        // → dataLayer.push({event: 'form_submit', ...})
+trackCtaClick('hero'|'final'|...)    // → dataLayer.push({event: 'cta_click', cta_source})
+```
+
+**Env var Vercel:** `NEXT_PUBLIC_GTM_ID=GTM-5J87JXSR` em Production, Preview e Development.
+
+**Pendências de validação (pós-deploy):**
+- Marcar `generate_lead` como conversão (Key Event) no GA4 Admin
+- Verificar Lead chegando em Meta Events Manager → Test Events
+- Configurar Domain Verification do Meta Pixel para `bolsaatletausa.com` (importante para iOS 14+)
+- Considerar Conversions API (CAPI) para melhorar match rate iOS
+
+---
+
+## 8. ~~Confirmação de Reunião via WhatsApp~~ ✅ IMPLEMENTADO (2026-04-10)
 
 Implementado via Google Calendar Push Notifications:
 - `calendar-webhook`: recebe push do Google Calendar, busca lead por email/telefone, envia WhatsApp confirmação (lead + CEO) com link Meet + preview
@@ -148,7 +182,7 @@ Implementado via Google Calendar Push Notifications:
 
 ---
 
-## 8. Página Custom /agendar (V2)
+## 9. Página Custom /agendar (V2)
 
 **Prioridade:** Baixa (webhook já resolve)
 **Estimativa:** 1 sessão

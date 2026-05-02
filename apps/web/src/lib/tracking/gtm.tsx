@@ -1,41 +1,18 @@
-"use client";
-
-import { useEffect, useState } from "react";
+/**
+ * Google Tag Manager loader.
+ *
+ * Wrapper sobre `<GoogleTagManager>` de `@next/third-parties/google`
+ * que respeita a env `NEXT_PUBLIC_GTM_ID` e degrada silenciosamente
+ * quando ela não está definida (ex.: builds locais sem tracking).
+ *
+ * Container produção: GTM-5J87JXSR (orquestra GA4 + Meta Pixel +
+ * eventos `form_submit` / `cta_click`). Detalhes: docs/INTEGRATIONS.md.
+ */
+import { GoogleTagManager as NextGoogleTagManager } from "@next/third-parties/google";
 
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID;
 
 export function GoogleTagManager() {
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!GTM_ID || loaded) return;
-
-    // Initialize dataLayer
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push({
-      "gtm.start": new Date().getTime(),
-      event: "gtm.js",
-    });
-
-    // Inject GTM script
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = `https://www.googletagmanager.com/gtm.js?id=${GTM_ID}`;
-    document.head.appendChild(script);
-
-    // Inject noscript iframe
-    const noscript = document.createElement("noscript");
-    const iframe = document.createElement("iframe");
-    iframe.src = `https://www.googletagmanager.com/ns.html?id=${GTM_ID}`;
-    iframe.height = "0";
-    iframe.width = "0";
-    iframe.style.display = "none";
-    iframe.style.visibility = "hidden";
-    noscript.appendChild(iframe);
-    document.body.insertBefore(noscript, document.body.firstChild);
-
-    setLoaded(true);
-  }, [loaded]);
-
-  return null;
+  if (!GTM_ID) return null;
+  return <NextGoogleTagManager gtmId={GTM_ID} />;
 }
