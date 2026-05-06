@@ -39,6 +39,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     site: "@BolsaAtletaUSA",
+    creator: "@BolsaAtletaUSA",
   },
   other: {
     "theme-color": "#0a1128",

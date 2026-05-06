@@ -42,6 +42,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       ],
     },
     twitter: {
+      // card / site / creator herdam do root layout. Sobrescrever nested
+      // limparia esses campos (Next.js faz shallow merge no objeto `twitter`).
+      card: "summary_large_image",
+      site: "@BolsaAtletaUSA",
+      creator: "@BolsaAtletaUSA",
       title,
       description,
       images: [{ url: SEO_DEFAULTS.ogImage, alt: SEO_DEFAULTS.ogImageAlt }],
@@ -113,6 +118,46 @@ const faqSchema = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "A Bolsa Atleta USA atende jovens atletas de diversas modalidades esportivas dentro do sistema NCAA e do sistema educacional americano de High School e Universidade.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "A partir de qual idade um atleta pode iniciar o processo?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Recomendamos iniciar o planejamento estratégico a partir dos 13–14 anos, fase em que ainda há tempo hábil para alinhar trajetória esportiva, acadêmica e linguística com os requisitos do sistema americano. Casos de atletas mais velhos são avaliados individualmente.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "É necessário ter inglês fluente para iniciar?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Não. O domínio do inglês é construído ao longo do projeto. O que avaliamos no início é o potencial esportivo e acadêmico, o engajamento da família e a clareza do projeto de vida. O inglês entra como pilar de preparação dentro do Método S.A.F.E.®.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Qual a diferença entre High School e Universidade nos EUA?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "High School é o ensino médio americano (geralmente 9ª–12ª série) e funciona como vitrine para recrutadores universitários. Universidade (College/University) é onde ocorrem as bolsas atléticas oficiais via NCAA, NAIA ou NJCAA. A Bolsa Atleta USA atua estrategicamente em ambas as fases.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "A Bolsa Atleta USA garante uma bolsa esportiva nos EUA?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Não trabalhamos com promessa de bolsa. Trabalhamos com método e direção estratégica para maximizar as chances do atleta dentro do sistema esportivo-educacional americano. A bolsa é resultado de um projeto bem executado, não um produto à venda.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Como faço para iniciar o processo?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "O primeiro passo é a Avaliação Estratégica — um formulário de candidatura disponível no site. As famílias selecionadas são convidadas para uma conversa direta com o fundador. Por trabalharmos com vagas limitadas, nem todas as candidaturas avançam.",
       },
     },
   ],
