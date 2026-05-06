@@ -42,6 +42,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       ],
     },
     twitter: {
+      // card / site / creator herdam do root layout. Sobrescrever nested
+      // limparia esses campos (Next.js faz shallow merge no objeto `twitter`).
+      card: "summary_large_image",
+      site: "@BolsaAtletaUSA",
+      creator: "@BolsaAtletaUSA",
       title,
       description,
       images: [{ url: SEO_DEFAULTS.ogImage, alt: SEO_DEFAULTS.ogImageAlt }],
