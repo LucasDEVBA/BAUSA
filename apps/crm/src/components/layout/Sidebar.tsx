@@ -21,6 +21,7 @@ import {
   GitBranch,
   FileText,
   Shield,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
@@ -139,6 +140,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/documentos", label: "Documentos", icon: FileText, roles: ["ceo", "head_sucesso"] },
       { href: "/faq", label: "FAQ", icon: BookOpen, roles: ["ceo", "head_sucesso"] },
       { href: "/indicacoes", label: "Indicações", icon: GitBranch, roles: ["ceo", "head_sucesso"] },
+      { href: "/automacoes-monitor", label: "Automacoes", icon: Activity, roles: ["ceo"] },
       { href: "/audit", label: "Audit Trail", icon: Shield, roles: ["ceo"] },
       { href: "/configuracoes", label: "Configuraç��es", icon: Settings, roles: ["ceo"] },
     ],

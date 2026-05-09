@@ -208,7 +208,7 @@ functions.http('syncLeads', async (req, res) => {
     if (existingRowIndex) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `Página1!A${existingRowIndex}:AV${existingRowIndex}`,
+        range: `Página1!A${existingRowIndex}:BG${existingRowIndex}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values: [row] },
       });
