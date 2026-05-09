@@ -1,6 +1,91 @@
 # Integrações Externas
 
-## Mapa de Integrações
+> ⚠️ **Aviso de drift:** As seções abaixo de Calendly, ClickSign/DocuSign, Typeform/JotForm e SendGrid refletem o **plano original do CRM (pré-migração monorepo)** e foram **substituídas** na implementação atual. O sistema produtivo usa: formulário Next.js custom, Resend/Brevo, Google Calendar Appointment Schedule, e (futuramente) Stripe/GetNet. Este arquivo precisa de revisão estrutural — ver `apps/web/src/` e `functions/` para fonte da verdade.
+
+## Mapa de Integrações (estado atual — 2026-04-21)
+
+| Serviço | Direção | Status | O que faz |
+|---|---|---|---|
+| **Google Tag Manager** (`GTM-5J87JXSR`) | OUT (browser) | ✅ Produção | Container que orquestra GA4 + Meta Pixel |
+| **Google Analytics 4** (`G-3GP7EFN0P9`) | OUT (browser) | ✅ Produção | Pageviews, eventos, conversão `generate_lead` |
+| **Meta Pixel** (`1521863919289394`) | OUT (browser) | ✅ Produção | Base + evento `Lead` no submit do formulário |
+| **Vercel Analytics** | OUT (browser) | ✅ Produção | Web vitals, audience |
+| **Supabase** (PostgreSQL + RLS + webhooks) | IN/OUT | ✅ Produção | DB principal + webhooks INSERT |
+| **Resend** | OUT (API) | ✅ Produção | E-mails transacionais (primário) |
+| **Brevo** | OUT (API) | ✅ Produção | E-mails transacionais (fallback) |
+| **Z-API (WhatsApp)** | OUT (API) | ✅ Produção | Convites, follow-ups, confirmações |
+| **Google Calendar API** | IN/OUT | ✅ Produção | `/agendar` redirect + push notifications de reunião |
+| **Google Sheets** | OUT (API) | ✅ Produção | Sync de leads (cols A–BG) |
+| **Gemini 2.5 Flash** | OUT (API) | ✅ Produção | Qualificação IA (QUENTE/MORNO/FRIO) |
+| **GetNet** | Manual | MVP | CEO confirma recebimento. Automação futura. |
+| **Meta Ads API / Instagram** | IN (API) | 🔮 Roadmap | CAC automático — ver `IMPROVEMENTS.md#1` |
+| **Google Drive** | IN/OUT (API) | 🔮 Roadmap | Armazenamento de documentos do atleta |
+
+---
+
+## Tracking & Analytics (Browser)
+
+### Google Tag Manager — `GTM-5J87JXSR`
+
+Container `bolsaatletausa.com` (versão 2 — publicada em 2026-04-21).
+
+**Tags:**
+
+| Tag | Tipo | Acionador | Função |
+|---|---|---|---|
+| Tag do Google G-3GP7EFN0P9 | Tag do Google | Initialization - All Pages | Carrega GA4 |
+| Meta Pixel - Base | HTML personalizado | All Pages | Carrega `fbevents.js` + `PageView` |
+| GA4 - Lead Conversion | GA4 Event | Trigger - Form Submit | Dispara `generate_lead` |
+| Meta Pixel - Lead | HTML personalizado | Trigger - Form Submit | `fbq('track','Lead')` |
+| GA4 - CTA Click | GA4 Event | Trigger - CTA Click | Dispara `cta_click` com `cta_source` |
+
+**Acionadores (eventos personalizados do dataLayer):**
+- `Trigger - Form Submit` — escuta `form_submit`
+- `Trigger - CTA Click` — escuta `cta_click`
+
+**Variáveis:**
+- `cta_source` — variável de camada de dados, lê `cta_source` do evento
+
+**Carregamento no app web:**
+- Componente `<GoogleTagManager />` em [`apps/web/app/[locale]/layout.tsx`](../apps/web/app/[locale]/layout.tsx)
+- Env var: `NEXT_PUBLIC_GTM_ID` (Production, Preview, Development na Vercel)
+
+**Push de eventos no código:**
+```ts
+// apps/web/src/lib/tracking/events.ts
+trackFormSubmit(submissionId)              // → form_submit
+trackCtaClick('hero'|'final'|'header'|...) // → cta_click + cta_source
+trackFormStart(sessionId)                  // → form_start
+trackFormStep(step, stepName)              // → form_step_completed
+trackFormError(step, errorMessage)         // → form_error
+```
+
+### GA4 — `G-3GP7EFN0P9`
+
+Propriedade GA4 do `bolsaatletausa.com`.
+
+**Conversões / Key Events:**
+- `generate_lead` — dispara no submit do formulário (deve ser marcado como Key Event no GA4 Admin)
+
+**Eventos custom monitorados:**
+- `cta_click` (com parâmetro `cta_source`)
+- `form_start`, `form_step_completed`, `form_error`
+
+### Meta Pixel — `1521863919289394`
+
+Eventos:
+- `PageView` — automático em todas as páginas via tag base
+- `Lead` — dispara no submit do formulário
+
+**Pendências:**
+- Domain Verification de `bolsaatletausa.com` no Meta Business Manager (necessário para iOS 14+ ATT)
+- Conversions API (CAPI) — aumentar match rate iOS — ver `IMPROVEMENTS.md`
+
+---
+
+## Mapa LEGADO (CRM pré-migração — pode ter sido substituído)
+
+> A tabela abaixo é o desenho original do CRM e cita ferramentas que **não estão necessariamente em uso**. Mantida como referência histórica.
 
 | Serviço | Direção | Fase | O que faz |
 |---|---|---|---|

@@ -37,6 +37,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/matching": { label: "Motor de Match", parent: "Inteligencia" },
   "/financeiro": { label: "Financeiro", parent: "Comercial" },
   "/documentos": { label: "Documentos", parent: "Sistema" },
+  "/automacoes-monitor": { label: "Automacoes", parent: "Sistema" },
 };
 
 interface HeaderProps {

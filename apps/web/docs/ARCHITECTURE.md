@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-    A[Usuário preenche formulário] --> B[Frontend\nVite + React\nVercel]
+    A[Usuário preenche formulário] --> B[Frontend\nNext.js 16 + React 19\nVercel]
     B --> C[(Supabase\nPostgreSQL)]
     C -->|Webhook INSERT| E[send-messages\nmessenger-service]
     C -->|Webhook INSERT| F[sync-leads\nsync-elite-leads]
