@@ -412,43 +412,7 @@ const autoPromoteToCRM = async (data, classification, reason, confidence) => {
     return null;
   }
 
-  // Step A: Criar ou encontrar responsável
-  const whatsapp = data.guardian_whatsapp || data.email;
-  if (!whatsapp) {
-    log('WARN', 'crm_skip_no_whatsapp', { submissionId, reason: 'Sem WhatsApp ou email do responsável' });
-    return null;
-  }
-
-  let responsavelId;
-  const existingResp = await supabaseRequest(
-    'GET',
-    `responsaveis?whatsapp=eq.${encodeURIComponent(whatsapp)}&deleted_at=is.null&select=id&limit=1`
-  );
-
-  if (Array.isArray(existingResp) && existingResp.length > 0) {
-    responsavelId = existingResp[0].id;
-    log('INFO', 'crm_responsavel_found', { submissionId, responsavelId });
-  } else {
-    const newResp = await supabaseRequest('POST', 'responsaveis', {
-      nome: data.guardian_name || 'Responsável',
-      email: data.guardian_email || data.email,
-      whatsapp: whatsapp,
-      profissao: data.guardian_profession,
-      parentesco: 'outro',
-      consentimento_lgpd: true,
-      aceite_whatsapp: true,
-      aceite_email: true,
-      form_submission_ids: [submissionId],
-    }, { 'Prefer': 'return=representation' });
-
-    if (!Array.isArray(newResp) || newResp.length === 0) {
-      throw new Error('Falha ao criar responsável: resposta vazia');
-    }
-    responsavelId = newResp[0].id;
-    log('INFO', 'crm_responsavel_created', { submissionId, responsavelId });
-  }
-
-  // Step B: Criar endereço (se dados disponíveis)
+  // Step A: Criar endereço (se dados disponíveis) — primeiro para vincular ao responsável
   let enderecoId = null;
   if (data.address_city || data.city_state || data.family_address) {
     try {
@@ -471,7 +435,64 @@ const autoPromoteToCRM = async (data, classification, reason, confidence) => {
     }
   }
 
-  // Step C: Criar atleta
+  // Step B: Criar ou encontrar responsável (com endereco_id já vinculado)
+  const whatsapp = data.guardian_whatsapp || data.email;
+  if (!whatsapp) {
+    log('WARN', 'crm_skip_no_whatsapp', { submissionId, reason: 'Sem WhatsApp ou email do responsável' });
+    return null;
+  }
+
+  let responsavelId;
+  const existingResp = await supabaseRequest(
+    'GET',
+    `responsaveis?whatsapp=eq.${encodeURIComponent(whatsapp)}&deleted_at=is.null&select=id,endereco_id&limit=1`
+  );
+
+  if (Array.isArray(existingResp) && existingResp.length > 0) {
+    responsavelId = existingResp[0].id;
+    log('INFO', 'crm_responsavel_found', { submissionId, responsavelId });
+
+    // Se o responsável existente não tinha endereço e agora temos um, vincula
+    if (enderecoId && !existingResp[0].endereco_id) {
+      try {
+        await supabaseRequest(
+          'PATCH',
+          `responsaveis?id=eq.${responsavelId}`,
+          { endereco_id: enderecoId }
+        );
+        log('INFO', 'crm_responsavel_endereco_linked', { responsavelId, enderecoId });
+      } catch (linkError) {
+        log('WARN', 'crm_responsavel_endereco_link_failed', { responsavelId, error: linkError.message });
+      }
+    }
+  } else {
+    const respPayload = {
+      nome: data.guardian_name || 'Responsável',
+      email: data.guardian_email || data.email,
+      whatsapp: whatsapp,
+      profissao: data.guardian_profession,
+      parentesco: 'outro',
+      consentimento_lgpd: true,
+      aceite_whatsapp: true,
+      aceite_email: true,
+      form_submission_ids: [submissionId],
+    };
+    if (enderecoId) {
+      respPayload.endereco_id = enderecoId;
+    }
+
+    const newResp = await supabaseRequest('POST', 'responsaveis', respPayload, {
+      'Prefer': 'return=representation',
+    });
+
+    if (!Array.isArray(newResp) || newResp.length === 0) {
+      throw new Error('Falha ao criar responsável: resposta vazia');
+    }
+    responsavelId = newResp[0].id;
+    log('INFO', 'crm_responsavel_created', { submissionId, responsavelId, enderecoId: enderecoId || null });
+  }
+
+  // Step C: Criar atleta (sem endereco_id — endereço pertence ao responsável)
   const atletaPayload = {
     nome_completo: data.athlete_name,
     data_nascimento: data.birth_date || '2008-01-01',
@@ -506,10 +527,6 @@ const autoPromoteToCRM = async (data, classification, reason, confidence) => {
     origem: 'formulario_web',
     consentimento_lgpd: true,
   };
-
-  if (enderecoId) {
-    atletaPayload.endereco_id = enderecoId;
-  }
 
   const newAtleta = await supabaseRequest('POST', 'atletas', atletaPayload, {
     'Prefer': 'return=representation',
