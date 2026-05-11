@@ -538,7 +538,34 @@ const autoPromoteToCRM = async (data, classification, reason, confidence) => {
 
   const atletaId = newAtleta[0].id;
 
-  // Step D: Criar deal
+  // Step D: Criar deal — busca o user com papel 'head_sucesso' (ou primeiro ativo) como responsável default
+  let defaultResponsavelId = null;
+  try {
+    const headUser = await supabaseRequest(
+      'GET',
+      'user_profiles?papel=eq.head_sucesso&ativo=is.true&select=id&limit=1'
+    );
+    if (Array.isArray(headUser) && headUser.length > 0) {
+      defaultResponsavelId = headUser[0].id;
+    } else {
+      // Fallback: qualquer user ativo (preferencialmente comercial)
+      const anyUser = await supabaseRequest(
+        'GET',
+        'user_profiles?ativo=is.true&papel=in.(comercial,head_sucesso,ceo)&order=papel.asc&select=id&limit=1'
+      );
+      if (Array.isArray(anyUser) && anyUser.length > 0) {
+        defaultResponsavelId = anyUser[0].id;
+      }
+    }
+  } catch (respError) {
+    log('WARN', 'crm_default_responsavel_lookup_failed', { error: respError.message });
+  }
+
+  if (!defaultResponsavelId) {
+    log('WARN', 'crm_skip_no_responsavel', { submissionId, reason: 'Nenhum user ativo encontrado para atribuir como responsavel do deal' });
+    throw new Error('Não há user_profile ativo (head_sucesso/comercial/ceo) para atribuir como responsável do deal');
+  }
+
   const newDeal = await supabaseRequest('POST', 'deals', {
     atleta_id: atletaId,
     etapa: 'lead',
@@ -546,6 +573,7 @@ const autoPromoteToCRM = async (data, classification, reason, confidence) => {
     probabilidade_fechamento: 10,
     status_decisao_familia: 'em_discussao',
     safra: 'fall_2026',
+    responsavel_id: defaultResponsavelId,
   }, { 'Prefer': 'return=representation' });
 
   if (!Array.isArray(newDeal) || newDeal.length === 0) {
