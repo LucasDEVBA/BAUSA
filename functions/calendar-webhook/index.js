@@ -131,9 +131,13 @@ const findLeadByContact = async (email, phone) => {
   return Array.isArray(leads) && leads.length > 0 ? leads[0] : null;
 };
 
-// ─── Marcar reunião no Supabase ───────────────────────────────
+// ─── Marcar reunião no Supabase (CAS atômico) ─────────────────
+// Retorna true APENAS se foi a instância que efetivamente atualizou
+// (lead estava com meeting_scheduled != true). Se outra notificação
+// já marcou — ou o lead já tinha reunião marcada — retorna false.
+// Filtro `not.is.true` cobre os casos `false` (default da coluna) e `null`.
 const markMeetingScheduled = async (leadId) => {
-  const url = `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${leadId}&meeting_scheduled=is.null`;
+  const url = `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${leadId}&meeting_scheduled=not.is.true`;
 
   const result = await httpRequest(url, {
     method: 'PATCH',
@@ -142,14 +146,21 @@ const markMeetingScheduled = async (leadId) => {
       'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
       'Content-Profile': SUPABASE_SCHEMA,
       'Content-Type': 'application/json',
-      'Prefer': 'return=minimal',
+      'Prefer': 'return=representation',
     },
   }, JSON.stringify({
     meeting_scheduled: true,
     meeting_scheduled_at: new Date().toISOString(),
   }));
 
-  return result.statusCode < 400;
+  if (result.statusCode >= 400) return false;
+
+  try {
+    const updated = JSON.parse(result.body || '[]');
+    return Array.isArray(updated) && updated.length > 0;
+  } catch {
+    return false;
+  }
 };
 
 // ─── Mover deal para reuniao_marcada ──────────────────────────
@@ -440,8 +451,19 @@ functions.http('calendarWebhook', async (req, res) => {
         eventId: event.id,
       });
 
-      // 1. Marcar reunião no Supabase
-      await markMeetingScheduled(lead.id);
+      // 1. Marcar reunião no Supabase (CAS atômico)
+      // Só procede com WhatsApp/CEO/Sheets se ESTA instância foi quem
+      // marcou de fato. Caso contrário, outra notificação concorrente
+      // (ou anterior) já processou — evita confirmação duplicada.
+      const marked = await markMeetingScheduled(lead.id);
+      if (!marked) {
+        log('INFO', 'meeting_already_marked_skip', {
+          email: lead.email,
+          eventId: event.id,
+          reason: 'CAS perdido — outra notificação já marcou meeting_scheduled=true',
+        });
+        continue;
+      }
 
       // 2. Mover deal no pipeline
       try {
