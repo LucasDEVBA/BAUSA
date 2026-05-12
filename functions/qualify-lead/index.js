@@ -63,7 +63,14 @@ const formatInvestmentRange = (code) => {
   return ranges[code] || code || 'Não informado';
 };
 
-// ─── Chamada ao Gemini 2.5 Flash ───────────────────────────────
+// ─── Helper: sleep ─────────────────────────────────────────────
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ─── Chamada ao Gemini 2.5 Flash (com retry interno) ───────────
+// Faz até 3 tentativas com backoff curto em caso de HTTP 429 ou 5xx.
+// Timeouts: tentativa 1 imediato, depois +5s e +15s — total máx ~20s.
+// Se as 3 falharem, lança erro para que o handler marque o lead
+// como `qualification_pending=true` e o cron/manual reprocesse.
 const qualifyWithGemini = async (leadData) => {
   const isBrazil = !leadData.address_country || leadData.address_country === 'BR';
 
@@ -151,16 +158,48 @@ Onde:
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-  const result = await httpRequest(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(postData),
-    },
-  }, postData);
+  // ─── Retry com backoff curto em 429/5xx ──────────────────────
+  const MAX_ATTEMPTS = 3;
+  const BACKOFFS_MS = [0, 5000, 15000]; // imediato, +5s, +15s
 
-  if (result.statusCode >= 400) {
-    throw new Error(`Gemini HTTP ${result.statusCode}: ${result.body}`);
+  let result;
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (BACKOFFS_MS[attempt - 1] > 0) {
+      log('INFO', 'gemini_retry_backoff', { attempt, waitMs: BACKOFFS_MS[attempt - 1] });
+      await sleep(BACKOFFS_MS[attempt - 1]);
+    }
+
+    try {
+      result = await httpRequest(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+        },
+      }, postData);
+
+      // Sucesso — sai do loop
+      if (result.statusCode < 400) break;
+
+      // Retry em 429 (rate limit) e 5xx (overload/transient)
+      const retryable = result.statusCode === 429
+        || (result.statusCode >= 500 && result.statusCode < 600);
+      lastErr = `Gemini HTTP ${result.statusCode}: ${result.body.substring(0, 200)}`;
+
+      if (!retryable || attempt === MAX_ATTEMPTS) {
+        log('ERROR', 'gemini_call_failed', { attempt, statusCode: result.statusCode, retryable });
+        throw new Error(lastErr);
+      }
+      log('WARN', 'gemini_will_retry', { attempt, statusCode: result.statusCode });
+    } catch (err) {
+      lastErr = err.message;
+      if (attempt === MAX_ATTEMPTS) {
+        log('ERROR', 'gemini_exhausted_retries', { attempts: MAX_ATTEMPTS, lastErr });
+        throw err;
+      }
+      log('WARN', 'gemini_network_error_will_retry', { attempt, error: err.message });
+    }
   }
 
   const response = JSON.parse(result.body);
@@ -203,24 +242,36 @@ Onde:
 };
 
 // ─── Atualizar Supabase ────────────────────────────────────────
-const updateSupabase = async (email, athleteName, qualification) => {
-  // Normaliza para match com o banco (Edge Function salva em lowercase)
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const url = `${SUPABASE_URL}/rest/v1/form_submissions?email=eq.${encodeURIComponent(normalizedEmail)}&athlete_name=eq.${encodeURIComponent(athleteName.trim())}`;
-
-  const postData = JSON.stringify({
+// Usa id=eq.${submissionId} para evitar problemas de case-sensitivity em email.
+// Fallback para email+athlete_name (case-insensitive via ilike) se id ausente.
+const updateSupabase = async (submissionId, email, athleteName, qualification) => {
+  // Em caso de sucesso, limpa flags de pendência (caso lead estivesse pendente)
+  const patchBody = {
     qualified: qualification.classification !== 'FRIO',
     qualification_classification: qualification.classification,
     qualification_reason: qualification.reason,
     qualification_confidence: qualification.confidence,
     qualified_at: new Date().toISOString(),
-  });
+    qualification_pending: false,
+    last_qualification_error: null,
+  };
+
+  let url;
+  if (submissionId) {
+    url = `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${encodeURIComponent(submissionId)}`;
+  } else {
+    // Fallback case-insensitive caso o payload não traga id
+    url = `${SUPABASE_URL}/rest/v1/form_submissions`
+      + `?email=ilike.${encodeURIComponent((email || '').trim())}`
+      + `&athlete_name=ilike.${encodeURIComponent((athleteName || '').trim())}`;
+  }
+
+  const postData = JSON.stringify(patchBody);
 
   log('INFO', 'supabase_patch_attempt', {
     url: url.replace(SUPABASE_SERVICE_KEY, '***'),
-    email: normalizedEmail,
-    athlete: athleteName.trim(),
+    submissionId: submissionId || null,
+    email: email,
     body: postData,
   });
 
@@ -244,10 +295,9 @@ const updateSupabase = async (email, athleteName, qualification) => {
     throw new Error(`Supabase PATCH ${result.statusCode}: ${result.body}`);
   }
 
-  // Verifica se alguma linha foi atualizada
   const responseData = JSON.parse(result.body);
   if (Array.isArray(responseData) && responseData.length === 0) {
-    log('WARN', 'supabase_no_rows_matched', { email: normalizedEmail, athlete: athleteName.trim() });
+    log('WARN', 'supabase_no_rows_matched', { submissionId, email, athlete: athleteName });
     return false;
   }
 
@@ -585,6 +635,93 @@ const autoPromoteToCRM = async (data, classification, reason, confidence) => {
   return { submissionId, atletaId, dealId };
 };
 
+// ─── Marcar lead como pendente de qualificação ─────────────────
+// Chamado após esgotar retries do Gemini. Incrementa attempts,
+// atualiza last_qualification_attempt_at, salva último erro.
+// O cron diário e o botão manual no War Room reprocessam após 6h.
+const markQualificationPending = async (submissionId, errorMessage) => {
+  if (!submissionId) return false;
+
+  // Lê attempts atual para incrementar
+  const existing = await supabaseRequest(
+    'GET',
+    `form_submissions?id=eq.${encodeURIComponent(submissionId)}&select=qualification_attempts&limit=1`
+  );
+  const currentAttempts = Array.isArray(existing) && existing.length > 0
+    ? (existing[0].qualification_attempts || 0)
+    : 0;
+
+  const patchBody = JSON.stringify({
+    qualification_pending: true,
+    qualification_attempts: currentAttempts + 1,
+    last_qualification_attempt_at: new Date().toISOString(),
+    last_qualification_error: (errorMessage || '').substring(0, 1000),
+  });
+
+  const result = await httpRequest(
+    `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${encodeURIComponent(submissionId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': SUPABASE_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    },
+    patchBody
+  );
+
+  return result.statusCode < 400;
+};
+
+// ─── Notificar CEO + Head sobre pendência de qualificação ──────
+// Cria registros em `notificacoes` (tabela CRM) para que apareçam
+// no sininho do BAUSA Engine para os papéis ceo e head_sucesso.
+const notifyQualificationPending = async (leadData, errorMessage) => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+
+  // Busca users ativos com papel ceo/head_sucesso para notificar
+  const users = await supabaseRequest(
+    'GET',
+    `user_profiles?papel=in.(ceo,head_sucesso)&ativo=is.true&select=id,nome,papel`
+  );
+
+  if (!Array.isArray(users) || users.length === 0) {
+    log('WARN', 'no_users_to_notify_qualification_pending');
+    return;
+  }
+
+  const titulo = `Lead aguardando qualificação: ${leadData.athlete_name}`;
+  const descricao = `O Gemini retornou erro repetido (3 tentativas) ao qualificar este lead. `
+    + `Erro: ${(errorMessage || '').substring(0, 300)}. `
+    + `O sistema tentará novamente automaticamente em até 6 horas. Você também pode forçar `
+    + `o retry manualmente no War Room → "Leads pendentes de qualificação".`;
+
+  for (const user of users) {
+    try {
+      await supabaseRequest(
+        'POST',
+        'notificacoes',
+        {
+          user_id: user.id,
+          titulo,
+          descricao,
+          severidade: 'aviso',
+          modulo_origem: 'comercial',
+          lida: false,
+          link: `/leads?filter=qualification_pending`,
+        },
+        { 'Prefer': 'return=minimal' }
+      );
+      log('INFO', 'qualification_pending_notification_sent', { userId: user.id, papel: user.papel });
+    } catch (notifErr) {
+      log('WARN', 'notification_create_failed', { userId: user.id, error: notifErr.message });
+    }
+  }
+};
+
 // ─── Cloud Function principal ──────────────────────────────────
 functions.http('qualifyLead', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -623,8 +760,38 @@ functions.http('qualifyLead', async (req, res) => {
       profession: data.guardian_profession,
     });
 
-    // 1. Qualificar com Gemini
-    const qualification = await qualifyWithGemini(data);
+    // 1. Qualificar com Gemini (já tem retry interno 3x)
+    let qualification;
+    try {
+      qualification = await qualifyWithGemini(data);
+    } catch (geminiErr) {
+      // Após 3 tentativas falhas: marca lead como pendente.
+      // Cron diário + botão manual no War Room tentarão novamente.
+      log('ERROR', 'gemini_all_retries_failed_marking_pending', {
+        email: data.email,
+        athlete: data.athlete_name,
+        error: geminiErr.message,
+      });
+
+      if (data.id && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+        try {
+          await markQualificationPending(data.id, geminiErr.message);
+          log('INFO', 'qualification_marked_pending', { submissionId: data.id });
+
+          // Notificar CEO + Head para que vejam imediatamente
+          await notifyQualificationPending(data, geminiErr.message);
+        } catch (markErr) {
+          log('WARN', 'mark_pending_failed', { error: markErr.message });
+        }
+      }
+
+      return res.status(202).send({
+        success: false,
+        action: 'pending_retry',
+        reason: 'Gemini indisponível — lead marcado como pendente. Cron diário reprocessará.',
+        error: geminiErr.message,
+      });
+    }
 
     log('INFO', 'qualification_result', {
       email: data.email,
@@ -636,7 +803,7 @@ functions.http('qualifyLead', async (req, res) => {
 
     // 2. Atualizar Supabase
     try {
-      await updateSupabase(data.email, data.athlete_name, qualification);
+      await updateSupabase(data.id, data.email, data.athlete_name, qualification);
       log('INFO', 'supabase_updated', { email: data.email });
     } catch (error) {
       log('ERROR', 'supabase_update_failed', { error: error.message });
