@@ -1,0 +1,12 @@
+{
+  "name": "retry-qualification",
+  "version": "1.0.0",
+  "description": "Reprocessa leads marcados como qualification_pending=true. Acionada pelo Cloud Scheduler 1x/dia ou manualmente via War Room.",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}
