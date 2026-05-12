@@ -80,10 +80,16 @@ const fetchPendingLeads = async () => {
 };
 
 // ─── Marcar lead como WhatsApp enviado ─────────────────────────
-const markWhatsAppSent = async (email, athleteName) => {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const url = `${SUPABASE_URL}/rest/v1/form_submissions?email=eq.${encodeURIComponent(normalizedEmail)}&athlete_name=eq.${encodeURIComponent(athleteName.trim())}`;
+// Prefere id=eq.${submissionId} (cirúrgico). Fallback case-insensitive.
+const markWhatsAppSent = async (submissionId, email, athleteName) => {
+  let url;
+  if (submissionId) {
+    url = `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${encodeURIComponent(submissionId)}`;
+  } else {
+    url = `${SUPABASE_URL}/rest/v1/form_submissions`
+      + `?email=ilike.${encodeURIComponent((email || '').trim())}`
+      + `&athlete_name=ilike.${encodeURIComponent((athleteName || '').trim())}`;
+  }
 
   const postData = JSON.stringify({
     whatsapp_sent_at: new Date().toISOString(),
@@ -222,7 +228,7 @@ functions.http('processPendingWhatsApp', async (req, res) => {
         // 2b. Marca como enviado e sincroniza o Sheets com o registro atualizado
         if (whatsappResult.statusCode < 400) {
           const whatsappSentAt = new Date().toISOString();
-          await markWhatsAppSent(lead.email, lead.athlete_name);
+          await markWhatsAppSent(lead.id, lead.email, lead.athlete_name);
 
           // Sync full row: passa o lead com whatsapp_sent_at preenchido
           await triggerSyncLeads({ ...lead, whatsapp_sent_at: whatsappSentAt });

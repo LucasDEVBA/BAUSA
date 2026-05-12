@@ -495,6 +495,54 @@ export async function fetchAlerts(): Promise<Alert[]> {
   }));
 }
 
+// ─── Leads pendentes de qualificação (Gemini falhou) ───────────────
+// Conta e lista os leads com `qualification_pending = true` para
+// renderizar o alerta no War Room e permitir retry manual.
+export interface PendingQualificationLead {
+  id: string;
+  email: string;
+  athlete_name: string;
+  submitted_at: string;
+  qualification_attempts: number;
+  last_qualification_attempt_at: string | null;
+  last_qualification_error: string | null;
+}
+
+export interface PendingQualificationSummary {
+  count: number;
+  leads: PendingQualificationLead[];
+  oldest_attempt_at: string | null;
+}
+
+export async function fetchPendingQualifications(): Promise<PendingQualificationSummary> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select("id,email,athlete_name,submitted_at,qualification_attempts,last_qualification_attempt_at,last_qualification_error")
+    .eq("qualification_pending", true)
+    .order("last_qualification_attempt_at", { ascending: true, nullsFirst: true });
+
+  if (error || !data) {
+    return { count: 0, leads: [], oldest_attempt_at: null };
+  }
+
+  const leads = data.map((r) => ({
+    id: r.id,
+    email: r.email,
+    athlete_name: r.athlete_name,
+    submitted_at: r.submitted_at,
+    qualification_attempts: r.qualification_attempts || 0,
+    last_qualification_attempt_at: r.last_qualification_attempt_at,
+    last_qualification_error: r.last_qualification_error,
+  }));
+
+  return {
+    count: leads.length,
+    leads,
+    oldest_attempt_at: leads.length > 0 ? leads[0].last_qualification_attempt_at : null,
+  };
+}
+
 export async function fetchBottlenecks(): Promise<Bottleneck[]> {
   const dealsAtivos = await fetchDealsAtivos();
   const bottlenecks: Bottleneck[] = [];

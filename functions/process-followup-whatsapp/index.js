@@ -162,9 +162,16 @@ const fetchFollowupLeads = async (followupNumber, executionStartTime) => {
 };
 
 // ─── Marcar reunião como agendada no Supabase ──────────────────
-const markMeetingScheduled = async (email, athleteName) => {
-  const normalizedEmail = email.trim().toLowerCase();
-  const url = `${SUPABASE_URL}/rest/v1/form_submissions?email=eq.${encodeURIComponent(normalizedEmail)}&athlete_name=eq.${encodeURIComponent(athleteName.trim())}`;
+// Prefere id=eq.${submissionId} (cirúrgico). Fallback case-insensitive.
+const markMeetingScheduled = async (submissionId, email, athleteName) => {
+  let url;
+  if (submissionId) {
+    url = `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${encodeURIComponent(submissionId)}`;
+  } else {
+    url = `${SUPABASE_URL}/rest/v1/form_submissions`
+      + `?email=ilike.${encodeURIComponent((email || '').trim())}`
+      + `&athlete_name=ilike.${encodeURIComponent((athleteName || '').trim())}`;
+  }
 
   const result = await httpRequest(url, {
     method: 'PATCH',
@@ -192,15 +199,23 @@ const markMeetingScheduled = async (email, athleteName) => {
 // somente a instância que chegar primeiro consegue fazer o PATCH —
 // a segunda encontra 0 rows atualizadas e sabe que deve pular o lead.
 // Isso elimina race conditions mesmo com execuções simultâneas.
-const markFollowupSent = async (email, athleteName, followupNumber) => {
-  const normalizedEmail = email.trim().toLowerCase();
+//
+// Usa id=eq.${submissionId} como filtro principal (cirúrgico, sem
+// problemas de case-sensitivity). Fallback case-insensitive se id ausente.
+const markFollowupSent = async (submissionId, email, athleteName, followupNumber) => {
   const column = followupNumber === 1 ? 'followup_1_sent_at' : 'followup_2_sent_at';
 
-  // CAS: só atualiza se o campo ainda for NULL (garante que apenas 1 instância vence)
-  const url = `${SUPABASE_URL}/rest/v1/form_submissions`
-    + `?email=eq.${encodeURIComponent(normalizedEmail)}`
-    + `&athlete_name=eq.${encodeURIComponent(athleteName.trim())}`
-    + `&${column}=is.null`;
+  let url;
+  if (submissionId) {
+    url = `${SUPABASE_URL}/rest/v1/form_submissions`
+      + `?id=eq.${encodeURIComponent(submissionId)}`
+      + `&${column}=is.null`;
+  } else {
+    url = `${SUPABASE_URL}/rest/v1/form_submissions`
+      + `?email=ilike.${encodeURIComponent((email || '').trim())}`
+      + `&athlete_name=ilike.${encodeURIComponent((athleteName || '').trim())}`
+      + `&${column}=is.null`;
+  }
 
   const result = await httpRequest(url, {
     method: 'PATCH',
@@ -311,7 +326,7 @@ const processFollowupBatch = async (followupNumber, executionStartTime) => {
         });
 
         const meetingScheduledAt = new Date().toISOString();
-        await markMeetingScheduled(lead.email, lead.athlete_name);
+        await markMeetingScheduled(lead.id, lead.email, lead.athlete_name);
 
         // Update CRM deal to reuniao_marcada if it exists
         try {
@@ -407,7 +422,7 @@ const processFollowupBatch = async (followupNumber, executionStartTime) => {
       // PostgreSQL garante que só 1 instância vence: a que chegar primeiro
       // atualiza 1 row (marked=true) e envia; a segunda recebe 0 rows
       // (marked=false) e pula — impossível duplicar mesmo com N instâncias simultâneas.
-      const marked = await markFollowupSent(lead.email, lead.athlete_name, followupNumber);
+      const marked = await markFollowupSent(lead.id, lead.email, lead.athlete_name, followupNumber);
 
       if (!marked) {
         log('INFO', `followup_${followupNumber}_already_processed`, {
