@@ -244,7 +244,7 @@ Onde:
 // ─── Atualizar Supabase ────────────────────────────────────────
 // Usa id=eq.${submissionId} para evitar problemas de case-sensitivity em email.
 // Fallback para email+athlete_name (case-insensitive via ilike) se id ausente.
-const updateSupabase = async (submissionId, email, athleteName, qualification) => {
+const updateSupabase = async (submissionId, email, athleteName, qualification, timingStatus = 'ideal', scheduledFollowupAt = null) => {
   // Em caso de sucesso, limpa flags de pendência (caso lead estivesse pendente)
   const patchBody = {
     qualified: qualification.classification !== 'FRIO',
@@ -254,7 +254,14 @@ const updateSupabase = async (submissionId, email, athleteName, qualification) =
     qualified_at: new Date().toISOString(),
     qualification_pending: false,
     last_qualification_error: null,
+    timing_status: timingStatus,
   };
+  // Só seta scheduled_followup_at quando aplicável (muito_cedo).
+  // Para outros timings, mantém o valor existente (não sobrescreve com null
+  // caso já tenha sido setado em algum reprocessamento anterior).
+  if (scheduledFollowupAt) {
+    patchBody.scheduled_followup_at = scheduledFollowupAt;
+  }
 
   let url;
   if (submissionId) {
@@ -406,11 +413,30 @@ const mapDesempenho = (perf) => {
 const mapSchoolYear = (year) => {
   if (!year) return null;
   const lower = year.toLowerCase();
-  if (lower.includes('pg') || lower.includes('post')) return 'pg_year';
-  if (lower.includes('12') || lower.includes('3')) return '12th';
-  if (lower.includes('11') || lower.includes('2')) return '11th';
-  if (lower.includes('10') || lower.includes('1')) return '10th';
+  if (lower.includes('pg') || lower.includes('post') || lower.includes('graduated')) return 'pg_year';
+  if (lower.includes('12') || lower.includes('hs_3') || lower.includes('3rd')) return '12th';
+  if (lower.includes('11') || lower.includes('hs_2') || lower.includes('2nd')) return '11th';
+  if (lower.includes('10') || lower.includes('hs_1') || lower.includes('1st')) return '10th';
   return '9th';
+};
+
+// ─── Classifica o timing do atleta baseado em school_year ──────
+// Determina se o lead está dentro da janela ideal (high school), cedo
+// demais (antes do 7º ano) ou tarde demais (graduado há 2+ anos).
+const classifyTiming = (schoolYear) => {
+  if (schoolYear === 'before_7th') return 'muito_cedo';
+  if (schoolYear === 'graduated_2plus') return 'tarde_demais';
+  return 'ideal';
+};
+
+// ─── Calcula a data agendada para retomar contato ──────────────
+// Para muito_cedo: novembro do ano civil seguinte (1º novembro às 10h BRT).
+// Retorna ISO 8601 string ou null se não aplicável.
+const computeScheduledFollowupAt = (timingStatus) => {
+  if (timingStatus !== 'muito_cedo') return null;
+  // 1º de novembro às 13:00 UTC = 10:00 BRT
+  const nextYear = new Date().getUTCFullYear() + 1;
+  return new Date(Date.UTC(nextYear, 10, 1, 13, 0, 0)).toISOString();
 };
 
 // ─── Helper: requisição REST ao Supabase ──────────────────────
@@ -444,7 +470,7 @@ const supabaseRequest = async (method, path, body = null, extraHeaders = {}) => 
 };
 
 // ─── Auto-promoção: cria registros CRM para leads qualificados ─
-const autoPromoteToCRM = async (data, classification, reason, confidence) => {
+const autoPromoteToCRM = async (data, classification, reason, confidence, timingStatus = 'ideal') => {
   const submissionId = data.id;
   if (!submissionId) {
     log('WARN', 'crm_skip_no_id', { email: data.email, reason: 'data.id ausente no payload' });
@@ -616,15 +642,36 @@ const autoPromoteToCRM = async (data, classification, reason, confidence) => {
     throw new Error('Não há user_profile ativo (head_sucesso/comercial/ceo) para atribuir como responsável do deal');
   }
 
-  const newDeal = await supabaseRequest('POST', 'deals', {
+  // Define etapa/perda/next_action conforme timing_status:
+  //   - muito_cedo  → aguardando_timing (visível no Kanban, retorno em nov+1)
+  //   - tarde_demais→ perdido + motivo timing (cluster "lead alternativo", fora do Kanban)
+  //   - ideal       → lead (fluxo atual)
+  const dealPayload = {
     atleta_id: atletaId,
-    etapa: 'lead',
     valor_estimado: mapInvestmentToValor(data.investment_range),
-    probabilidade_fechamento: 10,
     status_decisao_familia: 'em_discussao',
     safra: 'fall_2026',
     responsavel_id: defaultResponsavelId,
-  }, { 'Prefer': 'return=representation' });
+  };
+
+  if (timingStatus === 'muito_cedo') {
+    const nextYear = new Date().getUTCFullYear() + 1;
+    dealPayload.etapa = 'aguardando_timing';
+    dealPayload.probabilidade_fechamento = 5;
+    dealPayload.next_action = `Aguardar contato programado em novembro/${nextYear}`;
+    dealPayload.data_proxima_acao = `${nextYear}-11-01`;
+  } else if (timingStatus === 'tarde_demais') {
+    dealPayload.etapa = 'perdido';
+    dealPayload.probabilidade_fechamento = 0;
+    dealPayload.motivo_perda = 'timing';
+    dealPayload.detalhe_perda = 'Concluiu EM há 2+ anos — fora da janela competitiva NCAA/NAIA. Lead alternativo (não exibido no Kanban).';
+    dealPayload.pode_reativar = true;
+  } else {
+    dealPayload.etapa = 'lead';
+    dealPayload.probabilidade_fechamento = 10;
+  }
+
+  const newDeal = await supabaseRequest('POST', 'deals', dealPayload, { 'Prefer': 'return=representation' });
 
   if (!Array.isArray(newDeal) || newDeal.length === 0) {
     throw new Error('Falha ao criar deal: resposta vazia');
@@ -753,11 +800,18 @@ functions.http('qualifyLead', async (req, res) => {
       return res.status(400).send({ success: false, error: 'email e athlete_name obrigatórios' });
     }
 
+    // Classifica timing antes de chamar Gemini (decisão categórica baseada em school_year)
+    const timingStatus = classifyTiming(data.school_year);
+    const scheduledFollowupAt = computeScheduledFollowupAt(timingStatus);
+
     log('INFO', 'qualification_start', {
       email: data.email,
       athlete: data.athlete_name,
       investment: data.investment_range,
       profession: data.guardian_profession,
+      school_year: data.school_year,
+      timing_status: timingStatus,
+      scheduled_followup_at: scheduledFollowupAt,
     });
 
     // 1. Qualificar com Gemini (já tem retry interno 3x)
@@ -801,10 +855,10 @@ functions.http('qualifyLead', async (req, res) => {
       confidence: qualification.confidence,
     });
 
-    // 2. Atualizar Supabase
+    // 2. Atualizar Supabase (com timing_status + scheduled_followup_at se aplicável)
     try {
-      await updateSupabase(data.id, data.email, data.athlete_name, qualification);
-      log('INFO', 'supabase_updated', { email: data.email });
+      await updateSupabase(data.id, data.email, data.athlete_name, qualification, timingStatus, scheduledFollowupAt);
+      log('INFO', 'supabase_updated', { email: data.email, timing_status: timingStatus });
     } catch (error) {
       log('ERROR', 'supabase_update_failed', { error: error.message });
     }
@@ -832,7 +886,7 @@ functions.http('qualifyLead', async (req, res) => {
       (qualification.classification === 'QUENTE' || qualification.classification === 'MORNO')
     ) {
       try {
-        crmResult = await autoPromoteToCRM(data, qualification.classification, qualification.reason, qualification.confidence);
+        crmResult = await autoPromoteToCRM(data, qualification.classification, qualification.reason, qualification.confidence, timingStatus);
         if (crmResult) {
           log('INFO', 'crm_auto_created', {
             submissionId: crmResult.submissionId,

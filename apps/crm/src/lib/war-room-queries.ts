@@ -543,6 +543,45 @@ export async function fetchPendingQualifications(): Promise<PendingQualification
   };
 }
 
+// ─── Leads com timing alternativo (cedo demais / tarde demais) ─────
+// Para card resumo no War Room: quantos atletas estão fora da janela
+// ideal de aplicação e qual a próxima data de retomada agendada.
+export interface TimingAlternativeSummary {
+  aguardando_timing_count: number;        // muito_cedo (atletas a retomar)
+  fora_timing_count: number;              // tarde_demais (leads alternativos)
+  next_scheduled_followup_at: string | null; // data mais próxima de retorno
+}
+
+export async function fetchTimingAlternatives(): Promise<TimingAlternativeSummary> {
+  const supabase = await createServerSupabaseClient();
+
+  const [muitoCedo, tardeDemais, nextScheduled] = await Promise.all([
+    supabase
+      .from("form_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("timing_status", "muito_cedo"),
+    supabase
+      .from("form_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("timing_status", "tarde_demais"),
+    supabase
+      .from("form_submissions")
+      .select("scheduled_followup_at")
+      .eq("timing_status", "muito_cedo")
+      .not("scheduled_followup_at", "is", null)
+      .is("scheduled_followup_sent_at", null)
+      .order("scheduled_followup_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  return {
+    aguardando_timing_count: muitoCedo.count ?? 0,
+    fora_timing_count: tardeDemais.count ?? 0,
+    next_scheduled_followup_at: (nextScheduled.data?.scheduled_followup_at as string | null) ?? null,
+  };
+}
+
 export async function fetchBottlenecks(): Promise<Bottleneck[]> {
   const dealsAtivos = await fetchDealsAtivos();
   const bottlenecks: Bottleneck[] = [];

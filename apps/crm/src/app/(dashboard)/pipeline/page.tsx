@@ -121,6 +121,7 @@ function mapDealRow(row: SupabaseDealRow): Deal {
     flag_retrocedido: row.flag_retrocedido ?? undefined,
     motivo_retrocesso: row.motivo_retrocesso ?? undefined,
     lost_reason: row.detalhe_perda ?? row.motivo_perda ?? undefined,
+    lost_reason_category: row.motivo_perda ?? undefined,
     contract_signed_at: row.contrato_assinado_at ?? undefined,
     signal_paid_at: row.sinal_pago_at ?? undefined,
     is_future_lead: row.pode_reativar ?? undefined,
@@ -264,9 +265,17 @@ export default async function PipelinePage() {
   }
 
   // Limpar campos temporarios
-  const deals: Deal[] = rawDeals.map((d) => {
+  const allDeals: Deal[] = rawDeals.map((d) => {
     const { _responsavelId, ...clean } = d as Deal & { _responsavelId?: string | null };
     return clean;
+  });
+
+  // Filtra "lead alternativo" do Kanban (perdido + motivo_perda='timing').
+  // Esses leads ficam disponíveis em /leads na tab "Timing alternativo",
+  // mas não devem inflar a coluna "perdido" do pipeline operacional.
+  const deals: Deal[] = allDeals.filter((d) => {
+    if (d.stage !== "perdido") return true;
+    return d.lost_reason_category !== "timing";
   });
 
   // Metricas calculadas a partir dos deals reais

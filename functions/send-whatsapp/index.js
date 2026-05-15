@@ -299,6 +299,149 @@ ${buildScheduleUrl(data)}
 _Após o encerramento do ciclo, novos processos têm datas e critérios próprios._`;
 };
 
+// ─── Mensagens "Cedo demais" (timing_status = muito_cedo) ──────
+// Para atletas em before_7th: identificamos potencial mas o trabalho
+// estratégico só faz sentido a partir do 8º ano. Sistema agenda
+// retomada em novembro do ano civil seguinte.
+const buildEarlyPotentialAthleteMessage = (data) => {
+  const name = sanitize(data.athlete_name) || 'Atleta';
+  const nextYear = new Date().getUTCFullYear() + 1;
+
+  return `*${name}*,
+
+Recebemos sua candidatura à Bolsa Atleta USA e identificamos *potencial real* no seu perfil.
+
+Antes de seguirmos, queremos ser transparentes sobre o momento ideal: o trabalho estratégico que conduzimos junto aos atletas começa a fazer sentido a partir do 8º ano — quando inicia a construção do histórico esportivo e acadêmico que será avaliado pelas instituições americanas.
+
+📅 *Vamos retomar este contato em novembro de ${nextYear}* para uma análise estratégica completa do seu perfil.
+
+Enquanto isso, _mantenha o sonho vivo, treine com consistência e prepare-se com seriedade._
+
+A jornada começou hoje.
+
+— Equipe *Bolsa Atleta USA*`;
+};
+
+const buildEarlyPotentialGuardianMessage = (data) => {
+  const guardianName = sanitize(data.guardian_name) || 'Responsável';
+  const athleteName = sanitize(data.athlete_name) || 'seu(sua) filho(a)';
+  const nextYear = new Date().getUTCFullYear() + 1;
+
+  return `Olá, *${guardianName}*.
+
+Aqui é da *Bolsa Atleta USA*.
+
+Concluímos a análise inicial do perfil de *${athleteName}* e identificamos *potencial real*. Por isso queremos cuidar desse projeto com a atenção que merece — e isso passa por respeitar o timing certo.
+
+Atuamos com famílias intencionalmente selecionadas, dentro da metodologia *Educação Esportiva Inteligente®*, e o trabalho estratégico que conduzimos faz mais sentido a partir do 8º ano: é quando começa a construção concreta da trajetória esportiva, acadêmica e linguística que será avaliada pelas universidades americanas.
+
+📅 *Vamos retomar este contato em novembro de ${nextYear}* para uma análise estratégica completa de:
+• Trajetória esportiva construída até lá
+• Performance acadêmica
+• Evolução no inglês
+• Direção do projeto familiar
+
+Reservamos esse compromisso. Em novembro, voltamos a falar — _com mais informações, mais maturidade do(a) atleta, e o quadro ideal para iniciar formalmente a estruturação._
+
+Enquanto isso, _o trabalho de base começa agora. Mantenham o sonho vivo._
+
+— Equipe *Bolsa Atleta USA*`;
+};
+
+// ─── Mensagens "Tarde demais" (timing_status = tarde_demais) ───
+// Para atletas em graduated_2plus: fora da janela competitiva NCAA/NAIA.
+// Transparência total + sugestões de caminhos alternativos.
+const buildLateTimingAthleteMessage = (data) => {
+  const name = sanitize(data.athlete_name) || 'Atleta';
+
+  return `*${name}*,
+
+Recebemos sua candidatura à Bolsa Atleta USA e queremos ser totalmente transparentes com você.
+
+A janela competitiva de aplicação para o sistema *NCAA/NAIA* ocorre durante o high school ou imediatamente após a conclusão (em geral, até 12 meses). Pelas informações enviadas, esse momento já passou.
+
+Isso *não significa que o sonho acabou* — significa que o caminho precisa ser diferente. Para casos como o seu, geralmente o melhor caminho é:
+
+• *Junior College (NJCAA)* — porta de entrada por 2 anos antes de transferir para uma universidade NCAA
+• *Aplicação direta* em universidades fora do circuito esportivo competitivo
+• *Transfer student* — reaplicação a partir de um histórico universitário inicial
+
+Nosso método é especializado em atletas dentro da janela competitiva, onde temos maior eficácia. Mas se quiser conversar sobre esses caminhos alternativos, _estaremos à disposição._
+
+— Equipe *Bolsa Atleta USA*`;
+};
+
+const buildLateTimingGuardianMessage = (data) => {
+  const guardianName = sanitize(data.guardian_name) || 'Responsável';
+  const athleteName = sanitize(data.athlete_name) || 'o(a) atleta';
+
+  return `Olá, *${guardianName}*.
+
+Aqui é da *Bolsa Atleta USA*.
+
+Recebemos a candidatura de *${athleteName}* e queremos compartilhar uma análise sincera sobre o timing.
+
+A janela ideal de aplicação para o sistema *NCAA/NAIA* ocorre durante o high school ou imediatamente após a conclusão (geralmente até 12 meses). Pelas informações que recebemos, esse momento já passou — o que muda significativamente o cenário competitivo.
+
+Isso *não encerra o sonho americano* — apenas redireciona o caminho. Para casos assim, normalmente avaliamos:
+
+• *Junior College (NJCAA)* — caminho de 2 anos como porta de entrada para NCAA via transferência
+• *Aplicação direta* em universidades fora do sistema esportivo competitivo
+• *Transfer student* — reaplicação após histórico universitário inicial
+
+Nosso método é focado em atletas dentro da janela competitiva ideal, onde temos a maior eficácia comprovada. Mas valorizamos a transparência: _se desejarem conversar sobre esses caminhos alternativos, estaremos à disposição para uma orientação._
+
+Agradecemos a confiança em compartilhar esse momento conosco.
+
+— Equipe *Bolsa Atleta USA*`;
+};
+
+// ─── Mensagem agendada de retomada (timing_status = muito_cedo) ─
+// Enviada em novembro do ano civil seguinte ao cadastro. Marca o
+// retorno do contato prometido na mensagem early_potential.
+const buildScheduledReturnAthleteMessage = (data) => {
+  const name = sanitize(data.athlete_name) || 'Atleta';
+
+  return `*${name}*,
+
+Como combinamos no ano passado, voltamos para retomar a sua jornada rumo aos Estados Unidos.
+
+Identificamos potencial naquele primeiro contato — e *agora é o momento estratégico* para entendermos a evolução:
+
+• Como está sua trajetória esportiva?
+• Como está o desempenho acadêmico?
+• E o inglês — evoluiu?
+
+📅 _Seu responsável receberá em seguida o link para uma Reunião Estratégica Individual com o fundador da Bolsa Atleta USA._
+
+— Equipe *Bolsa Atleta USA*`;
+};
+
+const buildScheduledReturnGuardianMessage = (data) => {
+  const guardianName = sanitize(data.guardian_name) || 'Responsável';
+  const athleteName = sanitize(data.athlete_name) || 'seu(sua) filho(a)';
+
+  return `Olá, *${guardianName}*.
+
+Aqui é da *Bolsa Atleta USA*.
+
+Como combinamos no ano passado, voltamos para retomar a conversa sobre o futuro internacional de *${athleteName}*.
+
+Identificamos potencial naquele primeiro contato e, neste momento estratégico, queremos entender a evolução nos últimos 12 meses:
+
+• Como está a trajetória esportiva?
+• E o desempenho acadêmico?
+• Como foi a evolução no inglês?
+• Vocês mantêm o sonho americano?
+
+Reservamos esse retorno para vocês. Se ainda fizer sentido, gostaríamos de agendar uma *Reunião Estratégica Individual* com *Leandro Ribeiro* — para analisar as possibilidades específicas de *${athleteName}*.
+
+📅 *Agendar a Reunião Estratégica:*
+${buildScheduleUrl(data)}
+
+— Equipe *Bolsa Atleta USA* — assessoria exclusiva para bolsas esportivas em instituições americanas.`;
+};
+
 // ─── Cloud Function principal ──────────────────────────────────
 functions.http('sendWhatsApp', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -334,7 +477,10 @@ functions.http('sendWhatsApp', async (req, res) => {
 
     // Verifica se deve enviar (só Quente e Morno)
     const classification = data.qualification_classification;
-    if (classification === 'FRIO') {
+    // Mensagens de timing (early_potential, late_timing, scheduled_return)
+    // são enviadas independente da classificação Gemini — bypass do filtro FRIO.
+    const isTimingMessage = ['early_potential', 'late_timing', 'scheduled_return'].includes(messageType);
+    if (classification === 'FRIO' && !isTimingMessage) {
       log('INFO', 'skipped_cold_lead', {
         email: data.email,
         athlete: data.athlete_name,
@@ -369,11 +515,17 @@ functions.http('sendWhatsApp', async (req, res) => {
     const athleteMsg =
       messageType === 'followup_2' ? buildAthleteFollowup2Message(data) :
       messageType === 'followup_1' ? buildAthleteFollowup1Message(data) :
+      messageType === 'early_potential' ? buildEarlyPotentialAthleteMessage(data) :
+      messageType === 'late_timing' ? buildLateTimingAthleteMessage(data) :
+      messageType === 'scheduled_return' ? buildScheduledReturnAthleteMessage(data) :
       buildAthleteMessage(data);
 
     const guardianMsg =
       messageType === 'followup_2' ? buildGuardianFollowup2Message(data) :
       messageType === 'followup_1' ? buildGuardianFollowup1Message(data) :
+      messageType === 'early_potential' ? buildEarlyPotentialGuardianMessage(data) :
+      messageType === 'late_timing' ? buildLateTimingGuardianMessage(data) :
+      messageType === 'scheduled_return' ? buildScheduledReturnGuardianMessage(data) :
       buildGuardianMessage(data);
 
     const results = [];

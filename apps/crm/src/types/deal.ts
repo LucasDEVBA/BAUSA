@@ -2,6 +2,7 @@ import { type LeadClassification } from "./lead";
 
 export type DealStage =
   | "lead"
+  | "aguardando_timing"
   | "reuniao_marcada"
   | "reuniao_realizada"
   | "diagnostico_fit"
@@ -125,6 +126,8 @@ export interface DealStageConfig {
   isFinancial: boolean;
   isLost: boolean;
   order: number;
+  /** Indica que o deal está aguardando timing (atleta muito jovem) e será reativado em novembro do ano civil seguinte. */
+  isWaitingTiming?: boolean;
 }
 
 export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
@@ -136,6 +139,16 @@ export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
     isFinancial: false,
     isLost: false,
     order: 0,
+  },
+  aguardando_timing: {
+    id: "aguardando_timing",
+    label: "Aguardando Timing",
+    shortLabel: "Timing",
+    dotColor: "bg-purple-400",
+    isFinancial: false,
+    isLost: false,
+    order: 0.5,
+    isWaitingTiming: true,
   },
   reuniao_marcada: {
     id: "reuniao_marcada",
@@ -276,6 +289,7 @@ export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
 
 export const PIPELINE_STAGE_ORDER: DealStage[] = [
   "lead",
+  "aguardando_timing",
   "reuniao_marcada",
   "reuniao_realizada",
   "diagnostico_fit",

@@ -91,6 +91,14 @@ export interface Lead {
   device_type: string | null;
   form_started_at: string | null;
 
+  // Timing automation (#feature timing)
+  /** 'ideal' (default), 'muito_cedo' (before_7th), 'tarde_demais' (graduated_2plus) */
+  timing_status?: string | null;
+  /** Data agendada para retomar contato (apenas leads muito_cedo). */
+  scheduled_followup_at?: string | null;
+  /** Quando a mensagem agendada foi enviada (preenchido pelo cron process-scheduled-followups). */
+  scheduled_followup_sent_at?: string | null;
+
   // Deteccao de duplicatas
   possible_duplicate?: boolean;
 

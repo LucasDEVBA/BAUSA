@@ -154,6 +154,118 @@ const sanitize = (str) => {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
 };
 
+// ─── Wrapper HTML compartilhado (header + footer Bolsa Atleta USA) ───
+// Recebe: badge label (string), title (string), bodyHtml (string com <p> tags),
+// ctaHref (string), ctaLabel (string). Retorna HTML completo.
+const renderEmailShell = ({ badge, title, bodyHtml, ctaHref = 'https://bolsaatletausa.com', ctaLabel = 'Acessar Nosso Site' }) => {
+  const colors = {
+    primary: '#1A365D',
+    secondary: '#9B2C2C',
+    accent: '#C53030',
+  };
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Bolsa Atleta USA</title></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" style="width:100%;border-collapse:collapse;background-color:#f4f4f4;" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 20px;">
+    <table role="presentation" style="max-width:600px;width:100%;border-collapse:collapse;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.1);" cellpadding="0" cellspacing="0">
+      <tr><td style="padding:40px 40px 30px 40px;text-align:center;background:linear-gradient(135deg, ${colors.primary} 0%, #2C5282 100%);border-radius:12px 12px 0 0;">
+        <img src="${LOGO_URL}" alt="Bolsa Atleta USA" style="max-width:220px;height:auto;display:block;margin:0 auto;">
+      </td></tr>
+      <tr><td style="padding:30px 40px 0 40px;text-align:center;">
+        <div style="display:inline-block;background:linear-gradient(90deg, ${colors.secondary} 0%, ${colors.accent} 100%);color:#ffffff;padding:8px 24px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;box-shadow:0 2px 4px rgba(155,44,44,0.2);">
+          ${badge}
+        </div>
+      </td></tr>
+      <tr><td style="padding:30px 40px 0 40px;">
+        <h1 style="margin:0;color:${colors.primary};font-size:26px;font-weight:700;line-height:1.3;text-align:center;">${title}</h1>
+      </td></tr>
+      <tr><td style="padding:25px 40px 40px 40px;">
+        <div style="color:#2D3748;font-size:16px;line-height:1.7;">${bodyHtml}</div>
+      </td></tr>
+      <tr><td style="padding:0 40px 40px 40px;text-align:center;">
+        <a href="${ctaHref}" style="display:inline-block;background:linear-gradient(90deg, ${colors.primary} 0%, #2C5282 100%);color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(26,54,93,0.2);">${ctaLabel}</a>
+      </td></tr>
+      <tr><td style="padding:30px 40px;background-color:#F7FAFC;border-radius:0 0 12px 12px;border-top:1px solid #E2E8F0;">
+        <p style="margin:0;font-size:13px;color:#718096;text-align:center;line-height:1.6;">&copy; ${new Date().getFullYear()} Bolsa Atleta USA. Todos os direitos reservados.<br><span style="font-size:11px;">Este é um e-mail automático, por favor não responda.</span></p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+};
+
+// ─── Template HTML "Cedo demais" (early_potential, 48h) ────────
+const getEarlyPotentialHtml = (athleteName, guardianName) => {
+  const safeAthlete = sanitize(athleteName);
+  const safeGuardian = sanitize(guardianName) || 'Família';
+  const nextYear = new Date().getUTCFullYear() + 1;
+  const bodyHtml = `
+    <p style="margin:0 0 18px 0;">Olá, <strong>${safeGuardian}</strong>.</p>
+    <p style="margin:0 0 18px 0;">Concluímos a análise inicial do perfil de <strong>${safeAthlete}</strong> e identificamos <strong>potencial real</strong>. Por isso queremos cuidar desse projeto com a atenção que merece — e isso passa por respeitar o timing certo.</p>
+    <p style="margin:0 0 18px 0;">Atuamos com famílias intencionalmente selecionadas, dentro da metodologia <em>Educação Esportiva Inteligente®</em>. O trabalho estratégico que conduzimos faz mais sentido a partir do 8º ano: é quando começa a construção concreta da trajetória esportiva, acadêmica e linguística que será avaliada pelas universidades americanas.</p>
+    <p style="margin:0 0 18px 0;font-weight:600;color:#1A365D;">📅 Vamos retomar este contato em novembro de ${nextYear} para uma análise estratégica completa.</p>
+    <p style="margin:0 0 18px 0;">Nessa ocasião, vamos avaliar a trajetória esportiva construída até lá, a performance acadêmica, a evolução no inglês e a direção do projeto familiar.</p>
+    <p style="margin:0;">Reservamos esse compromisso. Enquanto isso, <em>o trabalho de base começa agora — mantenham o sonho vivo</em>.</p>
+  `;
+  return renderEmailShell({
+    badge: 'Candidatura Recebida',
+    title: `Identificamos potencial em ${safeAthlete}`,
+    bodyHtml,
+  });
+};
+
+// ─── Template HTML "Tarde demais" (late_timing, 48h) ───────────
+const getLateTimingHtml = (athleteName, guardianName) => {
+  const safeAthlete = sanitize(athleteName);
+  const safeGuardian = sanitize(guardianName) || 'Família';
+  const bodyHtml = `
+    <p style="margin:0 0 18px 0;">Olá, <strong>${safeGuardian}</strong>.</p>
+    <p style="margin:0 0 18px 0;">Recebemos a candidatura de <strong>${safeAthlete}</strong> e queremos compartilhar uma análise sincera sobre o timing.</p>
+    <p style="margin:0 0 18px 0;">A janela ideal de aplicação para o sistema <strong>NCAA/NAIA</strong> ocorre durante o high school ou imediatamente após a conclusão (em geral, até 12 meses). Pelas informações que recebemos, esse momento já passou — o que muda significativamente o cenário competitivo.</p>
+    <p style="margin:0 0 18px 0;font-weight:600;color:#1A365D;">Isso não encerra o sonho americano — apenas redireciona o caminho.</p>
+    <p style="margin:0 0 10px 0;">Para casos assim, normalmente avaliamos:</p>
+    <ul style="margin:0 0 18px 0;padding-left:20px;color:#2D3748;">
+      <li style="margin-bottom:8px;"><strong>Junior College (NJCAA)</strong> — caminho de 2 anos como porta de entrada para NCAA via transferência</li>
+      <li style="margin-bottom:8px;"><strong>Aplicação direta</strong> em universidades fora do sistema esportivo competitivo</li>
+      <li><strong>Transfer student</strong> — reaplicação após histórico universitário inicial</li>
+    </ul>
+    <p style="margin:0 0 18px 0;">Nosso método é focado em atletas dentro da janela competitiva ideal, onde temos a maior eficácia comprovada. Mas valorizamos a transparência: <em>se desejarem conversar sobre esses caminhos alternativos, estaremos à disposição</em>.</p>
+    <p style="margin:0;">Agradecemos a confiança em compartilhar esse momento conosco.</p>
+  `;
+  return renderEmailShell({
+    badge: 'Análise de Timing',
+    title: `Sobre a candidatura de ${safeAthlete}`,
+    bodyHtml,
+  });
+};
+
+// ─── Template HTML retorno agendado (scheduled_return) ─────────
+const getScheduledReturnHtml = (athleteName, guardianName, scheduleUrl) => {
+  const safeAthlete = sanitize(athleteName);
+  const safeGuardian = sanitize(guardianName) || 'Família';
+  const safeUrl = scheduleUrl || 'https://bolsaatletausa.com';
+  const bodyHtml = `
+    <p style="margin:0 0 18px 0;">Olá, <strong>${safeGuardian}</strong>.</p>
+    <p style="margin:0 0 18px 0;">Como combinamos no ano passado, voltamos para retomar a conversa sobre o futuro internacional de <strong>${safeAthlete}</strong>.</p>
+    <p style="margin:0 0 18px 0;">Identificamos potencial naquele primeiro contato e, neste momento estratégico, queremos entender a evolução nos últimos 12 meses:</p>
+    <ul style="margin:0 0 18px 0;padding-left:20px;color:#2D3748;">
+      <li style="margin-bottom:6px;">Como está a trajetória esportiva?</li>
+      <li style="margin-bottom:6px;">E o desempenho acadêmico?</li>
+      <li style="margin-bottom:6px;">Como foi a evolução no inglês?</li>
+      <li>Vocês mantêm o sonho americano?</li>
+    </ul>
+    <p style="margin:0 0 18px 0;font-weight:600;color:#1A365D;">📅 Reservamos esse retorno para vocês.</p>
+    <p style="margin:0;">Se ainda fizer sentido, gostaríamos de agendar uma <strong>Reunião Estratégica Individual</strong> com <strong>Leandro Ribeiro</strong> para analisar as possibilidades específicas de <strong>${safeAthlete}</strong>.</p>
+  `;
+  return renderEmailShell({
+    badge: 'Retorno Programado',
+    title: `Como combinamos: vamos retomar o projeto de ${safeAthlete}`,
+    bodyHtml,
+    ctaHref: safeUrl,
+    ctaLabel: 'Agendar Reunião Estratégica',
+  });
+};
+
 // ─── Template de E-mail para Atleta/Responsável ─────────────────
 const getHtmlTemplate = (name, type) => {
   const safeName = sanitize(name);
@@ -404,10 +516,46 @@ functions.http("sendMessages", async (req, res) => {
       });
     }
 
+    // messageType: 'initial' (default, candidatura recebida),
+    //               'early_potential' (cedo demais),
+    //               'late_timing' (tarde demais),
+    //               'scheduled_return' (retorno agendado em novembro)
+    const messageType = payload?.messageType || data.messageType || 'initial';
+
     console.log(JSON.stringify({
       level: "INFO", action: "processing_start",
-      athlete: data.athlete_name, email: data.email,
+      athlete: data.athlete_name, email: data.email, messageType,
     }));
+
+    // Determina subject + HTML conforme messageType
+    const buildHtmlAndSubject = (recipientType /* 'athlete' | 'guardian' */) => {
+      const recipientName = recipientType === 'guardian'
+        ? (data.guardian_name || data.athlete_name)
+        : data.athlete_name;
+      if (messageType === 'early_potential') {
+        return {
+          subject: 'Bolsa Atleta USA — Identificamos potencial no perfil',
+          html: getEarlyPotentialHtml(data.athlete_name, recipientName),
+        };
+      }
+      if (messageType === 'late_timing') {
+        return {
+          subject: 'Bolsa Atleta USA — Análise de timing da candidatura',
+          html: getLateTimingHtml(data.athlete_name, recipientName),
+        };
+      }
+      if (messageType === 'scheduled_return') {
+        return {
+          subject: 'Bolsa Atleta USA — Retomando o projeto, como combinado',
+          html: getScheduledReturnHtml(data.athlete_name, recipientName, data.schedule_url),
+        };
+      }
+      // default 'initial'
+      return {
+        subject: 'Candidatura Recebida - Bolsa Atleta USA',
+        html: getHtmlTemplate(data.athlete_name, recipientType),
+      };
+    };
 
     const results = [];
 
@@ -419,10 +567,11 @@ functions.http("sendMessages", async (req, res) => {
       // Mesmo email: envia apenas a copy do responsável (mais completa)
       console.log(JSON.stringify({ level: "INFO", action: "same_email_detected", email: data.email }));
 
+      const { subject, html } = buildHtmlAndSubject('guardian');
       const guardianResult = await sendEmailWithFallback(
         data.email,
-        `Candidatura Recebida - Bolsa Atleta USA`,
-        getHtmlTemplate(data.athlete_name, "guardian"),
+        subject,
+        html,
         "RESPONSAVEL_ONLY"
       );
       results.push({ label: "RESPONSAVEL_ONLY (same email)", ...guardianResult });
@@ -432,10 +581,11 @@ functions.http("sendMessages", async (req, res) => {
       // Emails diferentes: envia para ambos
 
       // 1. E-mail para o Atleta
+      const athleteCopy = buildHtmlAndSubject('athlete');
       const athleteResult = await sendEmailWithFallback(
         data.email,
-        `Candidatura Recebida - Bolsa Atleta USA`,
-        getHtmlTemplate(data.athlete_name, "athlete"),
+        athleteCopy.subject,
+        athleteCopy.html,
         "ATLETA"
       );
       results.push({ label: "ATLETA", ...athleteResult });
@@ -443,10 +593,11 @@ functions.http("sendMessages", async (req, res) => {
 
       // 2. E-mail para o Responsável
       if (data.guardian_email) {
+        const guardianCopy = buildHtmlAndSubject('guardian');
         const guardianResult = await sendEmailWithFallback(
           data.guardian_email,
-          `Candidatura Recebida - Bolsa Atleta USA`,
-          getHtmlTemplate(data.athlete_name, "guardian"),
+          guardianCopy.subject,
+          guardianCopy.html,
           "RESPONSAVEL"
         );
         results.push({ label: "RESPONSAVEL", ...guardianResult });
@@ -459,14 +610,17 @@ functions.http("sendMessages", async (req, res) => {
       }
     }
 
-    // 3. E-mail interno (sempre)
-    const internalResult = await sendEmailWithFallback(
-      INTERNAL_EMAIL,
-      `🎯 Novo Lead: ${sanitize(data.athlete_name)}`,
-      getInternalTemplate(data),
-      "INTERNO"
-    );
-    results.push({ label: "INTERNO", ...internalResult });
+    // 3. E-mail interno: apenas para fluxo 'initial' (avisa equipe sobre novo lead).
+    // Mensagens de timing não geram aviso interno (são automações pós-qualificação).
+    if (messageType === 'initial') {
+      const internalResult = await sendEmailWithFallback(
+        INTERNAL_EMAIL,
+        `🎯 Novo Lead: ${sanitize(data.athlete_name)}`,
+        getInternalTemplate(data),
+        "INTERNO"
+      );
+      results.push({ label: "INTERNO", ...internalResult });
+    }
 
     const totalSent = results.filter((r) => r.success).length;
     const totalFailed = results.filter((r) => !r.success).length;

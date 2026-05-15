@@ -13,10 +13,12 @@ import {
   fetchDealsWithoutNextAction,
   fetchDistinctSafras,
   fetchPendingQualifications,
+  fetchTimingAlternatives,
 } from "@/lib/war-room-queries";
 import { WarRoomSectionCard } from "@/components/war-room/WarRoomSectionCard";
 import { SafraFilter } from "@/components/war-room/SafraFilter";
 import { PendingQualificationsAlert } from "@/components/war-room/PendingQualificationsAlert";
+import { TimingAlternativesCard } from "@/components/war-room/TimingAlternativesCard";
 import { cn } from "@/lib/utils";
 
 // Metas estrategicas BAUSA
@@ -37,7 +39,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const _safra = params.safra || undefined;
 
-  const [m, meta, funil, caixa, risco, pos, familyMetrics, alerts, dealsWithoutNextAction, safras, pendingQualifications] = await Promise.all([
+  const [m, meta, funil, caixa, risco, pos, familyMetrics, alerts, dealsWithoutNextAction, safras, pendingQualifications, timingAlternatives] = await Promise.all([
     fetchWarRoomMetrics(),
     fetchMetaRevenue(),
     fetchCommercialFunnel(),
@@ -49,6 +51,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     fetchDealsWithoutNextAction(),
     fetchDistinctSafras(),
     fetchPendingQualifications(),
+    fetchTimingAlternatives(),
   ]);
 
   const criticalAlerts = alerts.filter((a) => a.type === "critical");
@@ -99,6 +102,9 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
 
       {/* Alerta de leads pendentes de qualificação (Gemini falhou) */}
       <PendingQualificationsAlert data={pendingQualifications} />
+
+      {/* Cards de timing alternativo (cedo demais / tarde demais) */}
+      <TimingAlternativesCard data={timingAlternatives} />
 
       {/* Metas BAUSA strip */}
       <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-5 py-4">
