@@ -1,0 +1,12 @@
+{
+  "name": "process-scheduled-followups",
+  "version": "1.0.0",
+  "description": "Processa leads cuja scheduled_followup_at chegou. Envia template 'scheduled_return' (WhatsApp + email) para retomar contato com atletas que estavam em timing 'muito_cedo'. Acionada por Cloud Scheduler diário (08:00 BRT).",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}

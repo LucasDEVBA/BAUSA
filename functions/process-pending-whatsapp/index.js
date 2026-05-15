@@ -6,6 +6,7 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SEND_WHATSAPP_URL = process.env.SEND_WHATSAPP_URL;
+const SEND_MESSAGES_URL = process.env.SEND_MESSAGES_URL; // messenger-service (email)
 const SYNC_LEADS_URL = process.env.SYNC_LEADS_URL;
 // Schema do Supabase: 'public' em PRD, 'uat' em UAT, 'dev' em DEV
 const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
@@ -44,39 +45,59 @@ const httpRequest = (url, options, postData) => {
 };
 
 // ─── Buscar leads pendentes de WhatsApp ────────────────────────
-// Critério: qualificados (QUENTE ou MORNO), há mais de 22h, sem whatsapp_sent_at
+// 2 critérios distintos:
+//   A) Timing ideal:        QUENTE/MORNO, qualified_at > 22h, sem whatsapp_sent_at
+//   B) Timing alternativo:  timing_status IN (muito_cedo, tarde_demais),
+//                            qualified_at > 48h (mais tempo para acomodar
+//                            a comunicação sensível), sem whatsapp_sent_at
 const fetchPendingLeads = async () => {
-  // Leads qualificados há mais de 22h que ainda não receberam WhatsApp
   const twentyTwoHoursAgo = new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString();
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
-  // Busca leads:
-  // - classification é QUENTE ou MORNO
-  // - qualified_at existe e é anterior a 22h atrás
-  // - whatsapp_sent_at é NULL (ainda não enviou)
-  const filters = [
+  const fetchByFilters = async (filters) => {
+    const url = `${SUPABASE_URL}/rest/v1/form_submissions?${filters.join('&')}&select=*&order=qualified_at.asc&limit=20`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) {
+      throw new Error(`Supabase GET ${result.statusCode}: ${result.body}`);
+    }
+    return JSON.parse(result.body);
+  };
+
+  // Bucket A: Timing ideal — 22h desde qualified_at
+  const idealLeads = await fetchByFilters([
     'qualification_classification=in.(QUENTE,MORNO)',
     `qualified_at=lt.${twentyTwoHoursAgo}`,
     'qualified_at=not.is.null',
     'whatsapp_sent_at=is.null',
-  ].join('&');
+    'or=(timing_status.is.null,timing_status.eq.ideal)',
+  ]);
 
-  const url = `${SUPABASE_URL}/rest/v1/form_submissions?${filters}&select=*&order=qualified_at.asc&limit=20`;
+  // Bucket B: Timing alternativo — 48h desde qualified_at (early_potential ou late_timing)
+  const alternativeLeads = await fetchByFilters([
+    'timing_status=in.(muito_cedo,tarde_demais)',
+    `qualified_at=lt.${fortyEightHoursAgo}`,
+    'qualified_at=not.is.null',
+    'whatsapp_sent_at=is.null',
+  ]);
 
-  const result = await httpRequest(url, {
-    method: 'GET',
-    headers: {
-      'apikey': SUPABASE_SERVICE_KEY,
-      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Accept-Profile': SUPABASE_SCHEMA,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (result.statusCode >= 400) {
-    throw new Error(`Supabase GET ${result.statusCode}: ${result.body}`);
+  // Deduplicação por id (defensivo, caso queries se sobreponham)
+  const seen = new Set();
+  const all = [];
+  for (const lead of [...idealLeads, ...alternativeLeads]) {
+    if (!seen.has(lead.id)) {
+      seen.add(lead.id);
+      all.push(lead);
+    }
   }
-
-  return JSON.parse(result.body);
+  return all;
 };
 
 // ─── Marcar lead como WhatsApp enviado ─────────────────────────
@@ -141,12 +162,22 @@ const triggerSyncLeads = async (lead) => {
   }
 };
 
+// ─── Helper: traduz timing_status → messageType correspondente ──
+// 'ideal'        → 'initial'           (template original "Reunião Estratégica")
+// 'muito_cedo'   → 'early_potential'   (potencial, retorno em novembro)
+// 'tarde_demais' → 'late_timing'       (fora da janela competitiva)
+const timingToMessageType = (timingStatus) => {
+  if (timingStatus === 'muito_cedo') return 'early_potential';
+  if (timingStatus === 'tarde_demais') return 'late_timing';
+  return 'initial';
+};
+
 // ─── Enviar WhatsApp via send-whatsapp function ────────────────
 const triggerWhatsApp = async (lead) => {
+  const messageType = timingToMessageType(lead.timing_status);
   const payload = JSON.stringify({
-    record: {
-      ...lead,
-    },
+    record: { ...lead },
+    messageType,
   });
 
   const headers = {
@@ -163,6 +194,41 @@ const triggerWhatsApp = async (lead) => {
   return {
     statusCode: result.statusCode,
     body: result.body.substring(0, 300),
+    messageType,
+  };
+};
+
+// ─── Enviar Email via messenger-service ───────────────────────
+// Disparado em paralelo ao WhatsApp APENAS para timing_status
+// alternativos (muito_cedo / tarde_demais). Para timing ideal o
+// email já foi enviado no INSERT do form_submissions (fluxo original).
+const triggerEmail = async (lead) => {
+  if (!SEND_MESSAGES_URL) {
+    log('WARN', 'email_skip_no_url', { email: lead.email });
+    return { statusCode: 0, body: 'SEND_MESSAGES_URL not configured' };
+  }
+
+  const messageType = timingToMessageType(lead.timing_status);
+  const payload = JSON.stringify({
+    record: { ...lead },
+    messageType,
+  });
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  };
+  if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
+
+  const result = await httpRequest(SEND_MESSAGES_URL, {
+    method: 'POST',
+    headers,
+  }, payload);
+
+  return {
+    statusCode: result.statusCode,
+    body: result.body.substring(0, 300),
+    messageType,
   };
 };
 
@@ -217,13 +283,31 @@ functions.http('processPendingWhatsApp', async (req, res) => {
           qualifiedAt: lead.qualified_at,
         });
 
-        // 2a. Envia WhatsApp
+        // 2a. Envia WhatsApp (template depende de timing_status)
         const whatsappResult = await triggerWhatsApp(lead);
 
         log('INFO', 'whatsapp_result', {
           email: lead.email,
           statusCode: whatsappResult.statusCode,
+          messageType: whatsappResult.messageType,
         });
+
+        // 2a-bis. Para timing alternativo (muito_cedo / tarde_demais),
+        // dispara também o email correspondente. Para 'ideal' o email
+        // de boas-vindas já foi enviado no fluxo de INSERT do form.
+        const isAlternativeTiming = lead.timing_status === 'muito_cedo' || lead.timing_status === 'tarde_demais';
+        if (isAlternativeTiming) {
+          try {
+            const emailResult = await triggerEmail(lead);
+            log('INFO', 'email_result', {
+              email: lead.email,
+              statusCode: emailResult.statusCode,
+              messageType: emailResult.messageType,
+            });
+          } catch (emailErr) {
+            log('WARN', 'email_send_failed', { email: lead.email, error: emailErr.message });
+          }
+        }
 
         // 2b. Marca como enviado e sincroniza o Sheets com o registro atualizado
         if (whatsappResult.statusCode < 400) {

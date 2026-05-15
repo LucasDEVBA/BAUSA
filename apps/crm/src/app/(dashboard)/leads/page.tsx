@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Flame, Thermometer, Snowflake } from "lucide-react";
+import { Flame, Thermometer, Snowflake, Clock } from "lucide-react";
 import { LeadsTable } from "@/components/leads/LeadsTable";
 import { LeadsExportButton } from "@/components/leads/LeadsExportButton";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -82,6 +82,9 @@ function mapFormSubmissionToLead(
     cta_source: (row.cta_source as string) ?? null,
     device_type: (row.device_type as string) ?? null,
     form_started_at: (row.form_started_at as string) ?? null,
+    timing_status: (row.timing_status as string) ?? null,
+    scheduled_followup_at: (row.scheduled_followup_at as string) ?? null,
+    scheduled_followup_sent_at: (row.scheduled_followup_sent_at as string) ?? null,
     is_in_pipeline: !!pipeline,
     pipeline_stage: pipeline?.etapa ?? null,
     pipeline_deal_id: pipeline?.dealId ?? null,
@@ -187,6 +190,9 @@ export default async function LeadsPage() {
   const quente = leads.filter((l) => l.qualification_classification === "QUENTE").length;
   const morno = leads.filter((l) => l.qualification_classification === "MORNO").length;
   const frio = leads.filter((l) => l.qualification_classification === "FRIO").length;
+  const timingAlternativo = leads.filter(
+    (l) => l.timing_status === "muito_cedo" || l.timing_status === "tarde_demais"
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -217,6 +223,16 @@ export default async function LeadsPage() {
             <span className="text-sm font-semibold text-blue-400">{frio}</span>
             <span className="text-xs text-blue-500/70">frios</span>
           </div>
+          {timingAlternativo > 0 && (
+            <div
+              className="flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5"
+              title="Leads em 'muito cedo' ou 'tarde demais' — fora da janela ideal de aplicação"
+            >
+              <Clock className="h-3.5 w-3.5 text-purple-400" />
+              <span className="text-sm font-semibold text-purple-400">{timingAlternativo}</span>
+              <span className="text-xs text-purple-500/70">timing alternativo</span>
+            </div>
+          )}
         </div>
       </div>
 
