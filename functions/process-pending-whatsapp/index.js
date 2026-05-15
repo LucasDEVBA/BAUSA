@@ -34,9 +34,13 @@ const httpRequest = (url, options, postData) => {
     });
 
     req.on('error', (e) => reject(e));
-    req.setTimeout(30000, () => {
+    // Timeout 90s: o send-whatsapp pode demorar ~25-40s para dois envios
+    // sequenciais (atleta + responsável) com retry interno do Z-API.
+    // O timeout antigo de 30s causava lead_processing_failed mesmo quando
+    // Z-API confirmava entrega — gerando duplicação no próximo cron.
+    req.setTimeout(90000, () => {
       req.destroy();
-      reject(new Error('Request timeout (30s)'));
+      reject(new Error('Request timeout (90s)'));
     });
 
     if (postData) req.write(postData);
@@ -100,16 +104,29 @@ const fetchPendingLeads = async () => {
   return all;
 };
 
-// ─── Marcar lead como WhatsApp enviado ─────────────────────────
-// Prefere id=eq.${submissionId} (cirúrgico). Fallback case-insensitive.
+// ─── Marcar lead como WhatsApp enviado (CAS atômico) ───────────
+// MUDANÇA CRÍTICA: agora inclui o filtro `whatsapp_sent_at=is.null`
+// na query para garantir atomicidade. Apenas 1 instância vence o
+// PATCH; instâncias seguintes recebem 0 rows updated e sabem que
+// devem PULAR o envio.
+//
+// Esta função DEVE ser chamada ANTES do envio para Z-API. Se o envio
+// falhar/timeout posteriormente, o CAS já está marcado e evita duplicar
+// em próximas execuções do cron.
+//
+// Retorna true se foi a instância que efetivamente marcou (única
+// autorizada a enviar). Retorna false caso contrário.
 const markWhatsAppSent = async (submissionId, email, athleteName) => {
   let url;
   if (submissionId) {
-    url = `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${encodeURIComponent(submissionId)}`;
+    url = `${SUPABASE_URL}/rest/v1/form_submissions`
+      + `?id=eq.${encodeURIComponent(submissionId)}`
+      + `&whatsapp_sent_at=is.null`;
   } else {
     url = `${SUPABASE_URL}/rest/v1/form_submissions`
       + `?email=ilike.${encodeURIComponent((email || '').trim())}`
-      + `&athlete_name=ilike.${encodeURIComponent((athleteName || '').trim())}`;
+      + `&athlete_name=ilike.${encodeURIComponent((athleteName || '').trim())}`
+      + `&whatsapp_sent_at=is.null`;
   }
 
   const postData = JSON.stringify({
@@ -131,7 +148,14 @@ const markWhatsAppSent = async (submissionId, email, athleteName) => {
     throw new Error(`Supabase PATCH ${result.statusCode}: ${result.body}`);
   }
 
-  return true;
+  // Retorna true se atualizou (fomos os primeiros) — false se outra
+  // instância (anterior ou concorrente) já marcou e ganhou a corrida.
+  try {
+    const updated = JSON.parse(result.body || '[]');
+    return Array.isArray(updated) && updated.length > 0;
+  } catch {
+    return false;
+  }
 };
 
 // ─── Sincronizar lead atualizado com Google Sheets ─────────────
@@ -283,7 +307,31 @@ functions.http('processPendingWhatsApp', async (req, res) => {
           qualifiedAt: lead.qualified_at,
         });
 
-        // 2a. Envia WhatsApp (template depende de timing_status)
+        // 2a. CAS ATÔMICO ANTES DO ENVIO: marca whatsapp_sent_at = NOW()
+        // SOMENTE SE ainda for NULL. Se outra execução já marcou ou venceu
+        // a corrida, pula este lead. Isso garante que mesmo em timeout do
+        // send-whatsapp (Z-API às vezes demora >30s) NÃO duplicamos no
+        // próximo cron, porque o registro já foi marcado antes do envio.
+        const whatsappSentAt = new Date().toISOString();
+        let marked = false;
+        try {
+          marked = await markWhatsAppSent(lead.id, lead.email, lead.athlete_name);
+        } catch (markErr) {
+          log('ERROR', 'cas_mark_failed', { email: lead.email, error: markErr.message });
+          results.push({ email: lead.email, athlete: lead.athlete_name, status: 'error', error: `CAS mark failed: ${markErr.message}` });
+          continue;
+        }
+
+        if (!marked) {
+          log('INFO', 'cas_lost_skip', {
+            email: lead.email,
+            reason: 'whatsapp_sent_at já preenchido por outra execução — pulando',
+          });
+          results.push({ email: lead.email, athlete: lead.athlete_name, status: 'skipped_cas_lost' });
+          continue;
+        }
+
+        // 2b. Envia WhatsApp (template depende de timing_status)
         const whatsappResult = await triggerWhatsApp(lead);
 
         log('INFO', 'whatsapp_result', {
@@ -292,7 +340,7 @@ functions.http('processPendingWhatsApp', async (req, res) => {
           messageType: whatsappResult.messageType,
         });
 
-        // 2a-bis. Para timing alternativo (muito_cedo / tarde_demais),
+        // 2b-bis. Para timing alternativo (muito_cedo / tarde_demais),
         // dispara também o email correspondente. Para 'ideal' o email
         // de boas-vindas já foi enviado no fluxo de INSERT do form.
         const isAlternativeTiming = lead.timing_status === 'muito_cedo' || lead.timing_status === 'tarde_demais';
@@ -309,21 +357,22 @@ functions.http('processPendingWhatsApp', async (req, res) => {
           }
         }
 
-        // 2b. Marca como enviado e sincroniza o Sheets com o registro atualizado
+        // 2c. Sync Sheets independente do resultado do envio (DB já foi
+        // marcado pelo CAS — refletir mesmo se Z-API der erro/timeout).
+        // O CEO/Head veem no Pipeline e podem reenviar manualmente se
+        // necessário a partir do War Room.
+        await triggerSyncLeads({ ...lead, whatsapp_sent_at: whatsappSentAt });
+
         if (whatsappResult.statusCode < 400) {
-          const whatsappSentAt = new Date().toISOString();
-          await markWhatsAppSent(lead.id, lead.email, lead.athlete_name);
-
-          // Sync full row: passa o lead com whatsapp_sent_at preenchido
-          await triggerSyncLeads({ ...lead, whatsapp_sent_at: whatsappSentAt });
-
           results.push({
             email: lead.email,
             athlete: lead.athlete_name,
             status: 'sent',
           });
         } else {
-          log('ERROR', 'whatsapp_send_failed', {
+          // Z-API retornou erro — DB já foi marcado, mas registramos
+          // erro nos logs para investigação manual.
+          log('ERROR', 'whatsapp_send_failed_after_cas', {
             email: lead.email,
             statusCode: whatsappResult.statusCode,
             body: whatsappResult.body,
@@ -332,7 +381,7 @@ functions.http('processPendingWhatsApp', async (req, res) => {
           results.push({
             email: lead.email,
             athlete: lead.athlete_name,
-            status: 'failed',
+            status: 'failed_after_cas',
             error: `HTTP ${whatsappResult.statusCode}`,
           });
         }
