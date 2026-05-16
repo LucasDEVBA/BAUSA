@@ -85,7 +85,11 @@ const fetchPendingLeads = async () => {
   ]);
 
   // Bucket B: Timing alternativo — 48h desde qualified_at (early_potential ou late_timing)
+  // Mantém o mesmo filtro de classificação Gemini do Bucket A: somente leads
+  // QUENTE/MORNO recebem mensagens automáticas. Leads FRIO + timing alternativo
+  // não entram no fluxo (paridade com leads FRIO + timing ideal, que já são excluídos).
   const alternativeLeads = await fetchByFilters([
+    'qualification_classification=in.(QUENTE,MORNO)',
     'timing_status=in.(muito_cedo,tarde_demais)',
     `qualified_at=lt.${fortyEightHoursAgo}`,
     'qualified_at=not.is.null',
