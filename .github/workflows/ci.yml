@@ -245,6 +245,22 @@ jobs:
           fi
 
   # ══════════════════════════════════════════════
+  # 8b. Guard de invariantes dos schedulers
+  #     Impede regressão da classe de bug "filtro de
+  #     elegibilidade ausente" (incidentes 2026-05-15/18).
+  # ══════════════════════════════════════════════
+  scheduler-invariants:
+    name: Scheduler Eligibility Invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run eligibility guard (node:test, zero deps)
+        run: node --test functions/__guards__/*.test.js
+
+  # ══════════════════════════════════════════════
   # 9. Summary — All checks must pass
   # ══════════════════════════════════════════════
   ci-passed:
@@ -259,6 +275,7 @@ jobs:
       - validate-functions
       - validate-migrations
       - secrets-scan
+      - scheduler-invariants
     runs-on: ubuntu-latest
     steps:
       - run: echo "✅ All CI checks passed!"
