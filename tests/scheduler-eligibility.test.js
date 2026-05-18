@@ -23,7 +23,7 @@
 // produção). Comentários de linha inteira e blocos são removidos antes
 // da verificação para evitar falso-positivo de "cláusula só no comentário".
 //
-// Execução local:  node --test functions/__guards__/
+// Execução local:  node --test tests/
 // Execução no CI:   job dedicado "scheduler-invariants" no ci.yml
 // ════════════════════════════════════════════════════════════════════════
 
@@ -32,7 +32,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const FUNCTIONS_DIR = path.join(__dirname, '..');
+// Este guard vive em tests/ (FORA de functions/) — pastas dentro de
+// functions/ são auto-detectadas como Cloud Functions deployáveis pelos
+// workflows deploy-functions*.yml. A partir de tests/, functions/ está
+// um nível acima.
+const FUNCTIONS_DIR = path.join(__dirname, '..', 'functions');
 
 /**
  * Lê o index.js de uma Cloud Function e retorna o código com comentários
