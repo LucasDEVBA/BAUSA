@@ -128,6 +128,12 @@ const fetchFollowupLeads = async (followupNumber, executionStartTime) => {
     `whatsapp_sent_at=lt.${cutoffTime}`,
     'whatsapp_sent_at=not.is.null',
     'meeting_scheduled=not.is.true',  // IS NOT TRUE captura FALSE e NULL
+    // Somente leads de timing ideal recebem follow-up 48h/7d. Leads em
+    // muito_cedo/tarde_demais seguem fluxo próprio (early_potential/late_timing
+    // + scheduled_return em novembro), e o follow-up "agende a reunião" seria
+    // contraditório com a mensagem que já receberam. Paridade com o Bucket A
+    // de process-pending-whatsapp.
+    'or=(timing_status.is.null,timing_status.eq.ideal)',
     isFollowup1 ? 'followup_1_sent_at=is.null' : 'followup_2_sent_at=is.null',
   ];
 
