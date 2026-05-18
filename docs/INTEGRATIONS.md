@@ -181,8 +181,12 @@ Eventos:
 
 | Template | Canal | Variáveis |
 |---|---|---|
+| `initial` (timing ideal) | WhatsApp | `{{nome_atleta}}`, `{{nome_responsavel}}`, link agendamento |
+| `early_potential` (timing `muito_cedo`) | WhatsApp | `{{nome_atleta}}`, `{{nome_responsavel}}`, `{{nextYear}}` — "retomamos em nov/{ano+1}" |
+| `late_timing` (timing `tarde_demais`) | WhatsApp | `{{nome_atleta}}`, `{{nome_responsavel}}` — janela NCAA/NAIA encerrada |
+| `scheduled_return` (retomada novembro) | WhatsApp + Email | `{{nome_atleta}}`, `{{nome_responsavel}}` — disparado por `process-scheduled-followups` |
 | Convite para reunião | WhatsApp + Email | `{{nome_atleta}}`, `{{esporte}}`, `{{link_calendly}}` |
-| Follow-up pós-convite | Email | `{{nome_responsavel}}`, `{{nome_atleta}}` |
+| Follow-up pós-convite (`followup_1`/`followup_2`, **só timing ideal**) | WhatsApp | `{{nome_responsavel}}`, `{{nome_atleta}}` |
 | Proposta enviada | Email | `{{nome_responsavel}}`, `{{plano}}`, `{{valor}}` |
 | Contrato para assinatura | Email | `{{nome_responsavel}}`, `{{link_clicksign}}` |
 | Lembrete de pagamento | WhatsApp | `{{nome_responsavel}}`, `{{parcela}}`, `{{valor}}`, `{{vencimento}}` |
