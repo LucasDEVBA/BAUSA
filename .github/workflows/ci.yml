@@ -258,7 +258,7 @@ jobs:
         with:
           node-version: 20
       - name: Run eligibility guard (node:test, zero deps)
-        run: node --test functions/__guards__/*.test.js
+        run: node --test tests/*.test.js
 
   # ══════════════════════════════════════════════
   # 9. Summary — All checks must pass

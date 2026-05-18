@@ -372,7 +372,7 @@ Tres fluxos diferenciados a partir de `school_year`:
 | 2 | Leads `muito_cedo`/`tarde_demais` receberam follow-up "agende reuniao" | `fetchFollowupLeads` sem filtro `timing_status` | PR #42/#43 — filtro `timing ideal/null` no follow-up |
 | 3 | Branch `develop` deletada acidentalmente | `--delete-branch` em PR `develop→main` | Restaurada de `main`; regra documentada no CLAUDE.md |
 
-**Garantia anti-regressao:** guard `functions/__guards__/scheduler-eligibility.test.js` (job CI `Scheduler Eligibility Invariants`) — bloqueia merge se um filtro de elegibilidade sumir de qualquer scheduler. Validado: detecta a ausencia e falha o build.
+**Garantia anti-regressao:** guard `tests/scheduler-eligibility.test.js` (job CI `Scheduler Eligibility Invariants`) — bloqueia merge se um filtro de elegibilidade sumir de qualquer scheduler. Validado: detecta a ausencia e falha o build.
 
 ### Hardening de processo (18/05/2026) ✅
 

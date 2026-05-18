@@ -144,7 +144,7 @@ console.log({ level: 'info', action: 'qualify_lead', submissionId, classificatio
 
 > ⚠️ **INVARIANTE CRÍTICO (incidentes 2026-05-15/18):** todo scheduler de
 > elegibilidade DEVE filtrar `qualification_classification IN (QUENTE,MORNO)`
-> **E** o `timing_status` correto. O guard `functions/__guards__/scheduler-eligibility.test.js`
+> **E** o `timing_status` correto. O guard `tests/scheduler-eligibility.test.js`
 > (job CI `Scheduler Eligibility Invariants`) bloqueia o merge se um filtro sumir.
 > Fluxo `ideal` ≠ fluxo `muito_cedo`/`tarde_demais` — nunca devem se misturar.
 
@@ -366,7 +366,7 @@ gcloud scheduler jobs resume process-whatsapp-job --location=us-central1 --proje
 
 ### Guard de invariantes dos schedulers (anti-regressão)
 
-Job CI **`Scheduler Eligibility Invariants`** (`functions/__guards__/scheduler-eligibility.test.js`, `node:test` zero-deps) bloqueia o merge se `process-pending-whatsapp` ou `process-followup-whatsapp` deixar de filtrar `qualification_classification IN (QUENTE,MORNO)` ou o `timing_status` correto. Criado após 2 incidentes da mesma classe (filtro de elegibilidade ausente). Rodar local: `node --test functions/__guards__/*.test.js`.
+Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test.js`, `node:test` zero-deps) bloqueia o merge se `process-pending-whatsapp` ou `process-followup-whatsapp` deixar de filtrar `qualification_classification IN (QUENTE,MORNO)` ou o `timing_status` correto. Criado após 2 incidentes da mesma classe (filtro de elegibilidade ausente). Rodar local: `node --test tests/*.test.js`.
 
 **IMPORTANTE:** Usar `--update-env-vars` (nunca `--set-env-vars`) para não sobrescrever variáveis existentes na função.
 
