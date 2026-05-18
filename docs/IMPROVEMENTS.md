@@ -6,7 +6,11 @@
 
 **Prioridade:** Alta
 **Estimativa:** 2-3 sessões
-**Status:** Planejado
+**Status:** 🟡 Fase 1 implementada (2026-05-18) — Fase 2 (Meta API) é issue futura
+
+> **Fase 1 entregue (input manual):** tabela `investimentos_marketing` (migration `20260518120000`), dashboard `/analytics/cac` com 3 CACs (lead / lead qualificado / cliente) + ROI por canal aproximado + input manual de gasto. Server actions `salvarInvestimento`/`deletarInvestimento` (CEO-only), queries em `apps/crm/src/lib/cac-queries.ts`. ROI por **canal** (aproximado: taxa de conversão global × ticket médio; gasto por canal × atribuição por utm_source via dicionário de aliases).
+>
+> **Fase 2 pendente (automação Meta API):** Cloud Function `sync-meta-spend` (cron diário) que popula `investimentos_marketing` com `source='meta_api'` e habilita ROI exato por campanha (`level=campaign`). Pré-requisitos manuais abaixo + System User token (não expira). O dashboard da Fase 1 já é agnóstico a `source` — funciona sem mudança.
 
 ### O que é
 
