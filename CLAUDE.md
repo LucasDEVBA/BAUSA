@@ -96,8 +96,10 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | `functions/sync-leads/` | `sync-elite-leads` | `sync-elite-leads-uat` | Webhook Supabase INSERT | Sync → Google Sheets (cols A–BG) |
 | `functions/qualify-lead/` | `lead-qualifier` | `lead-qualifier-uat` | Webhook Supabase INSERT | Qualificação IA via Gemini |
 | `functions/send-whatsapp/` | `send-whatsapp` | `send-whatsapp-uat` | HTTP POST | Envio WhatsApp via Z-API (initial/followup_1/followup_2) |
-| `functions/process-pending-whatsapp/` | `whatsapp-scheduler` | `whatsapp-scheduler-uat` | Cloud Scheduler (1x/hora) | Processa fila de WhatsApp inicial (22h) |
-| `functions/process-followup-whatsapp/` | `followup-scheduler` | `followup-scheduler-uat` | Cloud Scheduler (1x/hora) | Follow-ups 48h e 7 dias sem agendamento (fallback) |
+| `functions/process-pending-whatsapp/` | `whatsapp-scheduler` | `whatsapp-scheduler-uat` | Cloud Scheduler (1x/hora) | Fila WhatsApp inicial — Bucket A ideal (22h, `initial`) + Bucket B timing alt (48h, `early_potential`/`late_timing`) |
+| `functions/process-followup-whatsapp/` | `followup-scheduler` | `followup-scheduler-uat` | Cloud Scheduler (1x/hora) | Follow-ups 48h e 7 dias **só timing ideal** (fallback sem agendamento) |
+| `functions/process-scheduled-followups/` | `process-scheduled-followups` | `process-scheduled-followups-uat` | Cloud Scheduler (diário 08:00 BRT) | Retomada `scheduled_return` em novembro p/ leads `muito_cedo` |
+| `functions/retry-qualification/` | `retry-qualification` | `retry-qualification-uat` | Cloud Scheduler (diário) + HTTP `lead_id` | Reprocessa qualificação Gemini pendente/falha (também usado p/ recuperar lead órfão) |
 | `functions/calendar-webhook/` | `calendar-webhook` | `calendar-webhook-uat` | Google Calendar Push Notification | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO |
 | `functions/renew-calendar-watch/` | `renew-calendar-watch` | `renew-calendar-watch-uat` | Cloud Scheduler (cada 6 dias) | Renova watch channel do Google Calendar |
 
@@ -134,12 +136,35 @@ console.log({ level: 'info', action: 'qualify_lead', submissionId, classificatio
 **Coluna internacional (migration `20260314000000`):**
 - `address_country` (text, default `'BR'`) — país do lead (código ISO 3166-1 alfa-2)
 
-**Regra de negócio — fila WhatsApp inicial (22h):**
+**Colunas de timing (migration `20260515000000`):**
+- `timing_status` — `ideal` (default), `muito_cedo` (`school_year=before_7th`) ou `tarde_demais` (`school_year=graduated_2plus`)
+- `scheduled_followup_at` (timestamptz) — só `muito_cedo`: 1º nov do ano civil seguinte (retoma contato)
+- `scheduled_followup_sent_at` (timestamptz) — quando o `scheduled_return` foi enviado
+- Enum `status_deal` ganhou valor `aguardando_timing` (entre `lead` e `reuniao_marcada`)
+
+> ⚠️ **INVARIANTE CRÍTICO (incidentes 2026-05-15/18):** todo scheduler de
+> elegibilidade DEVE filtrar `qualification_classification IN (QUENTE,MORNO)`
+> **E** o `timing_status` correto. O guard `tests/scheduler-eligibility.test.js`
+> (job CI `Scheduler Eligibility Invariants`) bloqueia o merge se um filtro sumir.
+> Fluxo `ideal` ≠ fluxo `muito_cedo`/`tarde_demais` — nunca devem se misturar.
+
+**Regra de negócio — fila WhatsApp inicial — Bucket A timing ideal (22h):**
 ```sql
 qualification_classification IN ('QUENTE', 'MORNO')
 AND qualified_at IS NOT NULL
 AND qualified_at < NOW() - INTERVAL '22 hours'
 AND whatsapp_sent_at IS NULL
+AND (timing_status IS NULL OR timing_status = 'ideal')   -- template: initial
+```
+
+**Regra de negócio — fila WhatsApp — Bucket B timing alternativo (48h):**
+```sql
+qualification_classification IN ('QUENTE', 'MORNO')   -- FRIO nunca recebe
+AND qualified_at < NOW() - INTERVAL '48 hours'
+AND whatsapp_sent_at IS NULL
+AND timing_status IN ('muito_cedo', 'tarde_demais')
+-- muito_cedo  → template early_potential + deal etapa aguardando_timing
+-- tarde_demais → template late_timing  + deal etapa perdido (motivo_perda=timing)
 ```
 
 **Regra de negócio — follow-up 1 (48h):**
@@ -148,6 +173,7 @@ qualification_classification IN ('QUENTE', 'MORNO')
 AND whatsapp_sent_at < NOW() - INTERVAL '48 hours'
 AND followup_1_sent_at IS NULL
 AND meeting_scheduled IS NOT TRUE
+AND (timing_status IS NULL OR timing_status = 'ideal')   -- timing alt NÃO recebe follow-up
 ```
 
 **Regra de negócio — follow-up 2 (7 dias):**
@@ -157,6 +183,15 @@ AND whatsapp_sent_at < NOW() - INTERVAL '7 days'
 AND followup_1_sent_at IS NOT NULL
 AND followup_2_sent_at IS NULL
 AND meeting_scheduled IS NOT TRUE
+AND (timing_status IS NULL OR timing_status = 'ideal')
+```
+
+**Regra de negócio — scheduled_return (retomada em novembro, só `muito_cedo`):**
+```sql
+timing_status = 'muito_cedo'
+AND scheduled_followup_at <= NOW()
+AND scheduled_followup_sent_at IS NULL
+-- cron process-scheduled-followups-daily → template scheduled_return
 ```
 
 ---
@@ -322,8 +357,16 @@ gcloud scheduler jobs resume process-whatsapp-job --location=us-central1 --proje
 | `ci.yml` | PR para main/develop | — | Auto |
 | `deploy-functions-uat.yml` | Push develop + functions/** | UAT | Auto |
 | `deploy-supabase-uat.yml` | Push develop + supabase/** | UAT | Auto |
-| `deploy-functions.yml` | Push main + functions/** | PRD | **Manual** |
-| `deploy-supabase.yml` | Push main + supabase/** | PRD | **Manual** |
+| `deploy-functions.yml` | Push main + functions/** | PRD | Auto (branch policy: só `main`) |
+| `deploy-supabase.yml` | Push main + supabase/** | PRD | Auto (branch policy: só `main`) |
+
+> **Branch policy (2026-05-18):** environment `prd` só deploya de `main`, `uat` só de `develop`. **Não há required reviewers** (decisão consciente — ver Pendências). O gate de qualidade é o CI + review de PR + validação UAT.
+
+> **Gitflow — nunca use `--delete-branch` em PR `develop→main`** (a flag deleta a HEAD do PR, que é `develop`, branch permanente — incidente 2026-05-17, develop foi restaurado de main). `--delete-branch` só em feature branches.
+
+### Guard de invariantes dos schedulers (anti-regressão)
+
+Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test.js`, `node:test` zero-deps) bloqueia o merge se `process-pending-whatsapp` ou `process-followup-whatsapp` deixar de filtrar `qualification_classification IN (QUENTE,MORNO)` ou o `timing_status` correto. Criado após 2 incidentes da mesma classe (filtro de elegibilidade ausente). Rodar local: `node --test tests/*.test.js`.
 
 **IMPORTANTE:** Usar `--update-env-vars` (nunca `--set-env-vars`) para não sobrescrever variáveis existentes na função.
 
@@ -407,6 +450,8 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | ✅ **Lead Attribution** | 11 colunas tracking no Supabase + Sheets (AW-BG), analytics no Engine | Implementado 2026-04-10 |
 | ✅ **Calendar Webhook** | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO | Implementado 2026-04-10 |
 | ✅ **UTM Generator** | Gerador de links UTM no Engine com 10 presets | Implementado 2026-04-10 |
+| ✅ **Classificação por Timing** | 3 fluxos por `school_year`: ideal (normal), `muito_cedo` (early_potential + retomada nov), `tarde_demais` (late_timing + perdido). Coluna `aguardando_timing` no Pipeline | Implementado 2026-05-15 |
+| ✅ **Guard anti-regressão schedulers** | CI `node:test` que bloqueia merge se filtro classe/timing sumir dos schedulers (após 2 incidentes) | Implementado 2026-05-18 |
 | 🔜 Monitoramento | Cloud Monitoring dashboards + alertas por ambiente | Não iniciado |
 | 🔜 **CAC Meta API** | Custo de Aquisição via Meta Marketing API | Planejado (ver `docs/IMPROVEMENTS.md`) |
 | 🔜 **next/image** | Migrar `<img>` para `next/image` (Core Web Vitals) | Planejado |
@@ -539,7 +584,7 @@ O CRM usa **light theme** com design tokens em `app/crm.css`:
 ## Pendências Conhecidas (2026-04)
 
 ### Configuração manual (pós-código)
-- [ ] Configurar GitHub Environments `prd`, `uat`, `dev` + required reviewers
+- [x] GitHub Environments `prd`/`uat` com **branch policy** (2026-05-18): `prd` só aceita deploy de `main`, `uat` só de `develop`. Decisão consciente: **sem required reviewers** (repo solo — gate manual atrapalha hotfix; controle de qualidade fica no CI + review de PR + UAT). Revisar se o time crescer (revisor ≠ autor).
 - [ ] Adicionar secrets `WEBHOOK_SECRET_UAT` e `WEBHOOK_SECRET_DEV` no GitHub
 - [ ] Configurar Vercel branch `develop` com `VITE_SUPABASE_SCHEMA=uat`
 - [ ] Configurar 3 webhooks Supabase para schema `uat`

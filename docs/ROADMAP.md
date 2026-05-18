@@ -344,3 +344,37 @@ O negocio opera em ciclos anuais (ano letivo americano):
 - War Room filtravel por safra (pendente de implementacao na UI)
 - Relatorios comparativos entre safras (pendente)
 - Planejamento de capacidade: atletas por safra vs capacidade operacional (pendente)
+
+---
+
+## Evolucao Pos-CRM
+
+### Classificacao por Timing (15/05/2026) ✅
+
+Tres fluxos diferenciados a partir de `school_year`:
+
+| timing_status | Criterio | WhatsApp inicial | Deal | Retomada |
+|---|---|---|---|---|
+| `ideal` | 9º ano ate graduated_last_year | `initial` (22h) + follow-up 48h/7d | etapa `lead` | — |
+| `muito_cedo` | `before_7th` | `early_potential` (48h) | etapa `aguardando_timing` | `scheduled_return` em 1º nov do ano seguinte |
+| `tarde_demais` | `graduated_2plus` | `late_timing` (48h) | etapa `perdido` (`motivo_perda=timing`) | — |
+
+- Migration `20260515000000` (colunas `timing_status`, `scheduled_followup_at`, `scheduled_followup_sent_at` + enum `aguardando_timing`).
+- Nova Cloud Function `process-scheduled-followups` (cron diario 08:00 BRT).
+- Pipeline: coluna roxa `Aguardando Timing`; leads `tarde_demais` saem do Kanban (motivo_perda=timing).
+- So leads QUENTE/MORNO recebem mensagem automatica (FRIO nunca, em qualquer timing).
+
+### Incidentes resolvidos (15–18/05/2026)
+
+| # | Incidente | Causa raiz | Correcao |
+|---|---|---|---|
+| 1 | Leads FRIO + timing alt receberam `early_potential`/`late_timing` | Bucket B de `process-pending-whatsapp` sem filtro de classificacao | PR #40/#41 — filtro `classification IN (QUENTE,MORNO)` no Bucket B |
+| 2 | Leads `muito_cedo`/`tarde_demais` receberam follow-up "agende reuniao" | `fetchFollowupLeads` sem filtro `timing_status` | PR #42/#43 — filtro `timing ideal/null` no follow-up |
+| 3 | Branch `develop` deletada acidentalmente | `--delete-branch` em PR `develop→main` | Restaurada de `main`; regra documentada no CLAUDE.md |
+
+**Garantia anti-regressao:** guard `tests/scheduler-eligibility.test.js` (job CI `Scheduler Eligibility Invariants`) — bloqueia merge se um filtro de elegibilidade sumir de qualquer scheduler. Validado: detecta a ausencia e falha o build.
+
+### Hardening de processo (18/05/2026) ✅
+
+- Branch policies: `prd` so deploya de `main`, `uat` so de `develop`.
+- Decisao consciente de **nao** usar required reviewers (repo solo — gate manual atrapalha hotfix; qualidade fica no CI + review de PR + UAT). Reavaliar quando o time crescer.
