@@ -131,6 +131,13 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["ceo", "head_sucesso"],
         activeRoutes: ["/familias-crm"],
       },
+      {
+        href: "/familias-pipeline",
+        label: "Pipeline da Família",
+        icon: Kanban,
+        roles: ["ceo", "head_sucesso"],
+        activeRoutes: ["/familias-pipeline"],
+      },
     ],
   },
   {

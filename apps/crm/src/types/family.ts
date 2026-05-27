@@ -3,9 +3,18 @@ export type FamilyJourneyStage =
   | "admissao"
   | "aprovado"
   | "pre_embarque"
-  | "embarcado"
+  | "embarcado_inicial"
   | "acompanhamento"
   | "encerrado";
+
+export const FAMILY_JOURNEY_STAGES: FamilyJourneyStage[] = [
+  "admissao",
+  "aprovado",
+  "pre_embarque",
+  "embarcado_inicial",
+  "acompanhamento",
+  "encerrado",
+];
 
 export type FamilyStatus = "satisfeita" | "atencao" | "crise";
 
@@ -145,8 +154,8 @@ export const JOURNEY_STAGE_CONFIG: Record<FamilyJourneyStage, FamilyJourneyStage
     order: 2,
     alertDays: 15,
   },
-  embarcado: {
-    id: "embarcado",
+  embarcado_inicial: {
+    id: "embarcado_inicial",
     label: "Embarcado (0–90 dias)",
     description: "Primeiros 90 dias nos EUA",
     order: 3,
