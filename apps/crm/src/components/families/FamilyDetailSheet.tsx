@@ -11,7 +11,7 @@ const STAGES_ORDER = [
   "admissao",
   "aprovado",
   "pre_embarque",
-  "embarcado",
+  "embarcado_inicial",
   "acompanhamento",
   "encerrado",
 ] as const;
