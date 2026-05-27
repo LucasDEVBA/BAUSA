@@ -3,6 +3,9 @@ import { requirePapel } from "@/lib/auth";
 import { FamiliasPipelineClient, type FamiliaPipelineCard } from "./client";
 import type { FamilyJourneyStage } from "@/types/family";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function normalizarFase(fase: string): FamilyJourneyStage {
   if (
     fase === "admissao" ||

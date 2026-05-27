@@ -2,6 +2,9 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
 import { listarAlertasInatividade } from "@/lib/actions/experiencia";
 import { FamiliasCrmClient } from "./client";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import type {
   Family,
   FamilyJourneyStage,
