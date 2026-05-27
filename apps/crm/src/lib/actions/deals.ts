@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
 import { ETAPA_ORDEM, type StatusDeal } from "@/types/crm";
@@ -147,6 +148,55 @@ export async function moverDeal(
   if (updateError) {
     return { success: false, error: `Erro ao mover deal: ${updateError.message}` };
   }
+
+  // Fallback application-level: garante crm_experiencia ao entrar em
+  // admission_process/concluido. O trigger SQL faz o mesmo (idempotente),
+  // mas duplicar aqui blinda contra race conditions ou caso o trigger
+  // não tenha sido aplicado por algum motivo.
+  const FASES_FAMILIA: StatusDeal[] = ["admission_process", "concluido"];
+  if (FASES_FAMILIA.includes(novaEtapa) && deal.atleta_id) {
+    const { data: existing } = await supabase
+      .from("crm_experiencia")
+      .select("id, fase")
+      .eq("atleta_id", deal.atleta_id)
+      .maybeSingle();
+
+    const faseDestino =
+      novaEtapa === "concluido" ? "acompanhamento" : "admissao";
+
+    if (!existing) {
+      await supabase.from("crm_experiencia").insert({
+        atleta_id: deal.atleta_id,
+        deal_id: dealId,
+        fase: faseDestino,
+        temperatura: "verde",
+        ansiedade: 3,
+        satisfacao: 5,
+        risco_percebido: 1,
+        status: "satisfeita",
+        psicologa_acionada: false,
+      });
+    } else if (
+      novaEtapa === "concluido" &&
+      existing.fase !== "acompanhamento" &&
+      existing.fase !== "encerrado"
+    ) {
+      await supabase
+        .from("crm_experiencia")
+        .update({ fase: "acompanhamento" })
+        .eq("id", existing.id);
+    }
+  }
+
+  if (
+    FASES_FAMILIA.includes(novaEtapa) ||
+    FASES_FAMILIA.includes(deal.etapa as StatusDeal)
+  ) {
+    revalidatePath("/familias-pipeline");
+    revalidatePath("/familias-crm");
+    revalidatePath("/familias");
+  }
+  revalidatePath("/pipeline");
 
   return { success: true };
 }
