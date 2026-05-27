@@ -407,14 +407,14 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
         {activeTab === "experiencia" && (() => {
           const EXP_KEY = "experiencia_config";
           const TEMP_KEY = "temperatura_config";
-          const expConfig = getConfigObj(EXP_KEY, { admissao: 7, pre_embarque: 15, embarcado: 7, acompanhamento: 30 }) as Record<string, number>;
+          const expConfig = getConfigObj(EXP_KEY, { admissao: 7, pre_embarque: 15, embarcado_inicial: 7, acompanhamento: 30 }) as Record<string, number>;
           const tempConfig = getConfigObj(TEMP_KEY, { ansiedade_threshold: 7, satisfacao_threshold: 4 }) as Record<string, number>;
 
           const FASES = [
             { key: "admissao", label: "Admissao", def: 7 },
             { key: "aprovado", label: "Aprovado", def: 7 },
             { key: "pre_embarque", label: "Pre-embarque", def: 15 },
-            { key: "embarcado", label: "Embarcado", def: 7 },
+            { key: "embarcado_inicial", label: "Embarcado", def: 7 },
             { key: "acompanhamento", label: "Acompanhamento", def: 30 },
             { key: "encerrado", label: "Encerrado", def: 90 },
           ];

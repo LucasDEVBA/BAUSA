@@ -4,7 +4,7 @@ const STAGES_ORDER: FamilyJourneyStage[] = [
   "admissao",
   "aprovado",
   "pre_embarque",
-  "embarcado",
+  "embarcado_inicial",
   "acompanhamento",
   "encerrado",
 ];
