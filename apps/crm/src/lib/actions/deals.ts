@@ -146,45 +146,110 @@ export async function moverDeal(
     .eq("id", dealId);
 
   if (updateError) {
+    console.error("[moverDeal] update deal failed", {
+      dealId,
+      novaEtapa,
+      message: updateError.message,
+    });
     return { success: false, error: `Erro ao mover deal: ${updateError.message}` };
   }
 
-  // Fallback application-level: garante crm_experiencia ao entrar em
-  // admission_process/concluido. O trigger SQL faz o mesmo (idempotente),
-  // mas duplicar aqui blinda contra race conditions ou caso o trigger
-  // não tenha sido aplicado por algum motivo.
+  // Handoff application-level (TODAS as operações em try/catch — NUNCA
+  // afetam o sucesso do UPDATE em deals que já foi commitado acima).
   const FASES_FAMILIA: StatusDeal[] = ["admission_process", "concluido"];
   if (FASES_FAMILIA.includes(novaEtapa) && deal.atleta_id) {
-    const { data: existing } = await supabase
-      .from("crm_experiencia")
-      .select("id, fase")
-      .eq("atleta_id", deal.atleta_id)
-      .maybeSingle();
-
-    const faseDestino =
-      novaEtapa === "concluido" ? "acompanhamento" : "admissao";
-
-    if (!existing) {
-      await supabase.from("crm_experiencia").insert({
-        atleta_id: deal.atleta_id,
-        deal_id: dealId,
-        fase: faseDestino,
-        temperatura: "verde",
-        ansiedade: 3,
-        satisfacao: 5,
-        risco_percebido: 1,
-        status: "satisfeita",
-        psicologa_acionada: false,
-      });
-    } else if (
-      novaEtapa === "concluido" &&
-      existing.fase !== "acompanhamento" &&
-      existing.fase !== "encerrado"
-    ) {
-      await supabase
+    try {
+      const { data: existing } = await supabase
         .from("crm_experiencia")
-        .update({ fase: "acompanhamento" })
-        .eq("id", existing.id);
+        .select("id, fase")
+        .eq("atleta_id", deal.atleta_id)
+        .maybeSingle();
+
+      const faseDestino =
+        novaEtapa === "concluido" ? "acompanhamento" : "admissao";
+
+      let experienciaId: string | null = existing?.id ?? null;
+
+      if (!existing) {
+        const { data: inserted } = await supabase
+          .from("crm_experiencia")
+          .insert({
+            atleta_id: deal.atleta_id,
+            deal_id: dealId,
+            fase: faseDestino,
+            temperatura: "verde",
+            ansiedade: 3,
+            satisfacao: 5,
+            risco_percebido: 1,
+            status: "satisfeita",
+            psicologa_acionada: false,
+          })
+          .select("id")
+          .single();
+        experienciaId = inserted?.id ?? null;
+      } else if (
+        novaEtapa === "concluido" &&
+        existing.fase !== "acompanhamento" &&
+        existing.fase !== "encerrado"
+      ) {
+        await supabase
+          .from("crm_experiencia")
+          .update({ fase: "acompanhamento" })
+          .eq("id", existing.id);
+      }
+
+      // Cria tarefa e notificação para a Head (não-bloqueante)
+      if (experienciaId && !existing) {
+        try {
+          const { data: headUser } = await supabase
+            .from("user_profiles")
+            .select("id")
+            .eq("papel", "head_sucesso")
+            .eq("ativo", true)
+            .limit(1)
+            .maybeSingle();
+
+          const { data: atleta } = await supabase
+            .from("atletas")
+            .select("nome_completo")
+            .eq("id", deal.atleta_id)
+            .maybeSingle();
+
+          const nome = atleta?.nome_completo ?? "atleta";
+
+          if (headUser) {
+            const prazo = new Date(Date.now() + 48 * 60 * 60 * 1000);
+            await supabase.from("tarefas").insert({
+              titulo: `Onboarding ${nome}`,
+              descricao:
+                "Iniciar gestao da familia: confirmar dados de contato, indicadores iniciais e proximo contato.",
+              responsavel_id: headUser.id,
+              prazo: prazo.toISOString(),
+              prioridade: "alta",
+              deal_id: dealId,
+              modulo_origem: "experiencia",
+              criada_automaticamente: true,
+            });
+
+            await supabase.from("notificacoes").insert({
+              destinatario_id: headUser.id,
+              titulo: `Nova familia: ${nome}`,
+              mensagem:
+                "Deal avancou para admission_process. Registro de experiencia criado.",
+              tipo: "handoff",
+              severidade: "alta",
+              deal_id: dealId,
+              link: "/familias-crm",
+            });
+          }
+        } catch (notifErr) {
+          console.warn("[moverDeal] handoff notification failed", notifErr);
+          // não bloqueia
+        }
+      }
+    } catch (handoffErr) {
+      console.warn("[moverDeal] handoff experiencia failed", handoffErr);
+      // não bloqueia o sucesso do moverDeal
     }
   }
 
