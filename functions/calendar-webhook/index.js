@@ -116,7 +116,13 @@ const findLeadByContact = async (email, phone) => {
   if (conditions.length === 0) return null;
 
   const filter = `or=(${conditions.join(',')})`;
-  const url = `${SUPABASE_URL}/rest/v1/form_submissions?${filter}&select=id,email,athlete_name,guardian_name,guardian_whatsapp,athlete_whatsapp,meeting_scheduled&limit=1`;
+  // IMPORTANTE: select=* é obrigatório aqui porque o lead retornado é repassado
+  // ao sync-elite-leads (triggerSyncLeads abaixo). O sync-leads/buildRow
+  // sobrescreve TODAS as colunas A-BG do Google Sheets, tratando qualquer
+  // campo undefined como string vazia. Um SELECT incompleto apaga endereço,
+  // esporte, escola, qualificação, follow-ups e UTMs da planilha.
+  // Bug histórico (2026-04-10 → 2026-05-28): 42 leads afetados.
+  const url = `${SUPABASE_URL}/rest/v1/form_submissions?${filter}&select=*&limit=1`;
 
   const result = await httpRequest(url, {
     method: 'GET',
