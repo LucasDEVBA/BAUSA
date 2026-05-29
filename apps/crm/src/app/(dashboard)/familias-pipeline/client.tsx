@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, Phone, Plane } from "lucide-react";
+import { AlertTriangle, Loader2, Phone, Plane, ArrowLeftRight } from "lucide-react";
 import {
   JOURNEY_STAGE_CONFIG,
   FAMILY_STATUS_CONFIG,
@@ -158,14 +158,20 @@ function PipelineCard({
 }
 
 export function FamiliasPipelineClient({
-  cards,
+  cards: initialCards,
 }: {
   cards: FamiliaPipelineCard[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [cards, setCards] = useState<FamiliaPipelineCard[]>(initialCards);
   const [dragId, setDragId] = useState<string | null>(null);
   const [hoverFase, setHoverFase] = useState<FamilyJourneyStage | null>(null);
+
+  // Sincroniza state local com props após refresh
+  useEffect(() => {
+    setCards(initialCards);
+  }, [initialCards]);
 
   const handleDrop = (fase: FamilyJourneyStage) => {
     const id = dragId;
@@ -175,15 +181,28 @@ export function FamiliasPipelineClient({
     const card = cards.find((c) => c.id === id);
     if (!card || card.fase === fase) return;
 
+    const previousFase = card.fase;
+    // Optimistic UI — atualiza imediatamente, qualquer direção
+    setCards((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, fase } : c))
+    );
+
     startTransition(async () => {
       const result = await moverFaseFamilia(id, fase);
       if (result.success) {
-        toast.success(
-          `Movida para ${JOURNEY_STAGE_CONFIG[fase].label}`
-        );
+        toast.success(`Movida para ${JOURNEY_STAGE_CONFIG[fase].label}`, {
+          description: card.athlete_name,
+        });
         router.refresh();
       } else {
-        toast.error(result.error ?? "Falha ao mover");
+        // Rollback
+        setCards((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, fase: previousFase } : c))
+        );
+        toast.error(result.error ?? "Falha ao mover família", {
+          description: card.athlete_name,
+          duration: 8000,
+        });
       }
     });
   };
@@ -203,9 +222,10 @@ export function FamiliasPipelineClient({
           <h1 className="text-xl font-bold text-white">
             Pipeline da Família
           </h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
-            Arraste cards entre fases. As fases iniciam em Admissão (criadas ao
-            entrar no admission_process).
+          <p className="mt-0.5 text-sm text-zinc-500 flex items-center gap-1.5">
+            <ArrowLeftRight className="h-3.5 w-3.5 text-zinc-600" />
+            Arraste cards entre fases em qualquer direção. Famílias entram
+            automaticamente em Admissão ao deal chegar em admission_process.
           </p>
         </div>
         <a
