@@ -35,6 +35,11 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = deal.next_action_date && deal.next_action_date < today;
 
+  // Deal não pode avançar enquanto não tiver próxima ação preenchida
+  const isUnconfigured =
+    !deal.next_action?.trim() || !deal.next_action_date;
+  const isLost = stageConfig.isLost;
+
   return (
     <div
       ref={setNodeRef}
@@ -42,12 +47,28 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
       {...attributes}
       {...listeners}
       onClick={onClick}
+      title={
+        isUnconfigured && !isLost
+          ? 'Preencha "Próxima ação" e a data antes de avançar este deal.'
+          : undefined
+      }
       className={cn(
-        "group rounded-lg border border-[#1e2130] bg-[#141720] p-3 transition-all hover:border-zinc-600/50 hover:shadow-lg hover:shadow-black/20 cursor-grab active:cursor-grabbing",
+        "group relative rounded-lg border border-[#1e2130] bg-[#141720] p-3 transition-all hover:border-zinc-600/50 hover:shadow-lg hover:shadow-black/20 cursor-grab active:cursor-grabbing",
         isDragging && "opacity-50 shadow-xl rotate-1 scale-105",
         isOverdue && "border-red-500/30",
+        isUnconfigured && !isLost && "ring-1 ring-red-500/20",
       )}
     >
+      {/* Indicador visível: deal incompleto não avança */}
+      {isUnconfigured && !isLost && (
+        <span
+          className="pointer-events-none absolute -right-1 -top-1 flex h-3 w-3 items-center justify-center"
+          aria-label="Próxima ação não preenchida"
+        >
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/40" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+        </span>
+      )}
       {/* Header: avatar + badges */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-wrap">

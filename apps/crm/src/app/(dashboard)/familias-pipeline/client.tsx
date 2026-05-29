@@ -190,14 +190,19 @@ export function FamiliasPipelineClient({
     startTransition(async () => {
       const result = await moverFaseFamilia(id, fase);
       if (result.success) {
-        toast.success(`Movida para ${JOURNEY_STAGE_CONFIG[fase].label}`);
+        toast.success(`Movida para ${JOURNEY_STAGE_CONFIG[fase].label}`, {
+          description: card.athlete_name,
+        });
         router.refresh();
       } else {
         // Rollback
         setCards((prev) =>
           prev.map((c) => (c.id === id ? { ...c, fase: previousFase } : c))
         );
-        toast.error(result.error ?? "Falha ao mover");
+        toast.error(result.error ?? "Falha ao mover família", {
+          description: card.athlete_name,
+          duration: 8000,
+        });
       }
     });
   };

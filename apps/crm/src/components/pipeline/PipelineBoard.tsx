@@ -17,7 +17,11 @@ import { PipelineColumn } from "./PipelineColumn";
 import { DealCard } from "./DealCard";
 import { DealDetailSheet } from "./DealDetailSheet";
 import { PipelineFilterToggle } from "./PipelineFilterToggle";
-import { moverDeal } from "@/lib/actions/deals";
+import { RetrocessoModal } from "./RetrocessoModal";
+import { LossModal, type LossPayload } from "./LossModal";
+import { moverDeal, type StructuredLossData } from "@/lib/actions/deals";
+import { labelEtapa, type MoveDealAction } from "@/lib/move-deal-result";
+import type { StatusDeal } from "@/types/crm";
 import { toast } from "sonner";
 
 interface PipelineBoardProps {
@@ -33,12 +37,24 @@ function getDealsByStage(deals: Deal[]) {
   }, {});
 }
 
-export function PipelineBoard({ deals: initialDeals, currentUserId }: PipelineBoardProps) {
+type PendingMove = {
+  dealId: string;
+  novaEtapa: StatusDeal;
+  fromStage: StatusDeal;
+  athleteName: string;
+  kind: "retrocesso" | "perdido";
+};
+
+export function PipelineBoard({
+  deals: initialDeals,
+  currentUserId,
+}: PipelineBoardProps) {
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  const [, startTransition] = useTransition();
   const [filterMode, setFilterMode] = useState<"todos" | "meus">("todos");
 
   const sensors = useSensors(
@@ -53,22 +69,116 @@ export function PipelineBoard({ deals: initialDeals, currentUserId }: PipelineBo
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
   const dealsByStage = getDealsByStage(filteredDeals);
 
-  // Mapeamento stage do frontend → etapa do Supabase
-  const stageToEtapa: Record<string, string> = {
-    lead: "lead",
-    reuniao_marcada: "reuniao_marcada",
-    reuniao_realizada: "reuniao_realizada",
-    diagnostico_fit: "diagnostico_fit",
-    alinhamento_estrategico: "alinhamento_estrategico",
-    proposta_enviada: "proposta_enviada",
-    followup_proposta: "followup_proposta",
-    negociacao: "negociacao",
-    contrato_enviado: "contrato_enviado",
-    contrato_assinado: "contrato_assinado",
-    sinal_pago: "sinal_pago",
-    admission_process: "admission_process",
-    concluido: "concluido",
-    perdido: "perdido",
+  // Reage a `action` retornado pelo moverDeal
+  const handleAction = (action: MoveDealAction, deal: Deal) => {
+    switch (action.type) {
+      case "open_deal":
+        setSelectedDeal(deal);
+        break;
+      case "create_contract":
+        setSelectedDeal(deal);
+        break;
+      case "open_retrocesso_modal":
+        setPendingMove({
+          dealId: action.dealId,
+          novaEtapa: action.toStage,
+          fromStage: action.fromStage,
+          athleteName: deal.athlete_name,
+          kind: "retrocesso",
+        });
+        break;
+      case "open_lost_modal":
+        setPendingMove({
+          dealId: action.dealId,
+          novaEtapa: action.toStage,
+          fromStage: deal.stage as StatusDeal,
+          athleteName: deal.athlete_name,
+          kind: "perdido",
+        });
+        break;
+      case "reload":
+        router.refresh();
+        break;
+    }
+  };
+
+  // Executa o moverDeal e trata sucesso/erro com toast rico
+  const performMove = (
+    dealId: string,
+    novaEtapa: StatusDeal,
+    previousStage: DealStage,
+    options?: { motivo?: string; lossData?: StructuredLossData },
+  ) => {
+    const deal = deals.find((d) => d.id === dealId);
+    if (!deal) return;
+
+    // Optimistic update
+    setDeals((prev) =>
+      prev.map((d) =>
+        d.id === dealId ? { ...d, stage: novaEtapa as DealStage } : d,
+      ),
+    );
+
+    startTransition(async () => {
+      const result = await moverDeal(
+        dealId,
+        novaEtapa,
+        options?.motivo,
+        options?.lossData,
+      );
+      if (result.success) {
+        toast.success(`Movido para ${labelEtapa(novaEtapa)}`, {
+          description: deal.athlete_name,
+        });
+        router.refresh();
+      } else {
+        // Rollback visual
+        setDeals((prev) =>
+          prev.map((d) =>
+            d.id === dealId ? { ...d, stage: previousStage } : d,
+          ),
+        );
+
+        // Erros que abrem modais não devem mostrar toast (UX dupla)
+        const opensModal =
+          result.action?.type === "open_retrocesso_modal" ||
+          result.action?.type === "open_lost_modal";
+
+        if (opensModal) {
+          if (result.action) handleAction(result.action, deal);
+        } else {
+          // Toast com action (quando aplicável)
+          if (result.action && result.action.type !== "reload") {
+            const actionLabel =
+              result.action.type === "open_deal"
+                ? "Abrir deal"
+                : result.action.type === "create_contract"
+                  ? "Criar contrato"
+                  : "Abrir";
+            toast.error(result.error, {
+              description: `[${result.code}] ${deal.athlete_name}`,
+              action: {
+                label: actionLabel,
+                onClick: () => handleAction(result.action!, deal),
+              },
+              duration: 10000,
+            });
+          } else if (result.action?.type === "reload") {
+            toast.error(result.error, {
+              description: deal.athlete_name,
+              action: {
+                label: "Recarregar",
+                onClick: () => router.refresh(),
+              },
+            });
+          } else {
+            toast.error(result.error, {
+              description: `[${result.code}] ${deal.athlete_name}`,
+            });
+          }
+        }
+      }
+    });
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -86,26 +196,7 @@ export function PipelineBoard({ deals: initialDeals, currentUserId }: PipelineBo
 
     if (!deal || deal.stage === newStage) return;
 
-    // Optimistic update
-    setDeals((prev) =>
-      prev.map((d) => (d.id === dealId ? { ...d, stage: newStage } : d)),
-    );
-
-    const novaEtapa = stageToEtapa[newStage] || newStage;
-
-    startTransition(async () => {
-      const result = await moverDeal(dealId, novaEtapa as any);
-      if (!result.success) {
-        // Rollback
-        setDeals((prev) =>
-          prev.map((d) => (d.id === dealId ? { ...d, stage: deal.stage } : d)),
-        );
-        toast.error(result.error || "Erro ao mover deal");
-      } else {
-        toast.success(`Deal movido para ${newStage.replace(/_/g, " ")}`);
-        router.refresh();
-      }
-    });
+    performMove(dealId, newStage as StatusDeal, deal.stage);
   };
 
   return (
@@ -115,7 +206,11 @@ export function PipelineBoard({ deals: initialDeals, currentUserId }: PipelineBo
           filterMode={filterMode}
           onFilterChange={setFilterMode}
           totalCount={deals.length}
-          filteredCount={currentUserId ? deals.filter((d) => d.responsavel_id === currentUserId).length : deals.length}
+          filteredCount={
+            currentUserId
+              ? deals.filter((d) => d.responsavel_id === currentUserId).length
+              : deals.length
+          }
         />
       </div>
       <DndContext
@@ -140,7 +235,41 @@ export function PipelineBoard({ deals: initialDeals, currentUserId }: PipelineBo
         </DragOverlay>
       </DndContext>
 
-      {/* Deal Detail Sheet — key forces remount on deal change */}
+      {/* Modal de retrocesso */}
+      <RetrocessoModal
+        open={pendingMove?.kind === "retrocesso"}
+        athleteName={pendingMove?.athleteName ?? ""}
+        fromStage={(pendingMove?.fromStage ?? "lead") as StatusDeal}
+        toStage={(pendingMove?.novaEtapa ?? "lead") as StatusDeal}
+        isPending={false}
+        onCancel={() => setPendingMove(null)}
+        onConfirm={(motivo) => {
+          if (!pendingMove) return;
+          const previousStage = pendingMove.fromStage as DealStage;
+          const move = pendingMove;
+          setPendingMove(null);
+          performMove(move.dealId, move.novaEtapa, previousStage, { motivo });
+        }}
+      />
+
+      {/* Modal de perdido */}
+      <LossModal
+        open={pendingMove?.kind === "perdido"}
+        athleteName={pendingMove?.athleteName ?? ""}
+        isPending={false}
+        onCancel={() => setPendingMove(null)}
+        onConfirm={(payload: LossPayload) => {
+          if (!pendingMove) return;
+          const previousStage = pendingMove.fromStage as DealStage;
+          const move = pendingMove;
+          setPendingMove(null);
+          performMove(move.dealId, move.novaEtapa, previousStage, {
+            lossData: payload,
+          });
+        }}
+      />
+
+      {/* Deal Detail Sheet */}
       {selectedDeal && (
         <DealDetailSheet
           key={selectedDeal.id}
