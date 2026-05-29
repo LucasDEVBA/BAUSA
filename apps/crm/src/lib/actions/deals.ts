@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
 import { ETAPA_ORDEM, type StatusDeal } from "@/types/crm";
+import {
+  failMove,
+  okMove,
+  type MoveDealResult,
+} from "@/lib/move-deal-result";
 
 const PROBABILIDADE_POR_ETAPA: Record<string, number> = {
   lead: 10,
@@ -32,10 +37,11 @@ export async function moverDeal(
   novaEtapa: StatusDeal,
   motivo?: string,
   lossData?: StructuredLossData,
-) {
+): Promise<MoveDealResult> {
   const papel = await getUserPapel();
   if (papel !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode mover deals." };
+    console.error("[moverDeal] permission denied", { dealId, papel });
+    return failMove("PERMISSION_DENIED");
   }
 
   const supabase = await createAuditedSupabaseClient();
@@ -48,23 +54,34 @@ export async function moverDeal(
     .single();
 
   if (fetchError || !deal) {
-    return { success: false, error: "Deal nao encontrado." };
+    console.error("[moverDeal] deal not found", {
+      dealId,
+      message: fetchError?.message,
+    });
+    return failMove("DEAL_NOT_FOUND", {
+      action: { type: "reload" },
+    });
   }
 
   const ordemAtual = ETAPA_ORDEM[deal.etapa as StatusDeal] || 0;
   const ordemNova = ETAPA_ORDEM[novaEtapa] || 0;
-  const isRetrocesso = ordemNova < ordemAtual
-    && novaEtapa !== "perdido"
-    && novaEtapa !== "cancelamento_solicitado"
-    && novaEtapa !== "projeto_futuro";
+  const isRetrocesso =
+    ordemNova < ordemAtual &&
+    novaEtapa !== "perdido" &&
+    novaEtapa !== "cancelamento_solicitado" &&
+    novaEtapa !== "projeto_futuro";
 
   // Avançar: exige next_action e data_proxima_acao
   if (ordemNova > ordemAtual) {
     if (!deal.next_action || !deal.data_proxima_acao) {
-      return {
-        success: false,
-        error: "Preencha 'Next Action' e 'Data da proxima acao' antes de avancar.",
-      };
+      console.error("[moverDeal] missing next_action", {
+        dealId,
+        novaEtapa,
+      });
+      return failMove("MISSING_NEXT_ACTION", {
+        field: !deal.next_action ? "next_action" : "data_proxima_acao",
+        action: { type: "open_deal", dealId },
+      });
     }
   }
 
@@ -74,10 +91,11 @@ export async function moverDeal(
     ordemNova > ordemAtual &&
     !deal.notas_reuniao?.trim()
   ) {
-    return {
-      success: false,
-      error: "Preencha as notas da reuniao antes de avancar para Diagnostico/Fit.",
-    };
+    console.error("[moverDeal] missing meeting notes", { dealId });
+    return failMove("MISSING_MEETING_NOTES", {
+      field: "notas_reuniao",
+      action: { type: "open_deal", dealId },
+    });
   }
 
   // Validacao: contrato_assinado requer contrato financeiro
@@ -90,27 +108,36 @@ export async function moverDeal(
       .maybeSingle();
 
     if (!contrato) {
-      return {
-        success: false,
-        error: "Crie um contrato financeiro antes de marcar como Contrato Assinado.",
-      };
+      console.error("[moverDeal] missing contract", { dealId });
+      return failMove("MISSING_CONTRACT", {
+        action: { type: "create_contract", dealId },
+      });
     }
   }
 
   // Retrocesso: exige motivo
   if (isRetrocesso && !motivo) {
-    return {
-      success: false,
-      error: "Retrocesso exige justificativa obrigatoria.",
-    };
+    console.error("[moverDeal] retrocesso reason required", {
+      dealId,
+      ordemAtual,
+      ordemNova,
+    });
+    return failMove("REQUIRE_RETROCESSO_REASON", {
+      action: {
+        type: "open_retrocesso_modal",
+        dealId,
+        fromStage: deal.etapa as StatusDeal,
+        toStage: novaEtapa,
+      },
+    });
   }
 
   // Perdido: exige motivo ou lossData
   if (novaEtapa === "perdido" && !motivo && !lossData) {
-    return {
-      success: false,
-      error: "Marcar como perdido exige motivo.",
-    };
+    console.error("[moverDeal] lost reason required", { dealId });
+    return failMove("REQUIRE_LOST_REASON", {
+      action: { type: "open_lost_modal", dealId, toStage: novaEtapa },
+    });
   }
 
   const updateData: Record<string, unknown> = {
@@ -118,7 +145,6 @@ export async function moverDeal(
     etapa_anterior: deal.etapa,
   };
 
-  // Auto-sugerir probabilidade de fechamento pela etapa
   if (PROBABILIDADE_POR_ETAPA[novaEtapa] !== undefined) {
     updateData.probabilidade_fechamento = PROBABILIDADE_POR_ETAPA[novaEtapa];
   }
@@ -146,16 +172,17 @@ export async function moverDeal(
     .eq("id", dealId);
 
   if (updateError) {
-    console.error("[moverDeal] update deal failed", {
+    console.error("[moverDeal] update failed", {
       dealId,
       novaEtapa,
       message: updateError.message,
     });
-    return { success: false, error: `Erro ao mover deal: ${updateError.message}` };
+    return failMove("DB_ERROR", {
+      error: `Erro ao mover deal: ${updateError.message}`,
+    });
   }
 
-  // Handoff application-level (TODAS as operações em try/catch — NUNCA
-  // afetam o sucesso do UPDATE em deals que já foi commitado acima).
+  // Handoff application-level (try/catch — nunca afeta o sucesso)
   const FASES_FAMILIA: StatusDeal[] = ["admission_process", "concluido"];
   if (FASES_FAMILIA.includes(novaEtapa) && deal.atleta_id) {
     try {
@@ -168,25 +195,21 @@ export async function moverDeal(
       const faseDestino =
         novaEtapa === "concluido" ? "acompanhamento" : "admissao";
 
-      let experienciaId: string | null = existing?.id ?? null;
+      let experienciaCriada = false;
 
       if (!existing) {
-        const { data: inserted } = await supabase
-          .from("crm_experiencia")
-          .insert({
-            atleta_id: deal.atleta_id,
-            deal_id: dealId,
-            fase: faseDestino,
-            temperatura: "verde",
-            ansiedade: 3,
-            satisfacao: 5,
-            risco_percebido: 1,
-            status: "satisfeita",
-            psicologa_acionada: false,
-          })
-          .select("id")
-          .single();
-        experienciaId = inserted?.id ?? null;
+        await supabase.from("crm_experiencia").insert({
+          atleta_id: deal.atleta_id,
+          deal_id: dealId,
+          fase: faseDestino,
+          temperatura: "verde",
+          ansiedade: 3,
+          satisfacao: 5,
+          risco_percebido: 1,
+          status: "satisfeita",
+          psicologa_acionada: false,
+        });
+        experienciaCriada = true;
       } else if (
         novaEtapa === "concluido" &&
         existing.fase !== "acompanhamento" &&
@@ -198,8 +221,7 @@ export async function moverDeal(
           .eq("id", existing.id);
       }
 
-      // Cria tarefa e notificação para a Head (não-bloqueante)
-      if (experienciaId && !existing) {
+      if (experienciaCriada) {
         try {
           const { data: headUser } = await supabase
             .from("user_profiles")
@@ -208,13 +230,11 @@ export async function moverDeal(
             .eq("ativo", true)
             .limit(1)
             .maybeSingle();
-
           const { data: atleta } = await supabase
             .from("atletas")
             .select("nome_completo")
             .eq("id", deal.atleta_id)
             .maybeSingle();
-
           const nome = atleta?.nome_completo ?? "atleta";
 
           if (headUser) {
@@ -230,7 +250,6 @@ export async function moverDeal(
               modulo_origem: "experiencia",
               criada_automaticamente: true,
             });
-
             await supabase.from("notificacoes").insert({
               destinatario_id: headUser.id,
               titulo: `Nova familia: ${nome}`,
@@ -244,12 +263,10 @@ export async function moverDeal(
           }
         } catch (notifErr) {
           console.warn("[moverDeal] handoff notification failed", notifErr);
-          // não bloqueia
         }
       }
     } catch (handoffErr) {
       console.warn("[moverDeal] handoff experiencia failed", handoffErr);
-      // não bloqueia o sucesso do moverDeal
     }
   }
 
@@ -263,7 +280,7 @@ export async function moverDeal(
   }
   revalidatePath("/pipeline");
 
-  return { success: true };
+  return okMove(dealId, novaEtapa);
 }
 
 export async function customizarValorDeal(
