@@ -520,7 +520,16 @@ functions.http("sendMessages", async (req, res) => {
     //               'early_potential' (cedo demais),
     //               'late_timing' (tarde demais),
     //               'scheduled_return' (retorno agendado em novembro)
-    const messageType = payload?.messageType || data.messageType || 'initial';
+    //
+    // BUG HISTÓRICO (commit 7514c9a, 2026-05-15): esta linha referenciava
+    // `payload?.messageType`, mas a variável `payload` nunca existiu nesse
+    // escopo — só `req.body`. Resultado: ReferenceError em 100% das chamadas
+    // entre 2026-05-17 (deploy) e 2026-05-29 (este fix), capturado pelo catch
+    // genérico na linha 642 e retornado como HTTP 500 "Erro interno". Nenhum
+    // e-mail saiu nesse período. Fix: usar `req.body?.messageType` em vez de
+    // `payload?.messageType` para que o messageType opcionalmente passado no
+    // root do payload (irmão de `record`) também seja respeitado.
+    const messageType = req.body?.messageType || data.messageType || 'initial';
 
     console.log(JSON.stringify({
       level: "INFO", action: "processing_start",
