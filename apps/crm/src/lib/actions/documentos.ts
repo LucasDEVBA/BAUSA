@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 
 export async function listarDocumentos(atletaId: string) {
@@ -20,6 +21,7 @@ export async function adicionarDocumento(atletaId: string, dados: {
   arquivo_nome?: string;
   deadline?: string;
   observacao?: string;
+  storage_path?: string;
 }) {
   const supabase = await createAuditedSupabaseClient();
   const { data, error } = await supabase
@@ -37,6 +39,9 @@ export async function adicionarDocumento(atletaId: string, dados: {
     .select("id")
     .single();
   if (error) return { success: false, error: error.message };
+  revalidatePath("/familias-crm");
+  revalidatePath("/familias-pipeline");
+  revalidatePath("/familias");
   return { success: true, documentoId: data.id };
 }
 

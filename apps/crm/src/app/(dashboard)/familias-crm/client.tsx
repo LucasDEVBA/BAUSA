@@ -36,6 +36,7 @@ import {
   listarContatosExperiencia,
   type AlertaInatividade,
 } from "@/lib/actions/experiencia";
+import { NovaFamiliaModal } from "@/components/familias-shared/NovaFamiliaModal";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -1350,6 +1351,7 @@ export function FamiliasCrmClient({
 }: FamiliasCrmClientProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<Family | null>(null);
+  const [showNovaModal, setShowNovaModal] = useState(false);
   const [filter, setFilter] = useState<
     "todas" | "satisfeita" | "atencao" | "crise"
   >("todas");
@@ -1363,7 +1365,7 @@ export function FamiliasCrmClient({
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-white">
             CRM de Experiência da Família
@@ -1372,14 +1374,28 @@ export function FamiliasCrmClient({
             Acompanhamento pós-venda e suporte à jornada
           </p>
         </div>
-        <a
-          href="/familias-pipeline"
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
-        >
-          <User className="h-4 w-4" />
-          Pipeline da Família
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowNovaModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+          >
+            <User className="h-4 w-4" />
+            Nova Família
+          </button>
+          <a
+            href="/familias-pipeline"
+            className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-2 text-sm font-medium text-zinc-300 hover:border-indigo-500/30 hover:text-indigo-300"
+          >
+            Pipeline da Família
+          </a>
+        </div>
       </div>
+
+      <NovaFamiliaModal
+        open={showNovaModal}
+        onClose={() => setShowNovaModal(false)}
+      />
+
 
       {/* Banner de alertas */}
       {alertas.length > 0 && (
