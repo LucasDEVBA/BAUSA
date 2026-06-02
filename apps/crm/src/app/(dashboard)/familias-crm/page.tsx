@@ -165,29 +165,146 @@ export default async function FamiliasCrmPage() {
 
   const supabase = await createServerSupabaseClient();
 
-  const { data: rawExperiencias } = await supabase
+  // ─── 1. crm_experiencia (sem embed — query simples e robusta) ──
+  const { data: experiencias, error: expErr } = await supabase
     .from("crm_experiencia")
-    .select(
-      `
-      *,
-      atleta:atletas(nome_completo, posicao, whatsapp, email, esporte, cidade_estado,
-        responsavel:responsaveis(nome, whatsapp)),
-      deal:deals(id, etapa, valor_estimado, contrato:contratos_financeiros(plano, valor_total))
-    `
-    )
+    .select("*")
     .is("deleted_at", null)
     .order("updated_at", { ascending: false });
 
-  const families: Family[] = (rawExperiencias ?? []).map((row) =>
-    mapExperienciaToFamily(row as Record<string, unknown>)
+  if (expErr) {
+    console.error("[familias-crm] experiencias erro:", JSON.stringify(expErr, null, 2));
+  }
+  const experienciasList = (experiencias ?? []) as Record<string, unknown>[];
+
+  // ─── 2. atletas vinculados ──
+  const atletaIds = experienciasList
+    .map((e) => e.atleta_id as string | null)
+    .filter((id): id is string => id !== null);
+
+  type AtletaRow = {
+    id: string;
+    nome_completo: string | null;
+    posicao: string | null;
+    whatsapp: string | null;
+    email: string | null;
+    esporte: string | null;
+    cidade_estado: string | null;
+    responsavel_id: string | null;
+  };
+  let atletas: AtletaRow[] = [];
+  if (atletaIds.length) {
+    const { data, error } = await supabase
+      .from("atletas")
+      .select("id, nome_completo, posicao, whatsapp, email, esporte, cidade_estado, responsavel_id")
+      .in("id", atletaIds);
+    if (error) {
+      console.error("[familias-crm] atletas erro:", JSON.stringify(error, null, 2));
+    }
+    atletas = (data ?? []) as AtletaRow[];
+  }
+  const atletasMap = new Map(atletas.map((a) => [a.id, a]));
+
+  // ─── 3. responsaveis ──
+  const respIds = atletas
+    .map((a) => a.responsavel_id)
+    .filter((id): id is string => id !== null);
+  type RespRow = { id: string; nome: string | null; whatsapp: string | null };
+  let responsaveis: RespRow[] = [];
+  if (respIds.length) {
+    const { data } = await supabase
+      .from("responsaveis")
+      .select("id, nome, whatsapp")
+      .in("id", respIds);
+    responsaveis = (data ?? []) as RespRow[];
+  }
+  const respMap = new Map(responsaveis.map((r) => [r.id, r]));
+
+  // ─── 4. deals + contratos ──
+  const dealIds = experienciasList
+    .map((e) => e.deal_id as string | null)
+    .filter((id): id is string => id !== null);
+  type DealRow = { id: string; etapa: string | null; valor_estimado: number | null };
+  let deals: DealRow[] = [];
+  if (dealIds.length) {
+    const { data } = await supabase
+      .from("deals")
+      .select("id, etapa, valor_estimado")
+      .in("id", dealIds);
+    deals = (data ?? []) as DealRow[];
+  }
+  const dealsMap = new Map(deals.map((d) => [d.id, d]));
+
+  type ContratoRow = { deal_id: string; plano: string | null; valor_total: number | null };
+  let contratos: ContratoRow[] = [];
+  if (dealIds.length) {
+    const { data } = await supabase
+      .from("contratos_financeiros")
+      .select("deal_id, plano, valor_total")
+      .in("deal_id", dealIds)
+      .is("deleted_at", null);
+    contratos = (data ?? []) as ContratoRow[];
+  }
+  const contratosMap = new Map(contratos.map((c) => [c.deal_id, c]));
+
+  // ─── 5. Hidratar estrutura aninhada que mapExperienciaToFamily espera ──
+  const hidratadas = experienciasList.map((row) => {
+    const atletaId = row.atleta_id as string | null;
+    const dealId = row.deal_id as string | null;
+    const atletaBase = atletaId ? atletasMap.get(atletaId) : null;
+    const responsavel = atletaBase?.responsavel_id
+      ? respMap.get(atletaBase.responsavel_id)
+      : null;
+    const deal = dealId ? dealsMap.get(dealId) : null;
+    const contrato = dealId ? contratosMap.get(dealId) : null;
+
+    return {
+      ...row,
+      atleta: atletaBase
+        ? {
+            nome_completo: atletaBase.nome_completo,
+            posicao: atletaBase.posicao,
+            whatsapp: atletaBase.whatsapp,
+            email: atletaBase.email,
+            esporte: atletaBase.esporte,
+            cidade_estado: atletaBase.cidade_estado,
+            responsavel: responsavel
+              ? { nome: responsavel.nome, whatsapp: responsavel.whatsapp }
+              : null,
+          }
+        : null,
+      deal: deal
+        ? {
+            id: deal.id,
+            etapa: deal.etapa,
+            valor_estimado: deal.valor_estimado,
+            contrato: contrato ? [contrato] : [],
+          }
+        : null,
+    };
+  });
+
+  const families: Family[] = hidratadas.map((row) =>
+    mapExperienciaToFamily(row as Record<string, unknown>),
   );
 
   const tiposRiscoByFamilia = Object.fromEntries(
-    (rawExperiencias ?? []).map((row) => {
-      const r = row as Record<string, unknown>;
-      return [r.id as string, ((r.tipos_risco as string[]) ?? []) as RiskDimension[]];
-    })
+    experienciasList.map((row) => {
+      return [
+        row.id as string,
+        ((row.tipos_risco as string[]) ?? []) as RiskDimension[],
+      ];
+    }),
   );
+
+  console.log("[familias-crm] consolidado", {
+    experiencias: experienciasList.length,
+    atletas: atletas.length,
+    responsaveis: responsaveis.length,
+    deals: deals.length,
+    contratos: contratos.length,
+    families: families.length,
+  });
 
   const alertas = await listarAlertasInatividade();
 

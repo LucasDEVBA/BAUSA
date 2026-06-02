@@ -2,23 +2,40 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, Phone, Plane, ArrowLeftRight } from "lucide-react";
+import {
+  AlertTriangle,
+  Loader2,
+  Phone,
+  Plane,
+  ArrowLeftRight,
+  UserPlus,
+  Pencil,
+} from "lucide-react";
 import {
   JOURNEY_STAGE_CONFIG,
   FAMILY_STATUS_CONFIG,
   FAMILY_JOURNEY_STAGES,
   TEMPERATURE_CONFIG,
   type FamilyJourneyStage,
+  type RiskDimension,
 } from "@/types/family";
 import { moverFaseFamilia } from "@/lib/actions/experiencia";
+import {
+  FamilyDetailModal,
+  type FamilyModalData,
+} from "@/components/familias-shared/FamilyDetailModal";
+import { NovaFamiliaModal } from "@/components/familias-shared/NovaFamiliaModal";
+import { HealthBadge } from "@/components/familias-shared/HealthBadge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export interface FamiliaPipelineCard {
   id: string;
+  atleta_id: string;
   athlete_name: string;
   guardian_name: string;
   whatsapp: string;
+  email: string | null;
   plano: string;
   esporte: string | null;
   fase: FamilyJourneyStage;
@@ -26,17 +43,27 @@ export interface FamiliaPipelineCard {
   temperatura: "verde" | "amarelo" | "vermelho";
   ansiedade: number;
   satisfacao: number;
+  risco_percebido: number;
+  tipos_risco: RiskDimension[];
+  descricao_problema: string | null;
+  acao_em_andamento: string | null;
+  tipo_crise: string | null;
+  nivel_crise: string | null;
+  psicologa_acionada: boolean;
   dias_sem_contato: number | null;
   proximo_contato: string | null;
+  data_ultimo_contato: string | null;
   data_prevista_embarque: string | null;
 }
 
 function PipelineCard({
   card,
   onDragStart,
+  onClick,
 }: {
   card: FamiliaPipelineCard;
   onDragStart: (id: string) => void;
+  onClick: () => void;
 }) {
   const statusCfg = FAMILY_STATUS_CONFIG[card.status];
   const tempCfg = TEMPERATURE_CONFIG[card.temperatura];
@@ -53,15 +80,21 @@ function PipelineCard({
         e.dataTransfer.setData("text/plain", card.id);
         onDragStart(card.id);
       }}
+      onClick={onClick}
       className={cn(
-        "rounded-lg border bg-[#141720] p-3 cursor-grab active:cursor-grabbing transition-colors hover:border-indigo-500/30",
+        "group relative rounded-lg border bg-[#141720] p-3 cursor-grab active:cursor-grabbing transition-colors hover:border-indigo-500/40",
         card.status === "crise"
           ? "border-red-500/40"
           : card.status === "atencao"
             ? "border-amber-500/30"
-            : "border-[#1e2130]"
+            : "border-[#1e2130]",
       )}
     >
+      {/* Indicador de "click para editar" */}
+      <span className="pointer-events-none absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+        <Pencil className="h-3 w-3 text-indigo-400" />
+      </span>
+
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-white truncate">
@@ -71,7 +104,17 @@ function PipelineCard({
             {card.guardian_name}
           </p>
         </div>
-        <span className="text-base">{tempCfg.icon}</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <HealthBadge
+            ansiedade={card.ansiedade}
+            satisfacao={card.satisfacao}
+            risco_percebido={card.risco_percebido}
+            status={card.status}
+            temperatura={card.temperatura}
+            dias_sem_contato={card.dias_sem_contato}
+          />
+          <span className="text-base">{tempCfg.icon}</span>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-1 mb-2">
@@ -79,7 +122,7 @@ function PipelineCard({
           className={cn(
             "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-semibold",
             statusCfg.bg,
-            statusCfg.color
+            statusCfg.color,
           )}
         >
           {statusCfg.label}
@@ -100,7 +143,7 @@ function PipelineCard({
           <span
             className={cn(
               "font-semibold",
-              card.ansiedade >= 4 ? "text-red-400" : "text-zinc-300"
+              card.ansiedade >= 4 ? "text-red-400" : "text-zinc-300",
             )}
           >
             {card.ansiedade}/5
@@ -111,7 +154,7 @@ function PipelineCard({
           <span
             className={cn(
               "font-semibold",
-              card.satisfacao <= 2 ? "text-red-400" : "text-zinc-300"
+              card.satisfacao <= 2 ? "text-red-400" : "text-zinc-300",
             )}
           >
             {card.satisfacao}/5
@@ -133,7 +176,7 @@ function PipelineCard({
             "mt-2 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-semibold",
             card.status === "crise"
               ? "bg-red-500/10 border border-red-500/30 text-red-300"
-              : "bg-amber-500/10 border border-amber-500/30 text-amber-300"
+              : "bg-amber-500/10 border border-amber-500/30 text-amber-300",
           )}
         >
           <AlertTriangle className="h-2.5 w-2.5" />
@@ -157,6 +200,38 @@ function PipelineCard({
   );
 }
 
+function cardToModalData(card: FamiliaPipelineCard): FamilyModalData {
+  return {
+    experiencia_id: card.id,
+    atleta_id: card.atleta_id,
+    athlete_name: card.athlete_name,
+    guardian_name: card.guardian_name,
+    whatsapp: card.whatsapp,
+    whatsapp_atleta: null,
+    whatsapp_responsavel: card.whatsapp || null,
+    email: card.email ?? undefined,
+    email_responsavel: null,
+    plano: card.plano,
+    esporte: card.esporte,
+    fase: card.fase,
+    status: card.status,
+    temperatura: card.temperatura,
+    ansiedade: card.ansiedade,
+    satisfacao: card.satisfacao,
+    risco_percebido: card.risco_percebido,
+    tipos_risco: card.tipos_risco,
+    descricao_problema: card.descricao_problema,
+    acao_em_andamento: card.acao_em_andamento,
+    tipo_crise: card.tipo_crise,
+    nivel_crise: card.nivel_crise,
+    psicologa_acionada: card.psicologa_acionada,
+    data_prevista_embarque: card.data_prevista_embarque,
+    proximo_contato: card.proximo_contato,
+    data_ultimo_contato: card.data_ultimo_contato,
+    dias_sem_contato: card.dias_sem_contato,
+  };
+}
+
 export function FamiliasPipelineClient({
   cards: initialCards,
 }: {
@@ -167,8 +242,12 @@ export function FamiliasPipelineClient({
   const [cards, setCards] = useState<FamiliaPipelineCard[]>(initialCards);
   const [dragId, setDragId] = useState<string | null>(null);
   const [hoverFase, setHoverFase] = useState<FamilyJourneyStage | null>(null);
+  const [selectedCard, setSelectedCard] = useState<FamiliaPipelineCard | null>(
+    null,
+  );
+  const [showNovaModal, setShowNovaModal] = useState(false);
+  const [didDrag, setDidDrag] = useState(false);
 
-  // Sincroniza state local com props após refresh
   useEffect(() => {
     setCards(initialCards);
   }, [initialCards]);
@@ -181,10 +260,10 @@ export function FamiliasPipelineClient({
     const card = cards.find((c) => c.id === id);
     if (!card || card.fase === fase) return;
 
+    setDidDrag(true);
     const previousFase = card.fase;
-    // Optimistic UI — atualiza imediatamente, qualquer direção
     setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, fase } : c))
+      prev.map((c) => (c.id === id ? { ...c, fase } : c)),
     );
 
     startTransition(async () => {
@@ -195,16 +274,23 @@ export function FamiliasPipelineClient({
         });
         router.refresh();
       } else {
-        // Rollback
         setCards((prev) =>
-          prev.map((c) => (c.id === id ? { ...c, fase: previousFase } : c))
+          prev.map((c) => (c.id === id ? { ...c, fase: previousFase } : c)),
         );
         toast.error(result.error ?? "Falha ao mover família", {
           description: card.athlete_name,
           duration: 8000,
         });
       }
+      // Reset flag de drag após um tick
+      setTimeout(() => setDidDrag(false), 50);
     });
+  };
+
+  const handleCardClick = (card: FamiliaPipelineCard) => {
+    // Se drag terminou recentemente, ignora o click (HTML5 drag dispara click)
+    if (didDrag) return;
+    setSelectedCard(card);
   };
 
   const byFase = FAMILY_JOURNEY_STAGES.reduce(
@@ -212,28 +298,35 @@ export function FamiliasPipelineClient({
       acc[fase] = cards.filter((c) => c.fase === fase);
       return acc;
     },
-    {} as Record<FamilyJourneyStage, FamiliaPipelineCard[]>
+    {} as Record<FamilyJourneyStage, FamiliaPipelineCard[]>,
   );
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-white">
-            Pipeline da Família
-          </h1>
+          <h1 className="text-xl font-bold text-white">Pipeline da Família</h1>
           <p className="mt-0.5 text-sm text-zinc-500 flex items-center gap-1.5">
             <ArrowLeftRight className="h-3.5 w-3.5 text-zinc-600" />
-            Arraste cards entre fases em qualquer direção. Famílias entram
-            automaticamente em Admissão ao deal chegar em admission_process.
+            Arraste cards entre fases em qualquer direção. Clique em um card
+            para editar.
           </p>
         </div>
-        <a
-          href="/familias-crm"
-          className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-2 text-sm font-medium text-zinc-300 hover:border-indigo-500/30 hover:text-indigo-300"
-        >
-          Voltar à lista
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowNovaModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+          >
+            <UserPlus className="h-4 w-4" />
+            Nova Família
+          </button>
+          <a
+            href="/familias-crm"
+            className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-2 text-sm font-medium text-zinc-300 hover:border-indigo-500/30 hover:text-indigo-300"
+          >
+            Voltar à lista
+          </a>
+        </div>
       </div>
 
       {isPending && (
@@ -255,7 +348,7 @@ export function FamiliasPipelineClient({
                 "rounded-xl border bg-[#0f1117] p-3 transition-colors flex flex-col min-h-[360px]",
                 isHovering
                   ? "border-indigo-500/50 bg-indigo-500/5"
-                  : "border-[#1e2130]"
+                  : "border-[#1e2130]",
               )}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -286,6 +379,7 @@ export function FamiliasPipelineClient({
                     key={c.id}
                     card={c}
                     onDragStart={(id) => setDragId(id)}
+                    onClick={() => handleCardClick(c)}
                   />
                 ))}
                 {list.length === 0 && (
@@ -298,6 +392,18 @@ export function FamiliasPipelineClient({
           );
         })}
       </div>
+
+      {selectedCard && (
+        <FamilyDetailModal
+          family={cardToModalData(selectedCard)}
+          onClose={() => setSelectedCard(null)}
+        />
+      )}
+
+      <NovaFamiliaModal
+        open={showNovaModal}
+        onClose={() => setShowNovaModal(false)}
+      />
     </div>
   );
 }
