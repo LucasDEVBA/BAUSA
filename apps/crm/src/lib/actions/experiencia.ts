@@ -87,12 +87,21 @@ async function notifyCeo(
 }
 
 // ─── Registrar contato ───────────────────────────────────────
+export interface ContatoAnexo {
+  path: string;
+  name: string;
+  type: string;
+  size: number;
+  uploaded_at: string;
+}
+
 export async function registrarContato(
   experienciaId: string,
   dados: {
     tipo: CanalContato;
     resumo: string;
     proximo_contato: string;
+    anexos?: ContatoAnexo[];
   }
 ) {
   const papel = await requireExperiencePapel();
@@ -110,6 +119,7 @@ export async function registrarContato(
     tipo: dados.tipo,
     resumo: dados.resumo,
     proximo_contato: dados.proximo_contato,
+    anexos: dados.anexos ?? [],
     registrado_por: user?.id,
     created_by: user?.id,
   });
@@ -420,6 +430,164 @@ export async function listarAlertasInatividade(): Promise<AlertaInatividade[]> {
   return (data as AlertaInatividade[]) ?? [];
 }
 
+// ─── Detalhes completos para o FamilyDetailModal ─────────────
+export interface FamilyModalSnapshot {
+  experiencia_id: string;
+  atleta_id: string;
+  athlete_name: string;
+  guardian_name: string;
+  whatsapp: string;
+  whatsapp_atleta: string | null;
+  whatsapp_responsavel: string | null;
+  email: string | null;
+  email_responsavel: string | null;
+  plano: string;
+  esporte: string | null;
+  fase: FaseExperiencia;
+  status: StatusFamilia;
+  temperatura: "verde" | "amarelo" | "vermelho";
+  ansiedade: number;
+  satisfacao: number;
+  risco_percebido: number;
+  tipos_risco: TipoRisco[];
+  descricao_problema: string | null;
+  acao_em_andamento: string | null;
+  tipo_crise: string | null;
+  nivel_crise: string | null;
+  psicologa_acionada: boolean;
+  data_prevista_embarque: string | null;
+  proximo_contato: string | null;
+  data_ultimo_contato: string | null;
+  dias_sem_contato: number | null;
+}
+
+export async function getFamilyModalData(
+  experienciaId: string,
+): Promise<FamilyModalSnapshot | null> {
+  const papel = await requireExperiencePapel();
+  if (!papel) return null;
+
+  const supabase = await createAuditedSupabaseClient();
+
+  const { data: exp } = await supabase
+    .from("crm_experiencia")
+    .select("*")
+    .eq("id", experienciaId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (!exp) return null;
+
+  const { data: atleta } = exp.atleta_id
+    ? await supabase
+        .from("atletas")
+        .select("nome_completo, esporte, whatsapp, email, responsavel_id, form_submission_id")
+        .eq("id", exp.atleta_id)
+        .maybeSingle()
+    : { data: null };
+
+  const { data: responsavel } = atleta?.responsavel_id
+    ? await supabase
+        .from("responsaveis")
+        .select("nome, whatsapp")
+        .eq("id", atleta.responsavel_id)
+        .maybeSingle()
+    : { data: null };
+
+  // Buscar email do responsável via form_submissions
+  const { data: formSub } = atleta?.form_submission_id
+    ? await supabase
+        .from("form_submissions")
+        .select("guardian_email")
+        .eq("id", atleta.form_submission_id)
+        .maybeSingle()
+    : { data: null };
+
+  const { data: contrato } = exp.deal_id
+    ? await supabase
+        .from("contratos_financeiros")
+        .select("plano")
+        .eq("deal_id", exp.deal_id)
+        .is("deleted_at", null)
+        .maybeSingle()
+    : { data: null };
+
+  const lastContact = (exp.data_ultimo_contato as string) ?? null;
+  const dias = lastContact
+    ? Math.floor((Date.now() - new Date(lastContact).getTime()) / 86400000)
+    : null;
+
+  return {
+    experiencia_id: exp.id,
+    atleta_id: (exp.atleta_id as string) ?? "",
+    athlete_name: atleta?.nome_completo ?? "Atleta",
+    guardian_name: responsavel?.nome ?? "Responsável",
+    whatsapp: responsavel?.whatsapp ?? atleta?.whatsapp ?? "",
+    whatsapp_atleta: atleta?.whatsapp ?? null,
+    whatsapp_responsavel: responsavel?.whatsapp ?? null,
+    email: atleta?.email ?? null,
+    email_responsavel: formSub?.guardian_email ?? null,
+    plano: contrato?.plano ?? "—",
+    esporte: atleta?.esporte ?? null,
+    fase: ((exp.fase as FaseExperiencia) ?? "admissao") as FaseExperiencia,
+    status: ((exp.status as StatusFamilia) ?? "satisfeita") as StatusFamilia,
+    temperatura: (exp.temperatura as "verde" | "amarelo" | "vermelho") ?? "verde",
+    ansiedade: Number(exp.ansiedade) || 3,
+    satisfacao: Number(exp.satisfacao) || 5,
+    risco_percebido: Number(exp.risco_percebido) || 1,
+    tipos_risco: ((exp.tipos_risco as TipoRisco[]) ?? []) as TipoRisco[],
+    descricao_problema: (exp.descricao_problema as string) ?? null,
+    acao_em_andamento: (exp.acao_em_andamento as string) ?? null,
+    tipo_crise: (exp.tipo_crise as string) ?? null,
+    nivel_crise: (exp.nivel_crise as string) ?? null,
+    psicologa_acionada: Boolean(exp.psicologa_acionada),
+    data_prevista_embarque: (exp.data_prevista_embarque as string) ?? null,
+    proximo_contato: (exp.proximo_contato as string) ?? null,
+    data_ultimo_contato: lastContact,
+    dias_sem_contato: dias,
+  };
+}
+
+// ─── Histórico de mudanças de fase (audit_logs) ──────────────
+export interface HistoricoFase {
+  id: string;
+  campos_alterados: string[];
+  dados_anteriores: Record<string, unknown> | null;
+  dados_novos: Record<string, unknown> | null;
+  user_papel: string | null;
+  created_at: string;
+}
+
+export async function listarHistoricoFase(experienciaId: string): Promise<HistoricoFase[]> {
+  const papel = await requireExperiencePapel();
+  if (!papel) return [];
+
+  const supabase = await createAuditedSupabaseClient();
+  const { data } = await supabase
+    .from("audit_logs")
+    .select(
+      "id, campos_alterados, dados_anteriores, dados_novos, user_papel, created_at, operacao",
+    )
+    .eq("tabela", "crm_experiencia")
+    .eq("registro_id", experienciaId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  return ((data ?? []) as HistoricoFase[]).filter((row) =>
+    (row.campos_alterados ?? []).some((c) =>
+      [
+        "fase",
+        "status",
+        "temperatura",
+        "ansiedade",
+        "satisfacao",
+        "risco_percebido",
+        "psicologa_acionada",
+      ].includes(c),
+    ),
+  );
+}
+
 // ─── Listar contatos (timeline) ───────────────────────────────
 export async function listarContatosExperiencia(experienciaId: string) {
   const papel = await requireExperiencePapel();
@@ -428,7 +596,7 @@ export async function listarContatosExperiencia(experienciaId: string) {
   const supabase = await createAuditedSupabaseClient();
   const { data } = await supabase
     .from("contatos_experiencia")
-    .select("id, tipo, resumo, proximo_contato, created_at")
+    .select("id, tipo, resumo, proximo_contato, anexos, created_at")
     .eq("experiencia_id", experienciaId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
