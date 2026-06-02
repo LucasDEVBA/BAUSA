@@ -5,6 +5,24 @@
 
 ---
 
+## ⚙️ Disciplina de Engenharia (LEIA ANTES DE CODAR)
+
+**Princípio nº 1: Regression-safe by default** — tudo que está funcional DEVE continuar funcional, provado por checklist + guard de CI.
+
+As **skills do Claude Code** em `.claude/skills/` são carregadas automaticamente conforme o tipo de tarefa e contêm os padrões + checklists anti-regressão obrigatórios:
+
+| Skill | Quando usar |
+|---|---|
+| `bausa-cloud-function` | Criar/editar função em `functions/` |
+| `bausa-supabase-migration` | Criar migration em `supabase/migrations/` |
+| `bausa-crm-page` | Criar/editar página/action em `apps/crm/` |
+| `bausa-scheduler-safety` | Tocar em scheduler de mensageria |
+| `bausa-gitflow-deploy` | Commit, PR, merge, deploy |
+
+**Índice + princípios + runbook de incidentes:** `docs/ENGINEERING.md`. **Roadmap de features:** task list do projeto + `docs/ROADMAP.md`.
+
+---
+
 ## Identidade do Projeto
 
 **Produto:** Bolsa Atleta USA — assessoria exclusiva para bolsas esportivas em instituições americanas.
