@@ -84,6 +84,9 @@ export interface WarRoomMetrics {
   active_families: number;
   at_risk_families: number;
   nps_average: number;
+  nps_respondentes: number;
+  next_action_compliance_pct: number;
+  active_deals_count: number;
   leads_this_month: number;
   closed_this_month: number;
   revenue_ytd_usd: number;
