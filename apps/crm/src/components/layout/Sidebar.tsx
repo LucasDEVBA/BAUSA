@@ -87,6 +87,7 @@ const NAV_GROUPS: NavGroup[] = [
         subItems: [
           { href: "/analytics", label: "Receita" },
           { href: "/analytics/atribuicao", label: "Atribuição" },
+          { href: "/analytics/cac", label: "CAC/ROI" },
           { href: "/analytics/utm-builder", label: "Gerador UTM" },
         ],
       },

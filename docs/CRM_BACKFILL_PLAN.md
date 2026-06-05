@@ -1,5 +1,30 @@
 # Tarefa: Diagnosticar a auto-promoção do CRM e fazer backfill de leads — BAUSA
 
+> # ✅ RESOLVIDO em 2026-06-04 — ⛔ NÃO EXECUTE O BACKFILL
+> **Diagnóstico definitivo (via SQL Editor, bypass RLS):** o CRM está
+> **100% saudável**. `atletas=209`, `deals=209`, `responsaveis=198`,
+> `orfaos_sem_atleta=0`. A auto-promoção (`autoPromoteToCRM`) está
+> funcionando — 114 `crm_auto_created` nos últimos 30 dias, zero falhas
+> desde a versão `lead-qualifier-00021-cat` (deploy 2026-05-15).
+>
+> **A premissa deste documento está OBSOLETA.** Ele foi escrito em 29/05
+> quando se acreditava que `atletas=0` — medição feita via **anon key**,
+> que é bloqueada pela RLS `TO authenticated` das tabelas CRM (FALSO
+> NEGATIVO). O backfill descrito abaixo **DUPLICARIA os 209 atletas** se
+> executado hoje. **Mantido apenas como registro histórico do diagnóstico.**
+>
+> Para verificar o estado real a qualquer momento, rode no SQL Editor:
+> ```sql
+> SELECT (SELECT COUNT(*) FROM atletas) AS atletas,
+>        (SELECT COUNT(*) FROM form_submissions fs
+>          WHERE fs.qualification_classification IN ('QUENTE','MORNO')
+>            AND NOT EXISTS (SELECT 1 FROM atletas a WHERE a.form_submission_id = fs.id)
+>        ) AS orfaos;
+> ```
+> Se `orfaos > 0`, aí sim avaliar backfill **apenas dos órfãos**.
+
+---
+
 > **Cole este documento inteiro no início da conversa com o outro agente.** Ele contém todo o contexto, o problema, o estado atual, as opções de solução e os comandos necessários.
 
 ---

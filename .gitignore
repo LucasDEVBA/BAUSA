@@ -7,3 +7,7 @@ dist
 *.tsbuildinfo
 .vercel
 supabase/.temp/
+
+# Claude Code — local-only (NÃO versionar). Skills (.claude/skills/) SÃO versionadas.
+.claude/settings.local.json
+.claude/worktrees/
