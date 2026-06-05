@@ -1,0 +1,12 @@
+{
+  "name": "weekly-report",
+  "version": "1.0.0",
+  "description": "Relatório semanal automático por email (CEO + Head). Resumo dos últimos 7 dias (leads, deals, contratos, gasto/CAC, alertas, crises). Acionada por Cloud Scheduler (segunda 08:00 BRT).",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}
