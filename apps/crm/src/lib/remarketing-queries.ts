@@ -197,6 +197,7 @@ export async function fetchRemarketingData(): Promise<RemarketingData> {
 
 // ─── Para export server-side (com PII) ─────────────────────────────────
 export interface RemarketingLeadFull {
+  dealId: string;
   nome: string;
   email: string;
   whatsapp: string;
@@ -261,6 +262,7 @@ export async function fetchSegmentoLeadsFull(
     if (!passaFiltros(lead, filtros)) continue;
 
     out.push({
+      dealId: d.id,
       nome: a.nome_completo ?? "",
       email: a.email ?? "",
       whatsapp: a.whatsapp ?? "",
