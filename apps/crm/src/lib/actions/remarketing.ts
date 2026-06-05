@@ -2,14 +2,15 @@
 
 import { getUserPapel } from "@/lib/auth";
 import {
-  fetchRemarketingSegments,
+  fetchSegmentoLeadsFull,
   REMARKETING_SEGMENTS,
+  type RemarketingFiltros,
 } from "@/lib/remarketing-queries";
 
 // ════════════════════════════════════════════════════════════════════════
-// Export de segmento de re-marketing → CSV formato Meta Custom Audience
-// A Meta hasheia email/phone no upload. Telefone em E.164 (com DDI).
-// Apenas CEO. Uso sujeito a base legal (LGPD) — aviso na UI.
+// Export de segmento de re-marketing → CSV formato Meta Custom Audience.
+// Reaplica os mesmos filtros do client server-side (PII nunca vai ao client).
+// A Meta hasheia email/phone no upload. Telefone em E.164. Apenas CEO.
 // ════════════════════════════════════════════════════════════════════════
 
 type ExportResult =
@@ -19,8 +20,8 @@ type ExportResult =
 function toE164(whatsapp: string): string {
   const digits = (whatsapp || "").replace(/\D/g, "");
   if (!digits) return "";
-  if (digits.length >= 12) return digits; // já tem DDI
-  if (digits.length === 10 || digits.length === 11) return `55${digits}`; // BR sem DDI
+  if (digits.length >= 12) return digits;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
   return digits;
 }
 
@@ -31,29 +32,25 @@ function csvCell(value: string): string {
 
 export async function exportarSegmentoCSV(
   segmentKey: string,
+  filtros?: RemarketingFiltros,
 ): Promise<ExportResult> {
   if ((await getUserPapel()) !== "ceo") {
     return { success: false, error: "Apenas o CEO pode exportar audiências." };
   }
 
   const def = REMARKETING_SEGMENTS.find((s) => s.key === segmentKey);
-  if (!def) {
-    return { success: false, error: "Segmento inválido." };
+  if (!def) return { success: false, error: "Segmento inválido." };
+
+  const leads = await fetchSegmentoLeadsFull(segmentKey, filtros);
+  if (leads.length === 0) {
+    return { success: false, error: "Nenhum lead neste segmento com os filtros aplicados." };
   }
 
-  const segments = await fetchRemarketingSegments();
-  const segment = segments.find((s) => s.key === segmentKey);
-  if (!segment || segment.leads.length === 0) {
-    return { success: false, error: "Nenhum lead neste segmento." };
-  }
-
-  // Cabeçalho no schema Meta Custom Audience (email, phone, fn=first name).
   const header = "email,phone,fn";
-  const lines = segment.leads
+  const lines = leads
     .map((l) => {
       const fn = (l.nome || "").trim().split(/\s+/)[0] || "";
       const phone = toE164(l.whatsapp);
-      // Pula linhas sem nenhum identificador (email nem phone) — inúteis na Meta.
       if (!l.email && !phone) return null;
       return [csvCell(l.email), csvCell(phone), csvCell(fn)].join(",");
     })
@@ -64,6 +61,6 @@ export async function exportarSegmentoCSV(
   }
 
   const csv = [header, ...lines].join("\n");
-  const filename = `remarketing_${segmentKey}_${segment.leads.length}leads.csv`;
+  const filename = `remarketing_${segmentKey}_${lines.length}leads.csv`;
   return { success: true, csv, filename, rows: lines.length };
 }
