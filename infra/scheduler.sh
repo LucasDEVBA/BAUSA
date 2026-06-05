@@ -102,4 +102,28 @@ gcloud scheduler jobs update http "${JOB_CW}" \
   --attempt-deadline=120s
 
 echo "✓ ${JOB_CW} configurado"
+
+# ─── Job 4: Relatório semanal (segunda 08:00 BRT) ─────────────
+JOB_WR="weekly-report-job${SUFFIX}"
+WEEKLY_REPORT_URL="${WEEKLY_REPORT_URL:-https://weekly-report${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_WR}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 8 * * 1" \
+  --uri="${WEEKLY_REPORT_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_WR}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 8 * * 1" \
+  --uri="${WEEKLY_REPORT_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s
+
+echo "✓ ${JOB_WR} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"
