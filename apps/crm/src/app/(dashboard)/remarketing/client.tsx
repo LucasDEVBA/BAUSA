@@ -10,14 +10,28 @@ import {
   ShieldCheck,
   Info,
   Check,
+  Send,
+  AlertTriangle,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { exportarSegmentoCSV } from "@/lib/actions/remarketing";
+import {
+  prepararCampanha,
+  dispararCampanha,
+  cancelarCampanha,
+} from "@/lib/actions/remarketing-campanha";
 import type {
   RemarketingData,
   RemarketingLeadAnon,
 } from "@/lib/remarketing-queries";
+
+interface CampanhaPreparada {
+  campanhaId: string;
+  total: number;
+  amostra: string[];
+}
 
 // Faixas de idade (espelham FAIXAS_IDADE do queries — constante pura, sem
 // importar o módulo server-only no bundle do client).
@@ -59,8 +73,56 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
   const [esportesSel, setEsportesSel] = useState<string[]>([]);
   const [classesSel, setClassesSel] = useState<string[]>([]);
   const [mensagem, setMensagem] = useState(MENSAGEM_DEFAULT);
+  const [preparada, setPreparada] = useState<CampanhaPreparada | null>(null);
 
   const segment = segments.find((s) => s.key === selectedKey) ?? segments[0];
+
+  const filtrosAtuais = () => ({
+    faixasIdade: faixas,
+    esportes: esportesSel,
+    classes: classesSel,
+  });
+
+  function handlePreparar() {
+    if (mensagem.trim().length === 0) {
+      toast.error("Escreva a mensagem antes de disparar.");
+      return;
+    }
+    startTransition(async () => {
+      const r = await prepararCampanha(selectedKey, mensagem, filtrosAtuais());
+      if (r.success) {
+        setPreparada({ campanhaId: r.campanhaId, total: r.total, amostra: r.amostra });
+      } else {
+        toast.error(r.error);
+      }
+    });
+  }
+
+  function handleConfirmarDisparo() {
+    if (!preparada) return;
+    const id = preparada.campanhaId;
+    startTransition(async () => {
+      const r = await dispararCampanha(id);
+      if (r.success) {
+        toast.success(
+          `Campanha iniciada — ${r.enviados ?? 0} enviados agora, ${r.restantes ?? 0} continuam automaticamente (ritmo seguro).`,
+        );
+        setPreparada(null);
+      } else {
+        toast.error(r.error ?? "Falha ao disparar");
+      }
+    });
+  }
+
+  function handleCancelarPreparada() {
+    if (!preparada) return;
+    const id = preparada.campanhaId;
+    setPreparada(null);
+    startTransition(async () => {
+      await cancelarCampanha(id);
+      toast.info("Campanha cancelada.");
+    });
+  }
 
   function passa(l: RemarketingLeadAnon): boolean {
     if (faixas.length) {
@@ -304,15 +366,71 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
               <button
                 onClick={handleExport}
                 disabled={alcance === 0 || isPending}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-sm text-zinc-200 transition hover:bg-[#1a1f2e] disabled:opacity-40"
               >
                 <Download className="h-4 w-4" />
-                {isPending ? "Gerando…" : `CSV (${alcance})`}
+                CSV ({alcance})
+              </button>
+            </div>
+            <button
+              onClick={handlePreparar}
+              disabled={alcance === 0 || isPending}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
+            >
+              <Send className="h-4 w-4" />
+              {isPending ? "Preparando…" : `Disparar campanha (${alcance})`}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal de confirmação (dry-run obrigatório) */}
+      {preparada && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl border border-[#1e2130] bg-[#141720] p-5 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
+                <AlertTriangle className="h-4 w-4 text-amber-400" />
+                Confirmar disparo
+              </h3>
+              <button onClick={handleCancelarPreparada} className="text-zinc-500 hover:text-zinc-300">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-sm text-zinc-300">
+              <strong className="text-emerald-400">{preparada.total}</strong> leads vão receber a
+              mensagem via WhatsApp, em <strong>ritmo seguro</strong> (~120/dia, 1 a cada 30-45s,
+              só das 9h às 20h).
+            </p>
+            {preparada.amostra.length > 0 && (
+              <p className="mt-2 text-xs text-zinc-500">
+                Ex: {preparada.amostra.join(", ")}
+                {preparada.total > preparada.amostra.length ? "…" : ""}
+              </p>
+            )}
+            <div className="mt-3 rounded-lg border border-[#1e2130] bg-[#0c0e16] p-2.5">
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">Mensagem</p>
+              <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-300">{preview}</p>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleCancelarPreparada}
+                className="flex-1 rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-sm text-zinc-300 transition hover:bg-[#1a1f2e]"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarDisparo}
+                disabled={isPending}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
+              >
+                <Send className="h-4 w-4" />
+                {isPending ? "Disparando…" : "Confirmar e disparar"}
               </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <p className="flex items-center gap-1.5 text-xs text-zinc-600">
         <Info className="h-3 w-3" />

@@ -183,6 +183,7 @@ jobs:
           - process-pending-whatsapp
           - process-followup-whatsapp
           - weekly-report
+          - send-remarketing
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

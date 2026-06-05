@@ -1,0 +1,12 @@
+{
+  "name": "send-remarketing",
+  "version": "1.0.0",
+  "description": "Disparo controlado de campanha de re-marketing via Z-API. Salvaguardas anti-ban: throttle 30-45s, limite diário, horário seguro 9-20h BRT, CAS idempotente, opt-out, dry-run. Acionada pelo Engine + Cloud Scheduler (15min).",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}
