@@ -231,6 +231,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           lines={[
             `${funil.leads_qualified} leads -> ${funil.contracts_signed} contratos (${funnelConversionPct}% conv.)`,
             `${funil.meetings_done} reunioes . ${funil.proposals_sent} propostas . ${funil.signals_paid} sinais pagos`,
+            `Proxima acao definida em ${m.next_action_compliance_pct}% dos ${m.active_deals_count} deals ativos`,
           ]}
           badge={{
             label: `${funil.auto_conversions} concluido${funil.auto_conversions !== 1 ? "s" : ""}`,
@@ -283,6 +284,9 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           lines={[
             `${familyMetrics.total} ativas . ${familyMetrics.satisfeita} satisfeitas . ${familyMetrics.atencao} atencao`,
             `${familyMetrics.crise} crise${familyMetrics.crise !== 1 ? "s" : ""} . Satisfacao media ${familyMetrics.avg_satisfaction}/5`,
+            m.nps_respondentes > 0
+              ? `NPS ${m.nps_average} (${m.nps_respondentes} resp.)`
+              : "NPS — (sem respostas ainda)",
           ]}
           badge={{
             label: familyMetrics.crise > 0 ? `${familyMetrics.crise} em crise!` : `Sat. ${familyMetrics.avg_satisfaction}/5`,
