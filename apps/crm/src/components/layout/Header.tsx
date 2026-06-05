@@ -37,6 +37,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/escolas": { label: "Banco de Escolas", parent: "Inteligencia" },
   "/matching": { label: "Motor de Match", parent: "Inteligencia" },
   "/financeiro": { label: "Financeiro", parent: "Comercial" },
+  "/remarketing": { label: "Re-marketing", parent: "Comercial" },
   "/documentos": { label: "Documentos", parent: "Sistema" },
   "/automacoes-monitor": { label: "Automacoes", parent: "Sistema" },
 };
