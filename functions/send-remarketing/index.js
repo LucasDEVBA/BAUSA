@@ -97,6 +97,55 @@ const enviarZApi = async (phone, message) => {
   return { success: true };
 };
 
+// Imagem com legenda (/send-image) — image aceita URL pública.
+const enviarZApiImagem = async (phone, imageUrl, caption) => {
+  const formatted = formatPhone(phone);
+  if (!formatted) return { success: false, error: 'Número inválido' };
+  const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-image`;
+  const result = await httpRequest(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Client-Token': ZAPI_CLIENT_TOKEN },
+  }, JSON.stringify({ phone: formatted, image: imageUrl, caption: caption || '' }));
+  if (result.statusCode >= 400) return { success: false, error: `Z-API HTTP ${result.statusCode}` };
+  return { success: true };
+};
+
+// Link com preview rico (/send-link) — card clicável = CTA confiável.
+const enviarZApiLink = async (phone, message, linkUrl, title, description, image) => {
+  const formatted = formatPhone(phone);
+  if (!formatted) return { success: false, error: 'Número inválido' };
+  const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-link`;
+  const result = await httpRequest(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Client-Token': ZAPI_CLIENT_TOKEN },
+  }, JSON.stringify({
+    phone: formatted,
+    message,
+    linkUrl,
+    title: title || '',
+    linkDescription: description || '',
+    image: image || '',
+  }));
+  if (result.statusCode >= 400) return { success: false, error: `Z-API HTTP ${result.statusCode}` };
+  return { success: true };
+};
+
+// Despacha conforme o tipo da campanha (texto | imagem | link).
+// Fallback defensivo para texto se faltar a mídia (não quebra o disparo).
+const enviarPorTipo = async (campanha, telefone, env) => {
+  const corpo = personalizar(campanha.mensagem || '', env);
+  if (campanha.tipo_mensagem === 'imagem' && campanha.imagem_url) {
+    return enviarZApiImagem(telefone, campanha.imagem_url, corpo);
+  }
+  if (campanha.tipo_mensagem === 'link' && campanha.link_url) {
+    return enviarZApiLink(
+      telefone, corpo, campanha.link_url,
+      campanha.link_titulo, campanha.link_descricao, campanha.link_imagem,
+    );
+  }
+  return enviarZApi(telefone, corpo);
+};
+
 // ─── Helpers de salvaguarda ────────────────────────────────────────────
 const horaBRT = () => (new Date().getUTCHours() - 3 + 24) % 24;
 const dentroHorarioSeguro = () => {
@@ -111,7 +160,7 @@ const personalizar = (mensagem, env) =>
 
 // ─── Processa UMA campanha (1 batch) ───────────────────────────────────
 const processarCampanha = async (campanhaId, dryRun) => {
-    const camps = await supaGet(`remarketing_campanhas?id=eq.${campanhaId}&select=id,segmento,mensagem,status&deleted_at=is.null`);
+    const camps = await supaGet(`remarketing_campanhas?id=eq.${campanhaId}&select=id,segmento,mensagem,status,tipo_mensagem,imagem_url,link_url,link_titulo,link_descricao,link_imagem&deleted_at=is.null`);
     if (!camps.length) return { error: 'Campanha não encontrada', notFound: true };
     const campanha = camps[0];
 
@@ -121,12 +170,13 @@ const processarCampanha = async (campanhaId, dryRun) => {
 
     // ── DRY-RUN: não envia, só reporta ──
     if (dryRun) {
-      log('INFO', 'remktg_dryrun', { campanhaId, pendentes: pendentes.length });
+      log('INFO', 'remktg_dryrun', { campanhaId, tipo: campanha.tipo_mensagem, pendentes: pendentes.length });
       return {
         dryRun: true,
+        tipo: campanha.tipo_mensagem || 'texto',
         pendentes: pendentes.length,
         amostra: pendentes.slice(0, 5).map((e) => ({ nome: e.nome, telefone: e.telefone ? e.telefone.slice(0, 4) + '****' : '—' })),
-        mensagemPreview: personalizar(campanha.mensagem, pendentes[0] || {}),
+        mensagemPreview: personalizar(campanha.mensagem || '', pendentes[0] || {}),
       };
     }
 
@@ -173,8 +223,7 @@ const processarCampanha = async (campanhaId, dryRun) => {
       );
       if (!Array.isArray(reserva) || reserva.length === 0) continue; // outra instância pegou
 
-      const mensagem = personalizar(campanha.mensagem, envio);
-      const r = await enviarZApi(envio.telefone, mensagem);
+      const r = await enviarPorTipo(campanha, envio.telefone, envio);
       if (r.success) {
         await supaPatch(`remarketing_envios?id=eq.${envio.id}`, { status: 'enviado' });
         enviados += 1;

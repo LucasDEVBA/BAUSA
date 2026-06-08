@@ -37,11 +37,11 @@ apontar para uma CF que lê o schema `public` = a função **`send-remarketing` 
 
 ---
 
-## Modelo de dados (`supabase/migrations/20260605115850` + `20260605180000`)
+## Modelo de dados (`20260605115850` + `20260605180000` + `20260605190000`)
 
 | Tabela | Papel |
 |---|---|
-| `remarketing_campanhas` | 1 linha por campanha (segmento + mensagem + status `rascunho`/`enviando`/`concluida`/`pausada`) |
+| `remarketing_campanhas` | 1 linha por campanha (segmento + mensagem + status `rascunho`/`enviando`/`concluida`/`pausada` + `tipo_mensagem` `texto`/`imagem`/`link` + campos de mídia `imagem_url`/`link_url`/`link_titulo`/`link_descricao`/`link_imagem`) |
 | `remarketing_envios` | 1 linha por destinatário. **CAS** via `enviado_at` (NULL=pendente). `UNIQUE(campanha_id, deal_id)` = idempotência |
 | `remarketing_optout` | Telefones que pediram para não receber (LGPD). A CF respeita antes de enviar |
 
@@ -64,6 +64,28 @@ CEO (cria a fila) + `service_role` (a CF marca `enviado_at`)**. GRANTs explícit
 | **Dry-run** | `dry_run: true` no payload → simula, conta, **não chama Z-API** |
 
 ---
+
+## Tipos de mensagem (texto / imagem / link)
+
+A campanha escolhe `tipo_mensagem`; a CF despacha pelo endpoint Z-API correspondente:
+
+| Tipo | Endpoint Z-API | Campos | Confiabilidade |
+|---|---|---|---|
+| `texto` | `send-text` | `mensagem` (com `{nome}`/`{esporte}`) | ✅ provado |
+| `imagem` | `send-image` | `imagem_url` (público) + legenda (`mensagem`) | ✅ padrão |
+| `link` | `send-link` | `link_url` + `link_titulo` + `link_descricao` + `link_imagem` + `mensagem` | ✅ provado (card clicável) |
+
+> **Botão nativo NÃO é usado.** O botão interativo do Z-API é *reply-only* (não abre
+> URL) e os próprios docs avisam que tem "fatores decisivos para funcionar". O CTA
+> clicável e confiável é o **`link`** (card rico via `send-link`, que já roda nesta conta).
+
+**Imagem precisa de URL pública e estável.** O upload (botão "Enviar") vai para o
+bucket **público** `remarketing-media` e retorna `getPublicUrl` — não signed URL,
+que expiraria durante os dias de throttle. O CEO também pode colar uma URL externa.
+
+**Lista de leads + detalhe.** A tela mostra os nomes da audiência filtrada; clicar
+abre o `DealDetailSheet` completo in-place (reusa `fetchDeal` de `lib/deal-fetch.ts`).
+O nome vai ao client (ferramenta CEO-only); contato (email/telefone) só server-side.
 
 ## Variáveis de ambiente
 
