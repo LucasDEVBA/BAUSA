@@ -9,6 +9,7 @@ import {
   REMARKETING_SEGMENTS,
   type RemarketingFiltros,
 } from "@/lib/remarketing-queries";
+import type { MensagemConfig } from "@/lib/remarketing-types";
 
 // ════════════════════════════════════════════════════════════════════════
 // Campanhas de re-marketing — preparar / disparar / cancelar.
@@ -19,6 +20,16 @@ import {
 const SEND_REMARKETING_URL = process.env.SEND_REMARKETING_URL;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const MENSAGEM_MAX = 1024;
+
+function isHttpUrl(u?: string): boolean {
+  if (!u) return false;
+  try {
+    const x = new URL(u.trim());
+    return x.protocol === "https:" || x.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 function toE164(whatsapp: string): string {
   const digits = (whatsapp || "").replace(/\D/g, "");
@@ -36,13 +47,27 @@ export async function prepararCampanha(
   segmentKey: string,
   mensagem: string,
   filtros?: RemarketingFiltros,
+  config?: MensagemConfig,
 ): Promise<PrepararResult> {
   if ((await getUserPapel()) !== "ceo") {
     return { success: false, error: "Apenas o CEO pode criar campanhas." };
   }
+  const cfg: MensagemConfig = config ?? { tipo: "texto" };
   const msg = (mensagem || "").trim();
-  if (!msg) return { success: false, error: "Mensagem vazia." };
+
+  // Caption é opcional quando a mensagem é uma imagem; corpo é obrigatório p/ texto/link.
+  if (cfg.tipo !== "imagem" && !msg) return { success: false, error: "Mensagem vazia." };
   if (msg.length > MENSAGEM_MAX) return { success: false, error: `Mensagem excede ${MENSAGEM_MAX} caracteres.` };
+
+  if (cfg.tipo === "imagem" && !isHttpUrl(cfg.imagemUrl)) {
+    return { success: false, error: "Informe uma URL de imagem válida (https) ou faça upload." };
+  }
+  if (cfg.tipo === "link") {
+    if (!isHttpUrl(cfg.linkUrl)) return { success: false, error: "Informe uma URL de link válida (https)." };
+    if (cfg.linkImagem && !isHttpUrl(cfg.linkImagem)) {
+      return { success: false, error: "A imagem do link deve ser uma URL válida (https)." };
+    }
+  }
 
   const def = REMARKETING_SEGMENTS.find((s) => s.key === segmentKey);
   if (!def) return { success: false, error: "Segmento inválido." };
@@ -65,6 +90,12 @@ export async function prepararCampanha(
       total_alvo: comTelefone.length,
       status: "rascunho",
       criada_por: user?.id ?? null,
+      tipo_mensagem: cfg.tipo,
+      imagem_url: cfg.tipo === "imagem" ? (cfg.imagemUrl ?? "").trim() : null,
+      link_url: cfg.tipo === "link" ? (cfg.linkUrl ?? "").trim() : null,
+      link_titulo: cfg.tipo === "link" ? ((cfg.linkTitulo ?? "").trim() || null) : null,
+      link_descricao: cfg.tipo === "link" ? ((cfg.linkDescricao ?? "").trim() || null) : null,
+      link_imagem: cfg.tipo === "link" ? ((cfg.linkImagem ?? "").trim() || null) : null,
     })
     .select("id")
     .single();

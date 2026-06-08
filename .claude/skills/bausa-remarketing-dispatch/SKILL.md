@@ -39,6 +39,15 @@ Throttle 30–45s · limite diário 120 · horário seguro 9–20h BRT · batch 
 checado por telefone. Todos com override por env (`REMKTG_*`). Nunca afrouxar sem
 alinhamento — risco de ban do número WhatsApp.
 
+## ⛔ INVARIANTE nº 4 — tipos de mensagem e mídia
+
+`tipo_mensagem` ∈ {`texto`,`imagem`,`link`} decide o endpoint Z-API (send-text /
+send-image / send-link). **Botão nativo é proibido** (reply-only, não abre URL, e
+o Z-API o entrega de forma inconsistente) — o CTA confiável é `link` (send-link).
+Imagem exige **URL pública estável**: upload vai ao bucket PÚBLICO `remarketing-media`
+(`getPublicUrl`), nunca signed URL (expiraria durante os dias de throttle do disparo).
+A CF tem fallback defensivo para texto se faltar a mídia (não quebra o disparo).
+
 ## Regras de Supabase
 
 - A fila de envios é criada pelo **CEO autenticado** (`createAuditedSupabaseClient` →

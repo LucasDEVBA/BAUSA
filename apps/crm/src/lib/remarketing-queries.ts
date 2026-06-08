@@ -9,9 +9,10 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 // aviso na UI. Conversão real por segmento virá com win rate (task #8).
 // Receita potencial = conversão estimada × ticket médio real.
 //
-// PII (nome/email/telefone) NUNCA vai ao client — só metadados anônimos
-// (idade, esporte, classe, etapa, score). O export reconstrói o PII
-// server-side a partir dos mesmos filtros.
+// O NOME vai ao client para exibição/identificação na lista (ferramenta
+// CEO-only, mesmo dado já visível em /leads e /pipeline). Contato sensível
+// (email/telefone) NUNCA vai ao client — só é reconstruído server-side
+// (fetchSegmentoLeadsFull) no momento do export/disparo.
 // ════════════════════════════════════════════════════════════════════════
 
 const ETAPAS_GANHAS = ["contrato_assinado", "sinal_pago", "admission_process", "concluido"];
@@ -39,6 +40,7 @@ export const REMARKETING_SEGMENTS: RemarketingSegmentDef[] = [
 
 export interface RemarketingLeadAnon {
   dealId: string;
+  nome: string;
   idade: number | null;
   esporte: string;
   classe: string;
@@ -172,6 +174,7 @@ export async function fetchRemarketingData(): Promise<RemarketingData> {
       esportesSet.add(esporte);
       leads.push({
         dealId: d.id,
+        nome: (a.nome_completo ?? "").trim() || "Sem nome",
         idade: idadeDe(a.data_nascimento),
         esporte,
         classe,
