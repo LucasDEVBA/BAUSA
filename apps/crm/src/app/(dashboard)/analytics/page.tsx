@@ -77,9 +77,9 @@ export default async function AnalyticsPage() {
       month: data.month,
       year: data.year,
       month_label: `${MONTH_LABELS[data.month - 1]}/${String(data.year).slice(2)}`,
-      contracted_usd: data.contracted,
-      received_usd: data.received,
-      projected_usd: data.projected,
+      contracted_brl: data.contracted,
+      received_brl: data.received,
+      projected_brl: data.projected,
       families_signed: data.families,
     }));
 

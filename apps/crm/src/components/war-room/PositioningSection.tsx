@@ -111,7 +111,7 @@ export function PositioningSection({ data }: PositioningSectionProps) {
           <div className="rounded-lg border border-border bg-popover p-4">
             <p className="text-xs text-muted-foreground">Ticket Médio</p>
             <p className="mt-1 text-3xl font-bold text-foreground">
-              R$ {(data.avg_ticket_usd / 1000).toFixed(1)}k
+              R$ {(data.avg_ticket_brl / 1000).toFixed(1)}k
             </p>
             <p className="mt-0.5 text-[10px] text-label-tertiary">Por contrato fechado</p>
           </div>

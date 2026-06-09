@@ -3,10 +3,10 @@ import { type DealStage } from "./deal";
 // ─── War Room: seções detalhadas ─────────────────────────────────────────────
 
 export interface MetaRevenueMetrics {
-  net_revenue_month_usd: number;
-  monthly_target_usd: number;
-  projected_revenue_usd: number;
-  gap_to_target_usd: number;
+  net_revenue_month_brl: number;
+  monthly_target_brl: number;
+  projected_revenue_brl: number;
+  gap_to_target_brl: number;
 }
 
 export interface CommercialFunnelMetrics {
@@ -19,26 +19,26 @@ export interface CommercialFunnelMetrics {
 }
 
 export interface CashFlowMetrics {
-  net_received_usd: number;
-  projected_30d_usd: number;
-  projected_90d_usd: number;
+  net_received_brl: number;
+  projected_30d_brl: number;
+  projected_90d_brl: number;
 }
 
 export interface RevenueAtRiskMetrics {
   contracts_without_signature_count: number;
-  contracts_without_signature_usd: number;
+  contracts_without_signature_brl: number;
   unpaid_signals_count: number;
-  unpaid_signals_usd: number;
+  unpaid_signals_brl: number;
   pending_remaining_count: number;
-  pending_remaining_usd: number;
-  overdue_receivables_usd: number;
+  pending_remaining_brl: number;
+  overdue_receivables_brl: number;
 }
 
 export interface PositioningMetrics {
   pct_legacy: number;
   pct_journey: number;
   pct_start: number;
-  avg_ticket_usd: number;
+  avg_ticket_brl: number;
   pct_discounted: number;
 }
 
@@ -56,16 +56,16 @@ export interface RevenueMonth {
   month: number;
   year: number;
   month_label: string;
-  contracted_usd: number;
-  received_usd: number;
-  projected_usd: number;
+  contracted_brl: number;
+  received_brl: number;
+  projected_brl: number;
   families_signed: number;
 }
 
 export interface PipelineStageMetrics {
   stage: DealStage;
   count: number;
-  total_value_usd: number;
+  total_value_brl: number;
 }
 
 export interface ConversionFunnelStep {
@@ -75,11 +75,11 @@ export interface ConversionFunnelStep {
 }
 
 export interface WarRoomMetrics {
-  mrr_usd: number;
+  mrr_brl: number;
   mrr_trend_pct: number;
-  arr_usd: number;
-  pipeline_total_usd: number;
-  avg_ticket_usd: number;
+  arr_brl: number;
+  pipeline_total_brl: number;
+  avg_ticket_brl: number;
   conversion_rate: number;
   active_families: number;
   at_risk_families: number;
@@ -89,7 +89,7 @@ export interface WarRoomMetrics {
   active_deals_count: number;
   leads_this_month: number;
   closed_this_month: number;
-  revenue_ytd_usd: number;
+  revenue_ytd_brl: number;
 }
 
 export interface Alert {
