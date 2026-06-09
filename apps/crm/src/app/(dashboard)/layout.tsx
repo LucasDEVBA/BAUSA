@@ -18,7 +18,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar papel={profile.papel} nome={profile.nome} />
+      <Sidebar papel={profile.papel} nome={profile.nome} avatarUrl={profile.avatar_url} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header nome={profile.nome} />
         <main className="flex-1 overflow-y-auto p-4">{children}</main>

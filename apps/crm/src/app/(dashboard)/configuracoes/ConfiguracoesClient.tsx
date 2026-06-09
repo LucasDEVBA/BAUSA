@@ -7,6 +7,7 @@ import { atualizarConfiguracao } from "@/lib/actions/configuracoes";
 import { cn } from "@/lib/utils";
 import { DOCUMENTO_TIPOS, FAQ_CATEGORIAS } from "@/types/crm";
 import { DEAL_STAGE_CONFIG, PIPELINE_STAGE_ORDER } from "@/types/deal";
+import { UsuariosTab } from "@/components/configuracoes/UsuariosTab";
 
 const TABS = [
   { value: "planos", label: "Planos" },
@@ -19,6 +20,7 @@ const TABS = [
   { value: "pipeline", label: "Pipeline" },
   { value: "notificacoes", label: "Notificacoes" },
   { value: "listas", label: "Listas" },
+  { value: "usuarios", label: "Usuarios" },
 ] as const;
 
 type TabValue = (typeof TABS)[number]["value"];
@@ -531,6 +533,9 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
             </div>
           );
         })()}
+
+        {/* ===== USUARIOS ===== */}
+        {activeTab === "usuarios" && <UsuariosTab />}
 
         {/* ===== PIPELINE ===== */}
         {activeTab === "pipeline" && (
