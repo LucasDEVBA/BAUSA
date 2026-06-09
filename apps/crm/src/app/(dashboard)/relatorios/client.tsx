@@ -93,7 +93,7 @@ function MetricBox({
   label,
   value,
   sub,
-  color = "text-white",
+  color = "text-foreground",
 }: {
   label: string;
   value: string;
@@ -101,12 +101,12 @@ function MetricBox({
   color?: string;
 }) {
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
         {label}
       </p>
       <p className={cn("mt-1 text-2xl font-bold", color)}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-zinc-500">{sub}</p>}
+      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -127,8 +127,8 @@ export function RelatoriosClient({ data }: RelatoriosClientProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Relatorios</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
+          <h1 className="text-title-2 text-foreground">Relatorios</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Visao consolidada — dados em tempo real do CRM
           </p>
         </div>
@@ -138,7 +138,7 @@ export function RelatoriosClient({ data }: RelatoriosClientProps) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border border-[#1e2130] bg-[#141720] p-1">
+      <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -148,8 +148,8 @@ export function RelatoriosClient({ data }: RelatoriosClientProps) {
               className={cn(
                 "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
                 activeTab === tab.id
-                  ? "bg-indigo-600/20 text-indigo-300"
-                  : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+                  ? "bg-primary/15 text-foreground"
+                  : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
               )}
             >
               <Icon className="h-4 w-4" />
@@ -211,91 +211,91 @@ function ComercialTab({ data }: { data: ReportData["comercial"] }) {
         <MetricBox
           label="Leads recebidos"
           value={data.leadsRecebidos.toString()}
-          color="text-indigo-400"
+          color="text-primary"
         />
         <MetricBox
           label="Reunioes"
           value={data.reunioes.toString()}
-          color="text-sky-400"
+          color="text-sys-blue"
         />
         <MetricBox
           label="Propostas"
           value={data.propostas.toString()}
-          color="text-amber-400"
+          color="text-sys-orange"
         />
         <MetricBox
           label="Contratos"
           value={data.contratos.toString()}
-          color="text-emerald-400"
+          color="text-sys-green"
         />
         <MetricBox
           label="Taxa conversao"
           value={`${data.taxaConversao}%`}
-          color="text-purple-400"
+          color="text-plan-legacy"
         />
       </div>
 
       {/* Month comparison */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-        <h3 className="text-sm font-semibold text-zinc-100 mb-3">
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-3">
           Comparativo Mensal
         </h3>
         <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg bg-[#0c0e16] p-4 text-center">
-            <p className="text-2xl font-bold text-white">{data.dealsThisMonth}</p>
-            <p className="text-xs text-zinc-500">Este mes</p>
+          <div className="rounded-lg bg-background p-4 text-center">
+            <p className="text-2xl font-bold text-foreground">{data.dealsThisMonth}</p>
+            <p className="text-xs text-muted-foreground">Este mes</p>
           </div>
-          <div className="rounded-lg bg-[#0c0e16] p-4 text-center">
-            <p className="text-2xl font-bold text-white">{data.dealsLastMonth}</p>
-            <p className="text-xs text-zinc-500">Mes anterior</p>
+          <div className="rounded-lg bg-background p-4 text-center">
+            <p className="text-2xl font-bold text-foreground">{data.dealsLastMonth}</p>
+            <p className="text-xs text-muted-foreground">Mes anterior</p>
           </div>
-          <div className="rounded-lg bg-[#0c0e16] p-4 text-center">
+          <div className="rounded-lg bg-background p-4 text-center">
             <div className="flex items-center justify-center gap-1">
               {monthDiff >= 0 ? (
-                <TrendingUp className="h-4 w-4 text-emerald-400" />
+                <TrendingUp className="h-4 w-4 text-sys-green" />
               ) : (
-                <TrendingDown className="h-4 w-4 text-red-400" />
+                <TrendingDown className="h-4 w-4 text-sys-red" />
               )}
               <p
                 className={cn(
                   "text-2xl font-bold",
-                  monthDiff >= 0 ? "text-emerald-400" : "text-red-400"
+                  monthDiff >= 0 ? "text-sys-green" : "text-sys-red"
                 )}
               >
                 {monthDiff > 0 ? "+" : ""}
                 {monthDiff}%
               </p>
             </div>
-            <p className="text-xs text-zinc-500">Variacao</p>
+            <p className="text-xs text-muted-foreground">Variacao</p>
           </div>
         </div>
       </div>
 
       {/* Classification */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-        <h3 className="text-sm font-semibold text-zinc-100 mb-3">
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-3">
           Por Classificacao
         </h3>
         <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg bg-[#0c0e16] p-4 text-center">
-            <p className="text-2xl font-bold text-red-400">{data.dealsByClassificacao.hot}</p>
-            <p className="text-xs text-zinc-500">Quente</p>
+          <div className="rounded-lg bg-background p-4 text-center">
+            <p className="text-2xl font-bold text-lead-hot">{data.dealsByClassificacao.hot}</p>
+            <p className="text-xs text-muted-foreground">Quente</p>
           </div>
-          <div className="rounded-lg bg-[#0c0e16] p-4 text-center">
-            <p className="text-2xl font-bold text-amber-400">{data.dealsByClassificacao.warm}</p>
-            <p className="text-xs text-zinc-500">Morno</p>
+          <div className="rounded-lg bg-background p-4 text-center">
+            <p className="text-2xl font-bold text-lead-warm">{data.dealsByClassificacao.warm}</p>
+            <p className="text-xs text-muted-foreground">Morno</p>
           </div>
-          <div className="rounded-lg bg-[#0c0e16] p-4 text-center">
-            <p className="text-2xl font-bold text-zinc-400">{data.dealsByClassificacao.cold}</p>
-            <p className="text-xs text-zinc-500">Frio</p>
+          <div className="rounded-lg bg-background p-4 text-center">
+            <p className="text-2xl font-bold text-muted-foreground">{data.dealsByClassificacao.cold}</p>
+            <p className="text-xs text-muted-foreground">Frio</p>
           </div>
         </div>
       </div>
 
       {/* Deals by stage table */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-zinc-100">
+          <h3 className="text-sm font-semibold text-foreground">
             Deals por Etapa
           </h3>
           <ExportCSVButton
@@ -308,18 +308,18 @@ function ComercialTab({ data }: { data: ReportData["comercial"] }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#1e2130]">
-                <th className="py-2 text-left text-xs font-semibold text-zinc-500">Etapa</th>
-                <th className="py-2 text-right text-xs font-semibold text-zinc-500">Qtd</th>
-                <th className="py-2 text-right text-xs font-semibold text-zinc-500">Valor Total</th>
+              <tr className="border-b border-border">
+                <th className="py-2 text-left text-xs font-semibold text-muted-foreground">Etapa</th>
+                <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Qtd</th>
+                <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Valor Total</th>
               </tr>
             </thead>
             <tbody>
               {etapaRows.map((row, i) => (
-                <tr key={i} className="border-b border-[#1e2130]/50">
-                  <td className="py-2 text-zinc-300">{row[0]}</td>
-                  <td className="py-2 text-right text-zinc-400">{row[1]}</td>
-                  <td className="py-2 text-right font-medium text-zinc-200">{row[2]}</td>
+                <tr key={i} className="border-b border-border/50 hover:bg-accent">
+                  <td className="py-2 text-foreground">{row[0]}</td>
+                  <td className="py-2 text-right text-muted-foreground">{row[1]}</td>
+                  <td className="py-2 text-right font-medium text-foreground">{row[2]}</td>
                 </tr>
               ))}
             </tbody>
@@ -344,17 +344,17 @@ function FinanceiroTab({ data }: { data: ReportData["financeiro"] }) {
         <MetricBox
           label="Inadimplencia total"
           value={formatBRL(data.totalAtrasado)}
-          color="text-red-400"
+          color="text-sys-red"
         />
-        <MetricBox label="Ate 30 dias" value={formatBRL(data.aging.d30)} color="text-amber-400" />
-        <MetricBox label="30-60 dias" value={formatBRL(data.aging.d60)} color="text-orange-400" />
-        <MetricBox label="60+ dias" value={formatBRL(data.aging.d90)} color="text-red-500" />
+        <MetricBox label="Ate 30 dias" value={formatBRL(data.aging.d30)} color="text-sys-orange" />
+        <MetricBox label="30-60 dias" value={formatBRL(data.aging.d60)} color="text-sys-orange" />
+        <MetricBox label="60+ dias" value={formatBRL(data.aging.d90)} color="text-sys-red" />
       </div>
 
       {/* Parcelas by month table */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-zinc-100">
+          <h3 className="text-sm font-semibold text-foreground">
             Parcelas por Mes
           </h3>
           <ExportCSVButton
@@ -367,25 +367,25 @@ function FinanceiroTab({ data }: { data: ReportData["financeiro"] }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#1e2130]">
-                <th className="py-2 text-left text-xs font-semibold text-zinc-500">Mes</th>
-                <th className="py-2 text-right text-xs font-semibold text-zinc-500">Recebido</th>
-                <th className="py-2 text-right text-xs font-semibold text-zinc-500">Previsto</th>
-                <th className="py-2 text-right text-xs font-semibold text-zinc-500">Atrasado</th>
+              <tr className="border-b border-border">
+                <th className="py-2 text-left text-xs font-semibold text-muted-foreground">Mes</th>
+                <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Recebido</th>
+                <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Previsto</th>
+                <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Atrasado</th>
               </tr>
             </thead>
             <tbody>
               {monthRows.map((row, i) => (
-                <tr key={i} className="border-b border-[#1e2130]/50">
-                  <td className="py-2 text-zinc-300">{row[0]}</td>
-                  <td className="py-2 text-right text-emerald-400">{row[1]}</td>
-                  <td className="py-2 text-right text-indigo-400">{row[2]}</td>
-                  <td className="py-2 text-right text-red-400">{row[3]}</td>
+                <tr key={i} className="border-b border-border/50 hover:bg-accent">
+                  <td className="py-2 text-foreground">{row[0]}</td>
+                  <td className="py-2 text-right text-sys-green">{row[1]}</td>
+                  <td className="py-2 text-right text-primary">{row[2]}</td>
+                  <td className="py-2 text-right text-sys-red">{row[3]}</td>
                 </tr>
               ))}
               {monthRows.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-zinc-600">
+                  <td colSpan={4} className="py-8 text-center text-label-tertiary">
                     Nenhuma parcela encontrada.
                   </td>
                 </tr>
@@ -396,28 +396,28 @@ function FinanceiroTab({ data }: { data: ReportData["financeiro"] }) {
       </div>
 
       {/* Top 5 contracts */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-        <h3 className="text-sm font-semibold text-zinc-100 mb-3">
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-3">
           Top 5 Contratos por Valor
         </h3>
         <div className="space-y-2">
           {data.topContratos.map((c, i) => (
             <div
               key={c.id}
-              className="flex items-center gap-3 rounded-lg border border-[#1e2130] bg-[#0c0e16] px-4 py-3"
+              className="flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600/20 text-xs font-bold text-indigo-400">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
                 {i + 1}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{c.atleta}</p>
-                <p className="text-[10px] text-zinc-500 capitalize">{c.plano}</p>
+                <p className="text-sm font-medium text-foreground truncate">{c.atleta}</p>
+                <p className="text-[10px] text-muted-foreground capitalize">{c.plano}</p>
               </div>
-              <p className="text-sm font-bold text-emerald-400">{formatBRL(c.valorTotal)}</p>
+              <p className="text-sm font-bold text-sys-green">{formatBRL(c.valorTotal)}</p>
             </div>
           ))}
           {data.topContratos.length === 0 && (
-            <p className="text-center text-xs text-zinc-600 py-4">
+            <p className="text-center text-xs text-label-tertiary py-4">
               Nenhum contrato encontrado.
             </p>
           )}
@@ -440,18 +440,18 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
           label="Satisfacao media"
           value={data.satisfacaoMedia}
           sub="Escala 1–5"
-          color="text-emerald-400"
+          color="text-sys-green"
         />
         <MetricBox
           label="Ansiedade media"
           value={data.ansiedadeMedia}
           sub="Escala 1–5"
-          color="text-amber-400"
+          color="text-sys-orange"
         />
         <MetricBox
           label="Familias em risco"
           value={data.familiasEmRisco.length.toString()}
-          color="text-red-400"
+          color="text-sys-red"
         />
         <MetricBox
           label="Total acompanhadas"
@@ -460,35 +460,35 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
             data.expByTemperatura.amarelo +
             data.expByTemperatura.vermelho
           ).toString()}
-          color="text-indigo-400"
+          color="text-primary"
         />
       </div>
 
       {/* By temperatura */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-        <h3 className="text-sm font-semibold text-zinc-100 mb-3">
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-3">
           Por Temperatura
         </h3>
         <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-400">{data.expByTemperatura.verde}</p>
-            <p className="text-xs text-zinc-500">Verde</p>
+          <div className="rounded-lg bg-sys-green/5 border border-sys-green/20 p-4 text-center">
+            <p className="text-2xl font-bold text-sys-green">{data.expByTemperatura.verde}</p>
+            <p className="text-xs text-muted-foreground">Verde</p>
           </div>
-          <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-4 text-center">
-            <p className="text-2xl font-bold text-amber-400">{data.expByTemperatura.amarelo}</p>
-            <p className="text-xs text-zinc-500">Amarelo</p>
+          <div className="rounded-lg bg-sys-orange/5 border border-sys-orange/20 p-4 text-center">
+            <p className="text-2xl font-bold text-sys-orange">{data.expByTemperatura.amarelo}</p>
+            <p className="text-xs text-muted-foreground">Amarelo</p>
           </div>
-          <div className="rounded-lg bg-red-500/5 border border-red-500/20 p-4 text-center">
-            <p className="text-2xl font-bold text-red-400">{data.expByTemperatura.vermelho}</p>
-            <p className="text-xs text-zinc-500">Vermelho</p>
+          <div className="rounded-lg bg-sys-red/5 border border-sys-red/20 p-4 text-center">
+            <p className="text-2xl font-bold text-sys-red">{data.expByTemperatura.vermelho}</p>
+            <p className="text-xs text-muted-foreground">Vermelho</p>
           </div>
         </div>
       </div>
 
       {/* By fase */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-zinc-100">Por Fase</h3>
+          <h3 className="text-sm font-semibold text-foreground">Por Fase</h3>
           <ExportCSVButton
             filename={`relatorio-experiencia-${new Date().toISOString().slice(0, 10)}.csv`}
             headers={["Fase", "Quantidade"]}
@@ -500,10 +500,10 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
           {Object.entries(data.expByFase).map(([fase, count]) => (
             <div
               key={fase}
-              className="rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2"
+              className="rounded-lg border border-border bg-background px-3 py-2"
             >
-              <p className="text-lg font-bold text-white">{count}</p>
-              <p className="text-[10px] text-zinc-500 capitalize">{fase.replace(/_/g, " ")}</p>
+              <p className="text-lg font-bold text-foreground">{count}</p>
+              <p className="text-[10px] text-muted-foreground capitalize">{fase.replace(/_/g, " ")}</p>
             </div>
           ))}
         </div>
@@ -511,10 +511,10 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
 
       {/* Families at risk */}
       {data.familiasEmRisco.length > 0 && (
-        <div className="rounded-xl border border-red-500/20 bg-[#141720] p-5">
+        <div className="rounded-xl border border-sys-red/20 bg-card p-5">
           <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="h-4 w-4 text-red-400" />
-            <h3 className="text-sm font-semibold text-red-400">
+            <AlertTriangle className="h-4 w-4 text-sys-red" />
+            <h3 className="text-sm font-semibold text-sys-red">
               Familias em Risco
             </h3>
           </div>
@@ -522,24 +522,24 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
             {data.familiasEmRisco.map((f) => (
               <div
                 key={f.id}
-                className="flex items-center gap-3 rounded-lg border border-[#1e2130] bg-[#0c0e16] px-4 py-2.5"
+                className="flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-2.5"
               >
                 <span
                   className={cn(
                     "h-2 w-2 rounded-full",
-                    f.temperatura === "vermelho" ? "bg-red-400" : "bg-amber-400"
+                    f.temperatura === "vermelho" ? "bg-sys-red" : "bg-sys-orange"
                   )}
                 />
-                <p className="flex-1 text-sm text-white">{f.nome}</p>
-                <span className="text-[10px] text-zinc-500 capitalize">
+                <p className="flex-1 text-sm text-foreground">{f.nome}</p>
+                <span className="text-[10px] text-muted-foreground capitalize">
                   {f.fase.replace(/_/g, " ")}
                 </span>
                 <span
                   className={cn(
                     "rounded-md border px-2 py-0.5 text-[10px] font-medium",
                     f.status === "crise"
-                      ? "border-red-500/30 bg-red-500/10 text-red-400"
-                      : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                      ? "border-sys-red/30 bg-sys-red/10 text-sys-red"
+                      : "border-sys-orange/30 bg-sys-orange/10 text-sys-orange"
                   )}
                 >
                   {f.status}
@@ -581,13 +581,13 @@ function SafraTab({
       {/* Safra selectors */}
       <div className="flex items-center gap-4">
         <div>
-          <label className="text-[10px] font-medium text-zinc-500 mb-1 block">
+          <label className="text-[10px] font-medium text-muted-foreground mb-1 block">
             Safra 1
           </label>
           <select
             value={safra1}
             onChange={(e) => onSafra1Change(e.target.value)}
-            className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm text-zinc-300 focus:border-indigo-500/50 focus:outline-none"
+            className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-primary/50 focus:outline-none"
           >
             {data.list.map((s) => (
               <option key={s} value={s}>
@@ -596,15 +596,15 @@ function SafraTab({
             ))}
           </select>
         </div>
-        <span className="mt-4 text-zinc-600">vs</span>
+        <span className="mt-4 text-label-tertiary">vs</span>
         <div>
-          <label className="text-[10px] font-medium text-zinc-500 mb-1 block">
+          <label className="text-[10px] font-medium text-muted-foreground mb-1 block">
             Safra 2
           </label>
           <select
             value={safra2}
             onChange={(e) => onSafra2Change(e.target.value)}
-            className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm text-zinc-300 focus:border-indigo-500/50 focus:outline-none"
+            className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-primary/50 focus:outline-none"
           >
             {data.list.map((s) => (
               <option key={s} value={s}>
@@ -633,8 +633,8 @@ function SafraTab({
 
           {/* Delta comparison */}
           {safra1 !== safra2 && (
-            <div className="rounded-xl border border-indigo-500/20 bg-[#141720] p-5">
-              <h3 className="text-sm font-semibold text-zinc-100 mb-4">
+            <div className="rounded-xl border border-primary/20 bg-card p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">
                 Delta: {safra1} vs {safra2}
               </h3>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -655,24 +655,24 @@ function SafraTab({
                   const isPositive = diff > 0;
                   const isNeutral = diff === 0;
                   return (
-                    <div key={label} className="rounded-lg bg-[#0c0e16] p-3 text-center">
-                      <p className="text-[10px] text-zinc-500 mb-1">{label}</p>
+                    <div key={label} className="rounded-lg bg-background p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
                       <div className="flex items-center justify-center gap-1">
                         {!isNeutral && (
                           isPositive ? (
-                            <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                            <TrendingUp className="h-3.5 w-3.5 text-sys-green" />
                           ) : (
-                            <TrendingDown className="h-3.5 w-3.5 text-red-400" />
+                            <TrendingDown className="h-3.5 w-3.5 text-sys-red" />
                           )
                         )}
                         <p className={cn(
                           "text-lg font-bold",
-                          isNeutral ? "text-zinc-400" : isPositive ? "text-emerald-400" : "text-red-400",
+                          isNeutral ? "text-muted-foreground" : isPositive ? "text-sys-green" : "text-sys-red",
                         )}>
                           {isPositive ? "+" : ""}{pctDiff}%
                         </p>
                       </div>
-                      <p className="text-[10px] text-zinc-600 mt-0.5">
+                      <p className="text-[10px] text-label-tertiary mt-0.5">
                         {fmt(v1)} vs {fmt(v2)}
                       </p>
                     </div>
@@ -683,9 +683,9 @@ function SafraTab({
           )}
         </>
       ) : (
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-8 text-center">
-          <Layers className="mx-auto h-8 w-8 text-zinc-700 mb-2" />
-          <p className="text-sm text-zinc-500">
+        <div className="rounded-xl border border-border bg-card p-8 text-center">
+          <Layers className="mx-auto h-8 w-8 text-label-tertiary mb-2" />
+          <p className="text-sm text-muted-foreground">
             {data.list.length === 0
               ? "Nenhuma safra encontrada."
               : "Selecione duas safras para comparar."}
@@ -695,18 +695,18 @@ function SafraTab({
 
       {/* Full table */}
       {data.list.length > 0 && (
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-          <h3 className="text-sm font-semibold text-zinc-100 mb-3">Todas as Safras</h3>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Todas as Safras</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#1e2130]">
-                  <th className="py-2 text-left text-xs font-semibold text-zinc-500">Safra</th>
-                  <th className="py-2 text-right text-xs font-semibold text-zinc-500">Deals</th>
-                  <th className="py-2 text-right text-xs font-semibold text-zinc-500">Receita</th>
-                  <th className="py-2 text-right text-xs font-semibold text-zinc-500">Contratos</th>
-                  <th className="py-2 text-right text-xs font-semibold text-zinc-500">Ticket Medio</th>
-                  <th className="py-2 text-right text-xs font-semibold text-zinc-500">Conversao</th>
+                <tr className="border-b border-border">
+                  <th className="py-2 text-left text-xs font-semibold text-muted-foreground">Safra</th>
+                  <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Deals</th>
+                  <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Receita</th>
+                  <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Contratos</th>
+                  <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Ticket Medio</th>
+                  <th className="py-2 text-right text-xs font-semibold text-muted-foreground">Conversao</th>
                 </tr>
               </thead>
               <tbody>
@@ -714,13 +714,13 @@ function SafraTab({
                   const d = data.data[safra];
                   const conv = d.deals > 0 ? Math.round((d.contratos / d.deals) * 100) : 0;
                   return (
-                    <tr key={safra} className="border-b border-[#1e2130]/50">
-                      <td className="py-2 font-medium text-zinc-300">{safra}</td>
-                      <td className="py-2 text-right text-zinc-400">{d.deals}</td>
-                      <td className="py-2 text-right text-emerald-400">{formatBRL(d.revenue)}</td>
-                      <td className="py-2 text-right text-zinc-400">{d.contratos}</td>
-                      <td className="py-2 text-right text-indigo-400">{formatBRL(d.avgTicket)}</td>
-                      <td className="py-2 text-right text-purple-400">{conv}%</td>
+                    <tr key={safra} className="border-b border-border/50 hover:bg-accent">
+                      <td className="py-2 font-medium text-foreground">{safra}</td>
+                      <td className="py-2 text-right text-muted-foreground">{d.deals}</td>
+                      <td className="py-2 text-right text-sys-green">{formatBRL(d.revenue)}</td>
+                      <td className="py-2 text-right text-muted-foreground">{d.contratos}</td>
+                      <td className="py-2 text-right text-primary">{formatBRL(d.avgTicket)}</td>
+                      <td className="py-2 text-right text-plan-legacy">{conv}%</td>
                     </tr>
                   );
                 })}
@@ -743,29 +743,29 @@ function SafraCard({
   const conv = data.deals > 0 ? Math.round((data.contratos / data.deals) * 100) : 0;
 
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-      <h3 className="text-sm font-semibold text-indigo-400 mb-4">Safra {safra}</h3>
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h3 className="text-sm font-semibold text-primary mb-4">Safra {safra}</h3>
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-[#0c0e16] p-3 text-center">
-          <p className="text-xl font-bold text-white">{data.deals}</p>
-          <p className="text-[10px] text-zinc-500">Deals</p>
+        <div className="rounded-lg bg-background p-3 text-center">
+          <p className="text-xl font-bold text-foreground">{data.deals}</p>
+          <p className="text-[10px] text-muted-foreground">Deals</p>
         </div>
-        <div className="rounded-lg bg-[#0c0e16] p-3 text-center">
-          <p className="text-xl font-bold text-emerald-400">{formatBRL(data.revenue)}</p>
-          <p className="text-[10px] text-zinc-500">Receita</p>
+        <div className="rounded-lg bg-background p-3 text-center">
+          <p className="text-xl font-bold text-sys-green">{formatBRL(data.revenue)}</p>
+          <p className="text-[10px] text-muted-foreground">Receita</p>
         </div>
-        <div className="rounded-lg bg-[#0c0e16] p-3 text-center">
-          <p className="text-xl font-bold text-white">{data.contratos}</p>
-          <p className="text-[10px] text-zinc-500">Contratos</p>
+        <div className="rounded-lg bg-background p-3 text-center">
+          <p className="text-xl font-bold text-foreground">{data.contratos}</p>
+          <p className="text-[10px] text-muted-foreground">Contratos</p>
         </div>
-        <div className="rounded-lg bg-[#0c0e16] p-3 text-center">
-          <p className="text-xl font-bold text-purple-400">{conv}%</p>
-          <p className="text-[10px] text-zinc-500">Conversao</p>
+        <div className="rounded-lg bg-background p-3 text-center">
+          <p className="text-xl font-bold text-plan-legacy">{conv}%</p>
+          <p className="text-[10px] text-muted-foreground">Conversao</p>
         </div>
       </div>
-      <div className="mt-3 rounded-lg bg-[#0c0e16] p-3 text-center">
-        <p className="text-lg font-bold text-indigo-400">{formatBRL(data.avgTicket)}</p>
-        <p className="text-[10px] text-zinc-500">Ticket Medio</p>
+      <div className="mt-3 rounded-lg bg-background p-3 text-center">
+        <p className="text-lg font-bold text-primary">{formatBRL(data.avgTicket)}</p>
+        <p className="text-[10px] text-muted-foreground">Ticket Medio</p>
       </div>
     </div>
   );
@@ -779,13 +779,13 @@ function SemanalTab({ data }: { data: ReportData["semanal"] }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-indigo-500/20 bg-[#141720] p-6">
+      <div className="rounded-xl border border-primary/20 bg-card p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-lg font-semibold text-foreground">
               Relatorio Semanal
             </h3>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-muted-foreground">
               Periodo: {periodStart} a {periodEnd}
             </p>
           </div>
@@ -793,30 +793,30 @@ function SemanalTab({ data }: { data: ReportData["semanal"] }) {
         </div>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <div className="rounded-lg border border-[#1e2130] bg-[#0c0e16] p-4 text-center">
-            <Users className="mx-auto h-5 w-5 text-indigo-400 mb-2" />
-            <p className="text-2xl font-bold text-white">{data.leadsThisWeek}</p>
-            <p className="text-[10px] text-zinc-500">Novos leads</p>
+          <div className="rounded-lg border border-border bg-background p-4 text-center">
+            <Users className="mx-auto h-5 w-5 text-primary mb-2" />
+            <p className="text-2xl font-bold text-foreground">{data.leadsThisWeek}</p>
+            <p className="text-[10px] text-muted-foreground">Novos leads</p>
           </div>
-          <div className="rounded-lg border border-[#1e2130] bg-[#0c0e16] p-4 text-center">
-            <TrendingUp className="mx-auto h-5 w-5 text-emerald-400 mb-2" />
-            <p className="text-2xl font-bold text-white">{data.dealsAdvanced}</p>
-            <p className="text-[10px] text-zinc-500">Deals avancados</p>
+          <div className="rounded-lg border border-border bg-background p-4 text-center">
+            <TrendingUp className="mx-auto h-5 w-5 text-sys-green mb-2" />
+            <p className="text-2xl font-bold text-foreground">{data.dealsAdvanced}</p>
+            <p className="text-[10px] text-muted-foreground">Deals avancados</p>
           </div>
-          <div className="rounded-lg border border-[#1e2130] bg-[#0c0e16] p-4 text-center">
-            <Heart className="mx-auto h-5 w-5 text-purple-400 mb-2" />
-            <p className="text-2xl font-bold text-white">{data.familiasContatadas}</p>
-            <p className="text-[10px] text-zinc-500">Familias contatadas</p>
+          <div className="rounded-lg border border-border bg-background p-4 text-center">
+            <Heart className="mx-auto h-5 w-5 text-plan-legacy mb-2" />
+            <p className="text-2xl font-bold text-foreground">{data.familiasContatadas}</p>
+            <p className="text-[10px] text-muted-foreground">Familias contatadas</p>
           </div>
-          <div className="rounded-lg border border-[#1e2130] bg-[#0c0e16] p-4 text-center">
-            <AlertTriangle className="mx-auto h-5 w-5 text-red-400 mb-2" />
-            <p className="text-2xl font-bold text-white">{data.familiasEmRisco}</p>
-            <p className="text-[10px] text-zinc-500">Em risco</p>
+          <div className="rounded-lg border border-border bg-background p-4 text-center">
+            <AlertTriangle className="mx-auto h-5 w-5 text-sys-red mb-2" />
+            <p className="text-2xl font-bold text-foreground">{data.familiasEmRisco}</p>
+            <p className="text-[10px] text-muted-foreground">Em risco</p>
           </div>
-          <div className="rounded-lg border border-[#1e2130] bg-[#0c0e16] p-4 text-center">
-            <CheckCircle className="mx-auto h-5 w-5 text-amber-400 mb-2" />
-            <p className="text-2xl font-bold text-white">{data.tarefasAbertas}</p>
-            <p className="text-[10px] text-zinc-500">Tarefas abertas</p>
+          <div className="rounded-lg border border-border bg-background p-4 text-center">
+            <CheckCircle className="mx-auto h-5 w-5 text-sys-orange mb-2" />
+            <p className="text-2xl font-bold text-foreground">{data.tarefasAbertas}</p>
+            <p className="text-[10px] text-muted-foreground">Tarefas abertas</p>
           </div>
         </div>
       </div>

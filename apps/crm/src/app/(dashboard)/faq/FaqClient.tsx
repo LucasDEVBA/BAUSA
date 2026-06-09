@@ -28,14 +28,14 @@ const CATEGORIAS_MAP = Object.fromEntries(
 );
 
 const CATEGORIA_COLORS: Record<string, string> = {
-  visto: "bg-blue-500/15 text-blue-400",
-  documentacao: "bg-amber-500/15 text-amber-400",
-  embarque: "bg-emerald-500/15 text-emerald-400",
-  adaptacao: "bg-purple-500/15 text-purple-400",
-  financeiro: "bg-green-500/15 text-green-400",
-  escola: "bg-indigo-500/15 text-indigo-400",
-  saude: "bg-red-500/15 text-red-400",
-  outros: "bg-zinc-500/15 text-zinc-400",
+  visto: "bg-sys-blue/15 text-sys-blue",
+  documentacao: "bg-sys-orange/15 text-sys-orange",
+  embarque: "bg-sys-green/15 text-sys-green",
+  adaptacao: "bg-plan-legacy/15 text-plan-legacy",
+  financeiro: "bg-sys-green/15 text-sys-green",
+  escola: "bg-primary/15 text-primary",
+  saude: "bg-sys-red/15 text-sys-red",
+  outros: "bg-secondary text-muted-foreground",
 };
 
 interface FaqClientProps {
@@ -152,10 +152,10 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
-              <BookOpen className="h-5 w-5 text-indigo-400" />
-              <h1 className="text-xl font-bold text-zinc-100">FAQ / Base de Conhecimento</h1>
+              <BookOpen className="h-5 w-5 text-primary" />
+              <h1 className="text-title-2 text-foreground">FAQ / Base de Conhecimento</h1>
             </div>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-muted-foreground">
               Artigos de suporte para atendimento as familias
             </p>
           </div>
@@ -165,7 +165,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
               setFormData({ titulo: "", categoria: "visto", conteudo: "" });
               setShowForm(true);
             }}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500"
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <Plus className="h-3.5 w-3.5" />
             Novo Artigo
@@ -174,21 +174,21 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
 
         {/* Filtros */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 flex-1 max-w-sm">
-            <Search className="h-3.5 w-3.5 text-zinc-500" />
+          <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 flex-1 max-w-sm">
+            <Search className="h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="text"
               placeholder="Buscar por titulo ou conteudo..."
               value={busca}
               onChange={(e) => handleBusca(e.target.value)}
-              className="bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 outline-none w-full"
+              className="bg-transparent text-sm text-foreground placeholder:text-placeholder outline-none w-full"
             />
           </div>
 
           <select
             value={categoriaFiltro}
             onChange={(e) => setCategoriaFiltro(e.target.value)}
-            className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm text-zinc-300 outline-none"
+            className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none"
           >
             <option value="todas">Todas as categorias</option>
             {FAQ_CATEGORIAS.map((cat) => (
@@ -202,7 +202,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
         {/* Grid de artigos */}
         <div className="flex-1 overflow-y-auto">
           {artigosFiltrados.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-zinc-600">
+            <div className="flex flex-col items-center justify-center py-16 text-label-tertiary">
               <FileText className="mb-3 h-10 w-10" />
               <p className="text-sm">Nenhum artigo encontrado</p>
             </div>
@@ -215,8 +215,8 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                   className={cn(
                     "flex flex-col items-start rounded-xl border px-4 py-3 text-left transition-colors",
                     selectedArtigo?.id === artigo.id
-                      ? "border-indigo-500/40 bg-indigo-500/10"
-                      : "border-[#1e2130] bg-[#141720] hover:border-zinc-700",
+                      ? "border-primary/40 bg-primary/10"
+                      : "border-border bg-card hover:bg-accent",
                   )}
                 >
                   <div className="flex items-center gap-2 mb-2 w-full">
@@ -228,19 +228,19 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                     >
                       {CATEGORIAS_MAP[artigo.categoria] ?? artigo.categoria}
                     </span>
-                    <span className="ml-auto flex items-center gap-1 text-[10px] text-zinc-600">
+                    <span className="ml-auto flex items-center gap-1 text-[10px] text-label-tertiary">
                       <Eye className="h-2.5 w-2.5" />
                       {artigo.acessos}
                     </span>
                   </div>
-                  <h3 className="text-sm font-semibold text-zinc-100 mb-1 line-clamp-2">
+                  <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">
                     {artigo.titulo}
                   </h3>
-                  <p className="text-xs text-zinc-500 line-clamp-3">
+                  <p className="text-xs text-muted-foreground line-clamp-3">
                     {artigo.conteudo.slice(0, 150)}
                     {artigo.conteudo.length > 150 && "..."}
                   </p>
-                  <div className="mt-2 flex items-center gap-1 text-[11px] text-indigo-400">
+                  <div className="mt-2 flex items-center gap-1 text-[11px] text-primary">
                     Ler mais <ChevronRight className="h-3 w-3" />
                   </div>
                 </button>
@@ -252,14 +252,14 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
 
       {/* Detail sheet (right sidebar) */}
       {selectedArtigo && (
-        <div className="ml-4 w-[400px] flex-shrink-0 rounded-xl border border-[#1e2130] bg-[#141720] flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between border-b border-[#1e2130] px-4 py-3">
-            <h2 className="text-sm font-semibold text-zinc-100 line-clamp-1">
+        <div className="ml-4 w-[400px] flex-shrink-0 rounded-xl border border-border bg-card flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <h2 className="text-sm font-semibold text-foreground line-clamp-1">
               {selectedArtigo.titulo}
             </h2>
             <button
               onClick={() => setSelectedArtigo(null)}
-              className="text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Fechar"
             >
               <X className="h-4 w-4" />
@@ -275,24 +275,24 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
               {CATEGORIAS_MAP[selectedArtigo.categoria] ?? selectedArtigo.categoria}
             </span>
             <div className="prose prose-invert prose-sm max-w-none">
-              <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
+              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                 {selectedConteudo || selectedArtigo.conteudo}
               </p>
             </div>
 
             {/* Metadata */}
-            <div className="mt-4 space-y-1.5 rounded-lg border border-[#1e2130] bg-[#0c0e16] p-3">
+            <div className="mt-4 space-y-1.5 rounded-lg border border-border bg-background p-3">
               {selectedArtigo.criado_por && (
-                <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                   <User className="h-3 w-3" />
-                  <span>Criado por: <span className="text-zinc-400">{selectedArtigo.criado_por}</span></span>
+                  <span>Criado por: <span className="text-foreground">{selectedArtigo.criado_por}</span></span>
                 </div>
               )}
-              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                 <Clock className="h-3 w-3" />
                 <span>
                   Ultima atualizacao:{" "}
-                  <span className="text-zinc-400">
+                  <span className="text-foreground">
                     {new Date(selectedArtigo.updated_at).toLocaleDateString("pt-BR", {
                       day: "2-digit",
                       month: "2-digit",
@@ -303,7 +303,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                   </span>
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                 <Eye className="h-3 w-3" />
                 <span>
                   {selectedArtigo.acessos} {selectedArtigo.acessos === 1 ? "acesso" : "acessos"}
@@ -311,10 +311,10 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
               </div>
             </div>
           </div>
-          <div className="border-t border-[#1e2130] px-4 py-3 space-y-2">
+          <div className="border-t border-border px-4 py-3 space-y-2">
             <button
               onClick={handleCopyWhatsApp}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-500"
+              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-sys-green px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-sys-green/90"
             >
               <Copy className="h-3.5 w-3.5" />
               Copiar para WhatsApp
@@ -322,14 +322,14 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
             <div className="flex gap-2">
               <button
                 onClick={() => handleEditar(selectedArtigo)}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#1e2130] px-3 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-fill-4 hover:text-foreground"
               >
                 <FileText className="h-3.5 w-3.5" />
                 Editar
               </button>
               <button
                 onClick={() => handleViewHistory(selectedArtigo.id)}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#1e2130] px-3 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-fill-4 hover:text-foreground"
               >
                 <History className="h-3.5 w-3.5" />
                 Historico
@@ -342,14 +342,14 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
       {/* Form sheet (novo artigo) */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-xl border border-[#1e2130] bg-[#0f1117] p-6">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-popover p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-zinc-100">
+              <h2 className="text-base font-semibold text-foreground">
                 {editingId ? "Editar Artigo" : "Novo Artigo"}
               </h2>
               <button
                 onClick={() => setShowForm(false)}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Fechar formulario"
               >
                 <X className="h-4 w-4" />
@@ -358,7 +358,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
 
             <div className="space-y-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-400" htmlFor="faq-titulo">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="faq-titulo">
                   Titulo
                 </label>
                 <input
@@ -366,20 +366,20 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                   type="text"
                   value={formData.titulo}
                   onChange={(e) => setFormData((p) => ({ ...p, titulo: e.target.value }))}
-                  className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500"
+                  className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
                   placeholder="Ex: Como solicitar o visto F-1"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-400" htmlFor="faq-categoria">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="faq-categoria">
                   Categoria
                 </label>
                 <select
                   id="faq-categoria"
                   value={formData.categoria}
                   onChange={(e) => setFormData((p) => ({ ...p, categoria: e.target.value }))}
-                  className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm text-zinc-300 outline-none focus:border-indigo-500"
+                  className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
                 >
                   {FAQ_CATEGORIAS.map((cat) => (
                     <option key={cat.value} value={cat.value}>
@@ -390,7 +390,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-400" htmlFor="faq-conteudo">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="faq-conteudo">
                   Conteudo
                 </label>
                 <textarea
@@ -398,7 +398,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                   value={formData.conteudo}
                   onChange={(e) => setFormData((p) => ({ ...p, conteudo: e.target.value }))}
                   rows={8}
-                  className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500 resize-none"
+                  className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary resize-none"
                   placeholder="Escreva o conteudo do artigo..."
                 />
               </div>
@@ -409,14 +409,14 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                     setShowForm(false);
                     setEditingId(null);
                   }}
-                  className="rounded-lg border border-[#1e2130] px-4 py-2 text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-200"
+                  className="rounded-md border border-border px-4 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSalvar}
                   disabled={isPending}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                  className="rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                 >
                   {isPending ? "Salvando..." : "Salvar Artigo"}
                 </button>
@@ -429,11 +429,11 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
       {/* History Modal */}
       {showHistoryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-xl border border-[#1e2130] bg-[#0f1117] p-6 max-h-[80vh] flex flex-col">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-popover p-6 max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <History className="h-4 w-4 text-indigo-400" />
-                <h2 className="text-base font-semibold text-zinc-100">
+                <History className="h-4 w-4 text-primary" />
+                <h2 className="text-base font-semibold text-foreground">
                   Historico de Alteracoes
                 </h2>
               </div>
@@ -442,7 +442,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                   setShowHistoryModal(false);
                   setHistoryLogs([]);
                 }}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Fechar historico"
               >
                 <X className="h-4 w-4" />
@@ -452,10 +452,10 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
             <div className="flex-1 overflow-y-auto space-y-2">
               {historyLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 </div>
               ) : historyLogs.length === 0 ? (
-                <p className="text-sm text-zinc-600 text-center py-8">
+                <p className="text-sm text-label-tertiary text-center py-8">
                   Nenhum historico de alteracoes encontrado.
                 </p>
               ) : (
@@ -464,16 +464,16 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                   return (
                     <div
                       key={log.id}
-                      className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-3"
+                      className="rounded-lg border border-border bg-card px-4 py-3"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <Shield className="h-3.5 w-3.5 text-indigo-400" />
-                          <span className="text-[10px] font-bold uppercase text-indigo-400">
+                          <Shield className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-[10px] font-bold uppercase text-primary">
                             {log.operacao}
                           </span>
                         </div>
-                        <span className="text-[10px] text-zinc-600">
+                        <span className="text-[10px] text-label-tertiary">
                           {new Date(log.created_at).toLocaleDateString("pt-BR", {
                             day: "2-digit",
                             month: "2-digit",
@@ -492,32 +492,32 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                             const isConteudo = campo === "conteudo";
                             return (
                               <div key={campo}>
-                                <p className="text-xs font-medium text-zinc-300 mb-0.5">{label}</p>
+                                <p className="text-xs font-medium text-foreground mb-0.5">{label}</p>
                                 {isConteudo ? (
                                   <div className="space-y-1">
                                     {anterior != null && (
-                                      <p className="text-[10px] text-red-400/70 line-clamp-3">
+                                      <p className="text-[10px] text-sys-red/70 line-clamp-3">
                                         - {String(anterior).slice(0, 200)}
                                         {String(anterior).length > 200 && "..."}
                                       </p>
                                     )}
                                     {novo != null && (
-                                      <p className="text-[10px] text-emerald-400/70 line-clamp-3">
+                                      <p className="text-[10px] text-sys-green/70 line-clamp-3">
                                         + {String(novo).slice(0, 200)}
                                         {String(novo).length > 200 && "..."}
                                       </p>
                                     )}
                                   </div>
                                 ) : (
-                                  <p className="text-xs text-zinc-400">
+                                  <p className="text-xs text-muted-foreground">
                                     {anterior != null && (
-                                      <span className="text-red-400/70">{String(anterior)}</span>
+                                      <span className="text-sys-red/70">{String(anterior)}</span>
                                     )}
                                     {anterior != null && novo != null && (
-                                      <span className="text-zinc-600"> {"->"} </span>
+                                      <span className="text-label-tertiary"> {"->"} </span>
                                     )}
                                     {novo != null && (
-                                      <span className="text-emerald-400">{String(novo)}</span>
+                                      <span className="text-sys-green">{String(novo)}</span>
                                     )}
                                   </p>
                                 )}
@@ -526,9 +526,9 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
                           })}
                         </div>
                       ) : log.operacao === "INSERT" ? (
-                        <p className="text-xs text-zinc-500">Artigo criado</p>
+                        <p className="text-xs text-muted-foreground">Artigo criado</p>
                       ) : (
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-xs text-muted-foreground">
                           Campos alterados: {campos.join(", ") || "N/A"}
                         </p>
                       )}

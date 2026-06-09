@@ -260,21 +260,21 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
     <div className="space-y-5 p-6">
       {/* Header */}
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-bold text-zinc-100">
-          <Megaphone className="h-5 w-5 text-indigo-400" />
+        <h1 className="flex items-center gap-2 text-title-2 text-foreground">
+          <Megaphone className="h-5 w-5 text-primary" />
           Re-marketing
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-muted-foreground">
           Audiências segmentadas de leads qualificados (QUENTE/MORNO) que ainda não
           fecharam — para campanhas de reaquecimento via WhatsApp.
         </p>
       </div>
 
       {/* Aviso LGPD + disparo controlado */}
-      <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
-        <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-400" />
-        <p className="text-xs leading-relaxed text-amber-200/80">
-          <strong className="text-amber-300">Disparo controlado (LGPD).</strong> WhatsApp sai
+      <div className="flex items-start gap-2.5 rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-3">
+        <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-sys-orange" />
+        <p className="text-xs leading-relaxed text-sys-orange/80">
+          <strong className="text-sys-orange">Disparo controlado (LGPD).</strong> WhatsApp sai
           em ritmo seguro (~120/dia, 30–45s, 9h–20h); e-mail com link de descadastro 1-clique.
           Ambos com opt-out e <strong> dry-run obrigatório</strong> antes do envio real. Contate
           apenas com base legal válida. Você também pode exportar como Custom Audience da Meta.
@@ -283,7 +283,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
 
       {/* Audiências inteligentes */}
       <section>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-label-tertiary">
           Audiências
         </p>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -295,8 +295,8 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                 onClick={() => setSelectedKey(s.key)}
                 className={`flex flex-col gap-1.5 rounded-xl border p-3.5 text-left transition-all ${
                   active
-                    ? "border-indigo-500/50 bg-indigo-600/10"
-                    : "border-[#1e2130] bg-[#141720] hover:border-zinc-600"
+                    ? "border-primary/50 bg-primary/10"
+                    : "border-border bg-card hover:bg-accent"
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -304,14 +304,14 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                     className="h-2 w-2 rounded-full"
                     style={{ background: SEGMENT_COLORS[s.key] ?? "#71717a" }}
                   />
-                  <span className="text-[11px] font-semibold text-emerald-400">
+                  <span className="text-[11px] font-semibold text-sys-green">
                     ~{Math.round(s.taxaEstimada * 100)}%
                   </span>
                 </div>
-                <p className="text-xs font-semibold leading-tight text-zinc-200">{s.label}</p>
-                <p className="text-lg font-bold tabular-nums text-zinc-100">
+                <p className="text-xs font-semibold leading-tight text-foreground">{s.label}</p>
+                <p className="text-lg font-bold tabular-nums text-foreground">
                   {s.total}
-                  <span className="ml-1 text-[10px] font-normal text-zinc-500">leads</span>
+                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">leads</span>
                 </p>
               </button>
             );
@@ -323,10 +323,10 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_380px]">
         <div className="space-y-5">
           {/* Filtros avançados */}
-          <section className="space-y-4 rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+          <section className="space-y-4 rounded-xl border border-border bg-card p-5">
             <div>
-              <p className="text-sm font-semibold text-zinc-200">Filtros avançados</p>
-              <p className="text-xs text-zinc-500">
+              <p className="text-sm font-semibold text-foreground">Filtros avançados</p>
+              <p className="text-xs text-muted-foreground">
                 Refine a audiência &ldquo;{segment?.label}&rdquo; — {filtrosAtivos} filtro(s) ativo(s)
               </p>
             </div>
@@ -364,7 +364,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                   setEsportesSel([]);
                   setClassesSel([]);
                 }}
-                className="text-xs text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+                className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
                 Limpar filtros
               </button>
@@ -372,19 +372,19 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
           </section>
 
           {/* Lista de leads (clique → detalhe) */}
-          <section className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+          <section className="rounded-xl border border-border bg-card p-5">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-200">
-                  <Users className="h-4 w-4 text-indigo-400" /> Leads desta audiência
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <Users className="h-4 w-4 text-primary" /> Leads desta audiência
                 </p>
-                <p className="text-xs text-zinc-500">Clique em um lead para ver o detalhe completo.</p>
+                <p className="text-xs text-muted-foreground">Clique em um lead para ver o detalhe completo.</p>
               </div>
-              <span className="text-xs font-semibold tabular-nums text-zinc-400">{alcance}</span>
+              <span className="text-xs font-semibold tabular-nums text-muted-foreground">{alcance}</span>
             </div>
 
             {alcance === 0 ? (
-              <p className="py-6 text-center text-xs text-zinc-600">
+              <p className="py-6 text-center text-xs text-label-tertiary">
                 Nenhum lead com os filtros atuais.
               </p>
             ) : (
@@ -393,34 +393,34 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                   <button
                     key={l.dealId}
                     onClick={() => setSelectedDealId(l.dealId)}
-                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-left transition hover:border-indigo-500/40 hover:bg-[#1a1f2e]"
+                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-popover px-3 py-2 text-left transition hover:border-primary/40 hover:bg-accent"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm text-zinc-200">{l.nome}</p>
-                      <p className="truncate text-[11px] text-zinc-500">
+                      <p className="truncate text-sm text-foreground">{l.nome}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">
                         {l.idade ? `${l.idade} anos` : "idade —"} • {l.esporte} • {l.cidade}
                       </p>
                     </div>
                     <div className="flex flex-shrink-0 items-center gap-2">
                       <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                           l.classe === "QUENTE"
-                            ? "bg-red-500/15 text-red-300"
-                            : "bg-amber-500/15 text-amber-300"
+                            ? "bg-lead-hot/15 text-lead-hot"
+                            : "bg-lead-warm/15 text-lead-warm"
                         }`}
                       >
                         {l.classe}
                       </span>
                       <span
                         title={l.consentimento ? "Com consentimento LGPD" : "Sem consentimento explícito"}
-                        className={`h-1.5 w-1.5 rounded-full ${l.consentimento ? "bg-emerald-400" : "bg-zinc-600"}`}
+                        className={`h-1.5 w-1.5 rounded-full ${l.consentimento ? "bg-sys-green" : "bg-label-tertiary"}`}
                       />
-                      <ChevronRight className="h-4 w-4 text-zinc-600" />
+                      <ChevronRight className="h-4 w-4 text-label-tertiary" />
                     </div>
                   </button>
                 ))}
                 {filtrados.length > LIST_CAP && (
-                  <p className="px-1 pt-2 text-center text-[11px] text-zinc-600">
+                  <p className="px-1 pt-2 text-center text-[11px] text-label-tertiary">
                     Mostrando {LIST_CAP} de {filtrados.length}. Refine os filtros para ver os demais.
                   </p>
                 )}
@@ -432,37 +432,37 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
         {/* Painel direito */}
         <div className="space-y-4">
           {/* Alcance estimado */}
-          <div className="rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-600/15 to-emerald-800/5 p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400/70">
+          <div className="rounded-xl border border-sys-green/20 bg-gradient-to-br from-sys-green/15 to-sys-green/5 p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-sys-green/70">
               Alcance estimado
             </p>
-            <p className="mt-1 flex items-baseline gap-1.5 text-3xl font-bold tabular-nums text-zinc-100">
+            <p className="mt-1 flex items-baseline gap-1.5 text-3xl font-bold tabular-nums text-foreground">
               {alcance}
-              <span className="text-xs font-normal text-zinc-400">leads nesta audiência</span>
+              <span className="text-xs font-normal text-muted-foreground">leads nesta audiência</span>
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div>
-                <p className="flex items-center gap-1 text-[11px] text-zinc-400">
+                <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <TrendingUp className="h-3 w-3" /> Conversão esperada
                 </p>
-                <p className="text-lg font-bold tabular-nums text-emerald-400">{conversao}</p>
+                <p className="text-lg font-bold tabular-nums text-sys-green">{conversao}</p>
               </div>
               <div>
-                <p className="flex items-center gap-1 text-[11px] text-zinc-400">
+                <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <DollarSign className="h-3 w-3" /> Receita potencial
                 </p>
-                <p className="text-lg font-bold tabular-nums text-emerald-400">{brl(receita)}</p>
+                <p className="text-lg font-bold tabular-nums text-sys-green">{brl(receita)}</p>
               </div>
             </div>
-            <p className="mt-3 flex items-center gap-1 text-[10px] text-zinc-500">
+            <p className="mt-3 flex items-center gap-1 text-[10px] text-muted-foreground">
               <Info className="h-3 w-3" /> Estimativa: {Math.round((segment?.taxaEstimada ?? 0) * 100)}% de
               conversão × ticket médio {brl(ticketMedio)}. {comConsentimento} c/ consentimento LGPD.
             </p>
           </div>
 
           {/* Editor de mensagem */}
-          <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-            <p className="mb-2 text-sm font-semibold text-zinc-200">Mensagem</p>
+          <div className="rounded-xl border border-border bg-card p-5">
+            <p className="mb-2 text-sm font-semibold text-foreground">Mensagem</p>
 
             {/* Seletor de canal */}
             <div className="mb-3 grid grid-cols-2 gap-1.5">
@@ -509,21 +509,21 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                       placeholder="URL do link (https://…)"
                       value={linkUrl}
                       onChange={(e) => setLinkUrl(e.target.value)}
-                      className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
+                      className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
                     />
                     <input
                       type="text"
                       placeholder="Título (ex: Agende sua reunião)"
                       value={linkTitulo}
                       onChange={(e) => setLinkTitulo(e.target.value)}
-                      className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
+                      className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
                     />
                     <input
                       type="text"
                       placeholder="Descrição curta"
                       value={linkDescricao}
                       onChange={(e) => setLinkDescricao(e.target.value)}
-                      className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
+                      className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
                     />
                     <MediaImageField
                       label="Imagem do card (opcional)"
@@ -545,7 +545,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                   placeholder="Assunto do e-mail"
                   value={assunto}
                   onChange={(e) => setAssunto(e.target.value)}
-                  className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
+                  className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
                 />
                 <MediaImageField
                   label="Imagem do topo (opcional)"
@@ -561,24 +561,24 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                     placeholder="URL do botão (opcional)"
                     value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
-                    className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500/50"
+                    className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/50"
                   />
                   <input
                     type="text"
                     placeholder="Texto do botão"
                     value={linkTitulo}
                     onChange={(e) => setLinkTitulo(e.target.value)}
-                    className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500/50"
+                    className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/50"
                   />
                 </div>
               </div>
             )}
 
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-[11px] text-zinc-500">
+              <span className="text-[11px] text-muted-foreground">
                 {canal === "email" ? "Corpo do e-mail" : tipo === "imagem" ? "Legenda (opcional)" : "Mensagem"}
               </span>
-              <span className={`text-[10px] ${mensagem.length > 1024 ? "text-red-400" : "text-zinc-500"}`}>
+              <span className={`text-[10px] ${mensagem.length > 1024 ? "text-sys-red" : "text-muted-foreground"}`}>
                 {mensagem.length}/1024
               </span>
             </div>
@@ -586,22 +586,22 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
               value={mensagem}
               onChange={(e) => setMensagem(e.target.value)}
               rows={tipo === "link" ? 4 : 6}
-              className="w-full resize-none rounded-lg border border-[#1e2130] bg-[#0f1117] p-3 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
+              className="w-full resize-none rounded-md border border-border bg-popover p-3 text-sm text-foreground outline-none focus:border-primary/50"
             />
-            <p className="mt-1.5 text-[11px] text-zinc-500">
-              Variáveis: <code className="text-zinc-400">{"{nome}"}</code>,{" "}
-              <code className="text-zinc-400">{"{esporte}"}</code>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Variáveis: <code className="text-foreground">{"{nome}"}</code>,{" "}
+              <code className="text-foreground">{"{esporte}"}</code>
             </p>
 
             {/* Preview por canal/tipo */}
-            <div className="mt-2 rounded-lg border border-[#1e2130] bg-[#0c0e16] p-2.5">
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">
+            <div className="mt-2 rounded-lg border border-border bg-background p-2.5">
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-label-tertiary">
                 Preview — {tipoLabel}
               </p>
 
               {canal === "email" ? (
                 <>
-                  <p className="mb-1.5 truncate text-xs font-semibold text-zinc-200">
+                  <p className="mb-1.5 truncate text-xs font-semibold text-foreground">
                     {assunto || "Assunto do e-mail"}
                   </p>
                   {imagemUrl && (
@@ -609,10 +609,10 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                     <img src={imagemUrl} alt="" className="mb-1.5 max-h-32 w-full rounded object-cover" />
                   )}
                   {preview && (
-                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-300">{preview}</p>
+                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">{preview}</p>
                   )}
                   {linkUrl && (
-                    <span className="mt-2 inline-block rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white">
+                    <span className="mt-2 inline-block rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground">
                       {linkTitulo || "Saiba mais"}
                     </span>
                   )}
@@ -624,22 +624,22 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                     <img src={imagemUrl} alt="Imagem da campanha" className="mb-1.5 max-h-32 w-full rounded object-cover" />
                   )}
                   {preview && (
-                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-300">{preview}</p>
+                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">{preview}</p>
                   )}
                   {tipo === "link" && (
-                    <div className="mt-2 flex gap-2 rounded-lg border border-[#1e2130] bg-[#11141d] p-2">
+                    <div className="mt-2 flex gap-2 rounded-lg border border-border bg-card p-2">
                       {linkImagem && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={linkImagem} alt="" className="h-12 w-12 flex-shrink-0 rounded object-cover" />
                       )}
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-zinc-200">
+                        <p className="truncate text-xs font-semibold text-foreground">
                           {linkTitulo || "Título do link"}
                         </p>
-                        <p className="truncate text-[11px] text-zinc-500">
+                        <p className="truncate text-[11px] text-muted-foreground">
                           {linkDescricao || "descrição do link"}
                         </p>
-                        <p className="truncate text-[10px] text-indigo-400">{linkUrl || "https://…"}</p>
+                        <p className="truncate text-[10px] text-primary">{linkUrl || "https://…"}</p>
                       </div>
                     </div>
                   )}
@@ -650,14 +650,14 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
             <div className="mt-3 flex gap-2">
               <button
                 onClick={handleCopy}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-sm text-zinc-200 transition hover:bg-[#1a1f2e]"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-popover px-3 py-2 text-sm text-foreground transition hover:bg-secondary"
               >
                 <Copy className="h-4 w-4" /> Copiar
               </button>
               <button
                 onClick={handleExport}
                 disabled={alcance === 0 || isPending}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-sm text-zinc-200 transition hover:bg-[#1a1f2e] disabled:opacity-40"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-popover px-3 py-2 text-sm text-foreground transition hover:bg-secondary disabled:opacity-40"
               >
                 <Download className="h-4 w-4" />
                 CSV ({alcance})
@@ -666,7 +666,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
             <button
               onClick={handlePreparar}
               disabled={alcance === 0 || isPending}
-              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-sys-green px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-sys-green/90 disabled:opacity-40"
             >
               <Send className="h-4 w-4" />
               {isPending ? "Processando…" : `Disparar campanha (${alcance})`}
@@ -678,18 +678,18 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
       {/* Modal de confirmação (dry-run obrigatório) */}
       {preparada && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-[#1e2130] bg-[#141720] p-5 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-popover p-5 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
-                <AlertTriangle className="h-4 w-4 text-amber-400" />
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <AlertTriangle className="h-4 w-4 text-sys-orange" />
                 Confirmar disparo
               </h3>
-              <button onClick={handleCancelarPreparada} className="text-zinc-500 hover:text-zinc-300">
+              <button onClick={handleCancelarPreparada} className="text-muted-foreground hover:text-foreground">
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="text-sm text-zinc-300">
-              <strong className="text-emerald-400">{preparada.total}</strong> leads vão receber a
+            <p className="text-sm text-foreground">
+              <strong className="text-sys-green">{preparada.total}</strong> leads vão receber a
               mensagem (<strong>{tipoLabel}</strong>){" "}
               {canal === "email" ? (
                 <>via <strong>e-mail</strong>, em ritmo controlado e com link de descadastro (LGPD).</>
@@ -698,35 +698,35 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
               )}
             </p>
             {preparada.amostra.length > 0 && (
-              <p className="mt-2 text-xs text-zinc-500">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Ex: {preparada.amostra.join(", ")}
                 {preparada.total > preparada.amostra.length ? "…" : ""}
               </p>
             )}
-            <div className="mt-3 rounded-lg border border-[#1e2130] bg-[#0c0e16] p-2.5">
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">
+            <div className="mt-3 rounded-lg border border-border bg-background p-2.5">
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-label-tertiary">
                 {canal === "email" && assunto ? assunto : "Mensagem"}
               </p>
               {((canal === "whatsapp" && tipo === "imagem") || canal === "email") && imagemUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={imagemUrl} alt="" className="mb-1.5 max-h-28 w-full rounded object-cover" />
               )}
-              <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-300">{preview}</p>
+              <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">{preview}</p>
               {linkUrl && (canal === "email" || tipo === "link") && (
-                <p className="mt-1 truncate text-[10px] text-indigo-400">{linkUrl}</p>
+                <p className="mt-1 truncate text-[10px] text-primary">{linkUrl}</p>
               )}
             </div>
             <div className="mt-4 flex gap-2">
               <button
                 onClick={handleCancelarPreparada}
-                className="flex-1 rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-sm text-zinc-300 transition hover:bg-[#1a1f2e]"
+                className="flex-1 rounded-md border border-border bg-popover px-3 py-2 text-sm text-foreground transition hover:bg-secondary"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleConfirmarDisparo}
                 disabled={isPending}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-sys-green px-3 py-2 text-sm font-semibold text-white transition hover:bg-sys-green/90 disabled:opacity-40"
               >
                 <Send className="h-4 w-4" />
                 {isPending ? "Disparando…" : "Confirmar e disparar"}
@@ -743,7 +743,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
         onClose={() => setSelectedDealId(null)}
       />
 
-      <p className="flex items-center gap-1.5 text-xs text-zinc-600">
+      <p className="flex items-center gap-1.5 text-xs text-label-tertiary">
         <Info className="h-3 w-3" />
         Disparo via WhatsApp (Z-API) ou e-mail (Resend/Brevo), com dry-run obrigatório, ritmo
         controlado e descadastro (e-mail). CSV no formato Meta Custom Audience também disponível.
@@ -755,7 +755,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="flex flex-wrap gap-1.5">{children}</div>
     </div>
   );
@@ -773,10 +773,10 @@ function Chip({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition ${
+      className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition ${
         active
-          ? "border-indigo-500/50 bg-indigo-600/20 text-white"
-          : "border-[#1e2130] bg-[#0f1117] text-zinc-400 hover:text-zinc-200"
+          ? "border-primary/50 bg-primary/15 text-foreground"
+          : "border-border bg-popover text-muted-foreground hover:text-foreground"
       }`}
     >
       {active && <Check className="h-3 w-3" />}
@@ -800,10 +800,10 @@ function TypeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-medium transition ${
+      className={`flex items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition ${
         active
-          ? "border-indigo-500/50 bg-indigo-600/20 text-white"
-          : "border-[#1e2130] bg-[#0f1117] text-zinc-400 hover:text-zinc-200"
+          ? "border-primary/50 bg-primary/15 text-foreground"
+          : "border-border bg-popover text-muted-foreground hover:text-foreground"
       }`}
     >
       {icon}
@@ -829,15 +829,15 @@ function MediaImageField({
 }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       {url && (
-        <div className="relative overflow-hidden rounded-lg border border-[#1e2130]">
+        <div className="relative overflow-hidden rounded-lg border border-border">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={url} alt="Pré-visualização" className="max-h-32 w-full object-cover" />
           <button
             type="button"
             onClick={() => setUrl("")}
-            className="absolute right-1 top-1 rounded bg-black/60 p-1 text-zinc-200 transition hover:bg-black/80"
+            className="absolute right-1 top-1 rounded bg-black/60 p-1 text-foreground transition hover:bg-black/80"
           >
             <X className="h-3 w-3" />
           </button>
@@ -848,7 +848,7 @@ function MediaImageField({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-xs text-zinc-200 transition hover:bg-[#1a1f2e] disabled:opacity-40"
+          className="flex flex-shrink-0 items-center gap-1.5 rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-foreground transition hover:bg-secondary disabled:opacity-40"
         >
           <Upload className="h-3.5 w-3.5" /> {uploading ? "Enviando…" : "Enviar"}
         </button>
@@ -857,7 +857,7 @@ function MediaImageField({
           placeholder="ou cole uma URL https://…"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          className="min-w-0 flex-1 rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500/50"
+          className="min-w-0 flex-1 rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/50"
         />
       </div>
       <input
