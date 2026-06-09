@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -11,7 +12,8 @@ import {
   Home,
   DollarSign,
   Zap,
-  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   GraduationCap,
   Shuffle,
   UserCheck,
@@ -157,6 +159,8 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+const STORAGE_KEY = "bausa-sidebar-collapsed";
+
 interface SidebarProps {
   papel: PapelUsuario;
   nome: string;
@@ -165,6 +169,27 @@ interface SidebarProps {
 export function Sidebar({ papel, nome }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
+    } catch {
+      /* localStorage indisponivel — mantem expandida */
+    }
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignora erro de storage */
+      }
+      return next;
+    });
+  };
 
   const handleLogout = async () => {
     const supabase = createBrowserClient();
@@ -174,16 +199,28 @@ export function Sidebar({ papel, nome }: SidebarProps) {
   };
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r border-sidebar-border bg-sidebar/70 backdrop-blur-xl">
+    <aside
+      className={cn(
+        "flex h-screen flex-col border-r border-sidebar-border bg-sidebar/70 backdrop-blur-xl transition-[width] duration-300",
+        collapsed ? "w-16" : "w-60",
+      )}
+    >
       {/* Logo */}
-      <div className="flex h-14 items-center gap-2.5 border-b border-sidebar-border px-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-sys-purple">
+      <div
+        className={cn(
+          "flex h-14 items-center border-b border-sidebar-border",
+          collapsed ? "justify-center px-2" : "gap-2.5 px-4",
+        )}
+      >
+        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-sys-purple">
           <Zap className="h-4 w-4 text-primary-foreground" />
         </div>
-        <div>
-          <p className="text-sm font-semibold text-sidebar-foreground leading-none">BAUSA Engine</p>
-          <p className="text-[10px] text-muted-foreground leading-none mt-0.5">Bolsa Atleta USA</p>
-        </div>
+        {!collapsed && (
+          <div>
+            <p className="text-sm font-semibold text-sidebar-foreground leading-none">BAUSA Engine</p>
+            <p className="text-[10px] text-muted-foreground leading-none mt-0.5">Bolsa Atleta USA</p>
+          </div>
+        )}
       </div>
 
       {/* Navegação principal */}
@@ -195,9 +232,11 @@ export function Sidebar({ papel, nome }: SidebarProps) {
 
             return (
             <div key={group.label}>
-              <p className="mb-1 px-3 text-[10px] font-semibold tracking-widest text-label-tertiary">
-                {group.label}
-              </p>
+              {!collapsed && (
+                <p className="mb-1 px-3 text-[10px] font-semibold tracking-widest text-label-tertiary">
+                  {group.label}
+                </p>
+              )}
               <div className="space-y-0.5">
                 {visibleItems.map((item) => {
                   const isParentActive =
@@ -208,15 +247,17 @@ export function Sidebar({ papel, nome }: SidebarProps) {
                     ) ?? false);
 
                   const hasSubItems = item.subItems && item.subItems.length > 0;
-                  const showSubItems = hasSubItems && isParentActive;
+                  const showSubItems = hasSubItems && isParentActive && !collapsed;
                   const Icon = item.icon;
 
                   return (
                     <div key={item.href}>
                       <Link
                         href={item.soon ? "#" : item.href}
+                        title={collapsed ? item.label : undefined}
                         className={cn(
-                          "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all",
+                          "group relative flex items-center rounded-lg py-2 text-sm transition-all",
+                          collapsed ? "justify-center px-0" : "gap-2.5 px-3",
                           isParentActive
                             ? "bg-primary/15 text-foreground"
                             : item.soon
@@ -233,13 +274,15 @@ export function Sidebar({ papel, nome }: SidebarProps) {
                             isParentActive ? "text-primary" : ""
                           )}
                         />
-                        <span className="flex-1 font-medium">{item.label}</span>
-                        {item.badge && !item.soon && (
+                        {!collapsed && (
+                          <span className="flex-1 font-medium">{item.label}</span>
+                        )}
+                        {!collapsed && item.badge && !item.soon && (
                           <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/20 px-1.5 text-[10px] font-semibold text-primary">
                             {item.badge}
                           </span>
                         )}
-                        {item.soon && (
+                        {!collapsed && item.soon && (
                           <span className="text-[9px] font-medium uppercase tracking-wider text-label-tertiary">
                             em breve
                           </span>
@@ -280,20 +323,49 @@ export function Sidebar({ papel, nome }: SidebarProps) {
         </div>
       </nav>
 
+      {/* Recolher / expandir */}
+      <button
+        onClick={toggleCollapsed}
+        title={collapsed ? "Expandir menu" : "Recolher menu"}
+        aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+        aria-pressed={collapsed}
+        className={cn(
+          "flex items-center border-t border-sidebar-border text-muted-foreground transition-colors hover:bg-fill-4 hover:text-foreground",
+          collapsed ? "justify-center py-3" : "gap-2.5 px-4 py-2.5",
+        )}
+      >
+        {collapsed ? (
+          <ChevronsRight className="h-4 w-4" />
+        ) : (
+          <>
+            <ChevronsLeft className="h-4 w-4" />
+            <span className="text-xs font-medium">Recolher</span>
+          </>
+        )}
+      </button>
+
       {/* User info */}
-      <div className="border-t border-sidebar-border p-3">
-        <div className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-fill-4">
+      <div className={cn("border-t border-sidebar-border", collapsed ? "p-2" : "p-3")}>
+        <div
+          className={cn(
+            "flex items-center rounded-lg transition-colors hover:bg-fill-4",
+            collapsed ? "flex-col gap-2 p-1.5" : "gap-2.5 px-2 py-2 text-left",
+          )}
+        >
           <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground">
             {nome.charAt(0).toUpperCase()}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="truncate text-xs font-medium text-foreground">{nome}</p>
-            <p className="truncate text-[10px] text-muted-foreground capitalize">{papel.replace("_", " ")}</p>
-          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="truncate text-xs font-medium text-foreground">{nome}</p>
+              <p className="truncate text-[10px] text-muted-foreground capitalize">{papel.replace("_", " ")}</p>
+            </div>
+          )}
           <button
             onClick={handleLogout}
             className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-fill-4"
             aria-label="Sair"
+            title="Sair"
           >
             <LogOut className="h-3.5 w-3.5" />
           </button>
