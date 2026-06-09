@@ -31,11 +31,11 @@ export function SafraFilter({ safras, className }: SafraFilterProps) {
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <Filter className="h-4 w-4 text-zinc-500" />
+      <Filter className="h-4 w-4 text-muted-foreground" />
       <select
         value={currentSafra}
         onChange={(e) => handleChange(e.target.value)}
-        className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-1.5 text-sm text-zinc-300 outline-none transition-colors hover:border-zinc-600 focus:border-indigo-500"
+        className="rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground outline-none transition-colors hover:border-fill-2 focus:border-primary"
       >
         <option value="">Todas as Safras</option>
         {safras.map((s) => (

@@ -19,33 +19,33 @@ interface CommercialFunnelSectionProps {
 
 export function CommercialFunnelSection({ data }: CommercialFunnelSectionProps) {
   const steps: FunnelStep[] = [
-    { label: "Leads Qualificados", value: data.leads_qualified, color: "text-zinc-300", bg: "bg-zinc-700/30" },
-    { label: "Reuniões Realizadas", value: data.meetings_done, color: "text-indigo-300", bg: "bg-indigo-500/10" },
-    { label: "Propostas Enviadas", value: data.proposals_sent, color: "text-blue-300", bg: "bg-blue-500/10" },
-    { label: "Contratos Assinados", value: data.contracts_signed, color: "text-violet-300", bg: "bg-violet-500/10" },
-    { label: "Sinais Pagos", value: data.signals_paid, color: "text-cyan-300", bg: "bg-cyan-500/10" },
-    { label: "Concluídos", value: data.auto_conversions, color: "text-emerald-300", bg: "bg-emerald-500/10" },
+    { label: "Leads Qualificados", value: data.leads_qualified, color: "text-muted-foreground", bg: "bg-secondary/50" },
+    { label: "Reuniões Realizadas", value: data.meetings_done, color: "text-primary", bg: "bg-primary/10" },
+    { label: "Propostas Enviadas", value: data.proposals_sent, color: "text-sys-blue", bg: "bg-sys-blue/10" },
+    { label: "Contratos Assinados", value: data.contracts_signed, color: "text-plan-journey", bg: "bg-plan-journey/10" },
+    { label: "Sinais Pagos", value: data.signals_paid, color: "text-sys-teal", bg: "bg-sys-teal/10" },
+    { label: "Concluídos", value: data.auto_conversions, color: "text-sys-green", bg: "bg-sys-green/10" },
   ];
 
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-      <h3 className="text-sm font-semibold text-zinc-100">Funil Comercial</h3>
-      <p className="mt-0.5 text-xs text-zinc-500">Performance por etapa do processo de vendas</p>
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h3 className="text-sm font-semibold text-foreground">Funil Comercial</h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">Performance por etapa do processo de vendas</p>
 
       <div className="mt-5 flex items-center gap-1 overflow-x-auto pb-2">
         {steps.map((step, idx) => (
           <div key={step.label} className="flex items-center gap-1">
-            <div className={`flex flex-col items-center rounded-xl border border-[#1e2130] px-3 py-3 ${step.bg} min-w-[100px]`}>
+            <div className={`flex flex-col items-center rounded-xl border border-border px-3 py-3 ${step.bg} min-w-[100px]`}>
               <p className={`text-2xl font-bold tabular-nums ${step.color}`}>{step.value}</p>
-              <p className="mt-1 text-center text-[9px] text-zinc-500 leading-tight">{step.label}</p>
+              <p className="mt-1 text-center text-[9px] text-muted-foreground leading-tight">{step.label}</p>
               {idx > 0 && (
-                <p className="mt-1 text-[9px] font-semibold text-zinc-600">
+                <p className="mt-1 text-[9px] font-semibold text-label-tertiary">
                   {conversionRate(steps[idx - 1].value, step.value)} conv.
                 </p>
               )}
             </div>
             {idx < steps.length - 1 && (
-              <ArrowRight className="h-4 w-4 flex-shrink-0 text-zinc-700" />
+              <ArrowRight className="h-4 w-4 flex-shrink-0 text-border" />
             )}
           </div>
         ))}

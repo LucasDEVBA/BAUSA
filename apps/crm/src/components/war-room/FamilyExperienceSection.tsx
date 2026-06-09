@@ -10,11 +10,11 @@ interface ExperienceChipProps {
 }
 
 const VARIANT_STYLES = {
-  default: { card: "border-[#1e2130] bg-[#141720]", icon: "bg-zinc-800 text-zinc-400", value: "text-zinc-100" },
-  danger: { card: "border-red-500/20 bg-red-500/5", icon: "bg-red-500/10 text-red-400", value: "text-red-400" },
-  success: { card: "border-emerald-500/20 bg-emerald-500/5", icon: "bg-emerald-500/10 text-emerald-400", value: "text-emerald-400" },
-  warning: { card: "border-amber-500/20 bg-amber-500/5", icon: "bg-amber-500/10 text-amber-400", value: "text-amber-400" },
-  purple: { card: "border-purple-500/20 bg-purple-500/5", icon: "bg-purple-500/10 text-purple-400", value: "text-purple-400" },
+  default: { card: "border-border bg-card", icon: "bg-secondary text-muted-foreground", value: "text-foreground" },
+  danger: { card: "border-sys-red/20 bg-sys-red/5", icon: "bg-sys-red/10 text-sys-red", value: "text-sys-red" },
+  success: { card: "border-sys-green/20 bg-sys-green/5", icon: "bg-sys-green/10 text-sys-green", value: "text-sys-green" },
+  warning: { card: "border-sys-orange/20 bg-sys-orange/5", icon: "bg-sys-orange/10 text-sys-orange", value: "text-sys-orange" },
+  purple: { card: "border-plan-legacy/20 bg-plan-legacy/5", icon: "bg-plan-legacy/10 text-plan-legacy", value: "text-plan-legacy" },
 };
 
 function ExperienceChip({ icon: Icon, label, value, sublabel, variant }: ExperienceChipProps) {
@@ -26,8 +26,8 @@ function ExperienceChip({ icon: Icon, label, value, sublabel, variant }: Experie
       </div>
       <div>
         <p className={`text-2xl font-bold tabular-nums ${styles.value}`}>{value}</p>
-        <p className="text-xs text-zinc-400 leading-tight">{label}</p>
-        {sublabel && <p className="mt-0.5 text-[10px] text-zinc-600">{sublabel}</p>}
+        <p className="text-xs text-muted-foreground leading-tight">{label}</p>
+        {sublabel && <p className="mt-0.5 text-[10px] text-label-tertiary">{sublabel}</p>}
       </div>
     </div>
   );

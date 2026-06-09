@@ -12,30 +12,30 @@ export function CashFlowSection({ data }: CashFlowSectionProps) {
       sublabel: "Março 2026",
       value: data.net_received_usd,
       icon: DollarSign,
-      color: "text-emerald-400",
-      border: "border-emerald-500/20",
-      bg: "bg-emerald-500/5",
-      iconBg: "bg-emerald-500/10",
+      color: "text-sys-green",
+      border: "border-sys-green/20",
+      bg: "bg-sys-green/5",
+      iconBg: "bg-sys-green/10",
     },
     {
       label: "Prevista — 30 dias",
       sublabel: "Abril 2026",
       value: data.projected_30d_usd,
       icon: ArrowRight,
-      color: "text-indigo-400",
-      border: "border-indigo-500/20",
-      bg: "bg-indigo-500/5",
-      iconBg: "bg-indigo-500/10",
+      color: "text-primary",
+      border: "border-primary/20",
+      bg: "bg-primary/5",
+      iconBg: "bg-primary/10",
     },
     {
       label: "Prevista — 90 dias",
       sublabel: "Mai–Jun 2026",
       value: data.projected_90d_usd,
       icon: TrendingUp,
-      color: "text-purple-400",
-      border: "border-purple-500/20",
-      bg: "bg-purple-500/5",
-      iconBg: "bg-purple-500/10",
+      color: "text-plan-legacy",
+      border: "border-plan-legacy/20",
+      bg: "bg-plan-legacy/5",
+      iconBg: "bg-plan-legacy/10",
     },
   ];
 
@@ -50,8 +50,8 @@ export function CashFlowSection({ data }: CashFlowSectionProps) {
           >
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs text-zinc-400">{item.label}</p>
-                <p className="text-[10px] text-zinc-600">{item.sublabel}</p>
+                <p className="text-xs text-muted-foreground">{item.label}</p>
+                <p className="text-[10px] text-label-tertiary">{item.sublabel}</p>
               </div>
               <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.iconBg}`}>
                 <Icon className={`h-4 w-4 ${item.color}`} />

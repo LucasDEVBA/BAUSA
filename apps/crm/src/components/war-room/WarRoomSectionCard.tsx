@@ -4,39 +4,39 @@ import { cn } from "@/lib/utils";
 
 const VARIANT_STYLES = {
   default: {
-    card: "border-[#1e2130] hover:border-zinc-600",
-    icon: "bg-zinc-800 text-zinc-300",
-    accent: "bg-zinc-700",
+    card: "border-border hover:border-fill-2",
+    icon: "bg-secondary text-muted-foreground",
+    accent: "bg-fill-2",
   },
   danger: {
-    card: "border-red-500/20 hover:border-red-500/40",
-    icon: "bg-red-500/10 text-red-400",
-    accent: "bg-red-500",
+    card: "border-sys-red/20 hover:border-sys-red/40",
+    icon: "bg-sys-red/10 text-sys-red",
+    accent: "bg-sys-red",
   },
   warning: {
-    card: "border-amber-500/20 hover:border-amber-500/40",
-    icon: "bg-amber-500/10 text-amber-400",
-    accent: "bg-amber-500",
+    card: "border-sys-orange/20 hover:border-sys-orange/40",
+    icon: "bg-sys-orange/10 text-sys-orange",
+    accent: "bg-sys-orange",
   },
   success: {
-    card: "border-emerald-500/20 hover:border-emerald-500/40",
-    icon: "bg-emerald-500/10 text-emerald-400",
-    accent: "bg-emerald-500",
+    card: "border-sys-green/20 hover:border-sys-green/40",
+    icon: "bg-sys-green/10 text-sys-green",
+    accent: "bg-sys-green",
   },
   blue: {
-    card: "border-blue-500/20 hover:border-blue-500/40",
-    icon: "bg-blue-500/10 text-blue-400",
-    accent: "bg-blue-500",
+    card: "border-sys-blue/20 hover:border-sys-blue/40",
+    icon: "bg-sys-blue/10 text-sys-blue",
+    accent: "bg-sys-blue",
   },
   purple: {
-    card: "border-purple-500/20 hover:border-purple-500/40",
-    icon: "bg-purple-500/10 text-purple-400",
-    accent: "bg-purple-500",
+    card: "border-plan-legacy/20 hover:border-plan-legacy/40",
+    icon: "bg-plan-legacy/10 text-plan-legacy",
+    accent: "bg-plan-legacy",
   },
   indigo: {
-    card: "border-indigo-500/20 hover:border-indigo-500/40",
-    icon: "bg-indigo-500/10 text-indigo-400",
-    accent: "bg-indigo-500",
+    card: "border-primary/20 hover:border-primary/40",
+    icon: "bg-primary/10 text-primary",
+    accent: "bg-primary",
   },
 } as const;
 
@@ -55,10 +55,10 @@ interface WarRoomSectionCardProps {
 }
 
 const BADGE_STYLES = {
-  danger: "bg-red-500/15 text-red-400 border border-red-500/30",
-  warning: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
-  success: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
-  neutral: "bg-zinc-700/50 text-zinc-400 border border-zinc-600/30",
+  danger: "bg-sys-red/15 text-sys-red border border-sys-red/30",
+  warning: "bg-sys-orange/15 text-sys-orange border border-sys-orange/30",
+  success: "bg-sys-green/15 text-sys-green border border-sys-green/30",
+  neutral: "bg-secondary text-muted-foreground border border-border",
 };
 
 export function WarRoomSectionCard({
@@ -75,7 +75,7 @@ export function WarRoomSectionCard({
     <Link
       href={href}
       className={cn(
-        "group relative flex flex-col gap-3 rounded-xl border bg-[#141720] p-4 transition-all hover:bg-[#1a1f2e]",
+        "group relative flex flex-col gap-3 rounded-xl border bg-card p-4 transition-all hover:bg-accent",
         styles.card
       )}
     >
@@ -88,15 +88,15 @@ export function WarRoomSectionCard({
           <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0", styles.icon)}>
             <Icon className="h-4 w-4" />
           </div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">{title}</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
         </div>
-        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-zinc-600 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-400 mt-0.5" />
+        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-label-tertiary transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground mt-0.5" />
       </div>
 
       {/* Metrics */}
       <div className="space-y-1 pl-0.5">
         {lines.map((line, i) => (
-          <p key={i} className={cn("text-sm font-medium", i === 0 ? "text-zinc-100" : "text-zinc-500")}>
+          <p key={i} className={cn("text-sm font-medium", i === 0 ? "text-foreground" : "text-muted-foreground")}>
             {line}
           </p>
         ))}

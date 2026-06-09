@@ -11,10 +11,10 @@ import {
 import { type Family } from "@/types/family";
 
 const RISK_COLORS: Record<string, string> = {
-  Baixo: "#10b981",
-  Médio: "#f59e0b",
-  Alto: "#f97316",
-  Crítico: "#ef4444",
+  Baixo: "var(--sys-green)",
+  Médio: "var(--sys-yellow)",
+  Alto: "var(--sys-orange)",
+  Crítico: "var(--sys-red)",
 };
 
 function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: PieLabelRenderProps) {
@@ -55,9 +55,9 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const item = payload[0];
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm shadow-lg">
-      <p className="font-medium text-zinc-100">{item.name}</p>
-      <p className="text-zinc-400">{item.value} {item.value === 1 ? "família" : "famílias"}</p>
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-sm shadow-lg">
+      <p className="font-medium text-foreground">{item.name}</p>
+      <p className="text-muted-foreground">{item.value} {item.value === 1 ? "família" : "famílias"}</p>
     </div>
   );
 }
@@ -83,9 +83,9 @@ export function FamilyRiskDonut({ families }: FamilyRiskDonutProps) {
   const data = Object.entries(grouped).map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-      <h3 className="text-sm font-semibold text-zinc-100">Distribuição de Risco</h3>
-      <p className="mt-0.5 text-xs text-zinc-500">Famílias por nível de risco</p>
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h3 className="text-sm font-semibold text-foreground">Distribuição de Risco</h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">Famílias por nível de risco</p>
 
       <div className="mt-4 h-48">
         <ResponsiveContainer width="100%" height="100%">
@@ -117,8 +117,8 @@ export function FamilyRiskDonut({ families }: FamilyRiskDonutProps) {
               className="h-2 w-2 rounded-full"
               style={{ backgroundColor: RISK_COLORS[item.name] }}
             />
-            <span className="text-xs text-zinc-400">{item.name}</span>
-            <span className="text-xs font-semibold text-zinc-200">{item.value}</span>
+            <span className="text-xs text-muted-foreground">{item.name}</span>
+            <span className="text-xs font-semibold text-foreground">{item.value}</span>
           </div>
         ))}
       </div>

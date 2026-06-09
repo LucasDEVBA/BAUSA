@@ -4,9 +4,9 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, type PieLabelRenderP
 import { type PositioningMetrics } from "@/types/revenue";
 
 const TIER_COLORS = {
-  Legacy: "#a78bfa",
-  Journey: "#60a5fa",
-  Start: "#71717a",
+  Legacy: "var(--plan-legacy)",
+  Journey: "var(--plan-journey)",
+  Start: "var(--plan-start)",
 };
 
 function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: PieLabelRenderProps) {
@@ -36,9 +36,9 @@ interface TooltipProps {
 function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs shadow-lg">
-      <p className="font-medium text-zinc-100">{payload[0].name}</p>
-      <p className="text-zinc-400">{payload[0].value}% do mix</p>
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+      <p className="font-medium text-foreground">{payload[0].name}</p>
+      <p className="text-muted-foreground">{payload[0].value}% do mix</p>
     </div>
   );
 }
@@ -63,9 +63,9 @@ export function PositioningSection({ data }: PositioningSectionProps) {
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* Donut de mix de produto */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-        <h3 className="text-sm font-semibold text-zinc-100">Mix de Produto</h3>
-        <p className="mt-0.5 text-xs text-zinc-500">Distribuição de contratos por tier</p>
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground">Mix de Produto</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">Distribuição de contratos por tier</p>
         <div className="mt-4 h-44">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -92,42 +92,42 @@ export function PositioningSection({ data }: PositioningSectionProps) {
           {tiers.map((tier) => (
             <div key={tier.name} className="flex items-center gap-2.5">
               <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: tier.color }} />
-              <span className="text-xs font-medium text-zinc-300 w-14">{tier.name}</span>
-              <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+              <span className="text-xs font-medium text-foreground w-14">{tier.name}</span>
+              <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-secondary">
                 <div className="h-full rounded-full" style={{ width: `${tier.pct}%`, backgroundColor: tier.color }} />
               </div>
-              <span className="text-xs text-zinc-500 w-8 text-right">{tier.pct}%</span>
+              <span className="text-xs text-muted-foreground w-8 text-right">{tier.pct}%</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Tabela ticket + desconto */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-        <h3 className="text-sm font-semibold text-zinc-100">Indicadores Comerciais</h3>
-        <p className="mt-0.5 text-xs text-zinc-500">Ticket, desconto e posicionamento</p>
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground">Indicadores Comerciais</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">Ticket, desconto e posicionamento</p>
 
         <div className="mt-5 space-y-4">
-          <div className="rounded-lg border border-[#1e2130] bg-[#0f1117] p-4">
-            <p className="text-xs text-zinc-500">Ticket Médio</p>
-            <p className="mt-1 text-3xl font-bold text-zinc-100">
+          <div className="rounded-lg border border-border bg-popover p-4">
+            <p className="text-xs text-muted-foreground">Ticket Médio</p>
+            <p className="mt-1 text-3xl font-bold text-foreground">
               US$ {(data.avg_ticket_usd / 1000).toFixed(1)}k
             </p>
-            <p className="mt-0.5 text-[10px] text-zinc-600">Por contrato fechado</p>
+            <p className="mt-0.5 text-[10px] text-label-tertiary">Por contrato fechado</p>
           </div>
 
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-            <p className="text-xs text-zinc-500">Contratos com Desconto</p>
-            <p className="mt-1 text-3xl font-bold text-amber-400">{data.pct_discounted}%</p>
-            <p className="mt-0.5 text-[10px] text-zinc-600">
+          <div className="rounded-lg border border-sys-orange/20 bg-sys-orange/5 p-4">
+            <p className="text-xs text-muted-foreground">Contratos com Desconto</p>
+            <p className="mt-1 text-3xl font-bold text-sys-orange">{data.pct_discounted}%</p>
+            <p className="mt-0.5 text-[10px] text-label-tertiary">
               {data.pct_discounted > 20 ? "Acima do limite recomendado (20%)" : "Dentro do limite recomendado"}
             </p>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
             {tiers.map((tier) => (
-              <div key={tier.name} className="rounded-lg border border-[#1e2130] p-2 text-center">
-                <p className="text-[10px] text-zinc-600">{tier.name}</p>
+              <div key={tier.name} className="rounded-lg border border-border p-2 text-center">
+                <p className="text-[10px] text-label-tertiary">{tier.name}</p>
                 <p className="text-base font-bold" style={{ color: tier.color }}>{tier.pct}%</p>
               </div>
             ))}

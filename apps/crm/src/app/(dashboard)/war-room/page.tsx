@@ -82,10 +82,10 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <Zap className="h-5 w-5 text-indigo-400" />
-            <h1 className="text-xl font-bold text-zinc-100">War Room Executivo</h1>
+            <Zap className="h-5 w-5 text-primary" />
+            <h1 className="text-title-2 text-foreground">War Room Executivo</h1>
           </div>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             Painel central do CEO — clique em qualquer secao para detalhar
           </p>
         </div>
@@ -93,9 +93,9 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           <Suspense fallback={null}>
             <SafraFilter safras={safras} />
           </Suspense>
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-            <span className="text-[11px] font-medium text-emerald-400">Ao vivo</span>
+          <div className="flex items-center gap-1.5 rounded-full border border-sys-green/20 bg-sys-green/10 px-3 py-1.5">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sys-green" />
+            <span className="text-[11px] font-medium text-sys-green">Ao vivo</span>
           </div>
         </div>
       </div>
@@ -107,8 +107,8 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       <TimingAlternativesCard data={timingAlternatives} />
 
       {/* Metas BAUSA strip */}
-      <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-5 py-4">
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-indigo-400">Metas Estrategicas 2026</p>
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-primary">Metas Estrategicas 2026</p>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
             {
@@ -116,40 +116,40 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
               value: "R$ 1,5M",
               sub: `${metaAnualPct}% atingido`,
               pct: metaAnualPct,
-              color: "text-indigo-400",
-              bar: "bg-indigo-500",
+              color: "text-primary",
+              bar: "bg-primary",
             },
             {
               label: "Meta Mensal",
               value: "R$ 125k",
               sub: `${metaPct}% do mes`,
               pct: metaPct,
-              color: metaPct >= 80 ? "text-emerald-400" : metaPct >= 50 ? "text-amber-400" : "text-red-400",
-              bar: metaPct >= 80 ? "bg-emerald-500" : metaPct >= 50 ? "bg-amber-500" : "bg-red-500",
+              color: metaPct >= 80 ? "text-sys-green" : metaPct >= 50 ? "text-sys-orange" : "text-sys-red",
+              bar: metaPct >= 80 ? "bg-sys-green" : metaPct >= 50 ? "bg-sys-orange" : "bg-sys-red",
             },
             {
               label: "Ticket Medio (pix)",
               value: "R$ 23k",
               sub: `base de referencia`,
               pct: null as number | null,
-              color: "text-purple-400",
-              bar: "bg-purple-500",
+              color: "text-plan-legacy",
+              bar: "bg-plan-legacy",
             },
             {
               label: "Contratos/Mes",
               value: `${METAS_BAUSA.contratos_por_mes}`,
               sub: `${funil.contracts_signed} fechados`,
               pct: Math.round((funil.contracts_signed / METAS_BAUSA.contratos_por_mes) * 100),
-              color: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "text-emerald-400" : "text-amber-400",
-              bar: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "bg-emerald-500" : "bg-amber-500",
+              color: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "text-sys-green" : "text-sys-orange",
+              bar: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "bg-sys-green" : "bg-sys-orange",
             },
           ].map((kpi) => (
             <div key={kpi.label}>
-              <p className="text-[10px] text-zinc-600">{kpi.label}</p>
+              <p className="text-[10px] text-label-tertiary">{kpi.label}</p>
               <p className={cn("text-lg font-bold", kpi.color)}>{kpi.value}</p>
-              <p className="text-[10px] text-zinc-500 mb-1.5">{kpi.sub}</p>
+              <p className="text-[10px] text-muted-foreground mb-1.5">{kpi.sub}</p>
               {kpi.pct !== null && (
-                <div className="h-1 rounded-full bg-[#1e2130]">
+                <div className="h-1 rounded-full bg-secondary">
                   <div className={cn("h-full rounded-full", kpi.bar)} style={{ width: `${Math.min(100, kpi.pct)}%` }} />
                 </div>
               )}
@@ -160,47 +160,47 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
-            <DollarSign className="h-4 w-4 text-emerald-400" />
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-green/10">
+            <DollarSign className="h-4 w-4 text-sys-green" />
           </div>
           <div>
-            <p className="text-[10px] text-zinc-500">Receita mes</p>
-            <p className="text-sm font-bold text-emerald-400">
+            <p className="text-[10px] text-muted-foreground">Receita mes</p>
+            <p className="text-sm font-bold text-sys-green">
               R$ {(m.mrr_usd / 1000).toFixed(0)}k
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
-            <Layers className="h-4 w-4 text-blue-400" />
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/10">
+            <Layers className="h-4 w-4 text-sys-blue" />
           </div>
           <div>
-            <p className="text-[10px] text-zinc-500">Pipeline total</p>
-            <p className={cn("text-sm font-bold", isPipelineHealthy ? "text-blue-400" : "text-amber-400")}>
+            <p className="text-[10px] text-muted-foreground">Pipeline total</p>
+            <p className={cn("text-sm font-bold", isPipelineHealthy ? "text-sys-blue" : "text-sys-orange")}>
               R$ {(m.pipeline_total_usd / 1000).toFixed(0)}k
             </p>
-            <p className="text-[10px] text-zinc-600">{pipelineRatio}x meta (ideal 3-5x)</p>
+            <p className="text-[10px] text-label-tertiary">{pipelineRatio}x meta (ideal 3-5x)</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10">
-            <BarChart2 className="h-4 w-4 text-indigo-400" />
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+            <BarChart2 className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <p className="text-[10px] text-zinc-500">Conversao</p>
-            <p className="text-sm font-bold text-zinc-100">{m.conversion_rate}%</p>
+            <p className="text-[10px] text-muted-foreground">Conversao</p>
+            <p className="text-sm font-bold text-foreground">{m.conversion_rate}%</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
-            <Users className="h-4 w-4 text-purple-400" />
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-plan-legacy/10">
+            <Users className="h-4 w-4 text-plan-legacy" />
           </div>
           <div>
-            <p className="text-[10px] text-zinc-500">Familias</p>
-            <p className="text-sm font-bold text-purple-400">{familyMetrics.total} ativas</p>
+            <p className="text-[10px] text-muted-foreground">Familias</p>
+            <p className="text-sm font-bold text-plan-legacy">{familyMetrics.total} ativas</p>
             {familyMetrics.crise > 0 && (
-              <p className="text-[10px] text-red-400">{familyMetrics.crise} em crise!</p>
+              <p className="text-[10px] text-sys-red">{familyMetrics.crise} em crise!</p>
             )}
           </div>
         </div>
@@ -298,23 +298,23 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       {/* Alertas + acoes */}
       <div className="grid gap-3 lg:grid-cols-2">
         {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3">
+          <div className="rounded-xl border border-sys-red/20 bg-sys-red/5 px-4 py-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-400" />
-                <p className="text-xs font-semibold text-red-400">
+                <AlertTriangle className="h-4 w-4 text-sys-red" />
+                <p className="text-xs font-semibold text-sys-red">
                   {criticalAlerts.length} critico{criticalAlerts.length !== 1 ? "s" : ""}
                   {warningAlerts.length > 0 && ` . ${warningAlerts.length} atencao`}
                 </p>
               </div>
-              <a href="/war-room/risco" className="text-[11px] font-semibold text-red-400 hover:underline">
+              <a href="/war-room/risco" className="text-[11px] font-semibold text-sys-red hover:underline">
                 Ver todos &rarr;
               </a>
             </div>
             <div className="space-y-1">
               {[...criticalAlerts, ...warningAlerts].slice(0, 3).map((alert) => (
-                <p key={alert.id} className="text-xs text-zinc-400">
-                  <span className={cn("font-medium", alert.type === "critical" ? "text-red-400" : "text-amber-400")}>
+                <p key={alert.id} className="text-xs text-muted-foreground">
+                  <span className={cn("font-medium", alert.type === "critical" ? "text-sys-red" : "text-sys-orange")}>
                     {alert.type === "critical" ? "! " : ". "}
                   </span>
                   {alert.title}
@@ -325,22 +325,22 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
         )}
 
         {dealsWithoutNextAction.length > 0 ? (
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+          <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 px-4 py-3">
             <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="h-4 w-4 text-amber-400" />
-              <p className="text-xs font-semibold text-amber-400">
+              <AlertTriangle className="h-4 w-4 text-sys-orange" />
+              <p className="text-xs font-semibold text-sys-orange">
                 {dealsWithoutNextAction.length} deal{dealsWithoutNextAction.length !== 1 ? "s" : ""} sem proxima acao definida
               </p>
             </div>
             {dealsWithoutNextAction.slice(0, 3).map((deal) => (
-              <p key={deal.id} className="text-xs text-zinc-500">. {deal.athlete_name} — {deal.stage}</p>
+              <p key={deal.id} className="text-xs text-muted-foreground">. {deal.athlete_name} — {deal.stage}</p>
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+          <div className="rounded-xl border border-sys-green/20 bg-sys-green/5 px-4 py-3">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-emerald-400" />
-              <p className="text-xs font-semibold text-emerald-400">Todos os deals tem proxima acao definida</p>
+              <CheckCircle className="h-4 w-4 text-sys-green" />
+              <p className="text-xs font-semibold text-sys-green">Todos os deals tem proxima acao definida</p>
             </div>
           </div>
         )}
