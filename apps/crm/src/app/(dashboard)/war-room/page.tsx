@@ -58,22 +58,22 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
   const warningAlerts = alerts.filter((a) => a.type === "warning");
 
   const totalRiskBrl =
-    risco.contracts_without_signature_usd +
-    risco.unpaid_signals_usd +
-    risco.pending_remaining_usd;
+    risco.contracts_without_signature_brl +
+    risco.unpaid_signals_brl +
+    risco.pending_remaining_brl;
 
   const funnelConversionPct = funil.leads_qualified > 0
     ? Math.round((funil.contracts_signed / funil.leads_qualified) * 100)
     : 0;
-  const metaPct = meta.monthly_target_usd > 0
-    ? Math.round((meta.net_revenue_month_usd / meta.monthly_target_usd) * 100)
+  const metaPct = meta.monthly_target_brl > 0
+    ? Math.round((meta.net_revenue_month_brl / meta.monthly_target_brl) * 100)
     : 0;
   const metaAnualPct = METAS_BAUSA.meta_anual_brl > 0
-    ? Math.round((m.revenue_ytd_usd / METAS_BAUSA.meta_anual_brl) * 100)
+    ? Math.round((m.revenue_ytd_brl / METAS_BAUSA.meta_anual_brl) * 100)
     : 0;
 
   // Pipeline health (ideal: 3-5x meta mensal)
-  const pipelineRatio = (m.pipeline_total_usd / METAS_BAUSA.meta_mensal_brl).toFixed(1);
+  const pipelineRatio = (m.pipeline_total_brl / METAS_BAUSA.meta_mensal_brl).toFixed(1);
   const isPipelineHealthy = parseFloat(pipelineRatio) >= 3;
 
   return (
@@ -167,7 +167,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           <div>
             <p className="text-[10px] text-muted-foreground">Receita mes</p>
             <p className="text-sm font-bold text-sys-green">
-              R$ {(m.mrr_usd / 1000).toFixed(0)}k
+              R$ {(m.mrr_brl / 1000).toFixed(0)}k
             </p>
           </div>
         </div>
@@ -178,7 +178,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           <div>
             <p className="text-[10px] text-muted-foreground">Pipeline total</p>
             <p className={cn("text-sm font-bold", isPipelineHealthy ? "text-sys-blue" : "text-sys-orange")}>
-              R$ {(m.pipeline_total_usd / 1000).toFixed(0)}k
+              R$ {(m.pipeline_total_brl / 1000).toFixed(0)}k
             </p>
             <p className="text-[10px] text-label-tertiary">{pipelineRatio}x meta (ideal 3-5x)</p>
           </div>
@@ -214,12 +214,12 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           icon={Target}
           variant="success"
           lines={[
-            `R$ ${(meta.net_revenue_month_usd / 1000).toFixed(0)}k recebido / R$ ${(meta.monthly_target_usd / 1000).toFixed(0)}k meta (${metaPct}%)`,
-            `Projecao: R$ ${(meta.projected_revenue_usd / 1000).toFixed(0)}k ate fim do mes`,
+            `R$ ${(meta.net_revenue_month_brl / 1000).toFixed(0)}k recebido / R$ ${(meta.monthly_target_brl / 1000).toFixed(0)}k meta (${metaPct}%)`,
+            `Projecao: R$ ${(meta.projected_revenue_brl / 1000).toFixed(0)}k ate fim do mes`,
           ]}
           badge={{
-            label: `Gap ${meta.gap_to_target_usd < 0 ? "-" : "+"}R$ ${Math.abs(meta.gap_to_target_usd / 1000).toFixed(0)}k`,
-            variant: meta.gap_to_target_usd < 0 ? "danger" : "success",
+            label: `Gap ${meta.gap_to_target_brl < 0 ? "-" : "+"}R$ ${Math.abs(meta.gap_to_target_brl / 1000).toFixed(0)}k`,
+            variant: meta.gap_to_target_brl < 0 ? "danger" : "success",
           }}
         />
 
@@ -245,8 +245,8 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           icon={DollarSign}
           variant="blue"
           lines={[
-            `Recebido: R$ ${(caixa.net_received_usd / 1000).toFixed(0)}k`,
-            `Proj. 30d: R$ ${(caixa.projected_30d_usd / 1000).toFixed(0)}k . 90d: R$ ${(caixa.projected_90d_usd / 1000).toFixed(0)}k`,
+            `Recebido: R$ ${(caixa.net_received_brl / 1000).toFixed(0)}k`,
+            `Proj. 30d: R$ ${(caixa.projected_30d_brl / 1000).toFixed(0)}k . 90d: R$ ${(caixa.projected_90d_brl / 1000).toFixed(0)}k`,
           ]}
         />
 
@@ -272,7 +272,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           variant="purple"
           lines={[
             `Legacy ${pos.pct_legacy}% . Journey ${pos.pct_journey}% . Start ${pos.pct_start}%`,
-            `Ticket medio R$ ${(pos.avg_ticket_usd / 1000).toFixed(0)}k . ${pos.pct_discounted}% com desconto`,
+            `Ticket medio R$ ${(pos.avg_ticket_brl / 1000).toFixed(0)}k . ${pos.pct_discounted}% com desconto`,
           ]}
         />
 

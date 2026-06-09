@@ -12,9 +12,9 @@ export function AnalyticsExportButton({ revenueMonths }: AnalyticsExportButtonPr
 
   const rows = revenueMonths.map((m) => [
     m.month_label,
-    m.contracted_usd.toLocaleString("pt-BR"),
-    m.received_usd.toLocaleString("pt-BR"),
-    m.projected_usd.toLocaleString("pt-BR"),
+    m.contracted_brl.toLocaleString("pt-BR"),
+    m.received_brl.toLocaleString("pt-BR"),
+    m.projected_brl.toLocaleString("pt-BR"),
   ]);
 
   return (
