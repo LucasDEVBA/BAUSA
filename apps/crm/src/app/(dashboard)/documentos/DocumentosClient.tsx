@@ -43,32 +43,32 @@ const STATUS_CONFIG: Record<
 > = {
   pendente: {
     label: "Pendente",
-    color: "text-zinc-400",
-    bg: "bg-zinc-500/10 border-zinc-500/20",
+    color: "text-muted-foreground",
+    bg: "bg-secondary border-border",
     icon: Clock,
   },
   enviado_atleta: {
     label: "Enviado",
-    color: "text-blue-400",
-    bg: "bg-blue-500/10 border-blue-500/20",
+    color: "text-sys-blue",
+    bg: "bg-sys-blue/15 border-sys-blue/20",
     icon: Send,
   },
   revisado: {
     label: "Revisado",
-    color: "text-amber-400",
-    bg: "bg-amber-500/10 border-amber-500/20",
+    color: "text-sys-orange",
+    bg: "bg-sys-orange/15 border-sys-orange/20",
     icon: Eye,
   },
   enviado_escola: {
     label: "Enviado Escola",
-    color: "text-purple-400",
-    bg: "bg-purple-500/10 border-purple-500/20",
+    color: "text-plan-legacy",
+    bg: "bg-plan-legacy/15 border-plan-legacy/20",
     icon: Send,
   },
   aprovado: {
     label: "Aprovado",
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10 border-emerald-500/20",
+    color: "text-sys-green",
+    bg: "bg-sys-green/15 border-sys-green/20",
     icon: CheckCircle2,
   },
 };
@@ -222,16 +222,16 @@ export function DocumentosClient({
       {docsUrgentes.length > 0 && (
         <button
           onClick={handleScrollToUrgent}
-          className="mb-4 flex w-full items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-5 py-3 text-left transition-colors hover:bg-amber-500/15"
+          className="mb-4 flex w-full items-center gap-3 rounded-xl border border-sys-orange/30 bg-sys-orange/10 px-5 py-3 text-left transition-colors hover:bg-sys-orange/15"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/20">
-            <AlertTriangle className="h-4 w-4 text-amber-400" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sys-orange/20">
+            <AlertTriangle className="h-4 w-4 text-sys-orange" />
           </div>
           <div>
-            <p className="text-sm font-bold text-amber-400">
+            <p className="text-sm font-bold text-sys-orange">
               {docsUrgentes.length} documento{docsUrgentes.length !== 1 ? "s" : ""} com deadline proximo
             </p>
-            <p className="text-xs text-amber-300/70">
+            <p className="text-xs text-sys-orange/70">
               Documentos com prazo inferior a 14 dias e ainda nao aprovados
             </p>
           </div>
@@ -240,31 +240,31 @@ export function DocumentosClient({
 
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <FileText className="h-5 w-5 text-indigo-400" />
-          <h1 className="text-xl font-bold text-white">Documentos</h1>
+          <FileText className="h-5 w-5 text-primary" />
+          <h1 className="text-title-2 text-foreground">Documentos</h1>
         </div>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-muted-foreground">
           Checklist de documentos por atleta — acompanhe status e prazos
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         {/* Sidebar: lista de atletas */}
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
+        <div className="rounded-xl border border-border bg-card p-4">
           <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               placeholder="Buscar atleta..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] pl-9 pr-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:border-indigo-500/50 focus:outline-none"
+              className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-primary/50 focus:outline-none"
             />
           </div>
 
           <div className="space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto">
             {filteredAtletas.length === 0 && (
-              <p className="py-4 text-center text-xs text-zinc-600">
+              <p className="py-4 text-center text-xs text-label-tertiary">
                 Nenhum atleta encontrado
               </p>
             )}
@@ -279,22 +279,22 @@ export function DocumentosClient({
                   key={a.id}
                   onClick={() => setSelectedAtletaId(a.id)}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-all",
+                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-all",
                     isSelected
-                      ? "bg-indigo-600/20 text-white"
-                      : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+                      ? "bg-primary/15 text-foreground"
+                      : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
                   )}
                 >
                   <div className="flex-1 min-w-0">
                     <p className="truncate font-medium">{a.nome_completo}</p>
-                    <p className="text-[10px] text-zinc-600">
+                    <p className="text-[10px] text-label-tertiary">
                       {aTotal > 0
                         ? `${aAprovados}/${aTotal} aprovados`
                         : "Sem documentos"}
                     </p>
                   </div>
                   {isSelected && (
-                    <ChevronRight className="h-4 w-4 flex-shrink-0 text-indigo-400" />
+                    <ChevronRight className="h-4 w-4 flex-shrink-0 text-primary" />
                   )}
                 </button>
               );
@@ -303,31 +303,31 @@ export function DocumentosClient({
         </div>
 
         {/* Main: checklist do atleta selecionado */}
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           {!selectedAtleta ? (
-            <div className="flex h-40 items-center justify-center text-sm text-zinc-600">
+            <div className="flex h-40 items-center justify-center text-sm text-label-tertiary">
               Selecione um atleta para ver o checklist
             </div>
           ) : (
             <>
               <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">
+                  <h2 className="text-lg font-semibold text-foreground">
                     {selectedAtleta.nome_completo}
                   </h2>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-muted-foreground">
                     {aprovados}/{total} documentos aprovados
                   </p>
                 </div>
                 {total > 0 && (
                   <div className="flex items-center gap-3">
-                    <div className="w-32 h-2 rounded-full bg-[#1e2130] overflow-hidden">
+                    <div className="w-32 h-2 rounded-full bg-secondary overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-emerald-500 transition-all"
+                        className="h-full rounded-full bg-sys-green transition-all"
                         style={{ width: `${progressPct}%` }}
                       />
                     </div>
-                    <span className="text-xs font-semibold text-zinc-400">
+                    <span className="text-xs font-semibold text-muted-foreground">
                       {progressPct}%
                     </span>
                   </div>
@@ -337,7 +337,7 @@ export function DocumentosClient({
               {/* Document list */}
               <div className="space-y-2 mb-6">
                 {atletaDocs.length === 0 && (
-                  <p className="py-8 text-center text-sm text-zinc-600">
+                  <p className="py-8 text-center text-sm text-label-tertiary">
                     Nenhum documento cadastrado. Adicione abaixo.
                   </p>
                 )}
@@ -355,12 +355,12 @@ export function DocumentosClient({
                   return (
                     <div
                       key={doc.id}
-                      className="flex items-center gap-3 rounded-lg border border-[#1e2130] bg-[#0c0e16] px-4 py-3"
+                      className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3"
                     >
                       <Icon className={cn("h-4 w-4 flex-shrink-0", cfg.color)} />
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-zinc-200">
+                        <p className="text-sm font-medium text-foreground">
                           {tipoLabel}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
@@ -378,10 +378,10 @@ export function DocumentosClient({
                               className={cn(
                                 "text-[10px]",
                                 isOverdue
-                                  ? "text-red-400 font-semibold"
+                                  ? "text-sys-red font-semibold"
                                   : isUrgent
-                                  ? "text-amber-400 font-semibold"
-                                  : "text-zinc-600"
+                                  ? "text-sys-orange font-semibold"
+                                  : "text-label-tertiary"
                               )}
                             >
                               {isOverdue && (
@@ -403,13 +403,13 @@ export function DocumentosClient({
                               href={doc.arquivo_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-[10px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                              className="flex items-center gap-1 text-[10px] font-medium text-primary hover:text-primary/80 transition-colors"
                               title={doc.arquivo_nome ?? "Arquivo"}
                             >
                               <ExternalLink className="h-3 w-3" />
                               <span className="max-w-[80px] truncate">{doc.arquivo_nome ?? "Arquivo"}</span>
                             </a>
-                            <label className="flex cursor-pointer items-center gap-1 rounded-md border border-[#1e2130] px-2 py-1 text-[10px] text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300">
+                            <label className="flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-fill-4 hover:text-foreground">
                               <RefreshCw className="h-2.5 w-2.5" />
                               Substituir
                               <input
@@ -426,7 +426,7 @@ export function DocumentosClient({
                         ) : (
                           <label
                             className={cn(
-                              "flex cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-[#1e2130] bg-[#141720] px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-indigo-600/10 hover:text-indigo-300 hover:border-indigo-500/30",
+                              "flex cursor-pointer items-center gap-1.5 rounded-xl border border-dashed border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary hover:border-primary/30",
                               uploadingDocId === doc.id && "opacity-50 pointer-events-none",
                             )}
                           >
@@ -454,7 +454,7 @@ export function DocumentosClient({
                         <button
                           onClick={() => handleAdvanceStatus(doc)}
                           disabled={isPending}
-                          className="flex items-center gap-1.5 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-indigo-600/20 hover:text-white hover:border-indigo-500/30 disabled:opacity-40"
+                          className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/15 hover:text-foreground hover:border-primary/30 disabled:opacity-40"
                         >
                           <ChevronRight className="h-3 w-3" />
                           {STATUS_CONFIG[next].label}
@@ -467,8 +467,8 @@ export function DocumentosClient({
 
               {/* Add document */}
               {missingTypes.length > 0 && (
-                <div className="rounded-lg border border-dashed border-[#1e2130] p-4">
-                  <p className="mb-3 text-xs font-semibold text-zinc-500">
+                <div className="rounded-xl border border-dashed border-border p-4">
+                  <p className="mb-3 text-xs font-semibold text-muted-foreground">
                     Adicionar documento
                   </p>
                   <div className="flex flex-wrap gap-2 mb-3">
@@ -481,8 +481,8 @@ export function DocumentosClient({
                         className={cn(
                           "rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
                           addingType === t.value
-                            ? "border-indigo-500/30 bg-indigo-600/20 text-indigo-300"
-                            : "border-[#1e2130] bg-[#0c0e16] text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
+                            ? "border-primary/30 bg-primary/15 text-primary"
+                            : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-fill-4"
                         )}
                       >
                         <Plus className="mr-1 inline h-3 w-3" />
@@ -494,20 +494,20 @@ export function DocumentosClient({
                   {addingType && (
                     <div className="flex items-end gap-3">
                       <div className="flex-1">
-                        <label className="mb-1 block text-[10px] font-medium text-zinc-500">
+                        <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
                           Prazo (opcional)
                         </label>
                         <input
                           type="date"
                           value={addDeadline}
                           onChange={(e) => setAddDeadline(e.target.value)}
-                          className="w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2 text-sm text-zinc-200 focus:border-indigo-500/50 focus:outline-none"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-primary/50 focus:outline-none"
                         />
                       </div>
                       <button
                         onClick={handleAddDocument}
                         disabled={isPending}
-                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-40"
                       >
                         Adicionar
                       </button>

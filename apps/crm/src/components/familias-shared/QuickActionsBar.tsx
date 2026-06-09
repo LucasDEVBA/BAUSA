@@ -66,18 +66,18 @@ function ActionButton({
 }: ActionButtonProps) {
   const styles = {
     whatsapp:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500/50",
+      "border-sys-green/30 bg-sys-green/15 text-sys-green hover:bg-sys-green/20 hover:border-sys-green/50",
     email:
-      "border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 hover:border-blue-500/50",
+      "border-sys-blue/30 bg-sys-blue/15 text-sys-blue hover:bg-sys-blue/20 hover:border-sys-blue/50",
     phone:
-      "border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50",
-    copy: "border-zinc-500/30 bg-zinc-500/10 text-zinc-300 hover:bg-zinc-500/20 hover:border-zinc-500/50",
+      "border-plan-legacy/30 bg-plan-legacy/15 text-plan-legacy hover:bg-plan-legacy/20 hover:border-plan-legacy/50",
+    copy: "border-border bg-secondary text-muted-foreground hover:bg-accent hover:border-border",
   };
 
   const baseClass = cn(
-    "group flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-200",
+    "group flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200",
     !disabled && styles[variant],
-    disabled && "opacity-40 cursor-not-allowed border-[#1e2130] bg-[#141720]",
+    disabled && "opacity-40 cursor-not-allowed border-border bg-card",
     !disabled && "hover:scale-[1.02] active:scale-[0.98]",
   );
 
@@ -86,10 +86,10 @@ function ActionButton({
       <div
         className={cn(
           "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md",
-          variant === "whatsapp" && "bg-emerald-500/20",
-          variant === "email" && "bg-blue-500/20",
-          variant === "phone" && "bg-purple-500/20",
-          variant === "copy" && "bg-zinc-500/20",
+          variant === "whatsapp" && "bg-sys-green/20",
+          variant === "email" && "bg-sys-blue/20",
+          variant === "phone" && "bg-plan-legacy/20",
+          variant === "copy" && "bg-secondary",
         )}
       >
         <Icon className="h-3.5 w-3.5" />
@@ -97,7 +97,7 @@ function ActionButton({
       <div className="flex-1 min-w-0">
         <p className="text-[11px] font-semibold leading-tight">{label}</p>
         {sublabel && (
-          <p className="text-[10px] text-zinc-500 truncate leading-tight mt-0.5">
+          <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5">
             {sublabel}
           </p>
         )}
@@ -171,9 +171,9 @@ export function QuickActionsBar({
   };
 
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-gradient-to-br from-[#141720] to-[#0f1117] p-3">
+    <div className="rounded-xl border border-border bg-card p-3">
       <div className="mb-2.5 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Ações rápidas de contato
         </p>
         <div className="flex items-center gap-2">
@@ -187,12 +187,12 @@ export function QuickActionsBar({
                 email: email_responsavel ?? email,
               })
             }
-            className="flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[10px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors"
+            className="flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary hover:bg-primary/20 transition-colors"
           >
             <Sparkles className="h-3 w-3" />
             Usar template
           </button>
-          <span className="text-[10px] text-zinc-600">
+          <span className="text-[10px] text-label-tertiary">
             {[respPhone, athPhone, email, email_responsavel].filter(Boolean).length}{" "}
             canais
           </span>
