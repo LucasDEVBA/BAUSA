@@ -1,5 +1,5 @@
-import { TrendingUp, Layers, Percent, Calendar } from "lucide-react";
 import { PipelineBoard } from "@/components/pipeline/PipelineBoard";
+import { PipelineMetricsBar } from "@/components/pipeline/PipelineMetricsBar";
 import { PipelineExportButton } from "@/components/pipeline/PipelineExportButton";
 import { FutureLeadsSection } from "@/components/pipeline/FutureLeadsSection";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -179,30 +179,6 @@ function mapDealRow(row: SupabaseDealRow): Deal {
   } as Deal & { _responsavelId?: string | null };
 }
 
-function StatChip({
-  icon: Icon,
-  label,
-  value,
-  highlight = false,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${highlight ? "border-emerald-500/20 bg-emerald-500/5" : "border-[#1e2130] bg-[#141720]"}`}>
-      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${highlight ? "bg-emerald-500/10" : "bg-indigo-500/10"}`}>
-        <Icon className={`h-4 w-4 ${highlight ? "text-emerald-400" : "text-indigo-400"}`} />
-      </div>
-      <div>
-        <p className="text-xs text-zinc-500">{label}</p>
-        <p className={`text-sm font-bold ${highlight ? "text-emerald-400" : "text-zinc-100"}`}>{value}</p>
-      </div>
-    </div>
-  );
-}
-
 export default async function PipelinePage() {
   const supabase = await createServerSupabaseClient();
 
@@ -295,43 +271,48 @@ export default async function PipelinePage() {
   const forecastDeals = activeDeals.filter((d) => advancedStages.includes(d.stage));
   const forecast30dBrl = forecastDeals.reduce((sum, d) => sum + d.deal_value_brl, 0);
 
-  return (
-    <div className="flex h-full flex-col gap-5 p-6">
-      {/* Page header */}
-      <div>
-        <h1 className="text-xl font-bold text-zinc-100">Pipeline de Vendas</h1>
-        <p className="mt-0.5 text-sm text-zinc-500">
-          Lead {"\u2192"} Reuniao {"\u2192"} Proposta {"\u2192"} Negociacao {"\u2192"} Contrato {"\u2192"} Sinal {"\u2192"} Matricula {"\u2192"} Remanescente {"\u2192"} Concluido
-        </p>
-      </div>
+  // Metricas adicionais (mesma fonte de dados — somente leitura)
+  const now = Date.now();
+  const reunioesMarcadas = deals.filter((d) => d.stage === "reuniao_marcada").length;
+  const ticketMedioBrl =
+    activeDeals.length > 0 ? Math.round(totalPipelineBrl / activeDeals.length) : 0;
+  const signedStages: DealStage[] = [
+    "contrato_assinado", "sinal_pago", "admission_process", "concluido",
+  ];
+  const contratosAssinados = deals.filter((d) => signedStages.includes(d.stage)).length;
+  const ganhoBrl = deals
+    .filter((d) => d.stage === "concluido")
+    .reduce((sum, d) => sum + d.deal_value_brl, 0);
+  const perdidos = deals.filter((d) => d.stage === "perdido").length;
+  const leadsNovos = deals.filter((d) => d.stage === "lead").length;
+  const acoesAtrasadas = activeDeals.filter(
+    (d) => d.next_action_date && new Date(d.next_action_date).getTime() < now,
+  ).length;
 
-      {/* Controles: export */}
-      <div className="flex items-center justify-end">
+  return (
+    <div className="flex h-full flex-col gap-4">
+      {/* Page header + export na mesma linha (economiza altura) */}
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-title-2 text-foreground">Pipeline de Vendas</h1>
         <PipelineExportButton deals={deals} />
       </div>
-      <div className="grid grid-cols-4 gap-3">
-        <StatChip
-          icon={TrendingUp}
-          label="Total em pipeline"
-          value={`R$ ${totalPipelineBrl.toLocaleString("pt-BR")}`}
-        />
-        <StatChip
-          icon={Layers}
-          label="Deals ativos"
-          value={String(activeDeals.length)}
-        />
-        <StatChip
-          icon={Percent}
-          label="Taxa de conversao"
-          value={`${conversionRate}%`}
-        />
-        <StatChip
-          icon={Calendar}
-          label="Previsao 30 dias"
-          value={`R$ ${forecast30dBrl.toLocaleString("pt-BR")}`}
-          highlight
-        />
-      </div>
+
+      {/* M\u00e9tricas em dropdown colaps\u00e1vel \u2014 fechado por padr\u00e3o p/ dar altura ao Kanban */}
+      <PipelineMetricsBar
+        metrics={{
+          totalPipelineBrl,
+          activeCount: activeDeals.length,
+          conversionRate,
+          forecast30dBrl,
+          reunioesMarcadas,
+          ticketMedioBrl,
+          contratosAssinados,
+          ganhoBrl,
+          perdidos,
+          leadsNovos,
+          acoesAtrasadas,
+        }}
+      />
 
       {/* Kanban board */}
       <div className="flex-1 overflow-hidden">

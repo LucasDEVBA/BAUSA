@@ -97,23 +97,23 @@ export function FileUploader({
         }}
         onClick={() => inputRef.current?.click()}
         className={cn(
-          "flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed cursor-pointer transition-all",
+          "flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed cursor-pointer transition-all",
           compact ? "p-3" : "p-5",
           dragOver
-            ? "border-indigo-500/60 bg-indigo-500/10"
-            : "border-[#1e2130] bg-[#141720] hover:border-indigo-500/40 hover:bg-indigo-500/5",
+            ? "border-primary/60 bg-primary/10"
+            : "border-border bg-card hover:border-primary/40 hover:bg-primary/5",
         )}
       >
         {isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
         ) : (
-          <Upload className="h-4 w-4 text-zinc-500" />
+          <Upload className="h-4 w-4 text-muted-foreground" />
         )}
-        <p className="text-[11px] font-medium text-zinc-400">
+        <p className="text-[11px] font-medium text-muted-foreground">
           {isPending ? "Enviando..." : label}
         </p>
         {!compact && (
-          <p className="text-[10px] text-zinc-600">
+          <p className="text-[10px] text-label-tertiary">
             Arraste ou clique • Máx 20MB • PNG, JPG, PDF, DOC, XLS, TXT
           </p>
         )}
@@ -139,23 +139,23 @@ export function FileUploader({
             return (
               <div
                 key={`${file.path}-${idx}`}
-                className="group flex items-center gap-2 rounded-md border border-[#1e2130] bg-[#141720] px-2.5 py-1.5 hover:border-indigo-500/30 transition-colors"
+                className="group flex items-center gap-2 rounded-xl border border-border bg-card px-2.5 py-1.5 hover:border-primary/30 transition-colors"
               >
                 <div
                   className={cn(
                     "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md",
                     isImage
-                      ? "bg-purple-500/15 text-purple-300"
-                      : "bg-blue-500/15 text-blue-300",
+                      ? "bg-plan-legacy/15 text-plan-legacy"
+                      : "bg-sys-blue/15 text-sys-blue",
                   )}
                 >
                   <Icon className="h-3 w-3" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium text-zinc-200 truncate">
+                  <p className="text-[11px] font-medium text-foreground truncate">
                     {file.name}
                   </p>
-                  <p className="text-[10px] text-zinc-500">
+                  <p className="text-[10px] text-muted-foreground">
                     {(file.size / 1024).toFixed(0)} KB ·{" "}
                     {new Date(file.uploaded_at).toLocaleString("pt-BR", {
                       day: "2-digit",
@@ -172,7 +172,7 @@ export function FileUploader({
                     handleOpen(file.path);
                   }}
                   disabled={isPending}
-                  className="rounded-md border border-[#1e2130] bg-[#0c0e16] px-2 py-1 text-[10px] text-indigo-300 hover:bg-indigo-500/10 disabled:opacity-50"
+                  className="rounded-md border border-border bg-background px-2 py-1 text-[10px] text-primary hover:bg-primary/10 disabled:opacity-50"
                 >
                   Abrir
                 </button>
@@ -183,7 +183,7 @@ export function FileUploader({
                     handleRemove(idx);
                   }}
                   disabled={isPending}
-                  className="rounded-md p-1 text-zinc-500 hover:text-red-400 disabled:opacity-50"
+                  className="rounded-md p-1 text-muted-foreground hover:text-sys-red disabled:opacity-50"
                   aria-label="Remover anexo"
                 >
                   <X className="h-3 w-3" />
@@ -231,7 +231,7 @@ export function AttachmentList({ attachments }: { attachments: UploadedFile[] })
             key={`${file.path}-${idx}`}
             onClick={() => handleOpen(file.path)}
             disabled={loading}
-            className="inline-flex items-center gap-1 rounded-md border border-[#1e2130] bg-[#0c0e16] px-1.5 py-0.5 text-[10px] text-zinc-300 hover:border-indigo-500/40 hover:text-indigo-300 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50"
           >
             {loading ? (
               <Loader2 className="h-2.5 w-2.5 animate-spin" />

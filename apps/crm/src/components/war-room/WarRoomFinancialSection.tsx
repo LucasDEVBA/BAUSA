@@ -21,40 +21,40 @@ export function WarRoomFinancialSection({ data }: WarRoomFinancialSectionProps) 
       label: "Receita Recebida (mes)",
       value: formatBRL(data.receita_recebida_mes),
       icon: DollarSign,
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20",
+      color: "text-sys-green",
+      bg: "bg-sys-green/10",
+      border: "border-sys-green/20",
     },
     {
       label: "Inadimplencia",
       value: formatBRL(data.inadimplencia),
       sub: `${data.inadimplencia_count} parcela${data.inadimplencia_count !== 1 ? "s" : ""}`,
       icon: AlertTriangle,
-      color: data.inadimplencia > 0 ? "text-red-400" : "text-emerald-400",
-      bg: data.inadimplencia > 0 ? "bg-red-500/10" : "bg-emerald-500/10",
-      border: data.inadimplencia > 0 ? "border-red-500/20" : "border-emerald-500/20",
+      color: data.inadimplencia > 0 ? "text-sys-red" : "text-sys-green",
+      bg: data.inadimplencia > 0 ? "bg-sys-red/10" : "bg-sys-green/10",
+      border: data.inadimplencia > 0 ? "border-sys-red/20" : "border-sys-green/20",
     },
     {
       label: "NFs Pendentes",
       value: String(data.nfs_pendentes),
       icon: FileText,
-      color: data.nfs_pendentes > 0 ? "text-amber-400" : "text-emerald-400",
-      bg: data.nfs_pendentes > 0 ? "bg-amber-500/10" : "bg-emerald-500/10",
-      border: data.nfs_pendentes > 0 ? "border-amber-500/20" : "border-emerald-500/20",
+      color: data.nfs_pendentes > 0 ? "text-sys-orange" : "text-sys-green",
+      bg: data.nfs_pendentes > 0 ? "bg-sys-orange/10" : "bg-sys-green/10",
+      border: data.nfs_pendentes > 0 ? "border-sys-orange/20" : "border-sys-green/20",
     },
     {
       label: "Previsao 30d",
       value: formatBRL(data.previsao_30d),
       icon: TrendingUp,
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20",
+      color: "text-sys-blue",
+      bg: "bg-sys-blue/10",
+      border: "border-sys-blue/20",
     },
   ];
 
   return (
     <div>
-      <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
         Financeiro
       </p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -64,7 +64,7 @@ export function WarRoomFinancialSection({ data }: WarRoomFinancialSectionProps) 
             <div
               key={card.label}
               className={cn(
-                "rounded-xl border bg-[#141720] p-4 transition-colors hover:bg-[#1a1f2e]",
+                "glass-card rounded-xl p-4 hover:shadow-md",
                 card.border
               )}
             >
@@ -72,9 +72,9 @@ export function WarRoomFinancialSection({ data }: WarRoomFinancialSectionProps) 
                 <Icon className={cn("h-4 w-4", card.color)} />
               </div>
               <p className={cn("text-xl font-bold", card.color)}>{card.value}</p>
-              <p className="mt-0.5 text-xs text-zinc-500">{card.label}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{card.label}</p>
               {"sub" in card && card.sub && (
-                <p className="text-[10px] text-zinc-600">{card.sub}</p>
+                <p className="text-[10px] text-label-tertiary">{card.sub}</p>
               )}
             </div>
           );

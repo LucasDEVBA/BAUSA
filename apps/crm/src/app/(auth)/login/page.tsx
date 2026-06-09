@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, Loader2 } from "lucide-react";
+import Image from "next/image";
+import { Loader2, Star } from "lucide-react";
 
 import { createBrowserClient } from "@/lib/supabase-browser";
+
+const BAU_GRADIENT = "linear-gradient(150deg, var(--bau-burgundy) 0%, var(--bau-blue) 100%)";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -44,110 +47,153 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0c0e16]">
-      {/* Background grid */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage:
-            "linear-gradient(#6366f1 1px, transparent 1px), linear-gradient(90deg, #6366f1 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
-        }}
-      />
+    <div className="flex min-h-screen w-full">
+      {/* ============ Painel de marca (desktop) ============ */}
+      <aside
+        className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-12 lg:flex"
+        style={{ backgroundImage: BAU_GRADIENT }}
+      >
+        {/* Brasão watermark */}
+        <Image
+          src="/brand/bausa-logo-white.png"
+          alt=""
+          aria-hidden
+          width={757}
+          height={506}
+          className="pointer-events-none absolute -right-20 bottom-[-4rem] h-auto w-[680px] select-none opacity-[0.06]"
+        />
 
-      {/* Glow */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
-      </div>
-
-      <div className="relative w-full max-w-sm px-4">
-        {/* Logo */}
-        <div className="mb-8 flex flex-col items-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
-            <Zap className="h-6 w-6 text-white" />
+        {/* Topo: estrelas + logo */}
+        <div className="relative">
+          <div className="mb-7 flex items-end gap-2" aria-hidden>
+            <Star className="h-5 w-5 fill-white/80 text-white/80" />
+            <Star className="h-7 w-7 fill-white text-white" />
+            <Star className="h-5 w-5 fill-white/80 text-white/80" />
           </div>
-          <h1 className="text-xl font-bold text-white">BAUSA Engine</h1>
-          <p className="mt-1 text-sm text-zinc-500">Bolsa Atleta USA</p>
+          <Image
+            src="/brand/bausa-logo-white.png"
+            alt="BAUSA — Bolsa Atleta USA"
+            width={757}
+            height={506}
+            priority
+            className="h-auto w-[280px]"
+          />
         </div>
 
-        {/* Card */}
-        <div className="rounded-2xl border border-[#1e2130] bg-[#141720] p-8 shadow-2xl">
-          <h2 className="text-lg font-semibold text-zinc-100">Acessar painel</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Entre com suas credenciais de acesso.
+        {/* Base: tagline + selo */}
+        <div className="relative max-w-md">
+          <p className="text-title-1 leading-tight text-white">
+            Plataforma de operações
           </p>
-
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            {/* Email */}
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-1.5 block text-xs font-medium text-zinc-400"
-              >
-                E-mail
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@bolsaatletausa.com"
-                required
-                autoComplete="email"
-                className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
-              />
-            </div>
-
-            {/* Senha */}
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-1.5 block text-xs font-medium text-zinc-400"
-              >
-                Senha
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                autoComplete="current-password"
-                className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
-              />
-            </div>
-
-            {/* Error message */}
-            {error && (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5">
-                <p className="text-xs text-red-400">{error}</p>
-              </div>
-            )}
-
-            {/* Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all hover:from-indigo-500 hover:to-purple-500 hover:shadow-indigo-500/30 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Entrando...
-                </>
-              ) : (
-                "Entrar"
-              )}
-            </button>
-          </form>
+          <p className="mt-3 text-callout text-white/70">
+            Pipeline comercial, famílias e inteligência de matching — atleta × escola,
+            em um só lugar.
+          </p>
+          <div className="mt-10 flex items-center gap-2 text-caption-1 font-semibold uppercase tracking-widest text-white/55">
+            <span className="h-px w-8 bg-white/40" />
+            ESTD 2024
+          </div>
         </div>
+      </aside>
 
-        {/* Footer */}
-        <p className="mt-6 text-center text-xs text-zinc-600">
-          Acesso restrito à equipe Bolsa Atleta USA
-        </p>
-      </div>
+      {/* ============ Painel de autenticação ============ */}
+      <main className="relative flex flex-1 items-center justify-center px-6 py-10">
+        <div className="w-full max-w-sm">
+          {/* Marca compacta (mobile) */}
+          <div
+            className="mx-auto mb-8 flex w-fit items-center justify-center rounded-2xl px-6 py-4 shadow-lg lg:hidden"
+            style={{ backgroundImage: BAU_GRADIENT }}
+          >
+            <Image
+              src="/brand/bausa-logo-white.png"
+              alt="BAUSA — Bolsa Atleta USA"
+              width={757}
+              height={506}
+              priority
+              className="h-auto w-[180px]"
+            />
+          </div>
+
+          {/* Card de login */}
+          <div className="glass-card rounded-2xl p-8">
+            <h1 className="text-title-2 text-foreground">Acessar painel</h1>
+            <p className="mt-1 text-subhead text-muted-foreground">
+              Entre com suas credenciais de acesso.
+            </p>
+
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              {/* Email */}
+              <div>
+                <label
+                  htmlFor="email"
+                  className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                >
+                  E-mail
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@bolsaatletausa.com"
+                  required
+                  autoComplete="email"
+                  className="w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-placeholder outline-none transition-colors focus:border-bau-blue focus:ring-2 focus:ring-bau-blue/30"
+                />
+              </div>
+
+              {/* Senha */}
+              <div>
+                <label
+                  htmlFor="password"
+                  className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                >
+                  Senha
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  autoComplete="current-password"
+                  className="w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-placeholder outline-none transition-colors focus:border-bau-blue focus:ring-2 focus:ring-bau-blue/30"
+                />
+              </div>
+
+              {/* Error message */}
+              {error && (
+                <div className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2.5">
+                  <p className="text-xs text-destructive">{error}</p>
+                </div>
+              )}
+
+              {/* Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                style={{ backgroundImage: BAU_GRADIENT }}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:opacity-95 hover:shadow-lg active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Entrando...
+                  </>
+                ) : (
+                  "Entrar"
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Footer */}
+          <p className="mt-6 text-center text-footnote text-label-tertiary">
+            Acesso restrito à equipe Bolsa Atleta USA
+          </p>
+        </div>
+      </main>
     </div>
   );
 }

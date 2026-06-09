@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 import { NotificationCenter } from "./NotificationCenter";
+import { ThemeToggle } from "./ThemeToggle";
 
 const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/dashboard": { label: "Dashboard", parent: "Leads" },
@@ -52,18 +53,18 @@ export function Header({ nome }: HeaderProps) {
   const currentPage = BREADCRUMB_MAP[pathname] ?? BREADCRUMB_MAP["/" + pathname.split("/")[1]];
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b border-[#1e2130] bg-[#0c0e16]/80 px-6 backdrop-blur-sm">
+    <header className="flex h-14 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-xl">
       {/* Breadcrumb */}
       <div className="flex flex-1 items-center gap-2 text-sm">
-        <span className="text-zinc-500">BAUSA Engine</span>
-        <span className="text-zinc-700">/</span>
+        <span className="text-muted-foreground">BAUSA Engine</span>
+        <span className="text-label-tertiary">/</span>
         {currentPage?.parent && (
           <>
-            <span className="text-zinc-400">{currentPage.parent}</span>
-            <span className="text-zinc-700">/</span>
+            <span className="text-muted-foreground">{currentPage.parent}</span>
+            <span className="text-label-tertiary">/</span>
           </>
         )}
-        <span className="font-medium text-zinc-100">
+        <span className="font-medium text-foreground">
           {currentPage?.label ?? "Página"}
         </span>
       </div>
@@ -71,19 +72,22 @@ export function Header({ nome }: HeaderProps) {
       {/* Ações */}
       <div className="flex items-center gap-2">
         {/* Search */}
-        <button className="flex h-8 items-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] px-3 text-sm text-zinc-500 transition-colors hover:border-zinc-600 hover:text-zinc-300">
+        <button className="flex h-8 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Search className="h-3.5 w-3.5" />
           <span>Buscar...</span>
-          <kbd className="ml-2 rounded border border-zinc-700 px-1 text-[10px] text-zinc-600">⌘K</kbd>
+          <kbd className="ml-2 rounded border border-border px-1 text-[10px] text-muted-foreground">⌘K</kbd>
         </button>
+
+        {/* Alternar tema claro/escuro */}
+        <ThemeToggle />
 
         {/* Notificações */}
         <NotificationCenter />
 
         {/* Indicador Realtime */}
-        <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-          <span className="text-[10px] font-medium text-emerald-400">Ao vivo</span>
+        <div className="flex items-center gap-1.5 rounded-full border border-sys-green/20 bg-sys-green/15 px-2.5 py-1">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sys-green" />
+          <span className="text-[10px] font-medium text-sys-green">Ao vivo</span>
         </div>
       </div>
     </header>

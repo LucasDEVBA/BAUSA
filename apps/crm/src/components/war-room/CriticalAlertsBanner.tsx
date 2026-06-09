@@ -65,19 +65,19 @@ export function CriticalAlertsBanner({ counts }: CriticalAlertsBannerProps) {
   }
 
   return (
-    <div className="sticky top-0 z-30 rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-3">
+    <div className="sticky top-0 z-30 rounded-xl border border-sys-red/30 bg-sys-red/10 px-5 py-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/20">
-            <AlertTriangle className="h-4 w-4 text-red-400" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sys-red/20">
+            <AlertTriangle className="h-4 w-4 text-sys-red" />
           </div>
           <div>
-            <p className="text-sm font-bold text-red-400">
+            <p className="text-sm font-bold text-sys-red">
               {totalCritical} alerta{totalCritical !== 1 ? "s" : ""} critico{totalCritical !== 1 ? "s" : ""}
             </p>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
               {items.map((item) => (
-                <p key={item.label} className="text-xs text-red-300/80">
+                <p key={item.label} className="text-xs text-sys-red/80">
                   {item.label}
                 </p>
               ))}
@@ -86,7 +86,7 @@ export function CriticalAlertsBanner({ counts }: CriticalAlertsBannerProps) {
         </div>
         <button
           onClick={() => setDismissed(true)}
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sys-red hover:bg-sys-red/20 hover:text-sys-red/70 transition-colors"
           aria-label="Dispensar alertas"
         >
           <X className="h-4 w-4" />

@@ -220,9 +220,9 @@ export const PIPELINE_ETAPAS: StatusDeal[] = [
 
 // Cores dos badges
 export const CLASSIFICACAO_COLORS: Record<ClassificacaoLead, { bg: string; text: string }> = {
-  hot: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400' },
-  warm: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400' },
-  cold: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400' },
+  hot: { bg: 'bg-lead-hot/15', text: 'text-lead-hot' },
+  warm: { bg: 'bg-lead-warm/15', text: 'text-lead-warm' },
+  cold: { bg: 'bg-lead-cold/15', text: 'text-lead-cold' },
 };
 
 export interface ContratoFinanceiro {
@@ -424,10 +424,10 @@ export interface EstrategiaEscola {
 }
 
 export const MATCH_LABELS = {
-  excelente: { label: 'Match Excelente', color: 'text-green-600', bg: 'bg-green-100', range: '85-100' },
-  forte: { label: 'Match Forte', color: 'text-blue-600', bg: 'bg-blue-100', range: '70-84' },
-  possivel: { label: 'Match Possivel', color: 'text-amber-600', bg: 'bg-amber-100', range: '50-69' },
-  fraco: { label: 'Match Fraco', color: 'text-red-600', bg: 'bg-red-100', range: '0-49' },
+  excelente: { label: 'Match Excelente', color: 'text-sys-green', bg: 'bg-sys-green/15', range: '85-100' },
+  forte: { label: 'Match Forte', color: 'text-sys-blue', bg: 'bg-sys-blue/15', range: '70-84' },
+  possivel: { label: 'Match Possivel', color: 'text-sys-orange', bg: 'bg-sys-orange/15', range: '50-69' },
+  fraco: { label: 'Match Fraco', color: 'text-sys-red', bg: 'bg-sys-red/15', range: '0-49' },
 } as const;
 
 export const US_STATES = [

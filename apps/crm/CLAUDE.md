@@ -3,6 +3,7 @@
 > Contexto do projeto para Claude Code. Complementa o CLAUDE.md global (~/.claude/CLAUDE.md).
 > Regras do CLAUDE.md global continuam valendo — este arquivo só sobrescreve/acrescenta o que é específico deste projeto.
 > Para regras de negócio detalhadas, ver `docs/regras-de-negocio.md`. Para mapa de módulos, ver `docs/modulos.md`.
+> **Design System (Apple-grade):** ao mexer na aparência do CRM, ler `docs/design-system/` — `CLAUDE.md` (brief + Regra de Ouro), `HIG-Rulebook-BAUSA.md` (princípios) e `BAUSA-CRM-DesignSystem-AppleGrade.md` (tokens/specs). Tokens em `src/app/globals.css` vencem em conflito.
 
 ---
 

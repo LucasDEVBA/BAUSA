@@ -3,34 +3,34 @@ import { type Alert, type Bottleneck } from "@/types/revenue";
 
 const ALERT_STYLES = {
   critical: {
-    wrapper: "border-red-500/20 bg-red-500/5",
-    icon: "text-red-400",
-    title: "text-red-300",
-    badge: "bg-red-500/20 text-red-400 border-red-500/30",
+    wrapper: "border-sys-red/20 bg-sys-red/5",
+    icon: "text-sys-red",
+    title: "text-sys-red",
+    badge: "bg-sys-red/20 text-sys-red border-sys-red/30",
     badgeLabel: "Crítico",
     IconComponent: AlertCircle,
   },
   warning: {
-    wrapper: "border-amber-500/20 bg-amber-500/5",
-    icon: "text-amber-400",
-    title: "text-amber-300",
-    badge: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    wrapper: "border-sys-orange/20 bg-sys-orange/5",
+    icon: "text-sys-orange",
+    title: "text-sys-orange",
+    badge: "bg-sys-orange/20 text-sys-orange border-sys-orange/30",
     badgeLabel: "Atenção",
     IconComponent: AlertTriangle,
   },
   info: {
-    wrapper: "border-blue-500/20 bg-blue-500/5",
-    icon: "text-blue-400",
-    title: "text-blue-300",
-    badge: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    wrapper: "border-sys-blue/20 bg-sys-blue/5",
+    icon: "text-sys-blue",
+    title: "text-sys-blue",
+    badge: "bg-sys-blue/20 text-sys-blue border-sys-blue/30",
     badgeLabel: "Info",
     IconComponent: Info,
   },
 } as const;
 
 const IMPACT_STYLES = {
-  alto: "bg-red-500/10 text-red-400 border border-red-500/20",
-  medio: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+  alto: "bg-sys-red/10 text-sys-red border border-sys-red/20",
+  medio: "bg-sys-orange/10 text-sys-orange border border-sys-orange/20",
 };
 
 interface AlertCardProps {
@@ -54,7 +54,7 @@ function AlertCard({ alert }: AlertCardProps) {
               {styles.badgeLabel}
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-zinc-500 leading-relaxed">{alert.description}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">{alert.description}</p>
           {alert.action_label && (
             <button className={`mt-2 text-[10px] font-semibold underline-offset-2 hover:underline ${styles.icon}`}>
               {alert.action_label} →
@@ -73,24 +73,24 @@ interface BottleneckCardProps {
 
 function BottleneckCard({ bottleneck, index }: BottleneckCardProps) {
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3.5">
+    <div className="glass-card rounded-lg p-3.5">
       <div className="flex items-start gap-3">
-        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-400">
+        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
           {index + 1}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-xs font-semibold text-zinc-200 leading-tight">{bottleneck.title}</p>
+            <p className="text-xs font-semibold text-foreground leading-tight">{bottleneck.title}</p>
             <span
               className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${IMPACT_STYLES[bottleneck.impact]}`}
             >
               {bottleneck.impact === "alto" ? "Alto impacto" : "Médio impacto"}
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-zinc-500 leading-relaxed">{bottleneck.description}</p>
-          <div className="mt-2 flex items-start gap-1.5 rounded-md bg-indigo-500/5 border border-indigo-500/20 px-2 py-1.5">
-            <Search className="mt-0.5 h-3 w-3 flex-shrink-0 text-indigo-400" />
-            <p className="text-[10px] text-indigo-300 leading-relaxed">{bottleneck.suggestion}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">{bottleneck.description}</p>
+          <div className="mt-2 flex items-start gap-1.5 rounded-md bg-primary/5 border border-primary/20 px-2 py-1.5">
+            <Search className="mt-0.5 h-3 w-3 flex-shrink-0 text-primary" />
+            <p className="text-[10px] text-primary/80 leading-relaxed">{bottleneck.suggestion}</p>
           </div>
         </div>
       </div>
@@ -108,9 +108,9 @@ export function AlertsPanel({ alerts, bottlenecks }: AlertsPanelProps) {
     <div className="grid grid-cols-2 gap-5">
       {/* Alertas */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-zinc-100">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">
           Alertas Ativos
-          <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500/20 text-[10px] font-bold text-red-400">
+          <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-sys-red/20 text-[10px] font-bold text-sys-red">
             {alerts.filter((a) => a.type === "critical").length}
           </span>
         </h3>
@@ -123,7 +123,7 @@ export function AlertsPanel({ alerts, bottlenecks }: AlertsPanelProps) {
 
       {/* Gargalos */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-zinc-100">Top Gargalos Identificados</h3>
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Top Gargalos Identificados</h3>
         <div className="space-y-2">
           {bottlenecks.map((b, i) => (
             <BottleneckCard key={b.id} bottleneck={b} index={i} />

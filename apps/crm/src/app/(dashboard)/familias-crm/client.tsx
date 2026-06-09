@@ -102,10 +102,10 @@ function ScoreBar({
   const pct = (value / max) * 100;
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full bg-[#1e2130]">
+      <div className="flex-1 h-1.5 rounded-full bg-secondary">
         <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-semibold text-white w-4 text-right">
+      <span className="text-xs font-semibold text-foreground w-4 text-right">
         {value}
       </span>
     </div>
@@ -126,12 +126,12 @@ function FamilyCard({
   return (
     <div
       className={cn(
-        "rounded-xl border bg-[#141720] p-5 cursor-pointer transition-all hover:border-indigo-500/30 hover:bg-[#161b28]",
+        "glass-card rounded-xl p-5 cursor-pointer transition-all hover:shadow-md hover:border-primary/30",
         family.family_status === "crise"
-          ? "border-red-500/40"
+          ? "border-sys-red/40"
           : family.family_status === "atencao"
-            ? "border-amber-500/30"
-            : "border-[#1e2130]"
+            ? "border-sys-orange/30"
+            : ""
       )}
       onClick={() => onSelect(family)}
     >
@@ -147,10 +147,10 @@ function FamilyCard({
             {family.athlete_name.charAt(0)}
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">
+            <p className="text-sm font-semibold text-foreground">
               {family.athlete_name}
             </p>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-muted-foreground">
               {family.guardian_name}
               {family.address_state ? ` · ${family.address_state}` : ""}
             </p>
@@ -170,38 +170,38 @@ function FamilyCard({
           <span className={cn("h-1.5 w-1.5 rounded-full", statusCfg.dot)} />
           {statusCfg.label}
         </span>
-        <span className="inline-flex rounded-md bg-[#0c0e16] border border-[#1e2130] px-2 py-0.5 text-[10px] text-zinc-400">
+        <span className="inline-flex rounded-md bg-background border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
           {stageCfg.label}
         </span>
-        <span className="inline-flex rounded-md bg-[#0c0e16] border border-[#1e2130] px-2 py-0.5 text-[10px] text-zinc-400">
+        <span className="inline-flex rounded-md bg-background border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
           {family.plan}
         </span>
       </div>
 
       <div className="mb-3 space-y-2">
         <div>
-          <p className="text-[10px] text-zinc-600 mb-1">Satisfacao</p>
-          <ScoreBar value={family.satisfaction_level} color="bg-emerald-500" />
+          <p className="text-[10px] text-label-tertiary mb-1">Satisfacao</p>
+          <ScoreBar value={family.satisfaction_level} color="bg-sys-green" />
         </div>
         <div>
-          <p className="text-[10px] text-zinc-600 mb-1">Ansiedade</p>
+          <p className="text-[10px] text-label-tertiary mb-1">Ansiedade</p>
           <ScoreBar
             value={family.anxiety_level}
             color={
               family.anxiety_level >= 4
-                ? "bg-red-500"
+                ? "bg-sys-red"
                 : family.anxiety_level >= 3
-                  ? "bg-amber-500"
-                  : "bg-blue-500"
+                  ? "bg-sys-orange"
+                  : "bg-sys-blue"
             }
           />
         </div>
       </div>
 
       <div className="flex items-center justify-between text-xs">
-        <span className="text-zinc-500">
+        <span className="text-muted-foreground">
           Último contato:{" "}
-          <span className="text-zinc-300">
+          <span className="text-foreground/80">
             {formatRelative(family.last_contact_at)}
           </span>
         </span>
@@ -210,8 +210,8 @@ function FamilyCard({
             "font-medium",
             family.days_without_contact >= stageCfg.alertDays &&
               stageCfg.alertDays > 0
-              ? "text-amber-400"
-              : "text-zinc-500"
+              ? "text-sys-orange"
+              : "text-muted-foreground"
           )}
         >
           {family.days_without_contact}d sem contato
@@ -219,9 +219,9 @@ function FamilyCard({
       </div>
 
       {family.family_status === "crise" && (
-        <div className="mt-3 flex items-center gap-1.5 rounded-md bg-red-500/10 border border-red-500/20 px-2.5 py-1.5">
-          <AlertTriangle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
-          <p className="text-[10px] font-medium text-red-400">
+        <div className="mt-3 flex items-center gap-1.5 rounded-md bg-sys-red/10 border border-sys-red/20 px-2.5 py-1.5">
+          <AlertTriangle className="h-3.5 w-3.5 text-sys-red flex-shrink-0" />
+          <p className="text-[10px] font-medium text-sys-red">
             Crise{" "}
             {family.psicologa_acionada
               ? "— psicóloga acionada"
@@ -230,9 +230,9 @@ function FamilyCard({
         </div>
       )}
       {family.family_status === "atencao" && (
-        <div className="mt-3 flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
-          <p className="text-[10px] font-medium text-amber-400">
+        <div className="mt-3 flex items-center gap-1.5 rounded-md bg-sys-orange/10 border border-sys-orange/20 px-2.5 py-1.5">
+          <AlertTriangle className="h-3.5 w-3.5 text-sys-orange flex-shrink-0" />
+          <p className="text-[10px] font-medium text-sys-orange">
             Atenção registrada
           </p>
         </div>
@@ -277,7 +277,7 @@ function NotesSection({ experienciaId }: { experienciaId: string }) {
     return (
       <button
         onClick={loadNotes}
-        className="flex items-center gap-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+        className="flex items-center gap-2 text-xs text-primary hover:text-primary/80 transition-colors"
       >
         <MessageSquare className="h-3.5 w-3.5" />
         Carregar notas internas
@@ -287,7 +287,7 @@ function NotesSection({ experienciaId }: { experienciaId: string }) {
 
   return (
     <div>
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-600">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
         Notas Internas
       </p>
 
@@ -303,12 +303,12 @@ function NotesSection({ experienciaId }: { experienciaId: string }) {
             }
           }}
           placeholder="Escrever nota..."
-          className="flex-1 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-indigo-500/40"
+          className="flex-1 rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40"
         />
         <button
           onClick={handleSubmit}
           disabled={isPending || !newNote.trim()}
-          className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -319,19 +319,19 @@ function NotesSection({ experienciaId }: { experienciaId: string }) {
       </div>
 
       {notes.length === 0 ? (
-        <p className="text-[11px] text-zinc-600">Nenhuma nota ainda.</p>
+        <p className="text-[11px] text-label-tertiary">Nenhuma nota ainda.</p>
       ) : (
         <div className="space-y-2 max-h-48 overflow-y-auto">
           {notes.map((n) => (
             <div
               key={n.id}
-              className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2"
+              className="rounded-xl border border-border bg-card px-3 py-2"
             >
               <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] font-semibold text-indigo-400">
+                <p className="text-[10px] font-semibold text-primary">
                   {(n.autor as unknown as { nome?: string })?.nome ?? "Usuario"}
                 </p>
-                <p className="text-[10px] text-zinc-600">
+                <p className="text-[10px] text-label-tertiary">
                   {new Date(n.created_at).toLocaleDateString("pt-BR", {
                     day: "2-digit",
                     month: "2-digit",
@@ -340,7 +340,7 @@ function NotesSection({ experienciaId }: { experienciaId: string }) {
                   })}
                 </p>
               </div>
-              <p className="text-xs text-zinc-300">{n.conteudo}</p>
+              <p className="text-xs text-foreground/80">{n.conteudo}</p>
             </div>
           ))}
         </div>
@@ -374,7 +374,7 @@ function ContactsTimeline({ experienciaId }: { experienciaId: string }) {
     return (
       <button
         onClick={load}
-        className="flex items-center gap-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+        className="flex items-center gap-2 text-xs text-primary hover:text-primary/80 transition-colors"
       >
         <Phone className="h-3.5 w-3.5" />
         {isPending ? "Carregando..." : "Ver timeline de contatos"}
@@ -384,23 +384,23 @@ function ContactsTimeline({ experienciaId }: { experienciaId: string }) {
 
   return (
     <div>
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-600">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
         Timeline de Contatos
       </p>
       {contatos.length === 0 ? (
-        <p className="text-[11px] text-zinc-600">Nenhum contato registrado.</p>
+        <p className="text-[11px] text-label-tertiary">Nenhum contato registrado.</p>
       ) : (
         <div className="space-y-2 max-h-56 overflow-y-auto">
           {contatos.map((c) => (
             <div
               key={c.id}
-              className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2"
+              className="rounded-xl border border-border bg-card px-3 py-2"
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="rounded-md bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300">
+                <span className="rounded-md bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                   {c.tipo}
                 </span>
-                <p className="text-[10px] text-zinc-600">
+                <p className="text-[10px] text-label-tertiary">
                   {new Date(c.created_at).toLocaleString("pt-BR", {
                     day: "2-digit",
                     month: "2-digit",
@@ -409,9 +409,9 @@ function ContactsTimeline({ experienciaId }: { experienciaId: string }) {
                   })}
                 </p>
               </div>
-              <p className="text-xs text-zinc-300">{c.resumo}</p>
+              <p className="text-xs text-foreground/80">{c.resumo}</p>
               {c.proximo_contato && (
-                <p className="text-[10px] text-zinc-500 mt-1">
+                <p className="text-[10px] text-muted-foreground mt-1">
                   Próximo:{" "}
                   {new Date(c.proximo_contato).toLocaleDateString("pt-BR")}
                 </p>
@@ -515,13 +515,13 @@ function FamilyEditForm({
     <div className="space-y-5">
       {/* Fase */}
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
           Fase da Jornada
         </label>
         <select
           value={fase}
           onChange={(e) => setFase(e.target.value as FamilyJourneyStage)}
-          className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
         >
           {FAMILY_JOURNEY_STAGES.map((f) => (
             <option key={f} value={f}>
@@ -533,7 +533,7 @@ function FamilyEditForm({
 
       {/* Indicadores */}
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
           Indicadores (1–5)
         </p>
         {[
@@ -556,9 +556,9 @@ function FamilyEditForm({
           },
         ].map((it) => (
           <div key={it.label} className="mb-3">
-            <div className="flex justify-between text-xs text-zinc-400 mb-1">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
               <span>{it.label}</span>
-              <span className="text-zinc-500">
+              <span className="text-muted-foreground">
                 {it.v}/5{it.hint ? ` — ${it.hint}` : ""}
               </span>
             </div>
@@ -568,7 +568,7 @@ function FamilyEditForm({
               max={5}
               value={it.v}
               onChange={(e) => it.set(Number(e.target.value))}
-              className="w-full accent-indigo-500"
+              className="w-full accent-primary"
             />
           </div>
         ))}
@@ -576,7 +576,7 @@ function FamilyEditForm({
 
       {/* Tipos de risco */}
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
           Tipos de Risco
         </p>
         <div className="grid grid-cols-2 gap-1.5">
@@ -590,8 +590,8 @@ function FamilyEditForm({
                 className={cn(
                   "rounded-md border px-2 py-1.5 text-[11px] font-medium transition-colors text-left",
                   active
-                    ? "border-red-500/40 bg-red-500/10 text-red-300"
-                    : "border-[#1e2130] bg-[#141720] text-zinc-500 hover:text-zinc-300"
+                    ? "border-sys-red/40 bg-sys-red/15 text-sys-red"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground"
                 )}
               >
                 {opt.label}
@@ -603,20 +603,20 @@ function FamilyEditForm({
 
       {/* Data prevista de embarque */}
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
           Data prevista de embarque
         </label>
         <input
           type="date"
           value={embarque}
           onChange={(e) => setEmbarque(e.target.value)}
-          className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
         />
       </div>
 
       {/* Status */}
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
           Status da Família
         </label>
         <div className="grid grid-cols-3 gap-1.5">
@@ -635,11 +635,11 @@ function FamilyEditForm({
                 "rounded-md border px-2 py-2 text-[11px] font-semibold",
                 status === opt.v
                   ? opt.color === "emerald"
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                    ? "border-sys-green/40 bg-sys-green/15 text-sys-green"
                     : opt.color === "amber"
-                      ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                      : "border-red-500/40 bg-red-500/10 text-red-300"
-                  : "border-[#1e2130] bg-[#141720] text-zinc-500"
+                      ? "border-sys-orange/40 bg-sys-orange/15 text-sys-orange"
+                      : "border-sys-red/40 bg-sys-red/15 text-sys-red"
+                  : "border-border bg-card text-muted-foreground"
               )}
             >
               {opt.label}
@@ -650,44 +650,44 @@ function FamilyEditForm({
 
       {/* Formulário condicional Atenção/Crise */}
       {requireProblema && (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+        <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-3 space-y-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-sys-orange">
             {status === "crise" ? "Protocolo de Crise" : "Registro de Atenção"}
           </p>
           <div>
-            <label className="block text-[10px] text-zinc-400 mb-1">
+            <label className="block text-[10px] text-muted-foreground mb-1">
               Descrição do problema *
             </label>
             <textarea
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
               rows={3}
-              className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500/40"
+              className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
               placeholder="Descreva o que está acontecendo..."
             />
           </div>
           <div>
-            <label className="block text-[10px] text-zinc-400 mb-1">
+            <label className="block text-[10px] text-muted-foreground mb-1">
               Ação em andamento *
             </label>
             <textarea
               value={acao}
               onChange={(e) => setAcao(e.target.value)}
               rows={2}
-              className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500/40"
+              className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
               placeholder="O que está sendo feito agora..."
             />
           </div>
           {status === "atencao" && (
             <div>
-              <label className="block text-[10px] text-zinc-400 mb-1">
+              <label className="block text-[10px] text-muted-foreground mb-1">
                 Próxima ação
               </label>
               <input
                 type="text"
                 value={proximaAcao}
                 onChange={(e) => setProximaAcao(e.target.value)}
-                className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500/40"
+                className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
                 placeholder="O que será feito a seguir..."
               />
             </div>
@@ -697,13 +697,13 @@ function FamilyEditForm({
             <>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] text-zinc-400 mb-1">
+                  <label className="block text-[10px] text-muted-foreground mb-1">
                     Tipo *
                   </label>
                   <select
                     value={tipoCrise}
                     onChange={(e) => setTipoCrise(e.target.value)}
-                    className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-red-500/40"
+                    className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
                   >
                     <option value="">Selecione</option>
                     {TIPO_CRISE_OPTIONS.map((t) => (
@@ -714,13 +714,13 @@ function FamilyEditForm({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-zinc-400 mb-1">
+                  <label className="block text-[10px] text-muted-foreground mb-1">
                     Nível *
                   </label>
                   <select
                     value={nivelCrise}
                     onChange={(e) => setNivelCrise(e.target.value)}
-                    className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-red-500/40"
+                    className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
                   >
                     <option value="">Selecione</option>
                     {NIVEL_CRISE_OPTIONS.map((n) => (
@@ -731,19 +731,19 @@ function FamilyEditForm({
                   </select>
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <label className="flex items-center gap-2 text-xs text-foreground/80">
                 <input
                   type="checkbox"
                   checked={psicologa}
                   onChange={(e) => setPsicologa(e.target.checked)}
-                  className="accent-red-500"
+                  className="accent-destructive"
                 />
                 Psicóloga acionada
               </label>
             </>
           )}
 
-          <p className="text-[10px] text-amber-300/80">
+          <p className="text-[10px] text-sys-orange/80">
             Ao salvar, o CEO será notificado automaticamente.
           </p>
         </div>
@@ -753,14 +753,14 @@ function FamilyEditForm({
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="flex-1 flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           Salvar alterações
         </button>
         <button
           onClick={onCancel}
-          className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-2.5 text-xs font-medium text-zinc-400 hover:text-zinc-200"
+          className="rounded-md border border-border bg-card px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
         >
           Cancelar
         </button>
@@ -811,25 +811,25 @@ function RegistrarContatoModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl border border-[#1e2130] bg-[#0f1117] p-5 shadow-2xl space-y-4"
+        className="liquid-glass w-full max-w-md rounded-2xl p-5 shadow-xl space-y-4"
       >
         <div className="flex items-center justify-between">
-          <p className="text-sm font-bold text-white">Registrar Contato</p>
+          <p className="text-sm font-bold text-foreground">Registrar Contato</p>
           <button
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-300"
+            className="text-muted-foreground hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+          <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
             Canal
           </label>
           <div className="grid grid-cols-4 gap-1.5">
@@ -842,8 +842,8 @@ function RegistrarContatoModal({
                   className={cn(
                     "rounded-md border px-2 py-1.5 text-[10px] font-medium capitalize",
                     tipo === t
-                      ? "border-indigo-500/40 bg-indigo-500/10 text-indigo-300"
-                      : "border-[#1e2130] bg-[#141720] text-zinc-500"
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border bg-card text-muted-foreground"
                   )}
                 >
                   {t}
@@ -854,34 +854,34 @@ function RegistrarContatoModal({
         </div>
 
         <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+          <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
             Resumo *
           </label>
           <textarea
             value={resumo}
             onChange={(e) => setResumo(e.target.value)}
             rows={3}
-            className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+            className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
             placeholder="O que foi discutido..."
           />
         </div>
 
         <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+          <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
             Próximo contato *
           </label>
           <input
             type="date"
             value={proximo}
             onChange={(e) => setProximo(e.target.value)}
-            className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+            className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
           />
         </div>
 
         <button
           onClick={handleSubmit}
           disabled={isPending}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           Registrar
@@ -920,26 +920,26 @@ function EscalonarCEOModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl border border-red-500/30 bg-[#0f1117] p-5 shadow-2xl space-y-4"
+        className="liquid-glass w-full max-w-md rounded-2xl border-sys-red/30 p-5 shadow-xl space-y-4"
       >
         <div className="flex items-center justify-between">
-          <p className="text-sm font-bold text-red-300 flex items-center gap-2">
+          <p className="text-sm font-bold text-sys-red flex items-center gap-2">
             <ArrowUpRight className="h-4 w-4" /> Escalonar ao CEO
           </p>
           <button
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-300"
+            className="text-muted-foreground hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <p className="text-[11px] text-zinc-500">
+        <p className="text-[11px] text-muted-foreground">
           Cria tarefa crítica (prazo 2h) + notificação imediata ao CEO.
         </p>
 
@@ -947,14 +947,14 @@ function EscalonarCEOModal({
           value={contexto}
           onChange={(e) => setContexto(e.target.value)}
           rows={4}
-          className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-red-500/40"
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
           placeholder="Contexto detalhado do escalonamento..."
         />
 
         <button
           onClick={handleSubmit}
           disabled={isPending}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 rounded-md bg-destructive px-4 py-2.5 text-xs font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           Escalonar agora
@@ -996,19 +996,19 @@ function FamilyDetail({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-end bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-xl border border-[#1e2130] bg-[#0f1117] overflow-y-auto max-h-[90vh] shadow-2xl"
+        className="liquid-glass w-full max-w-lg rounded-2xl overflow-y-auto max-h-[90vh] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-[#1e2130] bg-[#0f1117] px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-border bg-popover px-5 py-4">
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xl">{tempCfg.icon}</span>
-                <p className="text-base font-bold text-white">
+                <p className="text-base font-bold text-foreground">
                   {family.athlete_name}
                 </p>
               </div>
@@ -1022,14 +1022,14 @@ function FamilyDetail({
                 >
                   {statusCfg.label}
                 </span>
-                <span className="text-xs text-zinc-500">
+                <span className="text-xs text-muted-foreground">
                   {stageCfg.label} · Plano {family.plan}
                 </span>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-fill-4 hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1039,19 +1039,19 @@ function FamilyDetail({
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={() => setMode("edit")}
-                className="inline-flex items-center gap-1.5 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-[10px] font-semibold text-indigo-300 hover:bg-indigo-500/20"
+                className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary hover:bg-primary/20"
               >
                 <Pencil className="h-3 w-3" /> Editar
               </button>
               <button
                 onClick={() => setShowContato(true)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                className="inline-flex items-center gap-1.5 rounded-md border border-sys-green/30 bg-sys-green/15 px-2.5 py-1 text-[10px] font-semibold text-sys-green hover:bg-sys-green/20"
               >
                 <Phone className="h-3 w-3" /> Registrar contato
               </button>
               <button
                 onClick={() => setShowEscalonar(true)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[10px] font-semibold text-red-300 hover:bg-red-500/20"
+                className="inline-flex items-center gap-1.5 rounded-md border border-sys-red/30 bg-sys-red/15 px-2.5 py-1 text-[10px] font-semibold text-sys-red hover:bg-sys-red/20"
               >
                 <ArrowUpRight className="h-3 w-3" /> Escalonar ao CEO
               </button>
@@ -1098,35 +1098,35 @@ function FamilyDetail({
                 ].map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5"
+                    className="rounded-xl border border-border bg-card px-3 py-2.5"
                   >
-                    <p className="text-[10px] text-zinc-600">{item.label}</p>
-                    <p className="text-xs font-medium text-white">{item.value}</p>
+                    <p className="text-[10px] text-label-tertiary">{item.label}</p>
+                    <p className="text-xs font-medium text-foreground">{item.value}</p>
                   </div>
                 ))}
               </div>
 
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
                   Indicadores de Experiência
                 </p>
                 <div className="space-y-3">
                   <div>
                     <div className="flex justify-between mb-1">
-                      <p className="text-xs text-zinc-400">Satisfação</p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-muted-foreground">Satisfação</p>
+                      <p className="text-xs text-muted-foreground">
                         {family.satisfaction_level}/5
                       </p>
                     </div>
                     <ScoreBar
                       value={family.satisfaction_level}
-                      color="bg-emerald-500"
+                      color="bg-sys-green"
                     />
                   </div>
                   <div>
                     <div className="flex justify-between mb-1">
-                      <p className="text-xs text-zinc-400">Ansiedade</p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-muted-foreground">Ansiedade</p>
+                      <p className="text-xs text-muted-foreground">
                         {family.anxiety_level}/5
                       </p>
                     </div>
@@ -1134,15 +1134,15 @@ function FamilyDetail({
                       value={family.anxiety_level}
                       color={
                         family.anxiety_level >= 4
-                          ? "bg-red-500"
-                          : "bg-amber-500"
+                          ? "bg-sys-red"
+                          : "bg-sys-orange"
                       }
                     />
                   </div>
                   <div>
                     <div className="flex justify-between mb-1">
-                      <p className="text-xs text-zinc-400">Risco Percebido</p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-muted-foreground">Risco Percebido</p>
+                      <p className="text-xs text-muted-foreground">
                         {family.perceived_risk}/5
                       </p>
                     </div>
@@ -1150,8 +1150,8 @@ function FamilyDetail({
                       value={family.perceived_risk}
                       color={
                         family.perceived_risk >= 4
-                          ? "bg-red-500"
-                          : "bg-orange-500"
+                          ? "bg-sys-red"
+                          : "bg-sys-orange"
                       }
                     />
                   </div>
@@ -1159,41 +1159,41 @@ function FamilyDetail({
               </div>
 
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
                   Perfil de Risco
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {family.risk_profile.map((r) => (
                     <div
                       key={r.dimension}
-                      className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2"
+                      className="rounded-xl border border-border bg-card px-3 py-2"
                     >
                       <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-[10px] text-zinc-500">
+                        <p className="text-[10px] text-muted-foreground">
                           {RISK_DIMENSION_LABELS[r.dimension]}
                         </p>
                         <span
                           className={cn(
                             "text-[10px] font-bold",
                             r.score >= 4
-                              ? "text-red-400"
+                              ? "text-sys-red"
                               : r.score >= 3
-                                ? "text-amber-400"
-                                : "text-emerald-400"
+                                ? "text-sys-orange"
+                                : "text-sys-green"
                           )}
                         >
                           {r.score}/5
                         </span>
                       </div>
-                      <div className="h-1 rounded-full bg-[#1e2130]">
+                      <div className="h-1 rounded-full bg-secondary">
                         <div
                           className={cn(
                             "h-full rounded-full",
                             r.score >= 4
-                              ? "bg-red-500"
+                              ? "bg-sys-red"
                               : r.score >= 3
-                                ? "bg-amber-500"
-                                : "bg-emerald-500"
+                                ? "bg-sys-orange"
+                                : "bg-sys-green"
                           )}
                           style={{ width: `${(r.score / 5) * 100}%` }}
                         />
@@ -1205,28 +1205,28 @@ function FamilyDetail({
 
               {family.family_status === "crise" && (
                 <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-red-400">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-sys-red">
                     Detalhes da Crise
                   </p>
-                  <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-2">
-                    <p className="text-xs text-zinc-300">
-                      <span className="font-semibold text-red-300">Tipo: </span>
+                  <div className="rounded-xl border border-sys-red/30 bg-sys-red/5 p-4 space-y-2">
+                    <p className="text-xs text-foreground/80">
+                      <span className="font-semibold text-sys-red">Tipo: </span>
                       {family.tipo_crise ?? "—"}
                     </p>
-                    <p className="text-xs text-zinc-300">
-                      <span className="font-semibold text-red-300">Nível: </span>
+                    <p className="text-xs text-foreground/80">
+                      <span className="font-semibold text-sys-red">Nível: </span>
                       {family.nivel_crise ?? "—"}
                     </p>
-                    <p className="text-xs text-zinc-300">
-                      <span className="font-semibold text-red-300">
+                    <p className="text-xs text-foreground/80">
+                      <span className="font-semibold text-sys-red">
                         Psicóloga:{" "}
                       </span>
                       {family.psicologa_acionada ? "Sim" : "Não"}
                     </p>
                     {family.crisis_records.map((cr) => (
-                      <div key={cr.id} className="pt-2 border-t border-red-500/20">
-                        <p className="text-xs text-zinc-300">{cr.description}</p>
-                        <p className="text-xs text-zinc-500 mt-1">
+                      <div key={cr.id} className="pt-2 border-t border-sys-red/20">
+                        <p className="text-xs text-foreground/80">{cr.description}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
                           Ação: {cr.action_taken}
                         </p>
                       </div>
@@ -1238,21 +1238,21 @@ function FamilyDetail({
               {family.family_status === "atencao" &&
                 family.attention_records.length > 0 && (
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-sys-orange">
                       Registro de Atenção
                     </p>
                     {family.attention_records.map((ar) => (
                       <div
                         key={ar.id}
-                        className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2"
+                        className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-3 space-y-2"
                       >
-                        <p className="text-xs text-zinc-300">
-                          <span className="font-semibold text-amber-400">
+                        <p className="text-xs text-foreground/80">
+                          <span className="font-semibold text-sys-orange">
                             Problema:{" "}
                           </span>
                           {ar.problem_description}
                         </p>
-                        <p className="text-xs text-zinc-400">
+                        <p className="text-xs text-muted-foreground">
                           <span className="font-semibold">Ação: </span>
                           {ar.action_ongoing}
                         </p>
@@ -1263,15 +1263,15 @@ function FamilyDetail({
 
               {showPostBoarding && (
                 <div>
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
                     Indicadores Pós-Embarque
                   </p>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5">
-                      <p className="text-[10px] text-zinc-600 mb-1">
+                    <div className="rounded-xl border border-border bg-card px-3 py-2.5">
+                      <p className="text-[10px] text-label-tertiary mb-1">
                         Reteve para 2º ano?
                       </p>
-                      <p className="text-xs font-medium text-white">
+                      <p className="text-xs font-medium text-foreground">
                         {family.retencao_segundo_ano === true
                           ? "Sim"
                           : family.retencao_segundo_ano === false
@@ -1279,37 +1279,37 @@ function FamilyDetail({
                             : "Pendente"}
                       </p>
                     </div>
-                    <div className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5">
-                      <p className="text-[10px] text-zinc-600 mb-1">NPS 6 meses</p>
+                    <div className="rounded-xl border border-border bg-card px-3 py-2.5">
+                      <p className="text-[10px] text-label-tertiary mb-1">NPS 6 meses</p>
                       {family.nps_6meses != null ? (
                         <div className="flex items-center gap-1.5">
                           <Star
                             className={cn(
                               "h-3.5 w-3.5",
                               family.nps_6meses >= 9
-                                ? "text-emerald-400"
+                                ? "text-sys-green"
                                 : family.nps_6meses >= 7
-                                  ? "text-amber-400"
-                                  : "text-red-400"
+                                  ? "text-sys-orange"
+                                  : "text-sys-red"
                             )}
                           />
-                          <span className="text-xs font-bold text-white">
+                          <span className="text-xs font-bold text-foreground">
                             {family.nps_6meses}/10
                           </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-zinc-500">
+                        <span className="text-xs text-muted-foreground">
                           {family.nps_enviado_at ? "Aguardando" : "Não enviado"}
                         </span>
                       )}
                     </div>
-                    <div className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5 col-span-2">
-                      <p className="text-[10px] text-zinc-600 mb-1">
+                    <div className="rounded-xl border border-border bg-card px-3 py-2.5 col-span-2">
+                      <p className="text-[10px] text-label-tertiary mb-1">
                         Indicações geradas
                       </p>
                       <div className="flex items-center gap-1.5">
-                        <Award className="h-3.5 w-3.5 text-indigo-400" />
-                        <span className="text-xs font-bold text-white">
+                        <Award className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-xs font-bold text-foreground">
                           {family.indicacoes_geradas ?? 0}
                         </span>
                       </div>
@@ -1367,24 +1367,24 @@ export function FamiliasCrmClient({
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-white">
+          <h1 className="text-title-2 text-foreground">
             CRM de Experiência da Família
           </h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Acompanhamento pós-venda e suporte à jornada
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowNovaModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors"
           >
             <User className="h-4 w-4" />
             Nova Família
           </button>
           <a
             href="/familias-pipeline"
-            className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-2 text-sm font-medium text-zinc-300 hover:border-indigo-500/30 hover:text-indigo-300"
+            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground hover:border-primary/30 hover:text-primary"
           >
             Pipeline da Família
           </a>
@@ -1399,10 +1399,10 @@ export function FamiliasCrmClient({
 
       {/* Banner de alertas */}
       {alertas.length > 0 && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+        <div className="glass-card rounded-xl border-sys-orange/30 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Bell className="h-4 w-4 text-amber-400" />
-            <p className="text-xs font-semibold text-amber-300">
+            <Bell className="h-4 w-4 text-sys-orange" />
+            <p className="text-xs font-semibold text-sys-orange">
               {alertas.length} família{alertas.length > 1 ? "s" : ""} em alerta
               de inatividade
             </p>
@@ -1411,12 +1411,12 @@ export function FamiliasCrmClient({
             {alertas.slice(0, 8).map((a) => (
               <div
                 key={a.experiencia_id}
-                className="flex items-center justify-between rounded-md border border-[#1e2130] bg-[#141720] px-3 py-1.5"
+                className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-1.5"
               >
-                <p className="text-xs text-zinc-300 truncate">
+                <p className="text-xs text-foreground/80 truncate">
                   {a.atleta_nome}
                 </p>
-                <span className="text-[10px] font-semibold text-amber-300 whitespace-nowrap ml-2">
+                <span className="text-[10px] font-semibold text-sys-orange whitespace-nowrap ml-2">
                   {a.dias}d / {a.threshold}d ({a.fase})
                 </span>
               </div>
@@ -1430,38 +1430,38 @@ export function FamiliasCrmClient({
           {
             label: "Famílias",
             value: metrics.total.toString(),
-            color: "text-white",
-            bg: "bg-zinc-800",
+            color: "text-foreground",
+            bg: "bg-secondary border-border",
           },
           {
             label: "Satisfeitas",
             value: metrics.satisfeita.toString(),
-            color: "text-emerald-400",
-            bg: "bg-emerald-500/10 border-emerald-500/20",
+            color: "text-sys-green",
+            bg: "bg-sys-green/15 border-sys-green/20",
           },
           {
             label: "Atenção",
             value: metrics.atencao.toString(),
-            color: "text-amber-400",
-            bg: "bg-amber-500/10 border-amber-500/20",
+            color: "text-sys-orange",
+            bg: "bg-sys-orange/15 border-sys-orange/20",
           },
           {
             label: "Crise",
             value: metrics.crise.toString(),
-            color: "text-red-400",
-            bg: "bg-red-500/10 border-red-500/20",
+            color: "text-sys-red",
+            bg: "bg-sys-red/15 border-sys-red/20",
           },
           {
             label: "Em alerta",
             value: metrics.em_alerta.toString(),
-            color: "text-orange-400",
-            bg: "bg-orange-500/10 border-orange-500/20",
+            color: "text-sys-orange",
+            bg: "bg-sys-orange/15 border-sys-orange/20",
           },
           {
             label: "Satisfação média",
             value: `${metrics.avg_satisfaction}/5`,
-            color: "text-blue-400",
-            bg: "bg-blue-500/10 border-blue-500/20",
+            color: "text-sys-blue",
+            bg: "bg-sys-blue/15 border-sys-blue/20",
           },
         ].map((kpi) => (
           <div
@@ -1469,17 +1469,17 @@ export function FamiliasCrmClient({
             className={cn(
               "rounded-xl border px-4 py-3 text-center",
               kpi.bg,
-              !kpi.bg.includes("border-") && "border-[#1e2130]"
+              !kpi.bg.includes("border-") && "border-border"
             )}
           >
             <p className={cn("text-2xl font-bold", kpi.color)}>{kpi.value}</p>
-            <p className="mt-0.5 text-xs text-zinc-500">{kpi.label}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
           </div>
         ))}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
-        <p className="text-xs text-zinc-600">Temperatura:</p>
+        <p className="text-xs text-label-tertiary">Temperatura:</p>
         {[
           { key: "verde", label: "Verde", count: metrics.temperatura_verde },
           {
@@ -1495,10 +1495,10 @@ export function FamiliasCrmClient({
         ].map((t) => (
           <div
             key={t.key}
-            className="flex items-center gap-1.5 rounded-md border border-[#1e2130] bg-[#141720] px-3 py-1.5"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5"
           >
-            <span className="text-xs">{t.label}</span>
-            <span className="rounded-full bg-zinc-800 px-1.5 text-[10px] font-semibold text-white">
+            <span className="text-xs text-foreground/80">{t.label}</span>
+            <span className="rounded-full bg-secondary px-1.5 text-[10px] font-semibold text-muted-foreground">
               {t.count}
             </span>
           </div>
@@ -1511,10 +1511,10 @@ export function FamiliasCrmClient({
             key={f}
             onClick={() => setFilter(f)}
             className={cn(
-              "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+              "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
               filter === f
-                ? "border-indigo-500/40 bg-indigo-500/20 text-indigo-300"
-                : "border-[#1e2130] bg-[#141720] text-zinc-500 hover:text-zinc-300"
+                ? "border-primary/40 bg-primary/15 text-primary"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
             )}
           >
             {f === "todas"
@@ -1525,7 +1525,7 @@ export function FamiliasCrmClient({
                   ? "Atenção"
                   : "Crise"}
             {f !== "todas" && (
-              <span className="ml-1.5 rounded-full bg-zinc-800 px-1.5 text-[10px] text-zinc-400">
+              <span className="ml-1.5 rounded-full bg-secondary px-1.5 text-[10px] text-muted-foreground">
                 {f === "satisfeita"
                   ? metrics.satisfeita
                   : f === "atencao"
@@ -1542,7 +1542,7 @@ export function FamiliasCrmClient({
           <div key={family.id} className="relative">
             <FamilyCard family={family} onSelect={setSelected} />
             {alertasByExperiencia.has(family.id) && (
-              <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+              <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-md bg-sys-orange/15 border border-sys-orange/30 px-1.5 py-0.5 text-[10px] font-bold text-sys-orange">
                 <Bell className="h-2.5 w-2.5" />
                 Inativa
               </span>
@@ -1553,8 +1553,8 @@ export function FamiliasCrmClient({
 
       {filtered.length === 0 && (
         <div className="text-center py-12">
-          <User className="h-10 w-10 mx-auto text-zinc-600 mb-3" />
-          <p className="text-sm text-zinc-500">Nenhuma família encontrada.</p>
+          <User className="h-10 w-10 mx-auto text-label-tertiary mb-3" />
+          <p className="text-sm text-muted-foreground">Nenhuma família encontrada.</p>
         </div>
       )}
 

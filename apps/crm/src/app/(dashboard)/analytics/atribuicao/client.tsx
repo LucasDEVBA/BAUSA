@@ -29,20 +29,20 @@ import type { LeadAttribution } from "./page";
 // ─── Colors ─────────────────────────────────────────────────────────────────
 
 const COLORS = [
-  "#818cf8", // indigo
-  "#34d399", // emerald
-  "#fbbf24", // amber
-  "#f87171", // red
-  "#60a5fa", // blue
-  "#a78bfa", // purple
-  "#fb923c", // orange
-  "#2dd4bf", // teal
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--sys-purple)",
+  "var(--sys-orange)",
+  "var(--sys-teal)",
 ];
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
-  QUENTE: "#22c55e",
-  MORNO: "#f59e0b",
-  FRIO: "#3b82f6",
+  QUENTE: "var(--lead-hot)",
+  MORNO: "var(--lead-warm)",
+  FRIO: "var(--lead-cold)",
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -96,8 +96,8 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-xs shadow-xl">
-      <p className="mb-1 font-medium text-zinc-200">{label}</p>
+    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
+      <p className="mb-1 font-medium text-foreground">{label}</p>
       {payload.map((entry) => (
         <p key={entry.name} style={{ color: entry.color }}>
           {entry.name}: {entry.value}
@@ -121,13 +121,13 @@ function MetricCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
-      <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
+    <div className="glass-card rounded-xl p-4">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <p className="text-2xl font-bold text-zinc-100">{value}</p>
-      {sub && <p className="text-xs text-zinc-500 mt-0.5">{sub}</p>}
+      <p className="text-2xl font-bold text-foreground">{value}</p>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -142,8 +142,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-      <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+    <div className="glass-card rounded-xl p-5">
+      <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         {title}
       </p>
       {children}
@@ -182,8 +182,8 @@ export function AtribuicaoClient({ leads }: Props) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-zinc-100">Atribuição de Leads</h1>
-        <p className="text-sm text-zinc-500">
+        <h1 className="text-title-2 text-foreground">Atribuição de Leads</h1>
+        <p className="text-sm text-muted-foreground">
           De onde vêm os leads, por qual canal e dispositivo
         </p>
       </div>
@@ -212,12 +212,12 @@ export function AtribuicaoClient({ leads }: Props) {
           {bySource.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={bySource.slice(0, 8)} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-                <XAxis type="number" tick={{ fill: "#64748b", fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis type="number" tick={{ fill: "var(--chart-grid)", fontSize: 11 }} />
                 <YAxis
                   dataKey="name"
                   type="category"
-                  tick={{ fill: "#e2e8f0", fontSize: 11 }}
+                  tick={{ fill: "var(--foreground)", fontSize: 11 }}
                   width={100}
                 />
                 <Tooltip content={<CustomTooltip />} />
@@ -233,7 +233,7 @@ export function AtribuicaoClient({ leads }: Props) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="py-10 text-center text-sm text-zinc-500">
+            <p className="py-10 text-center text-sm text-muted-foreground">
               Nenhum lead com UTM registrado ainda
             </p>
           )}
@@ -261,9 +261,9 @@ export function AtribuicaoClient({ leads }: Props) {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      background: "#0f1117",
-                      border: "1px solid #1e2130",
-                      borderRadius: 8,
+                      background: "var(--popover)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 12,
                       fontSize: 12,
                     }}
                   />
@@ -283,10 +283,10 @@ export function AtribuicaoClient({ leads }: Props) {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-zinc-200 capitalize">{d.name}</span>
-                          <span className="text-sm font-bold text-zinc-100">{pct}%</span>
+                          <span className="text-sm font-medium text-foreground capitalize">{d.name}</span>
+                          <span className="text-sm font-bold text-foreground">{pct}%</span>
                         </div>
-                        <div className="mt-1 h-1.5 rounded-full bg-[#1e2130]">
+                        <div className="mt-1 h-1.5 rounded-full bg-secondary">
                           <div
                             className="h-full rounded-full"
                             style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }}
@@ -299,7 +299,7 @@ export function AtribuicaoClient({ leads }: Props) {
               </div>
             </div>
           ) : (
-            <p className="py-10 text-center text-sm text-zinc-500">
+            <p className="py-10 text-center text-sm text-muted-foreground">
               Nenhum dado de dispositivo registrado
             </p>
           )}
@@ -313,9 +313,9 @@ export function AtribuicaoClient({ leads }: Props) {
           {byMedium.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={byMedium.slice(0, 6)}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-                <XAxis dataKey="name" tick={{ fill: "#e2e8f0", fontSize: 11 }} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="name" tick={{ fill: "var(--foreground)", fontSize: 11 }} />
+                <YAxis tick={{ fill: "var(--chart-grid)", fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend
                   wrapperStyle={{ fontSize: 11 }}
@@ -329,7 +329,7 @@ export function AtribuicaoClient({ leads }: Props) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="py-10 text-center text-sm text-zinc-500">Nenhum dado de meio</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">Nenhum dado de meio</p>
           )}
         </Section>
 
@@ -347,20 +347,20 @@ export function AtribuicaoClient({ leads }: Props) {
                   Direto: "Acesso direto ao /forms",
                 };
                 return (
-                  <div key={c.name} className="rounded-lg border border-[#1e2130] bg-[#0c0e14] p-3">
+                  <div key={c.name} className="rounded-lg border border-border bg-secondary p-3">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <MousePointerClick className="h-4 w-4 text-indigo-400" />
-                        <span className="text-sm font-medium text-zinc-200">
+                        <MousePointerClick className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium text-foreground">
                           {labels[c.name] ?? c.name}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold text-zinc-100">{c.value}</span>
-                        <span className="text-xs text-zinc-500">({pct}%)</span>
+                        <span className="text-lg font-bold text-foreground">{c.value}</span>
+                        <span className="text-xs text-muted-foreground">({pct}%)</span>
                       </div>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[#1e2130]">
+                    <div className="h-1.5 rounded-full bg-fill-3">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }}
@@ -371,7 +371,7 @@ export function AtribuicaoClient({ leads }: Props) {
               })}
             </div>
           ) : (
-            <p className="py-10 text-center text-sm text-zinc-500">Nenhum CTA rastreado</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">Nenhum CTA rastreado</p>
           )}
         </Section>
       </div>
@@ -388,23 +388,23 @@ export function AtribuicaoClient({ leads }: Props) {
                 .map((c) => (
                   <div
                     key={c.name}
-                    className="flex items-center justify-between rounded-lg border border-[#1e2130] bg-[#0c0e14] px-3 py-2"
+                    className="flex items-center justify-between rounded-lg border border-border bg-secondary px-3 py-2"
                   >
                     <div className="flex items-center gap-2">
-                      <Megaphone className="h-3.5 w-3.5 text-amber-400" />
-                      <span className="text-sm text-zinc-200">{c.name}</span>
+                      <Megaphone className="h-3.5 w-3.5 text-sys-orange" />
+                      <span className="text-sm text-foreground">{c.name}</span>
                     </div>
                     <div className="flex items-center gap-3 text-xs">
-                      <span className="text-emerald-400">{c.quente} Q</span>
-                      <span className="text-amber-400">{c.morno} M</span>
-                      <span className="text-blue-400">{c.frio} F</span>
-                      <span className="font-bold text-zinc-100">{c.total}</span>
+                      <span className="text-lead-hot">{c.quente} Q</span>
+                      <span className="text-lead-warm">{c.morno} M</span>
+                      <span className="text-lead-cold">{c.frio} F</span>
+                      <span className="font-bold text-foreground">{c.total}</span>
                     </div>
                   </div>
                 ))}
             </div>
           ) : (
-            <p className="py-10 text-center text-sm text-zinc-500">
+            <p className="py-10 text-center text-sm text-muted-foreground">
               Nenhuma campanha registrada
             </p>
           )}
@@ -415,10 +415,10 @@ export function AtribuicaoClient({ leads }: Props) {
           {conversionBySource.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={conversionBySource.slice(0, 6)}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-                <XAxis dataKey="name" tick={{ fill: "#e2e8f0", fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="name" tick={{ fill: "var(--foreground)", fontSize: 11 }} />
                 <YAxis
-                  tick={{ fill: "#64748b", fontSize: 11 }}
+                  tick={{ fill: "var(--chart-grid)", fontSize: 11 }}
                   tickFormatter={(v) => `${v}%`}
                 />
                 <Tooltip
@@ -426,20 +426,20 @@ export function AtribuicaoClient({ leads }: Props) {
                     if (!active || !payload?.length) return null;
                     const d = payload[0]?.payload as (typeof conversionBySource)[0];
                     return (
-                      <div className="rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-xs shadow-xl">
-                        <p className="mb-1 font-medium text-zinc-200">{label}</p>
-                        <p className="text-indigo-400">
+                      <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
+                        <p className="mb-1 font-medium text-foreground">{label}</p>
+                        <p className="text-primary">
                           {d.qualificados}/{d.total} qualificados ({d.taxa}%)
                         </p>
                       </div>
                     );
                   }}
                 />
-                <Bar dataKey="taxa" fill="#818cf8" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="taxa" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="py-10 text-center text-sm text-zinc-500">Sem dados</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">Sem dados</p>
           )}
         </Section>
       </div>

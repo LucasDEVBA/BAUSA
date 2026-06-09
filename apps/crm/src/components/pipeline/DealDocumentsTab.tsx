@@ -30,28 +30,28 @@ interface DealDocumentsTabProps {
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   pendente: {
     label: "Pendente",
-    color: "text-zinc-400",
-    bgColor: "bg-zinc-500/10 border-zinc-500/20",
+    color: "text-muted-foreground",
+    bgColor: "bg-secondary border-border",
   },
   enviado_atleta: {
     label: "Enviado",
-    color: "text-blue-400",
-    bgColor: "bg-blue-500/10 border-blue-500/20",
+    color: "text-sys-blue",
+    bgColor: "bg-sys-blue/15 border-sys-blue/20",
   },
   revisado: {
     label: "Revisado",
-    color: "text-purple-400",
-    bgColor: "bg-purple-500/10 border-purple-500/20",
+    color: "text-plan-legacy",
+    bgColor: "bg-plan-legacy/15 border-plan-legacy/20",
   },
   enviado_escola: {
     label: "Env. Escola",
-    color: "text-amber-400",
-    bgColor: "bg-amber-500/10 border-amber-500/20",
+    color: "text-sys-orange",
+    bgColor: "bg-sys-orange/15 border-sys-orange/20",
   },
   aprovado: {
     label: "Aprovado",
-    color: "text-emerald-400",
-    bgColor: "bg-emerald-500/10 border-emerald-500/20",
+    color: "text-sys-green",
+    bgColor: "bg-sys-green/15 border-sys-green/20",
   },
 };
 
@@ -172,7 +172,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -180,18 +180,18 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
   return (
     <div className="space-y-5">
       {/* Progress bar */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
+      <div className="rounded-xl glass-card p-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-zinc-400">
+          <span className="text-xs font-medium text-muted-foreground">
             Progresso dos documentos
           </span>
-          <span className="text-xs font-bold text-zinc-200">
+          <span className="text-xs font-bold text-foreground">
             {approvedCount}/{totalTipos} aprovados
           </span>
         </div>
-        <div className="h-2 rounded-full bg-[#1e2130] overflow-hidden">
+        <div className="h-2 rounded-full bg-secondary overflow-hidden">
           <div
-            className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+            className="h-full rounded-full bg-sys-green transition-all duration-500"
             style={{ width: `${progressPct}%` }}
           />
         </div>
@@ -200,7 +200,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
       {/* Document list */}
       <div className="space-y-2">
         {docs.length === 0 ? (
-          <p className="text-sm text-zinc-500 text-center py-6">
+          <p className="text-sm text-muted-foreground text-center py-6">
             Nenhum documento cadastrado ainda.
           </p>
         ) : (
@@ -213,12 +213,12 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
             return (
               <div
                 key={doc.id}
-                className="rounded-xl border border-[#1e2130] bg-[#141720] p-4 space-y-3"
+                className="rounded-xl glass-card p-4 space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-zinc-500" />
-                    <span className="text-sm font-medium text-zinc-200">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">
                       {getTipoLabel(doc.tipo)}
                     </span>
                   </div>
@@ -242,10 +242,10 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
                     className={cn(
                       "flex items-center gap-1.5 text-xs",
                       overdue
-                        ? "text-red-400"
+                        ? "text-sys-red"
                         : urgent
-                          ? "text-amber-400"
-                          : "text-zinc-500",
+                          ? "text-sys-orange"
+                          : "text-muted-foreground",
                     )}
                   >
                     {(overdue || urgent) && (
@@ -266,7 +266,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
                       href={doc.arquivo_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                      className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
                     >
                       <ExternalLink className="h-3 w-3" />
                       {doc.arquivo_nome ?? "Arquivo"}
@@ -274,7 +274,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
                     <button
                       onClick={() => fileInputRefs.current[doc.id]?.click()}
                       disabled={uploadingDocId === doc.id}
-                      className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {uploadingDocId === doc.id ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -297,7 +297,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
                     <button
                       onClick={() => fileInputRefs.current[doc.id]?.click()}
                       disabled={uploadingDocId === doc.id}
-                      className="flex items-center gap-1.5 rounded-lg border border-dashed border-[#1e2130] px-3 py-2 text-xs text-zinc-500 hover:border-indigo-500/30 hover:text-indigo-400 transition-colors w-full justify-center"
+                      className="flex items-center gap-1.5 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors w-full justify-center"
                     >
                       {uploadingDocId === doc.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -323,7 +323,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
                   <button
                     onClick={() => handleAdvanceStatus(doc.id, doc.status)}
                     disabled={isPending}
-                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600/20 px-3 py-1.5 text-xs font-medium text-indigo-300 hover:bg-indigo-600/30 transition-colors w-full justify-center"
+                    className="flex items-center gap-1.5 rounded-md bg-primary/15 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/25 transition-colors w-full justify-center"
                   >
                     {isPending ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -341,14 +341,14 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
 
       {/* Add document form */}
       {showAddForm ? (
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4 space-y-3">
-          <p className="text-xs font-semibold text-zinc-300">Novo documento</p>
+        <div className="rounded-xl glass-card p-4 space-y-3">
+          <p className="text-xs font-semibold text-foreground">Novo documento</p>
           <div>
-            <label className="text-xs font-medium text-zinc-400">Tipo</label>
+            <label className="text-xs font-medium text-muted-foreground">Tipo</label>
             <select
               value={newTipo}
               onChange={(e) => setNewTipo(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[#1e2130] bg-[#0f1117] py-2 px-3 text-sm text-zinc-200 outline-none focus:border-indigo-500 appearance-none"
+              className="mt-1 w-full rounded-md border border-border bg-popover py-2 px-3 text-sm text-foreground outline-none focus:border-primary appearance-none"
             >
               <option value="">Selecionar tipo...</option>
               {DOCUMENTO_TIPOS.map((t) => (
@@ -359,21 +359,21 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-zinc-400">
+            <label className="text-xs font-medium text-muted-foreground">
               Prazo (opcional)
             </label>
             <input
               type="date"
               value={newDeadline}
               onChange={(e) => setNewDeadline(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[#1e2130] bg-[#0f1117] py-2 px-3 text-sm text-zinc-200 outline-none focus:border-indigo-500"
+              className="mt-1 w-full rounded-md border border-border bg-popover py-2 px-3 text-sm text-foreground outline-none focus:border-primary"
             />
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleAddDoc}
               disabled={isPending}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               {isPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -388,7 +388,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
                 setNewTipo("");
                 setNewDeadline("");
               }}
-              className="rounded-lg px-3 py-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="rounded-md px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               Cancelar
             </button>
@@ -397,7 +397,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
       ) : (
         <button
           onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-dashed border-[#1e2130] px-4 py-3 text-xs text-zinc-500 hover:border-indigo-500/30 hover:text-indigo-400 transition-colors w-full justify-center"
+          className="flex items-center gap-1.5 rounded-md border border-dashed border-border px-4 py-3 text-xs text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors w-full justify-center"
         >
           <Plus className="h-3.5 w-3.5" />
           Adicionar documento

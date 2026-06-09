@@ -8,10 +8,10 @@ export default async function WarRoomPosicionamentoPage() {
   const positioning = await fetchPositioning();
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-zinc-100">Posicionamento</h1>
-        <p className="mt-0.5 text-sm text-zinc-500">
+        <h1 className="text-title-2 text-foreground">Posicionamento</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           Mix de produto por tier (Legacy, Journey, Start), ticket medio e politica de desconto.
         </p>
       </div>

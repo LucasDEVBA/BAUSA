@@ -223,44 +223,44 @@ export function FamilyEditDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-end bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-xl border border-[#1e2130] bg-[#0f1117] overflow-y-auto max-h-[92vh] shadow-2xl"
+        className="w-full max-w-lg rounded-2xl overflow-y-auto max-h-[92vh] liquid-glass"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 border-b border-[#1e2130] bg-[#0f1117] px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-border bg-popover px-5 py-4">
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xl">{tempCfg.icon}</span>
-                <p className="text-base font-bold text-white">
+                <p className="text-base font-bold text-foreground">
                   {family.athlete_name}
                 </p>
               </div>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-muted-foreground">
                 {family.guardian_name} · Plano {family.plano}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-fill-4 hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
           {/* Tabs */}
-          <div className="mt-3 flex gap-1 rounded-lg border border-[#1e2130] bg-[#141720] p-1">
+          <div className="mt-3 flex gap-1 rounded-xl border border-border bg-card p-1">
             <button
               onClick={() => setTab("editar")}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                 tab === "editar"
-                  ? "bg-indigo-600/20 text-indigo-300"
-                  : "text-zinc-500 hover:text-zinc-300",
+                  ? "bg-primary/15 text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <Pencil className="h-3 w-3" /> Editar
@@ -268,10 +268,10 @@ export function FamilyEditDrawer({
             <button
               onClick={() => setTab("contato")}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                 tab === "contato"
-                  ? "bg-emerald-600/20 text-emerald-300"
-                  : "text-zinc-500 hover:text-zinc-300",
+                  ? "bg-sys-green/15 text-sys-green"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <Phone className="h-3 w-3" /> Contato
@@ -279,10 +279,10 @@ export function FamilyEditDrawer({
             <button
               onClick={() => setTab("escalonar")}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                 tab === "escalonar"
-                  ? "bg-red-600/20 text-red-300"
-                  : "text-zinc-500 hover:text-zinc-300",
+                  ? "bg-sys-red/15 text-sys-red"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <ArrowUpRight className="h-3 w-3" /> Escalonar
@@ -304,14 +304,14 @@ export function FamilyEditDrawer({
                 >
                   {statusCfg.label}
                 </span>
-                <span className="text-xs text-zinc-500">
+                <span className="text-xs text-muted-foreground">
                   {JOURNEY_STAGE_CONFIG[family.fase].label}
                 </span>
               </div>
 
               {/* Fase */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
                   Fase da Jornada
                 </label>
                 <select
@@ -319,7 +319,7 @@ export function FamilyEditDrawer({
                   onChange={(e) =>
                     setFase(e.target.value as FamilyJourneyStage)
                   }
-                  className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
                 >
                   {FAMILY_JOURNEY_STAGES.map((f) => (
                     <option key={f} value={f}>
@@ -331,7 +331,7 @@ export function FamilyEditDrawer({
 
               {/* Indicadores */}
               <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Indicadores (1–5)
                 </p>
                 {[
@@ -354,9 +354,9 @@ export function FamilyEditDrawer({
                   },
                 ].map((it) => (
                   <div key={it.label} className="mb-3">
-                    <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
                       <span>{it.label}</span>
-                      <span className="text-zinc-500">
+                      <span className="text-muted-foreground">
                         {it.v}/5{it.hint ? ` — ${it.hint}` : ""}
                       </span>
                     </div>
@@ -366,7 +366,7 @@ export function FamilyEditDrawer({
                       max={5}
                       value={it.v}
                       onChange={(e) => it.set(Number(e.target.value))}
-                      className="w-full accent-indigo-500"
+                      className="w-full accent-primary"
                     />
                   </div>
                 ))}
@@ -374,7 +374,7 @@ export function FamilyEditDrawer({
 
               {/* Tipos de risco */}
               <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Tipos de Risco
                 </p>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -388,8 +388,8 @@ export function FamilyEditDrawer({
                         className={cn(
                           "rounded-md border px-2 py-1.5 text-[11px] font-medium transition-colors text-left",
                           active
-                            ? "border-red-500/40 bg-red-500/10 text-red-300"
-                            : "border-[#1e2130] bg-[#141720] text-zinc-500 hover:text-zinc-300",
+                            ? "border-sys-red/40 bg-sys-red/15 text-sys-red"
+                            : "border-border bg-card text-muted-foreground hover:text-foreground",
                         )}
                       >
                         {opt.label}
@@ -401,20 +401,20 @@ export function FamilyEditDrawer({
 
               {/* Data embarque */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
                   Data prevista de embarque
                 </label>
                 <input
                   type="date"
                   value={embarque}
                   onChange={(e) => setEmbarque(e.target.value)}
-                  className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
                 />
               </div>
 
               {/* Status */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
                   Status da Família
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -433,11 +433,11 @@ export function FamilyEditDrawer({
                         "rounded-md border px-2 py-2 text-[11px] font-semibold",
                         status === opt.v
                           ? opt.color === "emerald"
-                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                            ? "border-sys-green/40 bg-sys-green/15 text-sys-green"
                             : opt.color === "amber"
-                              ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                              : "border-red-500/40 bg-red-500/10 text-red-300"
-                          : "border-[#1e2130] bg-[#141720] text-zinc-500",
+                              ? "border-sys-orange/40 bg-sys-orange/15 text-sys-orange"
+                              : "border-sys-red/40 bg-sys-red/15 text-sys-red"
+                          : "border-border bg-card text-muted-foreground",
                       )}
                     >
                       {opt.label}
@@ -447,47 +447,47 @@ export function FamilyEditDrawer({
               </div>
 
               {requireProblema && (
-                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-3">
-                  <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-3 space-y-3">
+                  <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-sys-orange">
                     <AlertTriangle className="h-3 w-3" />
                     {status === "crise"
                       ? "Protocolo de Crise"
                       : "Registro de Atenção"}
                   </p>
                   <div>
-                    <label className="block text-[10px] text-zinc-400 mb-1">
+                    <label className="block text-[10px] text-muted-foreground mb-1">
                       Descrição do problema *
                     </label>
                     <textarea
                       value={descricao}
                       onChange={(e) => setDescricao(e.target.value)}
                       rows={3}
-                      className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500/40"
+                      className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
                       placeholder="O que está acontecendo..."
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-zinc-400 mb-1">
+                    <label className="block text-[10px] text-muted-foreground mb-1">
                       Ação em andamento *
                     </label>
                     <textarea
                       value={acao}
                       onChange={(e) => setAcao(e.target.value)}
                       rows={2}
-                      className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500/40"
+                      className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
                       placeholder="O que está sendo feito agora..."
                     />
                   </div>
                   {status === "atencao" && (
                     <div>
-                      <label className="block text-[10px] text-zinc-400 mb-1">
+                      <label className="block text-[10px] text-muted-foreground mb-1">
                         Próxima ação
                       </label>
                       <input
                         type="text"
                         value={proximaAcao}
                         onChange={(e) => setProximaAcao(e.target.value)}
-                        className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500/40"
+                        className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
                         placeholder="O que será feito a seguir..."
                       />
                     </div>
@@ -496,13 +496,13 @@ export function FamilyEditDrawer({
                     <>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] text-zinc-400 mb-1">
+                          <label className="block text-[10px] text-muted-foreground mb-1">
                             Tipo *
                           </label>
                           <select
                             value={tipoCrise}
                             onChange={(e) => setTipoCrise(e.target.value)}
-                            className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-red-500/40"
+                            className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
                           >
                             <option value="">Selecione</option>
                             {TIPO_CRISE_OPTIONS.map((t) => (
@@ -513,13 +513,13 @@ export function FamilyEditDrawer({
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] text-zinc-400 mb-1">
+                          <label className="block text-[10px] text-muted-foreground mb-1">
                             Nível *
                           </label>
                           <select
                             value={nivelCrise}
                             onChange={(e) => setNivelCrise(e.target.value)}
-                            className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-red-500/40"
+                            className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
                           >
                             <option value="">Selecione</option>
                             {NIVEL_CRISE_OPTIONS.map((n) => (
@@ -530,18 +530,18 @@ export function FamilyEditDrawer({
                           </select>
                         </div>
                       </div>
-                      <label className="flex items-center gap-2 text-xs text-zinc-300">
+                      <label className="flex items-center gap-2 text-xs text-foreground/80">
                         <input
                           type="checkbox"
                           checked={psicologa}
                           onChange={(e) => setPsicologa(e.target.checked)}
-                          className="accent-red-500"
+                          className="accent-destructive"
                         />
                         Psicóloga acionada
                       </label>
                     </>
                   )}
-                  <p className="text-[10px] text-amber-300/80">
+                  <p className="text-[10px] text-sys-orange/80">
                     Ao salvar, o CEO será notificado automaticamente.
                   </p>
                 </div>
@@ -550,7 +550,7 @@ export function FamilyEditDrawer({
               <button
                 onClick={handleSaveEdit}
                 disabled={isPending}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
                 {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Salvar alterações
@@ -561,7 +561,7 @@ export function FamilyEditDrawer({
           {tab === "contato" && (
             <>
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
                   Canal
                 </label>
                 <div className="grid grid-cols-4 gap-1.5">
@@ -575,8 +575,8 @@ export function FamilyEditDrawer({
                       className={cn(
                         "rounded-md border px-2 py-1.5 text-[10px] font-medium capitalize",
                         canalContato === t
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                          : "border-[#1e2130] bg-[#141720] text-zinc-500",
+                          ? "border-sys-green/40 bg-sys-green/15 text-sys-green"
+                          : "border-border bg-card text-muted-foreground",
                       )}
                     >
                       {t}
@@ -586,34 +586,34 @@ export function FamilyEditDrawer({
               </div>
 
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
                   Resumo *
                 </label>
                 <textarea
                   value={resumoContato}
                   onChange={(e) => setResumoContato(e.target.value)}
                   rows={4}
-                  className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-emerald-500/40"
+                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-sys-green/40"
                   placeholder="O que foi discutido..."
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
                   Próximo contato *
                 </label>
                 <input
                   type="date"
                   value={proximoContato}
                   onChange={(e) => setProximoContato(e.target.value)}
-                  className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-emerald-500/40"
+                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-sys-green/40"
                 />
               </div>
 
               <button
                 onClick={handleSaveContato}
                 disabled={isPending}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 rounded-md bg-sys-green px-4 py-2.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
               >
                 {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Registrar contato
@@ -623,8 +623,8 @@ export function FamilyEditDrawer({
 
           {tab === "escalonar" && (
             <>
-              <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
-                <p className="text-[11px] text-red-300/90">
+              <div className="rounded-xl border border-sys-red/30 bg-sys-red/5 p-3">
+                <p className="text-[11px] text-sys-red/80">
                   Cria tarefa crítica (prazo 2h) + notificação imediata ao CEO.
                 </p>
               </div>
@@ -632,13 +632,13 @@ export function FamilyEditDrawer({
                 value={contextoEscalonar}
                 onChange={(e) => setContextoEscalonar(e.target.value)}
                 rows={5}
-                className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-red-500/40"
+                className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
                 placeholder="Contexto detalhado do escalonamento..."
               />
               <button
                 onClick={handleEscalonar}
                 disabled={isPending}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 rounded-md bg-destructive px-4 py-2.5 text-xs font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-50"
               >
                 {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Escalonar agora

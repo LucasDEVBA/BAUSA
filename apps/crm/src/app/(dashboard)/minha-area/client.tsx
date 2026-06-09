@@ -92,14 +92,14 @@ function ScoreBar({
   const pct = Math.min((value / max) * 100, 100);
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] text-zinc-500 w-14 shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 rounded-full bg-[#1e2130] overflow-hidden">
+      <span className="text-[10px] text-muted-foreground w-14 shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-secondary overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all", color)}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-[10px] text-zinc-400 w-4 text-right">{value}</span>
+      <span className="text-[10px] text-muted-foreground w-4 text-right">{value}</span>
     </div>
   );
 }
@@ -120,12 +120,12 @@ function UrgentActionsSection({
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10">
-          <Flame className="h-4 w-4 text-red-400" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-red/10">
+          <Flame className="h-4 w-4 text-sys-red" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-white">Fazer Agora</h2>
-          <p className="text-[11px] text-zinc-500">
+          <h2 className="text-sm font-semibold text-foreground">Fazer Agora</h2>
+          <p className="text-[11px] text-muted-foreground">
             {totalUrgent === 0
               ? "Nenhuma acao urgente"
               : `${totalUrgent} ${totalUrgent === 1 ? "item requer" : "itens requerem"} atencao`}
@@ -134,8 +134,8 @@ function UrgentActionsSection({
       </div>
 
       {totalUrgent === 0 && (
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-6 text-center">
-          <p className="text-sm text-zinc-500">Tudo em dia! Nenhuma acao urgente.</p>
+        <div className="glass-card rounded-xl p-6 text-center">
+          <p className="text-sm text-muted-foreground">Tudo em dia! Nenhuma acao urgente.</p>
         </div>
       )}
 
@@ -146,7 +146,7 @@ function UrgentActionsSection({
             <button
               key={`fam-${f.id}`}
               onClick={() => onFamilyClick(f.id)}
-              className="w-full flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3 text-left transition-colors hover:border-[#2a2d42] hover:bg-[#181b26]"
+              className="w-full flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-accent"
             >
               <div
                 className={cn(
@@ -157,10 +157,10 @@ function UrgentActionsSection({
                 <AlertTriangle className={cn("h-4 w-4", statusCfg.color)} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
+                <p className="text-sm font-medium text-foreground truncate">
                   {f.athlete_name}
                 </p>
-                <p className="text-[11px] text-zinc-500">
+                <p className="text-[11px] text-muted-foreground">
                   {statusCfg.label} — {f.days_without_contact}d sem contato
                 </p>
               </div>
@@ -168,13 +168,13 @@ function UrgentActionsSection({
                 className={cn(
                   "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full",
                   f.family_status === "crise"
-                    ? "bg-red-500/10 text-red-400"
-                    : "bg-amber-500/10 text-amber-400"
+                    ? "bg-sys-red/15 text-sys-red"
+                    : "bg-sys-orange/15 text-sys-orange"
                 )}
               >
                 {f.family_status}
               </span>
-              <ChevronRight className="h-4 w-4 text-zinc-600" />
+              <ChevronRight className="h-4 w-4 text-label-tertiary" />
             </button>
           );
         })}
@@ -182,21 +182,21 @@ function UrgentActionsSection({
         {overdueTasks.map((t) => (
           <div
             key={`task-${t.id}`}
-            className="flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3"
+            className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10">
-              <Clock className="h-4 w-4 text-red-400" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-red/10">
+              <Clock className="h-4 w-4 text-sys-red" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">
+              <p className="text-sm font-medium text-foreground truncate">
                 {t.titulo}
               </p>
-              <p className="text-[11px] text-zinc-500">
+              <p className="text-[11px] text-muted-foreground">
                 Venceu em {formatDate(t.prazo)} —{" "}
                 {t.prioridade === "critica" ? "Prioridade critica" : `Prioridade ${t.prioridade}`}
               </p>
             </div>
-            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">
+            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sys-red/15 text-sys-red">
               atrasada
             </span>
           </div>
@@ -220,7 +220,7 @@ function FamilyCard({
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-xl border border-[#1e2130] bg-[#141720] p-4 text-left transition-colors hover:border-[#2a2d42] hover:bg-[#181b26]"
+      className="w-full glass-card rounded-xl p-4 text-left transition-colors hover:border-border hover:bg-accent"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -228,10 +228,10 @@ function FamilyCard({
             {tempCfg.icon}
           </span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-white truncate">
+            <p className="text-sm font-semibold text-foreground truncate">
               {family.athlete_name}
             </p>
-            <p className="text-[11px] text-zinc-500 truncate">
+            <p className="text-[11px] text-muted-foreground truncate">
               {family.guardian_name}
             </p>
           </div>
@@ -248,10 +248,10 @@ function FamilyCard({
       </div>
 
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-[10px] text-zinc-500 bg-[#1a1d2b] px-2 py-0.5 rounded">
+        <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded">
           {stageCfg?.label ?? family.journey_stage}
         </span>
-        <span className="text-[10px] text-zinc-500">
+        <span className="text-[10px] text-muted-foreground">
           {family.days_without_contact}d sem contato
         </span>
       </div>
@@ -259,12 +259,12 @@ function FamilyCard({
       <div className="space-y-1.5">
         <ScoreBar
           value={family.satisfaction_level}
-          color="bg-emerald-500"
+          color="bg-sys-green"
           label="Satisf."
         />
         <ScoreBar
           value={family.anxiety_level}
-          color="bg-amber-500"
+          color="bg-sys-orange"
           label="Ansied."
         />
       </div>
@@ -284,12 +284,12 @@ function MyFamiliesSection({
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10">
-          <Users className="h-4 w-4 text-indigo-400" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+          <Users className="h-4 w-4 text-primary" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-white">Minhas Familias</h2>
-          <p className="text-[11px] text-zinc-500">
+          <h2 className="text-sm font-semibold text-foreground">Minhas Familias</h2>
+          <p className="text-[11px] text-muted-foreground">
             {families.length}{" "}
             {families.length === 1 ? "familia" : "familias"} ativas
           </p>
@@ -297,8 +297,8 @@ function MyFamiliesSection({
       </div>
 
       {families.length === 0 ? (
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-6 text-center">
-          <p className="text-sm text-zinc-500">
+        <div className="glass-card rounded-xl p-6 text-center">
+          <p className="text-sm text-muted-foreground">
             Nenhuma familia atribuida ainda.
           </p>
         </div>
@@ -321,12 +321,12 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
-          <Calendar className="h-4 w-4 text-purple-400" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-plan-legacy/10">
+          <Calendar className="h-4 w-4 text-plan-legacy" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-white">Minha Semana</h2>
-          <p className="text-[11px] text-zinc-500">
+          <h2 className="text-sm font-semibold text-foreground">Minha Semana</h2>
+          <p className="text-[11px] text-muted-foreground">
             {contacts.length === 0
               ? "Nenhum contato agendado"
               : `${contacts.length} ${contacts.length === 1 ? "contato" : "contatos"} nos proximos 7 dias`}
@@ -335,8 +335,8 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
       </div>
 
       {contacts.length === 0 ? (
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-6 text-center">
-          <p className="text-sm text-zinc-500">
+        <div className="glass-card rounded-xl p-6 text-center">
+          <p className="text-sm text-muted-foreground">
             Nenhum contato agendado para os proximos 7 dias.
           </p>
         </div>
@@ -363,26 +363,26 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
             return (
               <div
                 key={`wk-${c.familyId}-${i}`}
-                className="flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3"
+                className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
               >
                 <div
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-lg",
-                    isToday ? "bg-indigo-500/10" : "bg-[#1a1d2b]"
+                    isToday ? "bg-primary/10" : "bg-secondary"
                   )}
                 >
                   <Phone
                     className={cn(
                       "h-4 w-4",
-                      isToday ? "text-indigo-400" : "text-zinc-500"
+                      isToday ? "text-primary" : "text-muted-foreground"
                     )}
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
+                  <p className="text-sm font-medium text-foreground truncate">
                     {c.athleteName}
                   </p>
-                  <p className="text-[11px] text-zinc-500">{dateLabel}</p>
+                  <p className="text-[11px] text-muted-foreground">{dateLabel}</p>
                 </div>
                 <div
                   className={cn(
@@ -428,14 +428,14 @@ function NeedContactSection({
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10">
-          <Phone className="h-4 w-4 text-orange-400" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-orange/10">
+          <Phone className="h-4 w-4 text-sys-orange" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-white">
+          <h2 className="text-sm font-semibold text-foreground">
             Familias que precisam de contato
           </h2>
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-[11px] text-muted-foreground">
             {needContact.length === 0
               ? "Todas em dia"
               : `${needContact.length} ${needContact.length === 1 ? "familia" : "familias"} acima do limite de inatividade`}
@@ -444,8 +444,8 @@ function NeedContactSection({
       </div>
 
       {needContact.length === 0 ? (
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-6 text-center">
-          <p className="text-sm text-zinc-500">
+        <div className="glass-card rounded-xl p-6 text-center">
+          <p className="text-sm text-muted-foreground">
             Todas as familias estao dentro do prazo de contato.
           </p>
         </div>
@@ -461,28 +461,28 @@ function NeedContactSection({
               <button
                 key={`nc-${f.id}`}
                 onClick={() => onFamilyClick(f.id)}
-                className="w-full flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3 text-left transition-colors hover:border-[#2a2d42] hover:bg-[#181b26]"
+                className="w-full flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-accent"
               >
                 <span className="text-base" title={tempCfg.label}>
                   {tempCfg.icon}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
+                  <p className="text-sm font-medium text-foreground truncate">
                     {f.athlete_name}
                   </p>
-                  <p className="text-[11px] text-zinc-500">
+                  <p className="text-[11px] text-muted-foreground">
                     {stageCfg?.label ?? f.journey_stage}
                   </p>
                 </div>
                 <span
                   className={cn(
                     "text-xs font-bold tabular-nums",
-                    isOverThreshold ? "text-red-400" : "text-zinc-400"
+                    isOverThreshold ? "text-sys-red" : "text-muted-foreground"
                   )}
                 >
                   {f.days_without_contact}d
                 </span>
-                <ChevronRight className="h-4 w-4 text-zinc-600" />
+                <ChevronRight className="h-4 w-4 text-label-tertiary" />
               </button>
             );
           })}
@@ -506,14 +506,14 @@ function AdmissaoSection({
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
-          <GraduationCap className="h-4 w-4 text-blue-400" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/15">
+          <GraduationCap className="h-4 w-4 text-sys-blue" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-white">
+          <h2 className="text-sm font-semibold text-foreground">
             Processos de admissao ativos
           </h2>
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-[11px] text-muted-foreground">
             {admissaoFamilies.length === 0
               ? "Nenhum processo ativo"
               : `${admissaoFamilies.length} ${admissaoFamilies.length === 1 ? "processo" : "processos"}`}
@@ -522,8 +522,8 @@ function AdmissaoSection({
       </div>
 
       {admissaoFamilies.length === 0 ? (
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-6 text-center">
-          <p className="text-sm text-zinc-500">
+        <div className="glass-card rounded-xl p-6 text-center">
+          <p className="text-sm text-muted-foreground">
             Nenhum processo de admissao ativo no momento.
           </p>
         </div>
@@ -537,27 +537,27 @@ function AdmissaoSection({
               <button
                 key={`adm-${f.id}`}
                 onClick={() => onFamilyClick(f.id)}
-                className="w-full flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3 text-left transition-colors hover:border-[#2a2d42] hover:bg-[#181b26]"
+                className="w-full flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-accent"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
-                  <FileText className="h-4 w-4 text-blue-400" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/15">
+                  <FileText className="h-4 w-4 text-sys-blue" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
+                  <p className="text-sm font-medium text-foreground truncate">
                     {f.athlete_name}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-zinc-500 bg-[#1a1d2b] px-2 py-0.5 rounded">
+                    <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded">
                       {stageCfg?.label ?? f.journey_stage}
                     </span>
                     {hasSchool && (
-                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                      <span className="text-[10px] text-sys-green bg-sys-green/15 px-2 py-0.5 rounded">
                         Escola confirmada
                       </span>
                     )}
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-zinc-600" />
+                <ChevronRight className="h-4 w-4 text-label-tertiary" />
               </button>
             );
           })}
@@ -571,43 +571,43 @@ function PerformanceSection({ performance }: { performance: PerformanceMetrics }
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
-          <BarChart3 className="h-4 w-4 text-emerald-400" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-green/15">
+          <BarChart3 className="h-4 w-4 text-sys-green" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-white">Meu desempenho</h2>
-          <p className="text-[11px] text-zinc-500">Resumo da semana</p>
+          <h2 className="text-sm font-semibold text-foreground">Meu desempenho</h2>
+          <p className="text-[11px] text-muted-foreground">Resumo da semana</p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4 text-center">
-          <p className="text-2xl font-bold text-white">{performance.totalFamilias}</p>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider mt-1">
+        <div className="glass-card rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-foreground">{performance.totalFamilias}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Total familias
           </p>
         </div>
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-400">
+        <div className="glass-card rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-sys-green">
             {performance.mediaSatisfacao}
           </p>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider mt-1">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Media satisfacao
           </p>
         </div>
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4 text-center">
-          <p className="text-2xl font-bold text-amber-400">
+        <div className="glass-card rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-sys-orange">
             {performance.mediaAnsiedade}
           </p>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider mt-1">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Media ansiedade
           </p>
         </div>
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4 text-center">
-          <p className="text-2xl font-bold text-indigo-400">
+        <div className="glass-card rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-primary">
             {performance.contatosSemana}
           </p>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider mt-1">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Contatos semana
           </p>
         </div>
@@ -677,10 +677,10 @@ export function MinhaAreaClient({
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-white">
+        <h1 className="text-xl font-bold text-foreground">
           {greeting}, {userName.split(" ")[0]}
         </h1>
-        <p className="text-sm text-zinc-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Voce tem {families.length}{" "}
           {families.length === 1 ? "familia" : "familias"} sob seu
           acompanhamento
@@ -689,35 +689,35 @@ export function MinhaAreaClient({
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
-          <p className="text-[11px] text-zinc-500 uppercase tracking-wider">
+        <div className="glass-card rounded-xl p-4">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider">
             Total
           </p>
-          <p className="text-2xl font-bold text-white mt-1">
+          <p className="text-2xl font-bold text-foreground mt-1">
             {families.length}
           </p>
         </div>
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
-          <p className="text-[11px] text-emerald-400 uppercase tracking-wider">
+        <div className="glass-card rounded-xl p-4">
+          <p className="text-[11px] text-sys-green uppercase tracking-wider">
             Satisfeitas
           </p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1">
+          <p className="text-2xl font-bold text-sys-green mt-1">
             {satisfeitaCount}
           </p>
         </div>
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
-          <p className="text-[11px] text-amber-400 uppercase tracking-wider">
+        <div className="glass-card rounded-xl p-4">
+          <p className="text-[11px] text-sys-orange uppercase tracking-wider">
             Atencao
           </p>
-          <p className="text-2xl font-bold text-amber-400 mt-1">
+          <p className="text-2xl font-bold text-sys-orange mt-1">
             {atencaoCount}
           </p>
         </div>
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
-          <p className="text-[11px] text-red-400 uppercase tracking-wider">
+        <div className="glass-card rounded-xl p-4">
+          <p className="text-[11px] text-sys-red uppercase tracking-wider">
             Crise
           </p>
-          <p className="text-2xl font-bold text-red-400 mt-1">{criseCount}</p>
+          <p className="text-2xl font-bold text-sys-red mt-1">{criseCount}</p>
         </div>
       </div>
 

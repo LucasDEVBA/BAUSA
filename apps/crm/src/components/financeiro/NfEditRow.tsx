@@ -51,10 +51,10 @@ export function NfEditRow({
     return (
       <div className="flex items-center gap-2">
         <NfBadge status={nfStatus} />
-        {nfNumero && <span className="text-[10px] text-zinc-500">#{nfNumero}</span>}
+        {nfNumero && <span className="text-[10px] text-muted-foreground">#{nfNumero}</span>}
         <button
           onClick={() => setIsEditing(true)}
-          className="rounded p-1 text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-zinc-400"
+          className="rounded p-1 text-label-tertiary transition-colors hover:bg-fill-4 hover:text-muted-foreground"
           aria-label="Editar NF"
         >
           <Pencil className="h-3 w-3" />
@@ -71,27 +71,27 @@ export function NfEditRow({
           value={numero}
           onChange={(e) => setNumero(e.target.value)}
           placeholder="N. NF"
-          className="w-20 rounded border border-[#1e2130] bg-[#0f1117] px-2 py-1 text-[11px] text-zinc-300 outline-none focus:border-indigo-500"
+          className="w-20 rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-foreground outline-none focus:border-primary"
         />
         <input
           type="date"
           value={data}
           onChange={(e) => setData(e.target.value)}
-          className="w-28 rounded border border-[#1e2130] bg-[#0f1117] px-2 py-1 text-[11px] text-zinc-300 outline-none focus:border-indigo-500"
+          className="w-28 rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-foreground outline-none focus:border-primary"
         />
         <input
           type="number"
           value={valor}
           onChange={(e) => setValor(e.target.value)}
           placeholder="Valor"
-          className="w-20 rounded border border-[#1e2130] bg-[#0f1117] px-2 py-1 text-[11px] text-zinc-300 outline-none focus:border-indigo-500"
+          className="w-20 rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-foreground outline-none focus:border-primary"
         />
       </div>
       <div className="flex items-center gap-1">
         <button
           onClick={handleSave}
           disabled={isPending}
-          className="rounded bg-emerald-600 p-1 text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+          className="rounded-md bg-sys-green p-1 text-white transition-colors hover:opacity-80 disabled:opacity-50"
           aria-label="Salvar"
         >
           <Check className="h-3 w-3" />
@@ -99,7 +99,7 @@ export function NfEditRow({
         <button
           onClick={handleCancel}
           disabled={isPending}
-          className="rounded bg-zinc-700 p-1 text-zinc-300 transition-colors hover:bg-zinc-600 disabled:opacity-50"
+          className="rounded-md bg-secondary p-1 text-muted-foreground transition-colors hover:bg-fill-2 disabled:opacity-50"
           aria-label="Cancelar"
         >
           <X className="h-3 w-3" />

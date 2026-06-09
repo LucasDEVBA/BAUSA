@@ -13,16 +13,16 @@ export function GoalProgressCard({ data }: GoalProgressCardProps) {
   const isOnTrack = gap_to_target_usd >= 0;
 
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+    <div className="glass-card rounded-xl p-5">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-semibold text-zinc-100">Meta do Mês</p>
-          <p className="mt-0.5 text-xs text-zinc-500">Março 2026</p>
+          <p className="text-sm font-semibold text-foreground">Meta do Mês</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Março 2026</p>
         </div>
         <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
           isOnTrack
-            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-            : "border-red-500/30 bg-red-500/10 text-red-400"
+            ? "border-sys-green/30 bg-sys-green/10 text-sys-green"
+            : "border-sys-red/30 bg-sys-red/10 text-sys-red"
         }`}>
           {isOnTrack ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
           {isOnTrack ? "No target" : `Gap US$ ${Math.abs(gap_to_target_usd / 1000).toFixed(0)}k`}
@@ -32,27 +32,27 @@ export function GoalProgressCard({ data }: GoalProgressCardProps) {
       {/* Números principais */}
       <div className="mt-4 grid grid-cols-3 gap-4">
         <div>
-          <p className="text-[10px] text-zinc-500">Recebido</p>
-          <p className="text-xl font-bold text-emerald-400">
+          <p className="text-[10px] text-muted-foreground">Recebido</p>
+          <p className="text-xl font-bold text-sys-green">
             US$ {(net_revenue_month_usd / 1000).toFixed(0)}k
           </p>
-          <p className="text-[10px] text-zinc-600">{achievedPct}% da meta</p>
+          <p className="text-[10px] text-label-tertiary">{achievedPct}% da meta</p>
         </div>
         <div>
-          <p className="text-[10px] text-zinc-500">Projetado</p>
-          <p className="text-xl font-bold text-indigo-400">
+          <p className="text-[10px] text-muted-foreground">Projetado</p>
+          <p className="text-xl font-bold text-primary">
             US$ {(projected_revenue_usd / 1000).toFixed(0)}k
           </p>
-          <p className="text-[10px] text-zinc-600">{projectedPct}% da meta</p>
+          <p className="text-[10px] text-label-tertiary">{projectedPct}% da meta</p>
         </div>
         <div>
-          <p className="text-[10px] text-zinc-500">Meta</p>
-          <p className="text-xl font-bold text-zinc-300">
+          <p className="text-[10px] text-muted-foreground">Meta</p>
+          <p className="text-xl font-bold text-foreground">
             US$ {(monthly_target_usd / 1000).toFixed(0)}k
           </p>
           <div className="mt-0.5 flex items-center gap-1">
-            <Target className="h-3 w-3 text-zinc-600" />
-            <span className="text-[10px] text-zinc-600">mensal</span>
+            <Target className="h-3 w-3 text-label-tertiary" />
+            <span className="text-[10px] text-label-tertiary">mensal</span>
           </div>
         </div>
       </div>
@@ -61,13 +61,13 @@ export function GoalProgressCard({ data }: GoalProgressCardProps) {
       <div className="mt-4 space-y-2">
         {/* Recebido */}
         <div className="space-y-1">
-          <div className="flex justify-between text-[10px] text-zinc-500">
+          <div className="flex justify-between text-[10px] text-muted-foreground">
             <span>Recebido</span>
             <span>{achievedPct}%</span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
             <div
-              className="h-full rounded-full bg-emerald-500 transition-all"
+              className="h-full rounded-full bg-sys-green transition-all"
               style={{ width: `${achievedPct}%` }}
             />
           </div>
@@ -75,13 +75,13 @@ export function GoalProgressCard({ data }: GoalProgressCardProps) {
 
         {/* Projetado */}
         <div className="space-y-1">
-          <div className="flex justify-between text-[10px] text-zinc-500">
+          <div className="flex justify-between text-[10px] text-muted-foreground">
             <span>Projetado</span>
             <span>{projectedPct}%</span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
             <div
-              className={`h-full rounded-full transition-all ${projectedPct >= 100 ? "bg-emerald-400" : "bg-indigo-400"}`}
+              className={`h-full rounded-full transition-all ${projectedPct >= 100 ? "bg-sys-green" : "bg-primary"}`}
               style={{ width: `${projectedPct}%` }}
             />
           </div>
@@ -91,16 +91,16 @@ export function GoalProgressCard({ data }: GoalProgressCardProps) {
       {/* Gap */}
       <div className={`mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 ${
         isOnTrack
-          ? "border-emerald-500/20 bg-emerald-500/5"
-          : "border-red-500/20 bg-red-500/5"
+          ? "border-sys-green/20 bg-sys-green/5"
+          : "border-sys-red/20 bg-sys-red/5"
       }`}>
         <p className="text-xs">
           {isOnTrack ? (
-            <span className="text-emerald-400">
+            <span className="text-sys-green">
               Superando a meta em US$ {(gap_to_target_usd / 1000).toFixed(0)}k
             </span>
           ) : (
-            <span className="text-red-400">
+            <span className="text-sys-red">
               Faltam US$ {(Math.abs(gap_to_target_usd) / 1000).toFixed(0)}k para atingir a meta
             </span>
           )}

@@ -1,12 +1,27 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
 import type { Escola } from "@/types/crm";
 
+const criarEscolaSchema = z.object({
+  nome: z.string().trim().min(2, "Informe o nome da escola."),
+  estado_us: z.string().trim().min(2, "Informe o estado (US)."),
+  cidade: z.string().trim().min(2, "Informe a cidade."),
+  tipo: z.enum(["boarding", "day", "mista"]),
+});
+
 export async function criarEscola(dados: Partial<Escola>) {
   const papel = await getUserPapel();
   if (papel !== "ceo") return { success: false, error: "Apenas o CEO pode criar escolas." };
+
+  const parsed = criarEscolaSchema.safeParse(dados);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
 
   const supabase = await createAuditedSupabaseClient();
   const { data, error } = await supabase
@@ -24,6 +39,7 @@ export async function criarEscola(dados: Partial<Escola>) {
       agressividade_bolsa: dados.agressividade_bolsa as any,
       regra_pratica: dados.regra_pratica,
       ingles_minimo: dados.ingles_minimo as any || "intermediario",
+      gpa_minimo: dados.gpa_minimo ?? null,
       testes_exigidos: dados.testes_exigidos || [],
       esportes_oferecidos: dados.esportes_oferecidos || [],
       influencia_esporte: dados.influencia_esporte as any || "moderada",
@@ -43,6 +59,8 @@ export async function criarEscola(dados: Partial<Escola>) {
     .single();
 
   if (error) return { success: false, error: error.message };
+
+  revalidatePath("/escolas");
   return { success: true, escolaId: data.id };
 }
 

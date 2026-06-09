@@ -63,9 +63,9 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 const CLASSIFICATION_COLORS = {
-  QUENTE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  MORNO: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  FRIO: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  QUENTE: "bg-sys-green/15 text-sys-green border-sys-green/20",
+  MORNO: "bg-sys-orange/15 text-sys-orange border-sys-orange/20",
+  FRIO: "bg-sys-blue/15 text-sys-blue border-sys-blue/20",
 } as const;
 
 const NIVEL_COMPETITIVO_OPTIONS = [
@@ -123,22 +123,22 @@ const LEAD_SCORE_INFO =
 function ScoreBar({ score }: { score: number }) {
   const color =
     score >= 80
-      ? "bg-emerald-500"
+      ? "bg-sys-green"
       : score >= 60
-        ? "bg-amber-500"
+        ? "bg-sys-orange"
         : score >= 40
-          ? "bg-orange-500"
-          : "bg-red-500";
+          ? "bg-sys-yellow"
+          : "bg-sys-red";
 
   return (
     <div className="flex items-center gap-3">
-      <div className="flex-1 h-2 rounded-full bg-[#1e2130] overflow-hidden">
+      <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all duration-500", color)}
           style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
         />
       </div>
-      <span className="text-sm font-bold text-zinc-100 tabular-nums w-8 text-right">
+      <span className="text-sm font-bold text-foreground tabular-nums w-8 text-right">
         {score}
       </span>
     </div>
@@ -164,22 +164,22 @@ function TimelineEvent({
         <div
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-full",
-            active ? "bg-indigo-500/20" : "bg-[#1e2130]",
+            active ? "bg-primary/20" : "bg-secondary",
           )}
         >
-          <Icon className={cn("h-4 w-4", active ? "text-indigo-400" : "text-zinc-600")} />
+          <Icon className={cn("h-4 w-4", active ? "text-primary" : "text-label-tertiary")} />
         </div>
-        <div className="w-px flex-1 bg-[#1e2130]" />
+        <div className="w-px flex-1 bg-border" />
       </div>
       <div className="pb-6">
-        <p className={cn("text-sm font-medium", active ? "text-zinc-200" : "text-zinc-500")}>
+        <p className={cn("text-sm font-medium", active ? "text-foreground" : "text-muted-foreground")}>
           {label}
         </p>
         {date && (
-          <p className="text-xs text-zinc-500 mt-0.5">{formatDateTime(date)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{formatDateTime(date)}</p>
         )}
         {detail && (
-          <p className="text-xs text-zinc-400 mt-1 bg-[#141720] rounded-md px-2 py-1 inline-block">
+          <p className="text-xs text-foreground mt-1 bg-card rounded-md px-2 py-1 inline-block">
             {detail}
           </p>
         )}
@@ -198,7 +198,7 @@ function renderNoteWithMentions(text: string): React.ReactNode {
   return parts.map((part, i) => {
     if (part.startsWith("@")) {
       return (
-        <span key={i} className="font-semibold text-indigo-400">
+        <span key={i} className="font-semibold text-primary">
           {part}
         </span>
       );
@@ -241,12 +241,12 @@ function DealNotesSection({ dealId }: { dealId: string }) {
   if (!loaded) {
     return (
       <div className="flex flex-col items-center gap-3 py-8">
-        <MessageCircle className="h-8 w-8 text-zinc-600" />
-        <p className="text-sm text-zinc-500">Notas internas do deal</p>
+        <MessageCircle className="h-8 w-8 text-label-tertiary" />
+        <p className="text-sm text-muted-foreground">Notas internas do deal</p>
         <button
           onClick={loadNotes}
           disabled={isPendingNotes}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600/20 px-4 py-2 text-xs font-medium text-indigo-300 hover:bg-indigo-600/30 transition-colors"
+          className="flex items-center gap-2 rounded-md bg-primary/15 px-4 py-2 text-xs font-medium text-primary hover:bg-primary/25 transition-colors"
         >
           {isPendingNotes ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -283,10 +283,10 @@ function DealNotesSection({ dealId }: { dealId: string }) {
           }}
           placeholder="Escrever nota interna... (use @ para mencionar)"
           rows={3}
-          className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-indigo-500/40 resize-none"
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary/40 resize-none"
         />
         {showMentionDropdown && (
-          <div className="absolute left-0 bottom-full mb-1 z-10 w-56 rounded-lg border border-[#1e2130] bg-[#0f1117] shadow-xl overflow-hidden">
+          <div className="absolute left-0 bottom-full mb-1 z-10 w-56 rounded-xl border border-border bg-popover shadow-xl overflow-hidden">
             {TEAM_MEMBERS
               .filter((m) => m.nome.toLowerCase().includes(mentionFilter))
               .map((member) => (
@@ -302,21 +302,21 @@ function DealNotesSection({ dealId }: { dealId: string }) {
                     }
                     setShowMentionDropdown(false);
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:bg-indigo-600/20 hover:text-indigo-300 transition-colors"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-primary/15 hover:text-primary transition-colors"
                 >
-                  <User className="h-3.5 w-3.5 text-zinc-500" />
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
                   {member.nome}
                 </button>
               ))}
             {TEAM_MEMBERS.filter((m) => m.nome.toLowerCase().includes(mentionFilter)).length === 0 && (
-              <p className="px-3 py-2 text-xs text-zinc-600">Nenhum usuario encontrado</p>
+              <p className="px-3 py-2 text-xs text-label-tertiary">Nenhum usuario encontrado</p>
             )}
           </div>
         )}
         <button
           onClick={handleSubmit}
           disabled={isPendingNotes || !newNote.trim()}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
         >
           {isPendingNotes ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -329,19 +329,19 @@ function DealNotesSection({ dealId }: { dealId: string }) {
 
       {/* List */}
       {notes.length === 0 ? (
-        <p className="text-sm text-zinc-600 text-center py-4">Nenhuma nota ainda.</p>
+        <p className="text-sm text-label-tertiary text-center py-4">Nenhuma nota ainda.</p>
       ) : (
         <div className="space-y-3">
           {notes.map((n) => (
             <div
               key={n.id}
-              className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-3"
+              className="rounded-xl border border-border bg-card px-4 py-3"
             >
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-indigo-400">
+                <p className="text-xs font-semibold text-primary">
                   {(n.autor as unknown as { nome: string })?.nome ?? "Usuario"}
                 </p>
-                <p className="text-[10px] text-zinc-600">
+                <p className="text-[10px] text-label-tertiary">
                   {new Date(n.created_at).toLocaleDateString("pt-BR", {
                     day: "2-digit",
                     month: "2-digit",
@@ -351,7 +351,7 @@ function DealNotesSection({ dealId }: { dealId: string }) {
                   })}
                 </p>
               </div>
-              <p className="text-sm text-zinc-300 whitespace-pre-wrap">{renderNoteWithMentions(n.conteudo)}</p>
+              <p className="text-sm text-foreground whitespace-pre-wrap">{renderNoteWithMentions(n.conteudo)}</p>
             </div>
           ))}
         </div>
@@ -379,16 +379,16 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
 
 function getAuditColor(log: AuditLog): string {
   const campos = log.campos_alterados ?? [];
-  if (campos.some((c) => c === "etapa" || c === "etapa_anterior")) return "text-indigo-400";
-  if (campos.some((c) => c.includes("valor") || c.includes("financ") || c.includes("pago") || c.includes("sinal"))) return "text-emerald-400";
-  return "text-blue-400";
+  if (campos.some((c) => c === "etapa" || c === "etapa_anterior")) return "text-primary";
+  if (campos.some((c) => c.includes("valor") || c.includes("financ") || c.includes("pago") || c.includes("sinal"))) return "text-sys-green";
+  return "text-sys-blue";
 }
 
 function getAuditBg(log: AuditLog): string {
   const campos = log.campos_alterados ?? [];
-  if (campos.some((c) => c === "etapa" || c === "etapa_anterior")) return "bg-indigo-500/20";
-  if (campos.some((c) => c.includes("valor") || c.includes("financ") || c.includes("pago") || c.includes("sinal"))) return "bg-emerald-500/20";
-  return "bg-blue-500/20";
+  if (campos.some((c) => c === "etapa" || c === "etapa_anterior")) return "bg-primary/20";
+  if (campos.some((c) => c.includes("valor") || c.includes("financ") || c.includes("pago") || c.includes("sinal"))) return "bg-sys-green/20";
+  return "bg-sys-blue/20";
 }
 
 function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: string }) {
@@ -406,14 +406,14 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
 
   if (!loaded) {
     return (
-      <div className="mt-6 border-t border-[#1e2130] pt-5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 mb-3">
+      <div className="mt-6 border-t border-border pt-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3">
           Alteracoes registradas (Audit Trail)
         </p>
         <button
           onClick={loadAuditLogs}
           disabled={isPendingAudit}
-          className="flex items-center gap-2 rounded-lg bg-blue-600/20 px-4 py-2 text-xs font-medium text-blue-300 hover:bg-blue-600/30 transition-colors"
+          className="flex items-center gap-2 rounded-md bg-sys-blue/15 px-4 py-2 text-xs font-medium text-sys-blue hover:bg-sys-blue/25 transition-colors"
         >
           {isPendingAudit ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -428,18 +428,18 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
 
   if (logs.length === 0) {
     return (
-      <div className="mt-6 border-t border-[#1e2130] pt-5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 mb-3">
+      <div className="mt-6 border-t border-border pt-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3">
           Alteracoes registradas
         </p>
-        <p className="text-xs text-zinc-600 text-center py-4">Nenhuma alteracao registrada.</p>
+        <p className="text-xs text-label-tertiary text-center py-4">Nenhuma alteracao registrada.</p>
       </div>
     );
   }
 
   return (
-    <div className="mt-6 border-t border-[#1e2130] pt-5">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 mb-3">
+    <div className="mt-6 border-t border-border pt-5">
+      <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3">
         Alteracoes registradas ({logs.length})
       </p>
       <div className="space-y-2">
@@ -451,7 +451,7 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
           return (
             <div
               key={log.id}
-              className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5"
+              className="rounded-xl border border-border bg-card px-3 py-2.5"
             >
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
@@ -461,9 +461,9 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
                   <span className={cn("text-[10px] font-bold uppercase", color)}>
                     {log.operacao}
                   </span>
-                  <span className="text-[10px] text-zinc-600">{log.tabela}</span>
+                  <span className="text-[10px] text-label-tertiary">{log.tabela}</span>
                 </div>
-                <span className="text-[10px] text-zinc-600">
+                <span className="text-[10px] text-label-tertiary">
                   {new Date(log.created_at).toLocaleDateString("pt-BR", {
                     day: "2-digit",
                     month: "2-digit",
@@ -480,12 +480,12 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
                     const novo = log.dados_novos?.[campo];
                     const label = AUDIT_FIELD_LABELS[campo] ?? campo;
                     return (
-                      <p key={campo} className="text-xs text-zinc-400">
-                        <span className="font-medium text-zinc-300">{label}</span>
+                      <p key={campo} className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{label}</span>
                         {anterior != null && (
-                          <span className="text-zinc-600"> de <span className="text-red-400/70">{String(anterior)}</span></span>
+                          <span className="text-label-tertiary"> de <span className="text-sys-red/70">{String(anterior)}</span></span>
                         )}
-                        <span className="text-zinc-600"> para </span>
+                        <span className="text-label-tertiary"> para </span>
                         <span className={color}>{String(novo ?? "—")}</span>
                       </p>
                     );
@@ -493,10 +493,10 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
                 </div>
               )}
               {log.operacao === "INSERT" && (
-                <p className="text-xs text-zinc-500">Registro criado</p>
+                <p className="text-xs text-muted-foreground">Registro criado</p>
               )}
               {log.operacao === "DELETE" && (
-                <p className="text-xs text-zinc-500">Registro removido (soft delete)</p>
+                <p className="text-xs text-muted-foreground">Registro removido (soft delete)</p>
               )}
             </div>
           );
@@ -699,11 +699,11 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
   };
 
   const inputClass =
-    "w-full rounded-lg border border-[#1e2130] bg-[#141720] py-2.5 px-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30";
+    "w-full rounded-md border border-border bg-card py-2.5 px-3 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary focus:ring-1 focus:ring-primary/30";
   const selectClass =
-    "w-full rounded-lg border border-[#1e2130] bg-[#141720] py-2.5 px-3 text-sm text-zinc-200 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 appearance-none";
-  const labelClass = "text-xs font-medium text-zinc-400";
-  const cardClass = "rounded-xl border border-[#1e2130] bg-[#141720] p-4";
+    "w-full rounded-md border border-border bg-card py-2.5 px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 appearance-none";
+  const labelClass = "text-xs font-medium text-muted-foreground";
+  const cardClass = "rounded-xl glass-card p-4";
 
   return (
     <>
@@ -714,16 +714,16 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
       />
 
       {/* Sheet */}
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-[#1e2130] bg-[#0f1117] shadow-2xl">
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-border liquid-glass shadow-2xl">
         {/* Header */}
-        <div className="flex-shrink-0 border-b border-[#1e2130] px-6 py-5">
+        <div className="flex-shrink-0 border-b border-border px-6 py-5">
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-base font-bold text-white">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-base font-bold text-white">
               {getInitials(deal.athlete_name)}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="truncate text-base font-semibold text-zinc-100">
+                <h2 className="truncate text-base font-semibold text-foreground">
                   {deal.athlete_name}
                 </h2>
                 <span
@@ -735,30 +735,30 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                   {deal.classification}
                 </span>
                 {deal.qualificado_gemini && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/20 bg-purple-500/10 px-2 py-0.5 text-[10px] font-bold text-purple-300">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-plan-legacy/20 bg-plan-legacy/15 px-2 py-0.5 text-[10px] font-bold text-plan-legacy">
                     <Sparkles className="h-3 w-3" />
                     Qualificado
                   </span>
                 )}
                 {deal.flag_retrocedido && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-sys-orange/20 bg-sys-orange/15 px-2 py-0.5 text-[10px] font-bold text-sys-orange">
                     <ArrowLeft className="h-3 w-3" />
                     Retrocedido
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-sm text-zinc-400">
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 {deal.guardian_name || deal.esporte || "Sem responsavel"}
               </p>
               <div className="mt-1 flex items-center gap-2 flex-wrap">
                 <span className={cn("h-2 w-2 rounded-full", stageConfig.dotColor)} />
-                <span className="text-xs text-zinc-500">{stageConfig.label}</span>
-                <span className="text-xs text-zinc-600">&middot;</span>
-                <span className="text-xs font-semibold text-emerald-400">
+                <span className="text-xs text-muted-foreground">{stageConfig.label}</span>
+                <span className="text-xs text-label-tertiary">&middot;</span>
+                <span className="text-xs font-semibold text-sys-green">
                   R$ {deal.deal_value_brl.toLocaleString("pt-BR")}
                 </span>
                 {deal.flag_valores_customizados && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-sys-orange/20 bg-sys-orange/15 px-1.5 py-0.5 text-[9px] font-semibold text-sys-orange">
                     <AlertTriangle className="h-2.5 w-2.5" />
                     Customizado
                   </span>
@@ -767,7 +767,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
             </div>
             <button
               onClick={onClose}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-fill-4 hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </button>
@@ -780,10 +780,10 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+                  "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors",
                   activeTab === tab.id
-                    ? "bg-indigo-600/20 text-indigo-300"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5",
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-fill-4",
                 )}
               >
                 {tab.label}
@@ -800,8 +800,8 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               {/* Gemini Qualification Card */}
               <div className={cardClass}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-4 w-4 text-purple-400" />
-                  <h3 className="text-sm font-semibold text-zinc-200">
+                  <Sparkles className="h-4 w-4 text-plan-legacy" />
+                  <h3 className="text-sm font-semibold text-foreground">
                     Qualificacao Gemini
                   </h3>
                 </div>
@@ -810,8 +810,8 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                     className={cn(
                       "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold",
                       deal.qualificado_gemini
-                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                        : "border-zinc-500/20 bg-zinc-500/10 text-zinc-400",
+                        ? "border-sys-green/20 bg-sys-green/15 text-sys-green"
+                        : "border-border bg-secondary text-muted-foreground",
                     )}
                   >
                     {deal.qualificado_gemini ? "Qualificado" : "Nao Qualificado"}
@@ -822,7 +822,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                         "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold",
                         CLASSIFICATION_COLORS[
                           deal.classificacao_gemini as keyof typeof CLASSIFICATION_COLORS
-                        ] ?? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+                        ] ?? "bg-secondary text-muted-foreground border-border",
                       )}
                     >
                       {deal.classificacao_gemini}
@@ -830,11 +830,11 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                   )}
                 </div>
                 {deal.motivo_gemini && (
-                  <p className="text-xs text-zinc-400 leading-relaxed">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     {deal.motivo_gemini}
                   </p>
                 )}
-                <div className="mt-2 flex items-center gap-4 text-[10px] text-zinc-600">
+                <div className="mt-2 flex items-center gap-4 text-[10px] text-label-tertiary">
                   {deal.confianca_gemini && (
                     <span>Confianca: {deal.confianca_gemini}</span>
                   )}
@@ -848,12 +848,12 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               <div className={cardClass}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4 text-indigo-400" />
-                    <h3 className="text-sm font-semibold text-zinc-200">Lead Score</h3>
+                    <Target className="h-4 w-4 text-primary" />
+                    <h3 className="text-sm font-semibold text-foreground">Lead Score</h3>
                   </div>
                   <button
                     onClick={() => setShowScoreInfo(!showScoreInfo)}
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-white/10 hover:text-foreground"
                     aria-label="Informacoes sobre o Lead Score"
                   >
                     <Info className="h-3.5 w-3.5" />
@@ -861,7 +861,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 </div>
                 <ScoreBar score={deal.lead_score ?? 0} />
                 {showScoreInfo && (
-                  <p className="mt-3 text-[11px] leading-relaxed text-zinc-500 bg-[#0f1117] rounded-lg p-3 border border-[#1e2130]">
+                  <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground bg-popover rounded-lg p-3 border border-border">
                     {LEAD_SCORE_INFO}
                   </p>
                 )}
@@ -870,31 +870,31 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               {/* Quick Info */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <p className="text-xs text-zinc-500">Investimento</p>
-                  <p className="text-zinc-200">
+                  <p className="text-xs text-muted-foreground">Investimento</p>
+                  <p className="text-foreground">
                     {formatInvestmentRange(deal.investment_range)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500">Estado</p>
-                  <p className="text-zinc-200">{deal.address_state || "---"}</p>
+                  <p className="text-xs text-muted-foreground">Estado</p>
+                  <p className="text-foreground">{deal.address_state || "---"}</p>
                 </div>
                 {deal.guardian_profession && (
                   <div>
-                    <p className="text-xs text-zinc-500">Profissao</p>
-                    <p className="text-zinc-200">{deal.guardian_profession}</p>
+                    <p className="text-xs text-muted-foreground">Profissao</p>
+                    <p className="text-foreground">{deal.guardian_profession}</p>
                   </div>
                 )}
                 {deal.esporte && (
                   <div>
-                    <p className="text-xs text-zinc-500">Esporte</p>
-                    <p className="text-zinc-200">{deal.esporte}</p>
+                    <p className="text-xs text-muted-foreground">Esporte</p>
+                    <p className="text-foreground">{deal.esporte}</p>
                   </div>
                 )}
                 {deal.athlete_position && (
                   <div>
-                    <p className="text-xs text-zinc-500">Posicao</p>
-                    <p className="text-zinc-200">{deal.athlete_position}</p>
+                    <p className="text-xs text-muted-foreground">Posicao</p>
+                    <p className="text-foreground">{deal.athlete_position}</p>
                   </div>
                 )}
               </div>
@@ -903,18 +903,18 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               <div className={cardClass}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-500">Valor estimado</span>
-                    <span className="text-sm font-bold text-emerald-400">
+                    <span className="text-xs text-muted-foreground">Valor estimado</span>
+                    <span className="text-sm font-bold text-sys-green">
                       R$ {deal.deal_value_brl.toLocaleString("pt-BR")}
                     </span>
                     {deal.flag_valores_customizados && (
-                      <span className="text-[9px] font-semibold text-amber-400">(customizado)</span>
+                      <span className="text-[9px] font-semibold text-sys-orange">(customizado)</span>
                     )}
                   </div>
                   {!showCustomizarValor && (
                     <button
                       onClick={() => setShowCustomizarValor(true)}
-                      className="text-[10px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                      className="text-[10px] font-medium text-primary hover:text-primary transition-colors"
                     >
                       Customizar valor
                     </button>
@@ -922,7 +922,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 </div>
 
                 {showCustomizarValor && (
-                  <div className="space-y-3 mt-3 pt-3 border-t border-[#1e2130]">
+                  <div className="space-y-3 mt-3 pt-3 border-t border-border">
                     <div className="space-y-1.5">
                       <label className={labelClass}>Novo valor (R$)</label>
                       <input
@@ -951,7 +951,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                           setCustomValor(deal.deal_value_brl);
                           setCustomJustificativa("");
                         }}
-                        className="rounded-lg border border-[#1e2130] px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-white/5"
+                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-fill-4"
                       >
                         Cancelar
                       </button>
@@ -973,7 +973,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                           });
                         }}
                         disabled={isPending}
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
                       >
                         {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
                         Salvar
@@ -986,8 +986,8 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               {/* Servicos Adicionais - catalogo de referencia */}
               <div className={cardClass}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-4 w-4 text-amber-400" />
-                  <p className="text-xs font-semibold text-zinc-300">
+                  <Sparkles className="h-4 w-4 text-sys-orange" />
+                  <p className="text-xs font-semibold text-foreground">
                     Servicos Adicionais
                   </p>
                 </div>
@@ -995,16 +995,16 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                   {SERVICOS_AVULSOS.map((servico) => (
                     <div
                       key={servico.nome}
-                      className="flex items-center justify-between rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
                     >
-                      <p className="text-xs text-zinc-300">{servico.nome}</p>
-                      <p className="text-xs font-semibold text-emerald-400">
+                      <p className="text-xs text-foreground">{servico.nome}</p>
+                      <p className="text-xs font-semibold text-sys-green">
                         {servico.valorFormatado}
                       </p>
                     </div>
                   ))}
                 </div>
-                <p className="mt-2 text-[10px] text-zinc-600">
+                <p className="mt-2 text-[10px] text-label-tertiary">
                   Tabela de referencia. Para adicionar ao contrato, use &quot;Customizar valor&quot; acima.
                 </p>
               </div>
@@ -1042,11 +1042,11 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                     <div className={cn(
                       "flex items-start gap-2 rounded-lg px-3 py-2",
                       deal.stage === "reuniao_realizada"
-                        ? "border-2 border-amber-500/40 bg-amber-500/10"
-                        : "border border-amber-500/20 bg-amber-500/5"
+                        ? "border-2 border-sys-orange/40 bg-sys-orange/15"
+                        : "border border-sys-orange/20 bg-sys-orange/5"
                     )}>
-                      <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-400 mt-0.5" />
-                      <p className="text-xs text-amber-300 leading-relaxed">
+                      <AlertTriangle className="h-4 w-4 flex-shrink-0 text-sys-orange mt-0.5" />
+                      <p className="text-xs text-sys-orange leading-relaxed">
                         {deal.stage === "reuniao_realizada"
                           ? "Obrigatorio: preencha as notas da reuniao antes de avancar para Diagnostico/Fit."
                           : "Preencha as notas da reuniao para manter o historico completo."}
@@ -1059,7 +1059,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               <button
                 onClick={handleSave}
                 disabled={isPending}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1077,8 +1077,8 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               {/* Status */}
               <div className={cardClass}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="h-4 w-4 text-sky-400" />
-                  <h3 className="text-sm font-semibold text-zinc-200">
+                  <Calendar className="h-4 w-4 text-sys-blue" />
+                  <h3 className="text-sm font-semibold text-foreground">
                     Status da Reuniao
                   </h3>
                 </div>
@@ -1086,27 +1086,27 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 {hasReuniao ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                      <span className="text-sm font-medium text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4 text-sys-green" />
+                      <span className="text-sm font-medium text-sys-green">
                         Agendada
                       </span>
                     </div>
                     {deal.reuniao_data && (
                       <div>
-                        <p className="text-xs text-zinc-500">Data / Hora</p>
-                        <p className="text-sm text-zinc-200">
+                        <p className="text-xs text-muted-foreground">Data / Hora</p>
+                        <p className="text-sm text-foreground">
                           {formatDateTime(deal.reuniao_data)}
                         </p>
                       </div>
                     )}
                     {deal.reuniao_link && (
                       <div>
-                        <p className="text-xs text-zinc-500">Link</p>
+                        <p className="text-xs text-muted-foreground">Link</p>
                         <a
                           href={deal.reuniao_link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-sm text-indigo-400 hover:text-indigo-300"
+                          className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                           Abrir reuniao
@@ -1115,8 +1115,8 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                     )}
                     {deal.reuniao_agendada_at && (
                       <div>
-                        <p className="text-xs text-zinc-500">Detectada em</p>
-                        <p className="text-xs text-zinc-400">
+                        <p className="text-xs text-muted-foreground">Detectada em</p>
+                        <p className="text-xs text-muted-foreground">
                           {formatDateTime(deal.reuniao_agendada_at)}
                         </p>
                       </div>
@@ -1124,8 +1124,8 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-zinc-500" />
-                    <span className="text-sm text-zinc-500">Nao agendada</span>
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Nao agendada</span>
                   </div>
                 )}
               </div>
@@ -1140,7 +1140,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                   }
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] py-2.5 text-sm text-zinc-300 hover:bg-[#1a1f2e] transition-colors"
+                  className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card py-2.5 text-sm text-foreground hover:bg-secondary transition-colors"
                 >
                   <Calendar className="h-4 w-4" />
                   Abrir no Google Calendar
@@ -1150,8 +1150,8 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               {/* Register meeting manually */}
               <div className={cardClass}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Link2 className="h-4 w-4 text-amber-400" />
-                  <h3 className="text-sm font-semibold text-zinc-200">
+                  <Link2 className="h-4 w-4 text-sys-orange" />
+                  <h3 className="text-sm font-semibold text-foreground">
                     Registrar Reuniao Manualmente
                   </h3>
                 </div>
@@ -1177,7 +1177,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                   <button
                     onClick={handleSaveReuniao}
                     disabled={isPending || (!manualLink && !manualDate)}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                    className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                   >
                     {isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1192,14 +1192,14 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               {/* WhatsApp actions */}
               <div className={cardClass}>
                 <div className="flex items-center gap-2 mb-3">
-                  <MessageCircle className="h-4 w-4 text-emerald-400" />
-                  <h3 className="text-sm font-semibold text-zinc-200">
+                  <MessageCircle className="h-4 w-4 text-sys-green" />
+                  <h3 className="text-sm font-semibold text-foreground">
                     Acoes WhatsApp
                   </h3>
                 </div>
                 <div className="space-y-2">
                   <button
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 py-2.5 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-sys-green/20 bg-sys-green/15 py-2.5 text-sm font-medium text-sys-green hover:bg-sys-green/25 transition-colors"
                     onClick={() => {
                       if (deal.whatsapp) {
                         const phone = deal.whatsapp.replace(/\D/g, "");
@@ -1216,7 +1216,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                     Enviar Convite de Reuniao
                   </button>
                   <button
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] py-2.5 text-sm font-medium text-zinc-300 hover:bg-[#1a1f2e] transition-colors"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     onClick={() => {
                       if (deal.whatsapp) {
                         const phone = deal.whatsapp.replace(/\D/g, "");
@@ -1237,7 +1237,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
           {/* TAB: DADOS */}
           {activeTab === "dados" && (
             <>
-              <p className="text-[11px] text-zinc-500 bg-indigo-500/5 border border-indigo-500/10 rounded-lg px-3 py-2">
+              <p className="text-[11px] text-muted-foreground bg-primary/5 border border-primary/10 rounded-lg px-3 py-2">
                 Preencher estes dados melhora o Lead Score automaticamente.
               </p>
 
@@ -1245,7 +1245,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 {/* Esporte */}
                 <div className="space-y-1.5">
                   <label className={labelClass}>
-                    <Trophy className="inline h-3.5 w-3.5 mr-1 text-zinc-500" />
+                    <Trophy className="inline h-3.5 w-3.5 mr-1 text-muted-foreground" />
                     Esporte
                   </label>
                   <input
@@ -1287,7 +1287,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 {/* Serie Escolar */}
                 <div className="space-y-1.5">
                   <label className={labelClass}>
-                    <GraduationCap className="inline h-3.5 w-3.5 mr-1 text-zinc-500" />
+                    <GraduationCap className="inline h-3.5 w-3.5 mr-1 text-muted-foreground" />
                     Serie Escolar
                   </label>
                   <select
@@ -1307,7 +1307,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 {/* Ingles */}
                 <div className="space-y-1.5">
                   <label className={labelClass}>
-                    <Globe className="inline h-3.5 w-3.5 mr-1 text-zinc-500" />
+                    <Globe className="inline h-3.5 w-3.5 mr-1 text-muted-foreground" />
                     Nivel de Ingles
                   </label>
                   <select
@@ -1355,7 +1355,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 {/* Cidade / Estado */}
                 <div className="space-y-1.5">
                   <label className={labelClass}>
-                    <MapPin className="inline h-3.5 w-3.5 mr-1 text-zinc-500" />
+                    <MapPin className="inline h-3.5 w-3.5 mr-1 text-muted-foreground" />
                     Cidade / Estado
                   </label>
                   <input
@@ -1369,7 +1369,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 {/* WhatsApp */}
                 <div className="space-y-1.5">
                   <label className={labelClass}>
-                    <Phone className="inline h-3.5 w-3.5 mr-1 text-zinc-500" />
+                    <Phone className="inline h-3.5 w-3.5 mr-1 text-muted-foreground" />
                     WhatsApp
                   </label>
                   <input
@@ -1383,7 +1383,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 {/* Instagram */}
                 <div className="space-y-1.5">
                   <label className={labelClass}>
-                    <Instagram className="inline h-3.5 w-3.5 mr-1 text-zinc-500" />
+                    <Instagram className="inline h-3.5 w-3.5 mr-1 text-muted-foreground" />
                     Instagram
                   </label>
                   <input
@@ -1398,32 +1398,32 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               {/* LGPD */}
               <div className={cn(cardClass, "mt-4")}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Shield className="h-4 w-4 text-indigo-400" />
-                  <h3 className="text-sm font-semibold text-zinc-200">LGPD</h3>
+                  <Shield className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">LGPD</h3>
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">Consentimento LGPD</span>
-                    <span className={deal.consentimento_lgpd ? "text-emerald-400" : "text-zinc-500"}>
+                    <span className="text-muted-foreground">Consentimento LGPD</span>
+                    <span className={deal.consentimento_lgpd ? "text-sys-green" : "text-muted-foreground"}>
                       {deal.consentimento_lgpd ? "Sim" : "Nao"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">Aceite WhatsApp</span>
-                    <span className={deal.aceite_whatsapp ? "text-emerald-400" : "text-zinc-500"}>
+                    <span className="text-muted-foreground">Aceite WhatsApp</span>
+                    <span className={deal.aceite_whatsapp ? "text-sys-green" : "text-muted-foreground"}>
                       {deal.aceite_whatsapp ? "Sim" : "Nao"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">Aceite Email</span>
-                    <span className={deal.aceite_email ? "text-emerald-400" : "text-zinc-500"}>
+                    <span className="text-muted-foreground">Aceite Email</span>
+                    <span className={deal.aceite_email ? "text-sys-green" : "text-muted-foreground"}>
                       {deal.aceite_email ? "Sim" : "Nao"}
                     </span>
                   </div>
                   {deal.consentimento_at && (
                     <div className="flex items-center justify-between">
-                      <span className="text-zinc-500">Data do consentimento</span>
-                      <span className="text-zinc-300">{formatDate(deal.consentimento_at)}</span>
+                      <span className="text-muted-foreground">Data do consentimento</span>
+                      <span className="text-foreground">{formatDate(deal.consentimento_at)}</span>
                     </div>
                   )}
                 </div>
@@ -1433,8 +1433,8 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               {deal.siblings && deal.siblings.length > 0 && (
                 <div className={cn(cardClass, "mt-4")}>
                   <div className="flex items-center gap-2 mb-3">
-                    <User className="h-4 w-4 text-indigo-400" />
-                    <h3 className="text-sm font-semibold text-zinc-200">
+                    <User className="h-4 w-4 text-primary" />
+                    <h3 className="text-sm font-semibold text-foreground">
                       Outros atletas desta familia
                     </h3>
                   </div>
@@ -1442,15 +1442,15 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                     {deal.siblings.map((sibling) => (
                       <div
                         key={sibling.id}
-                        className="flex items-center gap-2 rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2"
+                        className="flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2"
                       >
-                        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold text-indigo-400">
+                        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
                           {sibling.nome.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-zinc-200">{sibling.nome}</p>
+                          <p className="text-sm font-medium text-foreground">{sibling.nome}</p>
                           {sibling.esporte && (
-                            <p className="text-xs text-zinc-500">{sibling.esporte}</p>
+                            <p className="text-xs text-muted-foreground">{sibling.esporte}</p>
                           )}
                         </div>
                       </div>
@@ -1462,7 +1462,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               <button
                 onClick={handleSaveDados}
                 disabled={isPending}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1591,8 +1591,8 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
           )}
           {activeTab === "documentos" && !deal.atleta_id && (
             <div className="flex flex-col items-center gap-3 py-8">
-              <FileText className="h-8 w-8 text-zinc-600" />
-              <p className="text-sm text-zinc-500">
+              <FileText className="h-8 w-8 text-label-tertiary" />
+              <p className="text-sm text-muted-foreground">
                 Atleta nao vinculado a este deal.
               </p>
             </div>
@@ -1605,7 +1605,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex-shrink-0 border-t border-[#1e2130] px-6 py-4 space-y-2">
+        <div className="flex-shrink-0 border-t border-border px-6 py-4 space-y-2">
           {/* Avancar button with blocking */}
           {nextStage && nextStage !== "perdido" && (
             <div className="relative group">
@@ -1613,10 +1613,10 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 onClick={handleAdvance}
                 disabled={isPending || !canAdvance}
                 className={cn(
-                  "flex w-full items-center justify-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] py-2.5 text-sm font-medium transition-colors",
+                  "flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card py-2.5 text-sm font-medium transition-colors",
                   canAdvance
-                    ? "text-zinc-200 hover:bg-[#1a1f2e]"
-                    : "text-zinc-500 cursor-not-allowed opacity-60",
+                    ? "text-foreground hover:bg-secondary"
+                    : "text-muted-foreground cursor-not-allowed opacity-60",
                   isPending && "opacity-50",
                 )}
               >
@@ -1629,7 +1629,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               </button>
               {!canAdvance && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
-                  <div className="rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-xs text-amber-400 shadow-lg whitespace-nowrap">
+                  <div className="rounded-lg bg-popover border border-border px-3 py-2 text-xs text-sys-orange shadow-lg whitespace-nowrap">
                     <AlertTriangle className="inline h-3 w-3 mr-1" />
                     Preencha a Proxima Acao e Data para avancar
                   </div>
@@ -1642,7 +1642,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
           {previousStages.length > 0 && !showRetrocederForm && !showLostForm && (
             <button
               onClick={() => setShowRetrocederForm(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-sm text-amber-400 hover:bg-amber-500/10 transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-sm text-sys-orange hover:bg-sys-orange/15 transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Retroceder
@@ -1651,14 +1651,14 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
 
           {/* Retroceder form */}
           {showRetrocederForm && (
-            <div className="space-y-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <label className="text-xs font-medium text-amber-400">
+            <div className="space-y-2 p-3 rounded-lg bg-sys-orange/15 border border-sys-orange/20">
+              <label className="text-xs font-medium text-sys-orange">
                 Retroceder para etapa
               </label>
               <select
                 value={retrocederStage}
                 onChange={(e) => setRetrocederStage(e.target.value)}
-                className="w-full rounded-lg border border-amber-500/30 bg-[#141720] py-2 px-3 text-sm text-zinc-200 outline-none"
+                className="w-full rounded-lg border border-sys-orange/30 bg-card py-2 px-3 text-sm text-foreground outline-none"
               >
                 <option value="">Selecione a etapa...</option>
                 {previousStages.map((s) => (
@@ -1667,7 +1667,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                   </option>
                 ))}
               </select>
-              <label className="text-xs font-medium text-amber-400">
+              <label className="text-xs font-medium text-sys-orange">
                 Justificativa (obrigatoria)
               </label>
               <textarea
@@ -1675,13 +1675,13 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 onChange={(e) => setRetrocederMotivo(e.target.value)}
                 rows={2}
                 placeholder="Descreva o motivo do retrocesso..."
-                className="w-full rounded-lg border border-amber-500/30 bg-[#141720] py-2 px-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none resize-none"
+                className="w-full rounded-lg border border-sys-orange/30 bg-card py-2 px-3 text-sm text-foreground placeholder:text-placeholder outline-none resize-none"
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleRetroceder}
                   disabled={isPending}
-                  className="flex-1 rounded-lg bg-amber-600 py-2 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-50"
+                  className="flex-1 rounded-md bg-sys-orange py-2 text-sm font-semibold text-white hover:bg-sys-orange/80 disabled:opacity-50"
                 >
                   {isPending ? (
                     <Loader2 className="inline h-4 w-4 animate-spin mr-1" />
@@ -1694,7 +1694,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                     setRetrocederStage("");
                     setRetrocederMotivo("");
                   }}
-                  className="rounded-lg border border-[#1e2130] px-4 py-2 text-sm text-zinc-400 hover:bg-[#141720]"
+                  className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-card"
                 >
                   Cancelar
                 </button>
@@ -1706,7 +1706,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
           {!showLostForm && !showRetrocederForm ? (
             <button
               onClick={() => setShowLostForm(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-sm text-sys-red hover:bg-sys-red/15 transition-colors"
             >
               <XCircle className="h-4 w-4" />
               Marcar como Perdido
@@ -1715,15 +1715,15 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
 
           {/* Structured lost form */}
           {showLostForm && (
-            <div className="space-y-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+            <div className="space-y-3 p-3 rounded-lg bg-sys-red/15 border border-sys-red/20">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-red-400">
+                <label className="text-xs font-medium text-sys-red">
                   Motivo da perda
                 </label>
                 <select
                   value={lostReasonCategory}
                   onChange={(e) => setLostReasonCategory(e.target.value)}
-                  className="w-full rounded-lg border border-red-500/30 bg-[#141720] py-2 px-3 text-sm text-zinc-200 outline-none"
+                  className="w-full rounded-lg border border-sys-red/30 bg-card py-2 px-3 text-sm text-foreground outline-none"
                 >
                   <option value="">Selecione o motivo...</option>
                   {LOSS_REASON_OPTIONS.map((opt) => (
@@ -1735,7 +1735,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-red-400">
+                <label className="text-xs font-medium text-sys-red">
                   Detalhes (obrigatorio)
                 </label>
                 <textarea
@@ -1743,7 +1743,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                   onChange={(e) => setLostDetail(e.target.value)}
                   rows={2}
                   placeholder="Descreva os detalhes..."
-                  className="w-full rounded-lg border border-red-500/30 bg-[#141720] py-2 px-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none resize-none"
+                  className="w-full rounded-lg border border-sys-red/30 bg-card py-2 px-3 text-sm text-foreground placeholder:text-placeholder outline-none resize-none"
                 />
               </div>
 
@@ -1752,21 +1752,21 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                   type="checkbox"
                   checked={canReactivate}
                   onChange={(e) => setCanReactivate(e.target.checked)}
-                  className="h-4 w-4 rounded border-red-500/30 bg-[#141720] text-red-500 focus:ring-red-500/30"
+                  className="h-4 w-4 rounded border-sys-red/30 bg-card text-destructive focus:ring-destructive/30"
                 />
-                <span className="text-xs text-zinc-300">Pode ser reativado?</span>
+                <span className="text-xs text-foreground">Pode ser reativado?</span>
               </label>
 
               {canReactivate && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-red-400">
+                  <label className="text-xs font-medium text-sys-red">
                     Data de reativacao
                   </label>
                   <input
                     type="date"
                     value={reactivationDate}
                     onChange={(e) => setReactivationDate(e.target.value)}
-                    className="w-full rounded-lg border border-red-500/30 bg-[#141720] py-2 px-3 text-sm text-zinc-200 outline-none"
+                    className="w-full rounded-lg border border-sys-red/30 bg-card py-2 px-3 text-sm text-foreground outline-none"
                   />
                 </div>
               )}
@@ -1775,7 +1775,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 <button
                   onClick={handleLost}
                   disabled={isPending}
-                  className="flex-1 rounded-lg bg-red-600 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+                  className="flex-1 rounded-md bg-destructive py-2 text-sm font-semibold text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
                 >
                   {isPending ? (
                     <Loader2 className="inline h-4 w-4 animate-spin mr-1" />
@@ -1790,7 +1790,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                     setCanReactivate(false);
                     setReactivationDate("");
                   }}
-                  className="rounded-lg border border-[#1e2130] px-4 py-2 text-sm text-zinc-400 hover:bg-[#141720]"
+                  className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-card"
                 >
                   Cancelar
                 </button>

@@ -24,11 +24,11 @@ const TABS = [
 type TabValue = (typeof TABS)[number]["value"];
 
 const inputClass =
-  "w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30";
-const labelClass = "text-xs font-medium text-zinc-400";
-const cardClass = "rounded-xl border border-[#1e2130] bg-[#141720] p-5";
+  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30";
+const labelClass = "text-xs font-medium text-muted-foreground";
+const cardClass = "glass-card rounded-xl p-5";
 const selectClass =
-  "rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500 appearance-none";
+  "rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary appearance-none";
 
 interface ConfiguracoesClientProps {
   configsIniciais: Record<string, unknown>;
@@ -39,7 +39,7 @@ function SaveBtn({ onClick, isPending, label = "Salvar" }: { onClick: () => void
     <button
       onClick={onClick}
       disabled={isPending}
-      className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+      className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
     >
       <Save className="h-3.5 w-3.5" />
       {label}
@@ -52,7 +52,7 @@ function NumberField({ label, value, onChange, unit, min, max, step }: {
 }) {
   return (
     <div className="space-y-1.5">
-      <label className={labelClass}>{label} {unit && <span className="text-zinc-600">({unit})</span>}</label>
+      <label className={labelClass}>{label} {unit && <span className="text-label-tertiary">({unit})</span>}</label>
       <input type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} min={min} max={max} step={step ?? 1} className={inputClass} />
     </div>
   );
@@ -62,7 +62,7 @@ function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boole
   return (
     <button
       onClick={() => onChange(!value)}
-      className={cn("relative h-6 w-11 rounded-full transition-colors", value ? "bg-indigo-600" : "bg-zinc-700")}
+      className={cn("relative h-6 w-11 rounded-full transition-colors", value ? "bg-primary" : "bg-secondary")}
       role="switch"
       aria-checked={value}
     >
@@ -97,17 +97,17 @@ function WeightedCriteriaSection({
   return (
     <div className="space-y-5">
       <div className={cardClass}>
-        <h3 className="text-sm font-semibold text-zinc-100 mb-4">{title}</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-4">{title}</h3>
         <div className="space-y-3">
           {criteria.map(({ key, label }) => (
             <div key={key} className="flex items-center gap-4">
-              <span className="w-32 text-sm text-zinc-300">{label}</span>
-              <input type="range" min={0} max={100} value={Number(pesos[key] ?? 0)} onChange={(e) => onPesoChange(key, Number(e.target.value))} className="flex-1 accent-indigo-500" />
+              <span className="w-32 text-sm text-foreground/80">{label}</span>
+              <input type="range" min={0} max={100} value={Number(pesos[key] ?? 0)} onChange={(e) => onPesoChange(key, Number(e.target.value))} className="flex-1 accent-primary" />
               <input type="number" min={0} max={100} value={Number(pesos[key] ?? 0)} onChange={(e) => onPesoChange(key, Number(e.target.value))} className={cn(inputClass, "w-20 text-center")} />
             </div>
           ))}
         </div>
-        <div className={cn("mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold", isValid ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
+        <div className={cn("mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold", isValid ? "bg-sys-green/15 text-sys-green" : "bg-sys-red/15 text-sys-red")}>
           {!isValid && <AlertTriangle className="h-4 w-4" />}
           Total: {total} / 100
           {!isValid && <span className="text-xs font-normal ml-2">A soma deve ser 100</span>}
@@ -115,7 +115,7 @@ function WeightedCriteriaSection({
       </div>
 
       <div className={cardClass}>
-        <h3 className="text-sm font-semibold text-zinc-100 mb-4">Faixas de Classificacao</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-4">Faixas de Classificacao</h3>
         <div className={cn("grid gap-4", faixaFields.length <= 2 ? "grid-cols-2" : "grid-cols-3")}>
           {faixaFields.map(({ key, label }) => (
             <NumberField key={key} label={label} value={Number(faixas[key] ?? 0)} onChange={(v) => onFaixaChange(key, v)} min={0} max={100} />
@@ -155,21 +155,21 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-0.5">
-          <Settings className="h-5 w-5 text-indigo-400" />
-          <h1 className="text-xl font-bold text-zinc-100">Configuracoes do Sistema</h1>
+          <Settings className="h-5 w-5 text-primary" />
+          <h1 className="text-title-2 text-foreground">Configuracoes do Sistema</h1>
         </div>
-        <p className="text-sm text-zinc-500">Ajuste parametros do CRM — acesso exclusivo CEO</p>
+        <p className="text-sm text-muted-foreground">Ajuste parametros do CRM — acesso exclusivo CEO</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto rounded-lg border border-[#1e2130] bg-[#141720] p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">
         {TABS.map((tab) => (
           <button
             key={tab.value}
             onClick={() => setActiveTab(tab.value)}
             className={cn(
-              "whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-              activeTab === tab.value ? "bg-indigo-600/20 text-indigo-300" : "text-zinc-500 hover:text-zinc-300",
+              "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+              activeTab === tab.value ? "bg-primary/15 text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
             {tab.label}
@@ -178,14 +178,14 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
       </div>
 
       {/* LGPD + Soft Delete notices */}
-      <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-5">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-500/20">
-            <Shield className="h-4 w-4 text-indigo-400" />
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/20">
+            <Shield className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Politica de Retencao de Dados (LGPD)</p>
-            <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
+            <p className="text-sm font-semibold text-foreground">Politica de Retencao de Dados (LGPD)</p>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
               Leads nao qualificados: retencao de 2 anos. Clientes ativos: duracao do contrato + 5 anos.
               Dados anonimizados apos periodo de retencao.
             </p>
@@ -193,15 +193,15 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
         </div>
       </div>
 
-      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+      <div className="rounded-xl border border-sys-green/20 bg-sys-green/5 p-5">
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/20">
-            <Database className="h-4 w-4 text-emerald-400" />
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sys-green/20">
+            <Database className="h-4 w-4 text-sys-green" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Status Soft Delete</p>
-            <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
-              Todas as tabelas CRM utilizam <code className="text-emerald-400 font-mono">deleted_at</code> para exclusao logica. Dados nunca sao removidos permanentemente sem autorizacao explicita.
+            <p className="text-sm font-semibold text-foreground">Status Soft Delete</p>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+              Todas as tabelas CRM utilizam <code className="text-sys-green font-mono">deleted_at</code> para exclusao logica. Dados nunca sao removidos permanentemente sem autorizacao explicita.
             </p>
           </div>
         </div>
@@ -238,7 +238,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                 const p = planos[key] ?? {};
                 return (
                   <div key={key} className={cardClass}>
-                    <h3 className="text-sm font-semibold text-zinc-100 mb-4">Plano {label}</h3>
+                    <h3 className="text-sm font-semibold text-foreground mb-4">Plano {label}</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <NumberField label="Valor Padrao" value={Number(p.padrao ?? 0)} onChange={(v) => updatePlano(key, "padrao", v)} unit="R$" />
                       <NumberField label="Valor Pix" value={Number(p.pix ?? 0)} onChange={(v) => updatePlano(key, "pix", v)} unit="R$" />
@@ -250,7 +250,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
               })}
 
               <div className={cardClass}>
-                <h3 className="text-sm font-semibold text-zinc-100 mb-4">Configuracoes Gerais</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-4">Configuracoes Gerais</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <NumberField label="Entrada Padrao" value={Number(planosConfig.entrada_padrao ?? 4500)} onChange={(v) => updatePConfig("entrada_padrao", v)} unit="R$" />
                   <NumberField label="Custo Psicologa" value={Number(planosConfig.custo_psicologa ?? 2500)} onChange={(v) => updatePConfig("custo_psicologa", v)} unit="R$" />
@@ -344,7 +344,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
           return (
             <div className="space-y-5">
               <div className={cardClass}>
-                <h3 className="text-sm font-semibold text-zinc-100 mb-4">Metas Comerciais</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-4">Metas Comerciais</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <NumberField label="Meta Anual" value={Number(metas.meta_anual ?? 0)} onChange={(v) => update("meta_anual", v)} unit="R$" />
                   <NumberField label="Meta Mensal" value={Number(metas.meta_mensal ?? 0)} onChange={(v) => update("meta_mensal", v)} unit="R$" />
@@ -389,7 +389,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
           return (
             <div className="space-y-5">
               <div className={cardClass}>
-                <h3 className="text-sm font-semibold text-zinc-100 mb-4">Timers de Comunicacao</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-4">Timers de Comunicacao</h3>
                 <div className="grid grid-cols-2 gap-4">
                   {fields.map(({ key, label, unit }) => (
                     <NumberField key={key} label={label} value={Number(timers[key] ?? 0)} onChange={(v) => update(key, v)} unit={unit} min={0} />
@@ -422,19 +422,19 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
           return (
             <div className="space-y-5">
               <div className={cardClass}>
-                <h3 className="text-sm font-semibold text-zinc-100 mb-4">Inatividade por Fase (dias)</h3>
-                <div className="overflow-hidden rounded-lg border border-[#1e2130]">
+                <h3 className="text-sm font-semibold text-foreground mb-4">Inatividade por Fase (dias)</h3>
+                <div className="overflow-hidden rounded-lg border border-border">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-[#1e2130] bg-[#0c0e16]">
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-zinc-500">Fase</th>
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-zinc-500">Dias</th>
+                      <tr className="border-b border-border bg-background">
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Fase</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Dias</th>
                       </tr>
                     </thead>
                     <tbody>
                       {FASES.map(({ key, label, def }) => (
-                        <tr key={key} className="border-b border-[#1e2130] last:border-0">
-                          <td className="px-4 py-2.5 text-sm text-zinc-300">{label}</td>
+                        <tr key={key} className="border-b border-border last:border-0">
+                          <td className="px-4 py-2.5 text-sm text-foreground/80">{label}</td>
                           <td className="px-4 py-2.5">
                             <input type="number" min={1} value={Number(expConfig[key] ?? def)} onChange={(e) => updateLocalConfig(EXP_KEY, { ...expConfig, [key]: Number(e.target.value) })} className={cn(inputClass, "w-24")} />
                           </td>
@@ -446,7 +446,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
               </div>
 
               <div className={cardClass}>
-                <h3 className="text-sm font-semibold text-zinc-100 mb-4">Thresholds de Temperatura</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-4">Thresholds de Temperatura</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <NumberField label="Ansiedade (alerta se >=)" value={Number(tempConfig.ansiedade_threshold ?? 7)} onChange={(v) => updateLocalConfig(TEMP_KEY, { ...tempConfig, ansiedade_threshold: v })} min={1} max={10} />
                   <NumberField label="Satisfacao (alerta se <=)" value={Number(tempConfig.satisfacao_threshold ?? 4)} onChange={(v) => updateLocalConfig(TEMP_KEY, { ...tempConfig, satisfacao_threshold: v })} min={1} max={10} />
@@ -494,22 +494,22 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
           return (
             <div className="space-y-5">
               <div className={cardClass}>
-                <h3 className="text-sm font-semibold text-zinc-100 mb-4">Regras de Cobranca</h3>
-                <div className="overflow-hidden rounded-lg border border-[#1e2130]">
+                <h3 className="text-sm font-semibold text-foreground mb-4">Regras de Cobranca</h3>
+                <div className="overflow-hidden rounded-lg border border-border">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-[#1e2130] bg-[#0c0e16]">
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-zinc-500">Estagio</th>
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-zinc-500">Canal</th>
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-zinc-500">Ativo</th>
+                      <tr className="border-b border-border bg-background">
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Estagio</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Canal</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Ativo</th>
                       </tr>
                     </thead>
                     <tbody>
                       {STAGES.map(({ key, label }) => {
                         const stage = cobranca[key] ?? { canal: "whatsapp", ativo: true };
                         return (
-                          <tr key={key} className="border-b border-[#1e2130] last:border-0">
-                            <td className="px-4 py-2.5 text-sm text-zinc-300">{label}</td>
+                          <tr key={key} className="border-b border-border last:border-0">
+                            <td className="px-4 py-2.5 text-sm text-foreground/80">{label}</td>
                             <td className="px-4 py-2.5">
                               <select value={String(stage.canal ?? "whatsapp")} onChange={(e) => updateStage(key, "canal", e.target.value)} className={cn(selectClass, "w-36")}>
                                 {CANAL_OPTS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
@@ -535,18 +535,18 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
         {/* ===== PIPELINE ===== */}
         {activeTab === "pipeline" && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+            <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-4">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-400" />
-                <p className="text-sm font-semibold text-amber-300">Somente leitura</p>
+                <AlertTriangle className="h-4 w-4 text-sys-orange" />
+                <p className="text-sm font-semibold text-sys-orange">Somente leitura</p>
               </div>
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Estagios do pipeline sao definidos no codigo. Para alterar, contate o desenvolvedor.
               </p>
             </div>
 
             <div className={cardClass}>
-              <h3 className="text-sm font-semibold text-zinc-100 mb-4">
+              <h3 className="text-sm font-semibold text-foreground mb-4">
                 Estagios do Pipeline ({PIPELINE_STAGE_ORDER.length})
               </h3>
               <div className="space-y-1.5">
@@ -555,20 +555,20 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                   return (
                     <div
                       key={stageId}
-                      className="flex items-center gap-3 rounded-lg border border-[#1e2130] bg-[#0c0e16] px-4 py-2.5"
+                      className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-2.5"
                     >
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-400">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">
                         {idx + 1}
                       </span>
                       <span className={cn("h-2.5 w-2.5 rounded-full flex-shrink-0", stage.dotColor)} />
-                      <span className="flex-1 text-sm text-zinc-200">{stage.label}</span>
+                      <span className="flex-1 text-sm text-foreground">{stage.label}</span>
                       {stage.isFinancial && (
-                        <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[9px] font-semibold text-emerald-400">
+                        <span className="rounded-full bg-sys-green/15 border border-sys-green/20 px-2 py-0.5 text-[9px] font-semibold text-sys-green">
                           Financeiro
                         </span>
                       )}
                       {stage.isLost && (
-                        <span className="rounded-full bg-red-500/10 border border-red-500/20 px-2 py-0.5 text-[9px] font-semibold text-red-400">
+                        <span className="rounded-full bg-sys-red/15 border border-sys-red/20 px-2 py-0.5 text-[9px] font-semibold text-sys-red">
                           Perda
                         </span>
                       )}
@@ -585,14 +585,14 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
           <div className="space-y-4">
             <div className={cardClass + " space-y-4"}>
               <div className="flex items-center gap-2 mb-2">
-                <Bell className="h-4 w-4 text-indigo-400" />
-                <p className="text-sm font-semibold text-zinc-200">Configuracoes de Notificacao</p>
+                <Bell className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">Configuracoes de Notificacao</p>
               </div>
 
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-zinc-200">Espelhar todas notificacoes ao CEO</p>
-                  <p className="text-[10px] text-zinc-600">Chave: espelhar_notificacoes_ceo</p>
+                  <p className="text-sm text-foreground">Espelhar todas notificacoes ao CEO</p>
+                  <p className="text-[10px] text-label-tertiary">Chave: espelhar_notificacoes_ceo</p>
                 </div>
                 <ToggleSwitch
                   value={Boolean(configs["espelhar_notificacoes_ceo"])}
@@ -612,14 +612,14 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
 
               <div className="space-y-1.5">
                 <label className={labelClass}>Horario do digest diario</label>
-                <p className="text-[10px] text-zinc-600">Chave: digest_horario</p>
+                <p className="text-[10px] text-label-tertiary">Chave: digest_horario</p>
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-zinc-500" />
+                  <Clock className="h-4 w-4 text-muted-foreground" />
                   <input
                     type="time"
                     value={String(configs["digest_horario"] ?? "09:00")}
                     onChange={(e) => updateLocalConfig("digest_horario", e.target.value)}
-                    className="rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2 text-sm text-zinc-300 outline-none focus:border-indigo-500"
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
                   />
                   <SaveBtn onClick={() => saveConfig("digest_horario", configs["digest_horario"])} isPending={isPending} />
                 </div>
@@ -633,7 +633,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                   const isEnabled = canais[key] ?? true;
                   return (
                     <div key={canal} className="flex items-center justify-between">
-                      <span className="text-sm text-zinc-300">{canal}</span>
+                      <span className="text-sm text-foreground">{canal}</span>
                       <ToggleSwitch
                         value={isEnabled}
                         onChange={() => {
@@ -660,12 +660,12 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
         {/* ===== LISTAS ===== */}
         {activeTab === "listas" && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+            <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-4">
               <div className="flex items-center gap-2">
-                <List className="h-4 w-4 text-amber-400" />
-                <p className="text-sm font-semibold text-amber-300">Listas somente leitura</p>
+                <List className="h-4 w-4 text-sys-orange" />
+                <p className="text-sm font-semibold text-sys-orange">Listas somente leitura</p>
               </div>
-              <p className="mt-1 text-xs text-zinc-400">Para alterar estas listas, contate o desenvolvedor.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Para alterar estas listas, contate o desenvolvedor.</p>
             </div>
 
             {[
@@ -677,10 +677,10 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
               { title: "Categorias FAQ", items: FAQ_CATEGORIAS.map((c) => c.label) },
             ].map((lista) => (
               <div key={lista.title} className={cardClass}>
-                <p className="text-sm font-semibold text-zinc-200 mb-2">{lista.title}</p>
+                <p className="text-sm font-semibold text-foreground mb-2">{lista.title}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {lista.items.map((item) => (
-                    <span key={item} className="rounded-md border border-[#1e2130] bg-[#0c0e16] px-2 py-1 text-xs text-zinc-400">{item}</span>
+                    <span key={item} className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground">{item}</span>
                   ))}
                 </div>
               </div>

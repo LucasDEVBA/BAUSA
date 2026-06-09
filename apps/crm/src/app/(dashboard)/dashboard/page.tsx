@@ -143,8 +143,8 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-xl font-bold text-zinc-100">Dashboard</h1>
-        <p className="mt-0.5 text-sm text-zinc-500">
+        <h1 className="text-title-2 text-foreground">Dashboard</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           Visao geral dos leads em tempo real
         </p>
       </div>
