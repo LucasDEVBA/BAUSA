@@ -58,7 +58,7 @@ export function CashFlowSection({ data }: CashFlowSectionProps) {
               </div>
             </div>
             <p className={`mt-3 text-2xl font-bold tabular-nums ${item.color}`}>
-              US$ {(item.value / 1000).toFixed(0)}k
+              R$ {(item.value / 1000).toFixed(0)}k
             </p>
           </div>
         );

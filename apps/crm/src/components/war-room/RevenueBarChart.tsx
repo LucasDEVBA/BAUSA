@@ -28,7 +28,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
           <span className="text-muted-foreground">{item.name}:</span>
           <span className="font-medium text-foreground">
-            US$ {item.value.toLocaleString("en-US")}
+            R$ {item.value.toLocaleString("pt-BR")}
           </span>
         </div>
       ))}
@@ -44,7 +44,7 @@ export function RevenueBarChart({ data }: RevenueBarChartProps) {
   return (
     <div className="glass-card rounded-xl p-5">
       <h3 className="text-sm font-semibold text-foreground">Receita por Mês</h3>
-      <p className="mt-0.5 text-xs text-muted-foreground">Recebido vs Projetado (USD)</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">Recebido vs Projetado (R$)</p>
 
       <div className="mt-4 h-64">
         <ResponsiveContainer width="100%" height="100%">
