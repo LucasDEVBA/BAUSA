@@ -475,6 +475,7 @@ const Forms = () => {
         utm_campaign: getStoredUTMs().utm_campaign,
         utm_content: getStoredUTMs().utm_content,
         utm_term: getStoredUTMs().utm_term,
+        utm_id: getStoredUTMs().utm_id,
         referrer_url: typeof sessionStorage !== "undefined" ? sessionStorage.getItem("bau_referrer") || null : null,
         landing_url: typeof sessionStorage !== "undefined" ? sessionStorage.getItem("bau_landing_url") || null : null,
         session_id: getOrCreateSessionId() || null,
