@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 import { NotificationCenter } from "./NotificationCenter";
+import { ThemeToggle } from "./ThemeToggle";
 
 const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/dashboard": { label: "Dashboard", parent: "Leads" },
@@ -76,6 +77,9 @@ export function Header({ nome }: HeaderProps) {
           <span>Buscar...</span>
           <kbd className="ml-2 rounded border border-border px-1 text-[10px] text-muted-foreground">⌘K</kbd>
         </button>
+
+        {/* Alternar tema claro/escuro */}
+        <ThemeToggle />
 
         {/* Notificações */}
         <NotificationCenter />
