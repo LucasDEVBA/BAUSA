@@ -687,7 +687,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                       className={cn(
                         "h-1.5 w-1.5 rounded-full",
                         DEAL_STAGE_CONFIG[lead.pipeline_stage as DealStage]
-                          ?.dotColor ?? "bg-zinc-500",
+                          ?.dotColor ?? "bg-muted-foreground",
                       )}
                     />
                     {DEAL_STAGE_CONFIG[lead.pipeline_stage as DealStage]

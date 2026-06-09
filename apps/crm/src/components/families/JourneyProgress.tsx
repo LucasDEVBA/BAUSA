@@ -19,8 +19,8 @@ export function JourneyProgress({ currentStage }: JourneyProgressProps) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] text-zinc-500">Jornada</p>
-        <p className="text-[10px] font-medium text-zinc-300">
+        <p className="text-[10px] text-muted-foreground">Jornada</p>
+        <p className="text-[10px] font-medium text-foreground">
           {JOURNEY_STAGE_CONFIG[currentStage].label}
         </p>
       </div>
@@ -35,16 +35,16 @@ export function JourneyProgress({ currentStage }: JourneyProgressProps) {
               title={JOURNEY_STAGE_CONFIG[stage].label}
               className={`flex-1 rounded-full transition-all ${
                 isCurrent
-                  ? "h-2 bg-indigo-500"
+                  ? "h-2 bg-primary"
                   : isPast
-                  ? "h-1.5 bg-indigo-500/40"
-                  : "h-1.5 bg-zinc-700"
+                  ? "h-1.5 bg-primary/40"
+                  : "h-1.5 bg-secondary"
               }`}
             />
           );
         })}
       </div>
-      <p className="text-[9px] text-zinc-600">
+      <p className="text-[9px] text-label-tertiary">
         Etapa {currentIndex + 1} de {STAGES_ORDER.length}
       </p>
     </div>

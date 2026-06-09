@@ -65,13 +65,13 @@ const MENSAGEM_DEFAULT =
 const brl = (v: number) => `R$ ${Number(v || 0).toLocaleString("pt-BR")}`;
 
 const SEGMENT_COLORS: Record<string, string> = {
-  nao_agendaram: "#fbbf24",
-  reuniao_sem_fechar: "#60a5fa",
-  proposta_sem_resposta: "#a78bfa",
-  perdidos_recuperaveis: "#f87171",
-  inativos_90d: "#fb923c",
-  alto_score_sem_followup: "#34d399",
-  aniversariantes: "#f472b6",
+  nao_agendaram: "var(--sys-yellow)",
+  reuniao_sem_fechar: "var(--sys-blue)",
+  proposta_sem_resposta: "var(--sys-indigo)",
+  perdidos_recuperaveis: "var(--sys-red)",
+  inativos_90d: "var(--sys-orange)",
+  alto_score_sem_followup: "var(--sys-green)",
+  aniversariantes: "var(--sys-pink)",
 };
 
 export function RemarketingClient({ data }: { data: RemarketingData }) {
@@ -302,7 +302,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                 <div className="flex items-center justify-between">
                   <span
                     className="h-2 w-2 rounded-full"
-                    style={{ background: SEGMENT_COLORS[s.key] ?? "#71717a" }}
+                    style={{ background: SEGMENT_COLORS[s.key] ?? "var(--muted-foreground)" }}
                   />
                   <span className="text-[11px] font-semibold text-sys-green">
                     ~{Math.round(s.taxaEstimada * 100)}%

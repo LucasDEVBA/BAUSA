@@ -121,7 +121,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-border bg-popover shadow-2xl">
         {/* Header */}
         <div className="flex items-start gap-4 border-b border-border px-6 py-5">
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-base font-bold text-white">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-base font-bold text-primary-foreground">
             {getInitials(lead.athlete_name)}
           </div>
           <div className="flex-1 min-w-0">

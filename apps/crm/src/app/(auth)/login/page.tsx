@@ -50,21 +50,21 @@ export default function LoginPage() {
         className="pointer-events-none absolute inset-0 opacity-[0.03]"
         style={{
           backgroundImage:
-            "linear-gradient(#6366f1 1px, transparent 1px), linear-gradient(90deg, #6366f1 1px, transparent 1px)",
+            "linear-gradient(var(--primary) 1px, transparent 1px), linear-gradient(90deg, var(--primary) 1px, transparent 1px)",
           backgroundSize: "40px 40px",
         }}
       />
 
       {/* Glow */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
+        <div className="h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-sm px-4">
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
-            <Zap className="h-6 w-6 text-white" />
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-sys-purple shadow-lg shadow-primary/20">
+            <Zap className="h-6 w-6 text-primary-foreground" />
           </div>
           <h1 className="text-xl font-bold text-foreground">BAUSA Engine</h1>
           <p className="mt-1 text-sm text-muted-foreground">Bolsa Atleta USA</p>
@@ -129,7 +129,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all hover:from-indigo-500 hover:to-purple-500 hover:shadow-indigo-500/30 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-primary to-sys-purple py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:from-primary/90 hover:to-sys-purple/90 hover:shadow-primary/30 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <>

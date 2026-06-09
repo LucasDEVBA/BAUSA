@@ -131,7 +131,7 @@ export function LossModal({
             type="checkbox"
             checked={reativar}
             onChange={(e) => setReativar(e.target.checked)}
-            className="accent-red-500"
+            className="accent-destructive"
           />
           Pode reativar no futuro?
         </label>

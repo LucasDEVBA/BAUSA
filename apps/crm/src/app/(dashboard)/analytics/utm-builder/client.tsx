@@ -32,7 +32,7 @@ const PRESETS: Preset[] = [
   {
     label: "Instagram Ads",
     icon: Instagram,
-    color: "text-pink-400",
+    color: "text-sys-pink",
     source: "instagram",
     medium: "paid",
     campaign: "",
@@ -50,7 +50,7 @@ const PRESETS: Preset[] = [
   {
     label: "Instagram Bio",
     icon: Instagram,
-    color: "text-pink-400",
+    color: "text-sys-pink",
     source: "instagram",
     medium: "social",
     campaign: "bio_link",
@@ -59,7 +59,7 @@ const PRESETS: Preset[] = [
   {
     label: "Instagram Stories",
     icon: Instagram,
-    color: "text-pink-400",
+    color: "text-sys-pink",
     source: "instagram",
     medium: "social",
     campaign: "stories",
@@ -68,7 +68,7 @@ const PRESETS: Preset[] = [
   {
     label: "TikTok Ads",
     icon: Video,
-    color: "text-cyan-400",
+    color: "text-sys-cyan",
     source: "tiktok",
     medium: "paid",
     campaign: "",
@@ -77,7 +77,7 @@ const PRESETS: Preset[] = [
   {
     label: "Google Ads",
     icon: Search,
-    color: "text-yellow-400",
+    color: "text-sys-yellow",
     source: "google",
     medium: "paid",
     campaign: "",
@@ -95,7 +95,7 @@ const PRESETS: Preset[] = [
   {
     label: "WhatsApp",
     icon: MessageCircle,
-    color: "text-green-400",
+    color: "text-sys-green",
     source: "whatsapp",
     medium: "referral",
     campaign: "indicacao",
