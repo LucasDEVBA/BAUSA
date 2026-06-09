@@ -67,23 +67,23 @@ export const HEALTH_LABEL: Record<HealthLevel, string> = {
 
 export const HEALTH_COLOR: Record<HealthLevel, { bg: string; text: string; ring: string }> = {
   excelente: {
-    bg: "bg-emerald-500/15",
-    text: "text-emerald-300",
-    ring: "ring-emerald-500/30",
+    bg: "bg-sys-green/15",
+    text: "text-sys-green",
+    ring: "ring-sys-green/30",
   },
   bom: {
-    bg: "bg-blue-500/15",
-    text: "text-blue-300",
-    ring: "ring-blue-500/30",
+    bg: "bg-sys-blue/15",
+    text: "text-sys-blue",
+    ring: "ring-sys-blue/30",
   },
   atencao: {
-    bg: "bg-amber-500/15",
-    text: "text-amber-300",
-    ring: "ring-amber-500/30",
+    bg: "bg-sys-orange/15",
+    text: "text-sys-orange",
+    ring: "ring-sys-orange/30",
   },
   critico: {
-    bg: "bg-red-500/15",
-    text: "text-red-300",
-    ring: "ring-red-500/30",
+    bg: "bg-sys-red/15",
+    text: "text-sys-red",
+    ring: "ring-sys-red/30",
   },
 };

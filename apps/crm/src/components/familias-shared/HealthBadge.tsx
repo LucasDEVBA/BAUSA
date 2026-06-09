@@ -88,16 +88,16 @@ export function HealthScoreCard(input: HealthInput) {
     <div
       className={cn(
         "rounded-xl border bg-gradient-to-br p-4",
-        level === "excelente" && "border-emerald-500/30 from-emerald-500/10 to-emerald-500/5",
-        level === "bom" && "border-blue-500/30 from-blue-500/10 to-blue-500/5",
-        level === "atencao" && "border-amber-500/30 from-amber-500/10 to-amber-500/5",
-        level === "critico" && "border-red-500/30 from-red-500/10 to-red-500/5",
+        level === "excelente" && "border-sys-green/30 from-sys-green/10 to-sys-green/5",
+        level === "bom" && "border-sys-blue/30 from-sys-blue/10 to-sys-blue/5",
+        level === "atencao" && "border-sys-orange/30 from-sys-orange/10 to-sys-orange/5",
+        level === "critico" && "border-sys-red/30 from-sys-red/10 to-sys-red/5",
       )}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Heart className={cn("h-4 w-4", colors.text)} />
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Health Score
           </p>
         </div>
@@ -109,16 +109,16 @@ export function HealthScoreCard(input: HealthInput) {
         <span className={cn("text-4xl font-bold tracking-tight", colors.text)}>
           {score}
         </span>
-        <span className="text-sm text-zinc-500">/100</span>
+        <span className="text-sm text-muted-foreground">/100</span>
       </div>
-      <div className="mt-3 h-2 rounded-full bg-white/5 overflow-hidden">
+      <div className="mt-3 h-2 rounded-full bg-fill-4 overflow-hidden">
         <div
           className={cn(
             "h-full rounded-full transition-all duration-500",
-            level === "excelente" && "bg-emerald-500",
-            level === "bom" && "bg-blue-500",
-            level === "atencao" && "bg-amber-500",
-            level === "critico" && "bg-red-500",
+            level === "excelente" && "bg-sys-green",
+            level === "bom" && "bg-sys-blue",
+            level === "atencao" && "bg-sys-orange",
+            level === "critico" && "bg-sys-red",
           )}
           style={{ width: `${score}%` }}
         />
