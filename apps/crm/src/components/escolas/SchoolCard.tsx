@@ -37,7 +37,7 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
           onSelect(school);
         }
       }}
-      className="cursor-pointer rounded-xl border border-[#1e2130] bg-[#141720] p-5 transition-colors hover:border-indigo-500/30 hover:bg-[#161b28] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40">
+      className="glass-card cursor-pointer rounded-xl p-5 transition-all hover:border-primary/30 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
       {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -50,60 +50,60 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
               {statusCfg.label}
             </span>
           </div>
-          <h3 className="text-sm font-semibold text-white leading-tight">{school.name}</h3>
-          <p className="flex items-center gap-1 mt-0.5 text-xs text-zinc-500">
+          <h3 className="text-sm font-semibold text-foreground leading-tight">{school.name}</h3>
+          <p className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3" />
             {school.city}, {school.state}
           </p>
         </div>
         <div className="text-right flex-shrink-0">
-          <p className="text-xs text-zinc-600">Match medio</p>
-          <p className="text-xl font-bold text-emerald-400">{school.avg_scholarship_pct}%</p>
-          <p className="text-[10px] text-zinc-600">bolsa media</p>
+          <p className="text-xs text-label-tertiary">Match medio</p>
+          <p className="text-xl font-bold text-sys-green">{school.avg_scholarship_pct}%</p>
+          <p className="text-[10px] text-label-tertiary">bolsa media</p>
         </div>
       </div>
 
       {/* Stats grid */}
       <div className="mb-4 grid grid-cols-3 gap-3">
-        <div className="rounded-lg bg-[#0c0e16] px-3 py-2 text-center">
-          <p className="text-lg font-bold text-white">{acceptanceRate}%</p>
-          <p className="text-[10px] text-zinc-500">Taxa aceite</p>
+        <div className="rounded-lg bg-secondary px-3 py-2 text-center">
+          <p className="text-lg font-bold text-foreground">{acceptanceRate}%</p>
+          <p className="text-[10px] text-muted-foreground">Taxa aceite</p>
         </div>
-        <div className="rounded-lg bg-[#0c0e16] px-3 py-2 text-center">
-          <p className="text-lg font-bold text-white">{school.total_applications}</p>
-          <p className="text-[10px] text-zinc-500">Aplicacoes</p>
+        <div className="rounded-lg bg-secondary px-3 py-2 text-center">
+          <p className="text-lg font-bold text-foreground">{school.total_applications}</p>
+          <p className="text-[10px] text-muted-foreground">Aplicacoes</p>
         </div>
-        <div className="rounded-lg bg-[#0c0e16] px-3 py-2 text-center">
-          <p className="text-lg font-bold text-white">{school.avg_response_days}d</p>
-          <p className="text-[10px] text-zinc-500">Resp. media</p>
+        <div className="rounded-lg bg-secondary px-3 py-2 text-center">
+          <p className="text-lg font-bold text-foreground">{school.avg_response_days}d</p>
+          <p className="text-[10px] text-muted-foreground">Resp. media</p>
         </div>
       </div>
 
       {/* Regras financeiras */}
       <div className="mb-3 space-y-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Budget exigido</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Budget exigido</p>
         <div className="flex items-center gap-2">
-          <div className="flex-1 rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-1.5">
-            <p className="text-[10px] text-zinc-600">Minimo</p>
-            <p className="text-xs font-semibold text-amber-400">US$ {(school.min_budget_usd / 1000).toFixed(0)}k</p>
+          <div className="flex-1 rounded-md border border-border bg-secondary px-2.5 py-1.5">
+            <p className="text-[10px] text-label-tertiary">Minimo</p>
+            <p className="text-xs font-semibold text-sys-orange">US$ {(school.min_budget_usd / 1000).toFixed(0)}k</p>
           </div>
-          <div className="flex-1 rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-1.5">
-            <p className="text-[10px] text-zinc-600">Forte</p>
-            <p className="text-xs font-semibold text-emerald-400">US$ {(school.strong_budget_usd / 1000).toFixed(0)}k</p>
+          <div className="flex-1 rounded-md border border-border bg-secondary px-2.5 py-1.5">
+            <p className="text-[10px] text-label-tertiary">Forte</p>
+            <p className="text-xs font-semibold text-sys-green">US$ {(school.strong_budget_usd / 1000).toFixed(0)}k</p>
           </div>
         </div>
       </div>
 
       {/* Agressividade de bolsa */}
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-[10px] text-zinc-600">Agressividade bolsa</p>
+        <p className="text-[10px] text-label-tertiary">Agressividade bolsa</p>
         <span className={cn(
           "rounded-md border px-2 py-0.5 text-[10px] font-medium",
           school.scholarship_aggressiveness === "agressiva"
-            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+            ? "border-sys-green/30 bg-sys-green/10 text-sys-green"
             : school.scholarship_aggressiveness === "moderada"
-            ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-            : "border-zinc-500/30 bg-zinc-500/10 text-zinc-400"
+            ? "border-sys-orange/30 bg-sys-orange/10 text-sys-orange"
+            : "border-border bg-secondary text-muted-foreground"
         )}>
           {school.scholarship_aggressiveness.charAt(0).toUpperCase() + school.scholarship_aggressiveness.slice(1)}
         </span>
@@ -111,16 +111,16 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
 
       {/* Influencia esportiva */}
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-[10px] text-zinc-600">Influencia esportiva</p>
+        <p className="text-[10px] text-label-tertiary">Influencia esportiva</p>
         <span className={cn(
           "rounded-md border px-2 py-0.5 text-[10px] font-medium",
           school.sport_influence === "decisiva"
-            ? "border-purple-500/30 bg-purple-500/10 text-purple-400"
+            ? "border-plan-legacy/30 bg-plan-legacy/10 text-plan-legacy"
             : school.sport_influence === "alta"
-            ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
+            ? "border-primary/30 bg-primary/10 text-primary"
             : school.sport_influence === "media"
-            ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-            : "border-zinc-500/30 bg-zinc-500/10 text-zinc-400"
+            ? "border-sys-orange/30 bg-sys-orange/10 text-sys-orange"
+            : "border-border bg-secondary text-muted-foreground"
         )}>
           {school.sport_influence.charAt(0).toUpperCase() + school.sport_influence.slice(1)}
         </span>
@@ -129,16 +129,16 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
       {/* Temperatura do relacionamento */}
       {school.temperatura_relacionamento && (
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-[10px] text-zinc-600">Relacionamento</p>
+          <p className="text-[10px] text-label-tertiary">Relacionamento</p>
           <span className={cn(
             "rounded-md border px-2 py-0.5 text-[10px] font-medium",
             school.temperatura_relacionamento === "forte"
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+              ? "border-sys-green/30 bg-sys-green/10 text-sys-green"
               : school.temperatura_relacionamento === "bom"
-              ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
+              ? "border-primary/30 bg-primary/10 text-primary"
               : school.temperatura_relacionamento === "frio"
-              ? "border-red-500/30 bg-red-500/10 text-red-400"
-              : "border-zinc-500/30 bg-zinc-500/10 text-zinc-400"
+              ? "border-sys-red/30 bg-sys-red/10 text-sys-red"
+              : "border-border bg-secondary text-muted-foreground"
           )}>
             {school.temperatura_relacionamento.charAt(0).toUpperCase() + school.temperatura_relacionamento.slice(1)}
           </span>
@@ -150,9 +150,9 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
         const dias = Math.floor((now - new Date(school.ultimo_contato_at!).getTime()) / (1000 * 60 * 60 * 24));
         const isAlert = dias > 90;
         return (
-          <div className={cn("mb-3 flex items-center justify-between rounded-md px-2 py-1.5", isAlert && "bg-red-500/5 border border-red-500/20")}>
-            <p className="text-[10px] text-zinc-600">Ultimo contato</p>
-            <span className={cn("flex items-center gap-1 text-[10px] font-medium", isAlert ? "text-red-400" : "text-zinc-400")}>
+          <div className={cn("mb-3 flex items-center justify-between rounded-md px-2 py-1.5", isAlert && "bg-sys-red/5 border border-sys-red/20")}>
+            <p className="text-[10px] text-label-tertiary">Ultimo contato</p>
+            <span className={cn("flex items-center gap-1 text-[10px] font-medium", isAlert ? "text-sys-red" : "text-muted-foreground")}>
               {isAlert && <AlertTriangle className="h-3 w-3" />}
               {dias}d atras
             </span>
@@ -164,15 +164,15 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
       {(school.deadline_fall || school.deadline_spring) && (
       <div className="mb-3 grid grid-cols-2 gap-2">
         {school.deadline_fall && (
-          <div className="rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-1.5">
-            <p className="text-[10px] text-zinc-600 flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />Fall</p>
-            <p className="text-xs font-medium text-amber-400">{new Date(school.deadline_fall).toLocaleDateString("pt-BR")}</p>
+          <div className="rounded-md border border-border bg-secondary px-2.5 py-1.5">
+            <p className="text-[10px] text-label-tertiary flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />Fall</p>
+            <p className="text-xs font-medium text-sys-orange">{new Date(school.deadline_fall).toLocaleDateString("pt-BR")}</p>
           </div>
         )}
         {school.deadline_spring && (
-          <div className="rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-1.5">
-            <p className="text-[10px] text-zinc-600 flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />Spring</p>
-            <p className="text-xs font-medium text-blue-400">{new Date(school.deadline_spring).toLocaleDateString("pt-BR")}</p>
+          <div className="rounded-md border border-border bg-secondary px-2.5 py-1.5">
+            <p className="text-[10px] text-label-tertiary flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />Spring</p>
+            <p className="text-xs font-medium text-sys-blue">{new Date(school.deadline_spring).toLocaleDateString("pt-BR")}</p>
           </div>
         )}
       </div>
@@ -183,19 +183,19 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
         <span className={cn(
           "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium",
           school.rolling_admission
-            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-            : "border-zinc-500/30 bg-zinc-500/10 text-zinc-500"
+            ? "border-sys-green/30 bg-sys-green/10 text-sys-green"
+            : "border-border bg-secondary text-muted-foreground"
         )}>
           {school.rolling_admission && <CheckCircle className="h-2.5 w-2.5" />}
           Rolling: {school.rolling_admission ? "Sim" : "Nao"}
         </span>
         {school.serie_maxima && (
-          <span className="rounded-md border border-zinc-500/30 bg-zinc-500/10 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
+          <span className="rounded-md border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
             Serie max: {school.serie_maxima}
           </span>
         )}
         {school.gpa_minimo != null && school.gpa_minimo > 0 && (
-          <span className="rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-400">
+          <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
             GPA min: {school.gpa_minimo.toFixed(1)}
           </span>
         )}
@@ -203,9 +203,9 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
 
       {/* Regra pratica BAUSA */}
       {school.practical_rule && (
-        <div className="mb-4 rounded-md border border-indigo-500/20 bg-indigo-500/5 px-3 py-2">
-          <p className="text-[10px] font-semibold text-indigo-400 mb-0.5">Regra BAUSA</p>
-          <p className="text-[11px] text-zinc-400 leading-relaxed">{school.practical_rule}</p>
+        <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
+          <p className="text-[10px] font-semibold text-primary mb-0.5">Regra BAUSA</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">{school.practical_rule}</p>
         </div>
       )}
 
@@ -213,7 +213,7 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
       {school.required_tests.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-1.5">
           {school.required_tests.map((test) => (
-            <span key={test} className="rounded-md bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-300">
+            <span key={test} className="rounded-md bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
               {test}
             </span>
           ))}
@@ -222,14 +222,14 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
 
       {/* Coach info */}
       {school.coach_name && (
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Users className="h-3 w-3 flex-shrink-0" />
           <span>{school.coach_name}</span>
           {school.coach_email && (
             <a
               href={`mailto:${school.coach_email}`}
               onClick={(e) => e.stopPropagation()}
-              className="ml-auto text-indigo-400 hover:text-indigo-300"
+              className="ml-auto text-primary hover:text-primary/80"
             >
               <ExternalLink className="h-3 w-3" />
             </a>

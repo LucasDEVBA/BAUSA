@@ -35,9 +35,9 @@ const TYPE_ORDER: readonly SchoolType[] = [
 const STATUS_FILTERS: readonly SchoolStatus[] = ["ativa", "em_avaliacao", "inativa"];
 
 const inputClass =
-  "w-full rounded-lg border border-[#1e2130] bg-[#141720] py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:border-indigo-500/50 focus:outline-none";
+  "w-full rounded-md border border-input bg-card py-2 text-sm text-foreground placeholder:text-placeholder focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 const selectClass =
-  "appearance-none rounded-lg border border-[#1e2130] bg-[#141720] py-2 text-sm text-zinc-300 focus:border-indigo-500/50 focus:outline-none";
+  "appearance-none rounded-md border border-input bg-card py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 
 interface EscolasClientProps {
   schools: School[];
@@ -105,7 +105,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
       {/* Toolbar */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative flex-1 lg:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             value={query}
@@ -117,7 +117,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-500 transition-colors hover:text-zinc-300"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
               aria-label="Limpar busca"
             >
               <X className="h-3.5 w-3.5" />
@@ -127,7 +127,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
 
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Filter className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+            <Filter className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as SchoolType | "todos")}
@@ -161,7 +161,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
         <button
           type="button"
           onClick={() => setIsCreating(true)}
-          className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 lg:ml-auto"
+          className="flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 lg:ml-auto"
         >
           <Plus className="h-4 w-4" />
           Adicionar escola
@@ -170,9 +170,9 @@ export function EscolasClient({ schools }: EscolasClientProps) {
 
       {/* Resultados */}
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] py-12 text-center">
-          <GraduationCap className="mx-auto mb-3 h-10 w-10 text-zinc-600" />
-          <p className="text-sm text-zinc-500">
+        <div className="glass-card rounded-xl py-12 text-center">
+          <GraduationCap className="mx-auto mb-3 h-10 w-10 text-label-tertiary" />
+          <p className="text-sm text-muted-foreground">
             {schools.length === 0
               ? "Nenhuma escola cadastrada ainda."
               : "Nenhuma escola encontrada para os filtros aplicados."}
@@ -181,7 +181,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
             <button
               type="button"
               onClick={() => setIsCreating(true)}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+              className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <Plus className="h-4 w-4" />
               Cadastrar primeira escola
@@ -190,7 +190,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
             <button
               type="button"
               onClick={clearFilters}
-              className="mt-4 text-xs font-medium text-indigo-400 transition-colors hover:text-indigo-300"
+              className="mt-4 text-xs font-medium text-primary transition-colors hover:text-primary/80"
             >
               Limpar filtros
             </button>
@@ -198,7 +198,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
         </div>
       ) : (
         <div className="space-y-6">
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-label-tertiary">
             {filtered.length} {filtered.length === 1 ? "escola" : "escolas"}
             {hasFilters ? ` de ${schools.length}` : ""}
           </p>
@@ -210,7 +210,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
                   <span className={cn("rounded-md border px-2.5 py-1 text-xs font-bold", typeCfg.bg, typeCfg.color)}>
                     {type}
                   </span>
-                  <p className="text-xs text-zinc-600">
+                  <p className="text-xs text-label-tertiary">
                     {items.length} escola{items.length !== 1 ? "s" : ""}
                   </p>
                 </div>

@@ -88,10 +88,10 @@ const DEFAULT_VALUES: FormValues = {
 };
 
 const inputClass =
-  "w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30";
+  "w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 const selectClass =
-  "w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2 text-sm text-zinc-200 focus:border-indigo-500/50 focus:outline-none appearance-none";
-const labelClass = "text-[10px] font-medium text-zinc-500 mb-1 block";
+  "w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none";
+const labelClass = "text-[10px] font-medium text-muted-foreground mb-1 block";
 
 const toNumberOrNull = (value: unknown): number | null => {
   if (value === "" || value === null || value === undefined) return null;
@@ -106,12 +106,12 @@ const parseCsv = (value?: string): string[] =>
     .filter(Boolean);
 
 function RequiredMark() {
-  return <span className="text-red-400"> *</span>;
+  return <span className="text-destructive"> *</span>;
 }
 
 function FieldError({ message }: { message?: string }) {
   return message ? (
-    <p role="alert" className="mt-1 text-[10px] font-medium text-red-400">
+    <p role="alert" className="mt-1 text-[10px] font-medium text-destructive">
       {message}
     </p>
   ) : null;
@@ -119,8 +119,8 @@ function FieldError({ message }: { message?: string }) {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4 space-y-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{title}</p>
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
       {children}
     </div>
   );
@@ -228,7 +228,7 @@ export function SchoolFormSheet({ open, onClose }: SchoolFormSheetProps) {
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -238,23 +238,23 @@ export function SchoolFormSheet({ open, onClose }: SchoolFormSheetProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Cadastrar nova escola"
-        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col border-l border-[#1e2130] bg-[#0c0e16] shadow-2xl"
+        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col liquid-glass"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#1e2130] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/30">
               <GraduationCap className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-lg font-semibold text-white">Nova escola</h2>
-              <p className="text-xs text-zinc-500">Cadastro manual no banco institucional</p>
+              <h2 className="text-headline text-foreground">Nova escola</h2>
+              <p className="text-xs text-muted-foreground">Cadastro manual no banco institucional</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-fill-4 hover:text-foreground"
             aria-label="Fechar"
           >
             <X className="h-5 w-5" />
@@ -430,9 +430,9 @@ export function SchoolFormSheet({ open, onClose }: SchoolFormSheetProps) {
                   <input
                     type="checkbox"
                     {...register("rolling_admission")}
-                    className="h-4 w-4 rounded border-zinc-600 bg-[#141720] text-indigo-600 focus:ring-indigo-500/30"
+                    className="h-4 w-4 rounded border-input bg-card accent-primary focus:ring-2 focus:ring-primary/30"
                   />
-                  <span className="text-xs text-zinc-400">Rolling admission</span>
+                  <span className="text-xs text-muted-foreground">Rolling admission</span>
                 </label>
               </div>
               <div>
@@ -447,10 +447,10 @@ export function SchoolFormSheet({ open, onClose }: SchoolFormSheetProps) {
                         onClick={() => toggleTeste(teste)}
                         aria-pressed={active}
                         className={cn(
-                          "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                          "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                           active
-                            ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-300"
-                            : "border-[#1e2130] bg-[#0c0e16] text-zinc-400 hover:text-zinc-200",
+                            ? "border-primary/40 bg-primary/15 text-primary"
+                            : "border-border bg-card text-muted-foreground hover:text-foreground",
                         )}
                       >
                         {teste}
@@ -485,9 +485,9 @@ export function SchoolFormSheet({ open, onClose }: SchoolFormSheetProps) {
                 <input
                   type="checkbox"
                   {...register("aceita_excecao_elite")}
-                  className="h-4 w-4 rounded border-zinc-600 bg-[#141720] text-indigo-600 focus:ring-indigo-500/30"
+                  className="h-4 w-4 rounded border-input bg-card accent-primary focus:ring-2 focus:ring-primary/30"
                 />
-                <span className="text-xs text-zinc-400">Aceita exceção para atleta de elite</span>
+                <span className="text-xs text-muted-foreground">Aceita exceção para atleta de elite</span>
               </label>
             </Section>
 
@@ -572,18 +572,18 @@ export function SchoolFormSheet({ open, onClose }: SchoolFormSheetProps) {
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end gap-2 border-t border-[#1e2130] bg-[#0c0e16] px-6 py-4">
+          <div className="flex justify-end gap-2 border-t border-border bg-popover px-6 py-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[#1e2130] px-4 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-white/5"
+              className="rounded-md border border-border px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-accent"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GraduationCap className="h-3.5 w-3.5" />}
               Criar escola
