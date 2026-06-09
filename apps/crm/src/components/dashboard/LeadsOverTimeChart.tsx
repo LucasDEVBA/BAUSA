@@ -26,15 +26,15 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length || !label) return null;
 
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3 text-sm shadow-lg">
-      <p className="mb-2 text-xs font-medium text-zinc-400">
+    <div className="rounded-xl border border-border bg-popover p-3 text-sm shadow-lg">
+      <p className="mb-2 text-xs font-medium text-muted-foreground">
         {formatDate(label)}
       </p>
       {payload.map((item) => (
         <div key={item.name} className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-          <span className="text-zinc-400">{item.name}:</span>
-          <span className="font-semibold text-zinc-100">{item.value}</span>
+          <span className="text-muted-foreground">{item.name}:</span>
+          <span className="font-semibold text-foreground">{item.value}</span>
         </div>
       ))}
     </div>
@@ -46,24 +46,24 @@ export function LeadsOverTimeChart({ data }: LeadsOverTimeChartProps) {
   const visibleData = data.slice(-14);
 
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+    <div className="rounded-xl border border-border bg-card p-5">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-zinc-100">Leads por Dia</h3>
-          <p className="mt-0.5 text-xs text-zinc-500">Últimos 14 dias</p>
+          <h3 className="text-sm font-semibold text-foreground">Leads por Dia</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">Últimos 14 dias</p>
         </div>
         <div className="flex gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            <span className="text-xs text-zinc-400">Quente</span>
+            <span className="h-2 w-2 rounded-full bg-lead-hot" />
+            <span className="text-xs text-muted-foreground">Quente</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-amber-400" />
-            <span className="text-xs text-zinc-400">Morno</span>
+            <span className="h-2 w-2 rounded-full bg-lead-warm" />
+            <span className="text-xs text-muted-foreground">Morno</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-blue-400" />
-            <span className="text-xs text-zinc-400">Frio</span>
+            <span className="h-2 w-2 rounded-full bg-lead-cold" />
+            <span className="text-xs text-muted-foreground">Frio</span>
           </div>
         </div>
       </div>
@@ -73,32 +73,32 @@ export function LeadsOverTimeChart({ data }: LeadsOverTimeChartProps) {
           <AreaChart data={visibleData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="colorQuente" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                <stop offset="5%" stopColor="var(--lead-hot)" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="var(--lead-hot)" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorMorno" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                <stop offset="5%" stopColor="var(--lead-warm)" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="var(--lead-warm)" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorFrio" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                <stop offset="5%" stopColor="var(--lead-cold)" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="var(--lead-cold)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
             <XAxis
               dataKey="date"
               tickFormatter={(d: string) => {
                 const date = new Date(d + "T00:00:00");
                 return `${date.getDate()}/${date.getMonth() + 1}`;
               }}
-              tick={{ fill: "#64748b", fontSize: 11 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
               allowDecimals={false}
-              tick={{ fill: "#64748b", fontSize: 11 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
             />
@@ -107,7 +107,7 @@ export function LeadsOverTimeChart({ data }: LeadsOverTimeChartProps) {
               type="monotone"
               dataKey="quente"
               name="Quente"
-              stroke="#22c55e"
+              stroke="var(--lead-hot)"
               strokeWidth={2}
               fill="url(#colorQuente)"
             />
@@ -115,7 +115,7 @@ export function LeadsOverTimeChart({ data }: LeadsOverTimeChartProps) {
               type="monotone"
               dataKey="morno"
               name="Morno"
-              stroke="#f59e0b"
+              stroke="var(--lead-warm)"
               strokeWidth={2}
               fill="url(#colorMorno)"
             />
@@ -123,7 +123,7 @@ export function LeadsOverTimeChart({ data }: LeadsOverTimeChartProps) {
               type="monotone"
               dataKey="frio"
               name="Frio"
-              stroke="#3b82f6"
+              stroke="var(--lead-cold)"
               strokeWidth={2}
               fill="url(#colorFrio)"
             />
