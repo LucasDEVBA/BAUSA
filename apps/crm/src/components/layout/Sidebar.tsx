@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -11,7 +12,6 @@ import {
   Target,
   Home,
   DollarSign,
-  Zap,
   ChevronsLeft,
   ChevronsRight,
   GraduationCap,
@@ -212,9 +212,14 @@ export function Sidebar({ papel, nome }: SidebarProps) {
           collapsed ? "justify-center px-2" : "gap-2.5 px-4",
         )}
       >
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-sys-purple">
-          <Zap className="h-4 w-4 text-primary-foreground" />
-        </div>
+        <Image
+          src="/brand/bausa-bau.png"
+          alt="BAUSA"
+          width={48}
+          height={32}
+          priority
+          className="flex-shrink-0"
+        />
         {!collapsed && (
           <div>
             <p className="text-sm font-semibold text-sidebar-foreground leading-none">BAUSA Engine</p>
