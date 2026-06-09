@@ -250,7 +250,7 @@ export function DocumentosClient({
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         {/* Sidebar: lista de atletas */}
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="glass-card rounded-xl p-4">
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -303,7 +303,7 @@ export function DocumentosClient({
         </div>
 
         {/* Main: checklist do atleta selecionado */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="glass-card rounded-xl p-6">
           {!selectedAtleta ? (
             <div className="flex h-40 items-center justify-center text-sm text-label-tertiary">
               Selecione um atleta para ver o checklist

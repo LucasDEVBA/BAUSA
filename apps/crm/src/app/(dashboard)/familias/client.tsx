@@ -129,7 +129,7 @@ export function FamiliasConsolidadasClient({
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="glass-card rounded-xl p-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
             Famílias
           </p>
@@ -137,13 +137,13 @@ export function FamiliasConsolidadasClient({
             {totalFamilias}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="glass-card rounded-xl p-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
             Atletas
           </p>
           <p className="mt-1 text-2xl font-bold text-foreground">{totalAtletas}</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="glass-card rounded-xl p-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
             Valor total
           </p>
@@ -151,7 +151,7 @@ export function FamiliasConsolidadasClient({
             {formatBRL(totalValor)}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="glass-card rounded-xl p-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
             Em atenção/crise
           </p>
@@ -199,10 +199,10 @@ export function FamiliasConsolidadasClient({
               <div
                 key={familia.responsavel_id}
                 className={cn(
-                  "rounded-xl border bg-card p-5 transition-colors",
+                  "glass-card rounded-xl p-5 transition-all",
                   hasAlertStatus
                     ? "border-sys-orange/30"
-                    : "border-border",
+                    : "",
                 )}
               >
                 {/* Guardian Header */}

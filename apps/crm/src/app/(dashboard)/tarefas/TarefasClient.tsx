@@ -690,7 +690,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
-              className="w-full max-w-md rounded-2xl border border-border bg-popover shadow-2xl"
+              className="liquid-glass w-full max-w-md rounded-2xl shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal header */}

@@ -257,7 +257,7 @@ export default async function AutomacoesMonitorPage() {
         <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Fluxo de Automacoes
         </p>
-        <div className="rounded-xl border border-border bg-card px-5 py-4">
+        <div className="glass-card rounded-xl px-5 py-4">
           <div className="flex items-center justify-between gap-2 overflow-x-auto">
             <FlowStep label="Formulario" sublabel="Lead submete" icon={Zap} active />
             <FlowArrow />
@@ -323,7 +323,7 @@ function KpiCard({
 }) {
   return (
     <div className={cn(
-      "flex items-center gap-3 rounded-xl border bg-card px-4 py-3",
+      "glass-card flex items-center gap-3 rounded-xl px-4 py-3",
       highlight ? "border-sys-red/30" : "border-border",
     )}>
       <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", COLOR_BG[color])}>
@@ -349,7 +349,7 @@ function AutomacaoCard({ automacao }: { automacao: AutomacaoStatus }) {
 
   return (
     <div className={cn(
-      "rounded-xl border bg-card px-4 py-4 flex flex-col gap-3",
+      "glass-card rounded-xl px-4 py-4 flex flex-col gap-3",
       config.border,
     )}>
       {/* Header */}
@@ -436,7 +436,7 @@ function FilaSection({
   color: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className="glass-card rounded-xl overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
         <Icon className={cn("h-4 w-4", COLOR_TEXT[color])} />

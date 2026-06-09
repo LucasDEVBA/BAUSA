@@ -180,7 +180,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
   return (
     <div className="space-y-5">
       {/* Progress bar */}
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl glass-card p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-medium text-muted-foreground">
             Progresso dos documentos
@@ -213,7 +213,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
             return (
               <div
                 key={doc.id}
-                className="rounded-xl border border-border bg-card p-4 space-y-3"
+                className="rounded-xl glass-card p-4 space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -341,7 +341,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
 
       {/* Add document form */}
       {showAddForm ? (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <div className="rounded-xl glass-card p-4 space-y-3">
           <p className="text-xs font-semibold text-foreground">Novo documento</p>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Tipo</label>

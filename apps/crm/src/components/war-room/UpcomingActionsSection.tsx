@@ -9,7 +9,7 @@ interface UpcomingActionsSectionProps {
 export function UpcomingActionsSection({ actions }: UpcomingActionsSectionProps) {
   if (actions.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <h3 className="mb-3 text-sm font-semibold text-foreground">Proximas Acoes</h3>
         <p className="text-xs text-muted-foreground">Nenhuma acao programada para os proximos 3 dias.</p>
       </div>
@@ -19,7 +19,7 @@ export function UpcomingActionsSection({ actions }: UpcomingActionsSectionProps)
   const overdueCount = actions.filter((a) => a.is_overdue).length;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-primary" />

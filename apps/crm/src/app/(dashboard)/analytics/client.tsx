@@ -64,7 +64,7 @@ function KpiCard({ title, value, subtitle, delta, compareEnabled, icon: Icon, ac
   const showDelta = compareEnabled && delta !== null && delta !== undefined;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <div className="glass-card flex flex-col gap-3 rounded-xl p-4">
       <div className="flex items-center justify-between">
         <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", accent)}>
           <Icon className="h-4 w-4" />
@@ -106,7 +106,7 @@ const CustomBarTooltip = ({ active, payload, label }: {
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-border bg-popover px-3 py-2 text-xs shadow-xl">
+    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
       <p className="mb-1.5 font-semibold text-foreground">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }} className="flex items-center gap-1.5">
@@ -125,7 +125,7 @@ const CustomLineTooltip = ({ active, payload, label }: {
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-border bg-popover px-3 py-2 text-xs shadow-xl">
+    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
       <p className="mb-1.5 font-semibold text-foreground">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }}>
@@ -334,7 +334,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
       </div>
 
       {/* Bar chart */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <p className="mb-4 text-sm font-semibold text-foreground">Contratado vs Recebido por mes</p>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={barData} barSize={compareEnabled ? 8 : 14} barCategoryGap="30%">
@@ -361,7 +361,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
       </div>
 
       {/* Line chart */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <p className="mb-4 text-sm font-semibold text-foreground">Receita Acumulada no periodo</p>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={lineData}>
@@ -399,7 +399,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
 
       {/* Table + highlights */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 rounded-xl border border-border bg-card">
+        <div className="glass-card col-span-2 rounded-xl">
           <div className="border-b border-border px-5 py-3">
             <p className="text-sm font-semibold text-foreground">Detalhamento mensal</p>
           </div>
@@ -446,28 +446,28 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
         </div>
 
         <div className="flex flex-col gap-3">
-          <div className="rounded-xl border border-sys-green/20 bg-sys-green/5 p-4">
+          <div className="glass-card rounded-xl border-sys-green/20 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-sys-green">
               Melhor mes
             </p>
             <p className="mt-1 text-lg font-bold text-sys-green">{bestMonth.label}</p>
             <p className="text-xs text-muted-foreground">{formatBrl(bestMonth.received)} recebido</p>
           </div>
-          <div className="rounded-xl border border-sys-red/20 bg-sys-red/5 p-4">
+          <div className="glass-card rounded-xl border-sys-red/20 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-sys-red">
               Pior mes
             </p>
             <p className="mt-1 text-lg font-bold text-sys-red">{worstMonth.label}</p>
             <p className="text-xs text-muted-foreground">{formatBrl(worstMonth.received)} recebido</p>
           </div>
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div className="glass-card rounded-xl p-4">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-label-tertiary">
               Taxa de recebimento
             </p>
             <p className="mt-1 text-lg font-bold text-foreground">{overallRecvRate}%</p>
             <p className="text-xs text-muted-foreground">Recebido / contratado no periodo</p>
           </div>
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div className="glass-card rounded-xl p-4">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-label-tertiary">
               Media mensal
             </p>

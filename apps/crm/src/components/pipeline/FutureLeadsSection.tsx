@@ -37,7 +37,7 @@ export function FutureLeadsSection({ deals }: FutureLeadsSectionProps) {
   };
 
   return (
-    <div className="rounded-xl border border-sys-teal/20 bg-card">
+    <div className="rounded-xl border-sys-teal/20 glass-card">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex w-full items-center gap-3 px-5 py-4 text-left"

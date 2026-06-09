@@ -703,7 +703,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
   const selectClass =
     "w-full rounded-md border border-border bg-card py-2.5 px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 appearance-none";
   const labelClass = "text-xs font-medium text-muted-foreground";
-  const cardClass = "rounded-xl border border-border bg-card p-4";
+  const cardClass = "rounded-xl glass-card p-4";
 
   return (
     <>
@@ -714,7 +714,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
       />
 
       {/* Sheet */}
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-border bg-popover shadow-2xl">
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-border liquid-glass shadow-2xl">
         {/* Header */}
         <div className="flex-shrink-0 border-b border-border px-6 py-5">
           <div className="flex items-start gap-4">

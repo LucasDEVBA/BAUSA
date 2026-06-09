@@ -227,7 +227,7 @@ export function FamilyEditDrawer({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-border bg-popover overflow-y-auto max-h-[92vh] shadow-xl"
+        className="w-full max-w-lg rounded-2xl overflow-y-auto max-h-[92vh] liquid-glass"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

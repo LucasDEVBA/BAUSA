@@ -116,7 +116,7 @@ function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 function InfoCard({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl p-4 glass-card">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-sm font-medium text-foreground mt-1">{value ?? "---"}</p>
     </div>
@@ -381,7 +381,7 @@ function NotesSection({ dealId }: { dealId: string }) {
           className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary/40 resize-none"
         />
         {showMentionDropdown && (
-          <div className="absolute left-0 bottom-full mb-1 z-10 w-56 rounded-xl border border-border bg-popover shadow-lg overflow-hidden">
+          <div className="absolute left-0 bottom-full mb-1 z-10 w-56 rounded-xl shadow-lg overflow-hidden liquid-glass">
             {TEAM_MEMBERS.filter((m) =>
               m.nome.toLowerCase().includes(mentionFilter),
             ).map((member) => (
@@ -650,7 +650,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative z-10 flex flex-col w-full max-w-5xl h-[90vh] rounded-2xl border border-border bg-background shadow-2xl overflow-hidden">
+      <div className="relative z-10 flex flex-col w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl overflow-hidden liquid-glass">
       {/* ── Header ── */}
       <div className="sticky top-0 z-10 flex-shrink-0 border-b border-border bg-background px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center gap-4">
@@ -826,7 +826,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {/* Responsavel card */}
-                <div className="rounded-xl border border-border bg-card p-5">
+                <div className="rounded-xl p-5 glass-card">
                   <SectionTitle>Responsavel Financeiro</SectionTitle>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
@@ -860,7 +860,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
 
                 {/* Siblings */}
                 {lead.siblings && lead.siblings.length > 0 && (
-                  <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="rounded-xl p-5 glass-card">
                     <SectionTitle>
                       Familia ({lead.guardian_name})
                     </SectionTitle>
@@ -951,7 +951,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {/* Communication summary */}
-                <div className="rounded-xl border border-border bg-card p-5">
+                <div className="rounded-xl p-5 glass-card">
                   <SectionTitle>Comunicacao</SectionTitle>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
@@ -1006,7 +1006,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {/* Received date */}
-                <div className="rounded-xl border border-border bg-card p-5">
+                <div className="rounded-xl p-5 glass-card">
                   <SectionTitle>Detalhes</SectionTitle>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center justify-between">
@@ -1040,7 +1040,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
           {activeTab === "dados" && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div className="space-y-6">
-                <div className="rounded-xl border border-border bg-card p-5">
+                <div className="rounded-xl p-5 glass-card">
                   <SectionTitle>Atleta</SectionTitle>
                   <div className="divide-y divide-border">
                     <DataRow label="Nome" value={lead.athlete_name} />
@@ -1096,7 +1096,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border bg-card p-5">
+                <div className="rounded-xl p-5 glass-card">
                   <SectionTitle>Educacao</SectionTitle>
                   <div className="divide-y divide-border">
                     <DataRow label="Serie" value={lead.school_year} />
@@ -1114,7 +1114,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border bg-card p-5">
+                <div className="rounded-xl p-5 glass-card">
                   <SectionTitle>Responsavel Financeiro</SectionTitle>
                   <div className="divide-y divide-border">
                     <DataRow label="Nome" value={lead.guardian_name} />
@@ -1136,7 +1136,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
               </div>
 
               <div className="space-y-6">
-                <div className="rounded-xl border border-border bg-card p-5">
+                <div className="rounded-xl p-5 glass-card">
                   <SectionTitle>Projeto</SectionTitle>
                   <div className="divide-y divide-border">
                     <DataRow
@@ -1171,7 +1171,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {(lead.address_city || lead.address_state) && (
-                  <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="rounded-xl p-5 glass-card">
                     <SectionTitle>Endereco</SectionTitle>
                     <div className="divide-y divide-border">
                       <DataRow
@@ -1209,7 +1209,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 )}
 
                 {(lead.utm_source || lead.referrer_url || lead.cta_source || lead.device_type) && (
-                  <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="rounded-xl p-5 glass-card">
                     <SectionTitle>Origem do Lead</SectionTitle>
                     <div className="divide-y divide-border">
                       <DataRow label="UTM Source" value={lead.utm_source} />
@@ -1232,7 +1232,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 )}
 
                 {lead.notes && (
-                  <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="rounded-xl p-5 glass-card">
                     <SectionTitle>Notas Internas</SectionTitle>
                     <div className="rounded-lg border border-border bg-background p-3 text-sm text-foreground whitespace-pre-wrap">
                       {lead.notes}

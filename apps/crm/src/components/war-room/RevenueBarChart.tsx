@@ -21,7 +21,7 @@ interface TooltipProps {
 function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2.5 text-xs shadow-lg">
+    <div className="liquid-glass rounded-lg px-3 py-2.5 text-xs">
       <p className="mb-1.5 font-semibold text-foreground">{label}</p>
       {payload.map((item) => (
         <div key={item.name} className="flex items-center gap-2">
@@ -42,7 +42,7 @@ interface RevenueBarChartProps {
 
 export function RevenueBarChart({ data }: RevenueBarChartProps) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <h3 className="text-sm font-semibold text-foreground">Receita por Mês</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Recebido vs Projetado (USD)</p>
 

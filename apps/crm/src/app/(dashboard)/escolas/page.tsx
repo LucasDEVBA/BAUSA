@@ -100,7 +100,7 @@ function SchoolCard({ school }: { school: School }) {
       data-school-id={school.id}
       role="button"
       tabIndex={0}
-      className="cursor-pointer rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/30 hover:bg-accent">
+      className="glass-card cursor-pointer rounded-xl p-5 transition-all hover:border-primary/30 hover:shadow-md">
       {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -345,7 +345,7 @@ export default async function EscolasPage() {
         ].map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <div key={kpi.label} className="rounded-xl border border-border bg-card p-4">
+            <div key={kpi.label} className="glass-card rounded-xl p-4">
               <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", kpi.bg)}>
                 <Icon className={cn("h-4 w-4", kpi.color)} />
               </div>

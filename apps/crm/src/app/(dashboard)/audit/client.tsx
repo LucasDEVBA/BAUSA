@@ -146,7 +146,7 @@ export function AuditClient({ logs, tabelas }: AuditClientProps) {
       </div>
 
       {/* Tabela */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="glass-card rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>

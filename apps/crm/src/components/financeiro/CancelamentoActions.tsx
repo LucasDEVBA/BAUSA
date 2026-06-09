@@ -61,7 +61,7 @@ export function CancelamentoActions({ dealId, atletaNome }: CancelamentoActionsP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-popover p-6 shadow-2xl">
+      <div className="liquid-glass relative z-10 w-full max-w-md rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-foreground">Processar cancelamento — {atletaNome}</h3>
           <button

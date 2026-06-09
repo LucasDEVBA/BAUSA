@@ -18,7 +18,7 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const item = payload[0];
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-sm shadow-lg">
+    <div className="liquid-glass rounded-lg px-3 py-2 text-sm">
       <p className="font-medium text-foreground">{item.name}</p>
       <p className="text-muted-foreground">{item.value} leads</p>
     </div>
@@ -31,7 +31,7 @@ interface ConversionFunnelProps {
 
 export function ConversionFunnel({ data }: ConversionFunnelProps) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <h3 className="text-sm font-semibold text-foreground">Funil de Conversão</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Leads → Contratos</p>
 

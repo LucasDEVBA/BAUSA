@@ -10,7 +10,7 @@ interface ExperienceChipProps {
 }
 
 const VARIANT_STYLES = {
-  default: { card: "border-border bg-card", icon: "bg-secondary text-muted-foreground", value: "text-foreground" },
+  default: { card: "border-border", icon: "bg-secondary text-muted-foreground", value: "text-foreground" },
   danger: { card: "border-sys-red/20 bg-sys-red/5", icon: "bg-sys-red/10 text-sys-red", value: "text-sys-red" },
   success: { card: "border-sys-green/20 bg-sys-green/5", icon: "bg-sys-green/10 text-sys-green", value: "text-sys-green" },
   warning: { card: "border-sys-orange/20 bg-sys-orange/5", icon: "bg-sys-orange/10 text-sys-orange", value: "text-sys-orange" },
@@ -20,7 +20,7 @@ const VARIANT_STYLES = {
 function ExperienceChip({ icon: Icon, label, value, sublabel, variant }: ExperienceChipProps) {
   const styles = VARIANT_STYLES[variant];
   return (
-    <div className={`flex flex-col gap-2.5 rounded-xl border p-4 ${styles.card}`}>
+    <div className={`glass-card flex flex-col gap-2.5 rounded-xl p-4 ${styles.card}`}>
       <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${styles.icon}`}>
         <Icon className="h-4.5 w-4.5" />
       </div>

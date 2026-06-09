@@ -81,7 +81,7 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-border bg-popover px-3 py-2 text-xs shadow-xl">
+    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
       <p className="mb-1 font-medium text-foreground">{label}</p>
       {payload.map((entry) => (
         <p key={entry.name} style={{ color: entry.color }}>
@@ -222,7 +222,7 @@ export function CacClient({
       </div>
 
       {/* ROI por canal */}
-      <section className="rounded-xl border border-border bg-card p-5">
+      <section className="glass-card rounded-xl p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">ROI por canal</h2>
           <span className="flex items-center gap-1 rounded-full border border-sys-orange/30 bg-sys-orange/10 px-2 py-0.5 text-[10px] font-medium text-sys-orange">
@@ -279,7 +279,7 @@ export function CacClient({
       </section>
 
       {/* Tendência de gasto */}
-      <section className="rounded-xl border border-border bg-card p-5">
+      <section className="glass-card rounded-xl p-5">
         <h2 className="mb-4 text-sm font-semibold text-foreground">
           Tendência de gasto mensal
         </h2>
@@ -311,7 +311,7 @@ export function CacClient({
       </section>
 
       {/* Registrar gasto manual */}
-      <section className="rounded-xl border border-border bg-card p-5">
+      <section className="glass-card rounded-xl p-5">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
           <Plus className="h-4 w-4" />
           Registrar gasto manual

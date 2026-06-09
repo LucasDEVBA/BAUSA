@@ -53,7 +53,7 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
           : undefined
       }
       className={cn(
-        "group relative rounded-xl border border-border bg-card p-3 transition-all hover:border-fill-1 hover:shadow-lg cursor-grab active:cursor-grabbing",
+        "group relative rounded-xl glass-card p-3 transition-all hover:shadow-md cursor-grab active:cursor-grabbing",
         isDragging && "opacity-50 shadow-lg rotate-1 scale-105",
         isOverdue && "border-sys-red/30",
         isUnconfigured && !isLost && "ring-1 ring-sys-red/20",

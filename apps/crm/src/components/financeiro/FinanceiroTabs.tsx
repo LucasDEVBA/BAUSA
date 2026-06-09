@@ -37,7 +37,7 @@ export function FinanceiroTabs({ className }: FinanceiroTabsProps) {
   );
 
   return (
-    <div className={cn("flex gap-1 rounded-lg border border-border bg-popover p-1", className)}>
+    <div className={cn("liquid-glass flex gap-1 rounded-lg p-1", className)}>
       {TABS.map((tab) => (
         <button
           key={tab.id}

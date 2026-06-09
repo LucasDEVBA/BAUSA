@@ -185,7 +185,7 @@ export function UtmBuilderClient() {
       </div>
 
       {/* Presets */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Templates Rápidos
         </p>
@@ -216,7 +216,7 @@ export function UtmBuilderClient() {
 
       {/* Form Fields */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="glass-card rounded-xl p-5 space-y-4">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Parâmetros UTM
           </p>
@@ -297,7 +297,7 @@ export function UtmBuilderClient() {
         {/* Preview */}
         <div className="space-y-4">
           {/* Landing URL */}
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="glass-card rounded-xl p-5">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Link da Landing Page
@@ -333,7 +333,7 @@ export function UtmBuilderClient() {
           </div>
 
           {/* Forms URL */}
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="glass-card rounded-xl p-5">
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Link Direto do Formulário
             </p>

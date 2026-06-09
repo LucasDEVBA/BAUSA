@@ -101,7 +101,7 @@ function MetricBox({
   color?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="glass-card rounded-lg p-4">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
         {label}
       </p>
@@ -236,7 +236,7 @@ function ComercialTab({ data }: { data: ReportData["comercial"] }) {
       </div>
 
       {/* Month comparison */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">
           Comparativo Mensal
         </h3>
@@ -272,7 +272,7 @@ function ComercialTab({ data }: { data: ReportData["comercial"] }) {
       </div>
 
       {/* Classification */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">
           Por Classificacao
         </h3>
@@ -293,7 +293,7 @@ function ComercialTab({ data }: { data: ReportData["comercial"] }) {
       </div>
 
       {/* Deals by stage table */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-foreground">
             Deals por Etapa
@@ -352,7 +352,7 @@ function FinanceiroTab({ data }: { data: ReportData["financeiro"] }) {
       </div>
 
       {/* Parcelas by month table */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-foreground">
             Parcelas por Mes
@@ -396,7 +396,7 @@ function FinanceiroTab({ data }: { data: ReportData["financeiro"] }) {
       </div>
 
       {/* Top 5 contracts */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">
           Top 5 Contratos por Valor
         </h3>
@@ -465,7 +465,7 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
       </div>
 
       {/* By temperatura */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">
           Por Temperatura
         </h3>
@@ -486,7 +486,7 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
       </div>
 
       {/* By fase */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-foreground">Por Fase</h3>
           <ExportCSVButton
@@ -683,7 +683,7 @@ function SafraTab({
           )}
         </>
       ) : (
-        <div className="rounded-xl border border-border bg-card p-8 text-center">
+        <div className="glass-card rounded-xl p-8 text-center">
           <Layers className="mx-auto h-8 w-8 text-label-tertiary mb-2" />
           <p className="text-sm text-muted-foreground">
             {data.list.length === 0
@@ -695,7 +695,7 @@ function SafraTab({
 
       {/* Full table */}
       {data.list.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="glass-card rounded-xl p-5">
           <h3 className="text-sm font-semibold text-foreground mb-3">Todas as Safras</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -743,7 +743,7 @@ function SafraCard({
   const conv = data.deals > 0 ? Math.round((data.contratos / data.deals) * 100) : 0;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <h3 className="text-sm font-semibold text-primary mb-4">Safra {safra}</h3>
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-background p-3 text-center">

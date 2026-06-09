@@ -20,7 +20,7 @@ export function PipelineColumn({ stage, deals, onDealClick }: PipelineColumnProp
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-[272px] flex-shrink-0 flex-col rounded-xl border border-border bg-popover",
+        "flex w-[272px] flex-shrink-0 flex-col rounded-xl glass-card",
         isOver && "ring-2 ring-primary/40 bg-fill-3",
       )}
     >

@@ -36,7 +36,7 @@ interface TooltipProps {
 function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="liquid-glass rounded-lg px-3 py-2 text-xs">
       <p className="font-medium text-foreground">{payload[0].name}</p>
       <p className="text-muted-foreground">{payload[0].value}% do mix</p>
     </div>
@@ -63,7 +63,7 @@ export function PositioningSection({ data }: PositioningSectionProps) {
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* Donut de mix de produto */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <h3 className="text-sm font-semibold text-foreground">Mix de Produto</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">Distribuição de contratos por tier</p>
         <div className="mt-4 h-44">
@@ -103,7 +103,7 @@ export function PositioningSection({ data }: PositioningSectionProps) {
       </div>
 
       {/* Tabela ticket + desconto */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="glass-card rounded-xl p-5">
         <h3 className="text-sm font-semibold text-foreground">Indicadores Comerciais</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">Ticket, desconto e posicionamento</p>
 

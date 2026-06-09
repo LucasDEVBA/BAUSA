@@ -21,7 +21,7 @@ interface TooltipProps {
 function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="liquid-glass rounded-lg px-3 py-2 text-xs">
       <p className="font-medium text-foreground">{label}</p>
       <p className="text-muted-foreground">{payload[0].value} {payload[0].value === 1 ? "família" : "famílias"}</p>
     </div>
@@ -53,7 +53,7 @@ export function FamilyStageChart({ families }: FamilyStageChartProps) {
   })).filter((d) => d.count > 0);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <h3 className="text-sm font-semibold text-foreground">Famílias por Estágio</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Distribuição na jornada pós-contrato</p>
 

@@ -73,7 +73,7 @@ interface BottleneckCardProps {
 
 function BottleneckCard({ bottleneck, index }: BottleneckCardProps) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3.5">
+    <div className="glass-card rounded-lg p-3.5">
       <div className="flex items-start gap-3">
         <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
           {index + 1}

@@ -26,7 +26,7 @@ type TabValue = (typeof TABS)[number]["value"];
 const inputClass =
   "w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30";
 const labelClass = "text-xs font-medium text-muted-foreground";
-const cardClass = "rounded-xl border border-border bg-card p-5";
+const cardClass = "glass-card rounded-xl p-5";
 const selectClass =
   "rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary appearance-none";
 

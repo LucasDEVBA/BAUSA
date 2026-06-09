@@ -191,7 +191,7 @@ function StatChip({
   highlight?: boolean;
 }) {
   return (
-    <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${highlight ? "border-sys-green/20 bg-sys-green/5" : "border-border bg-card"}`}>
+    <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${highlight ? "border-sys-green/20 bg-sys-green/5" : "glass-card border-transparent"}`}>
       <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${highlight ? "bg-sys-green/10" : "bg-primary/10"}`}>
         <Icon className={`h-4 w-4 ${highlight ? "text-sys-green" : "text-primary"}`} />
       </div>

@@ -42,7 +42,7 @@ export function RetrocessoModal({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-sys-orange/30 bg-popover p-5 shadow-2xl"
+        className="w-full max-w-md rounded-2xl border-sys-orange/30 liquid-glass p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">

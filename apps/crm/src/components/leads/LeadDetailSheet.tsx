@@ -118,7 +118,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
       <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Sheet */}
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-border bg-popover shadow-2xl">
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col shadow-2xl liquid-glass">
         {/* Header */}
         <div className="flex items-start gap-4 border-b border-border px-6 py-5">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-base font-bold text-primary-foreground">
@@ -218,25 +218,25 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
 
               {/* Info rápida */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border border-border bg-card p-3">
+                <div className="rounded-lg p-3 glass-card">
                   <p className="text-xs text-muted-foreground">Investimento</p>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.investment_range ? formatInvestmentRange(lead.investment_range) : "—"}
                   </p>
                 </div>
-                <div className="rounded-lg border border-border bg-card p-3">
+                <div className="rounded-lg p-3 glass-card">
                   <p className="text-xs text-muted-foreground">Local</p>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.school_city_state || lead.address_state || "—"}
                   </p>
                 </div>
-                <div className="rounded-lg border border-border bg-card p-3">
+                <div className="rounded-lg p-3 glass-card">
                   <p className="text-xs text-muted-foreground">Responsável</p>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.guardian_name || "—"}
                   </p>
                 </div>
-                <div className="rounded-lg border border-border bg-card p-3">
+                <div className="rounded-lg p-3 glass-card">
                   <p className="text-xs text-muted-foreground">Profissão</p>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.guardian_profession || "—"}
@@ -388,7 +388,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
               {lead.notes && (
                 <div>
                   <SectionTitle>Notas Internas</SectionTitle>
-                  <div className="rounded-lg border border-border bg-card p-3 text-sm text-foreground whitespace-pre-wrap">
+                  <div className="rounded-lg p-3 text-sm text-foreground whitespace-pre-wrap glass-card">
                     {lead.notes}
                   </div>
                 </div>

@@ -142,7 +142,7 @@ export function TemplatePickerModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl max-h-[90vh] rounded-2xl border border-border bg-popover shadow-xl flex flex-col"
+        className="w-full max-w-3xl max-h-[90vh] rounded-2xl flex flex-col liquid-glass"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -237,14 +237,14 @@ export function TemplatePickerModal({
                     Preview
                   </p>
                   {previewSubject && (
-                    <div className="rounded-xl border border-border bg-card px-3 py-2 mb-2">
+                    <div className="rounded-xl px-3 py-2 mb-2 glass-card">
                       <p className="text-[10px] text-muted-foreground mb-0.5">Assunto</p>
                       <p className="text-xs font-semibold text-foreground">
                         {previewSubject}
                       </p>
                     </div>
                   )}
-                  <div className="rounded-xl border border-border bg-card px-3 py-3">
+                  <div className="rounded-xl px-3 py-3 glass-card">
                     <textarea
                       value={previewBody}
                       onChange={(e) => setEditedBody(e.target.value)}

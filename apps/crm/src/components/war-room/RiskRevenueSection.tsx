@@ -32,7 +32,7 @@ function RiskRevenueCard({ icon: Icon, label, count, valueUsd, severity, descrip
   const s = styles[severity];
 
   return (
-    <div className={`rounded-xl border p-4 ${s.border} ${s.bg}`}>
+    <div className={`glass-card rounded-xl p-4 ${s.border}`}>
       <div className="flex items-start justify-between">
         <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${s.iconBg}`}>
           <Icon className={`h-4.5 w-4.5 ${s.icon}`} />

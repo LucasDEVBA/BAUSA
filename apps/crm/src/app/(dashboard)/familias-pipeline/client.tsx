@@ -345,10 +345,10 @@ export function FamiliasPipelineClient({
             <div
               key={fase}
               className={cn(
-                "rounded-xl border bg-popover p-3 transition-colors flex flex-col min-h-[360px]",
+                "liquid-glass rounded-xl p-3 transition-all flex flex-col min-h-[360px]",
                 isHovering
-                  ? "border-primary/50 bg-primary/5"
-                  : "border-border",
+                  ? "border-primary/50"
+                  : "",
               )}
               onDragOver={(e) => {
                 e.preventDefault();

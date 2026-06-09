@@ -107,7 +107,7 @@ export function NovaFamiliaModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl border border-border bg-popover shadow-xl max-h-[85vh] flex flex-col"
+        className="w-full max-w-2xl rounded-2xl max-h-[85vh] flex flex-col liquid-glass"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

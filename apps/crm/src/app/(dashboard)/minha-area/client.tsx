@@ -134,7 +134,7 @@ function UrgentActionsSection({
       </div>
 
       {totalUrgent === 0 && (
-        <div className="rounded-xl border border-border bg-card p-6 text-center">
+        <div className="glass-card rounded-xl p-6 text-center">
           <p className="text-sm text-muted-foreground">Tudo em dia! Nenhuma acao urgente.</p>
         </div>
       )}
@@ -220,7 +220,7 @@ function FamilyCard({
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-border hover:bg-accent"
+      className="w-full glass-card rounded-xl p-4 text-left transition-colors hover:border-border hover:bg-accent"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -297,7 +297,7 @@ function MyFamiliesSection({
       </div>
 
       {families.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center">
+        <div className="glass-card rounded-xl p-6 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhuma familia atribuida ainda.
           </p>
@@ -335,7 +335,7 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
       </div>
 
       {contacts.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center">
+        <div className="glass-card rounded-xl p-6 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhum contato agendado para os proximos 7 dias.
           </p>
@@ -444,7 +444,7 @@ function NeedContactSection({
       </div>
 
       {needContact.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center">
+        <div className="glass-card rounded-xl p-6 text-center">
           <p className="text-sm text-muted-foreground">
             Todas as familias estao dentro do prazo de contato.
           </p>
@@ -522,7 +522,7 @@ function AdmissaoSection({
       </div>
 
       {admissaoFamilies.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center">
+        <div className="glass-card rounded-xl p-6 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhum processo de admissao ativo no momento.
           </p>
@@ -581,13 +581,13 @@ function PerformanceSection({ performance }: { performance: PerformanceMetrics }
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-4 text-center">
+        <div className="glass-card rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-foreground">{performance.totalFamilias}</p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Total familias
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4 text-center">
+        <div className="glass-card rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-sys-green">
             {performance.mediaSatisfacao}
           </p>
@@ -595,7 +595,7 @@ function PerformanceSection({ performance }: { performance: PerformanceMetrics }
             Media satisfacao
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4 text-center">
+        <div className="glass-card rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-sys-orange">
             {performance.mediaAnsiedade}
           </p>
@@ -603,7 +603,7 @@ function PerformanceSection({ performance }: { performance: PerformanceMetrics }
             Media ansiedade
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4 text-center">
+        <div className="glass-card rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-primary">
             {performance.contatosSemana}
           </p>
@@ -689,7 +689,7 @@ export function MinhaAreaClient({
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="glass-card rounded-xl p-4">
           <p className="text-[11px] text-muted-foreground uppercase tracking-wider">
             Total
           </p>
@@ -697,7 +697,7 @@ export function MinhaAreaClient({
             {families.length}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="glass-card rounded-xl p-4">
           <p className="text-[11px] text-sys-green uppercase tracking-wider">
             Satisfeitas
           </p>
@@ -705,7 +705,7 @@ export function MinhaAreaClient({
             {satisfeitaCount}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="glass-card rounded-xl p-4">
           <p className="text-[11px] text-sys-orange uppercase tracking-wider">
             Atencao
           </p>
@@ -713,7 +713,7 @@ export function MinhaAreaClient({
             {atencaoCount}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="glass-card rounded-xl p-4">
           <p className="text-[11px] text-sys-red uppercase tracking-wider">
             Crise
           </p>

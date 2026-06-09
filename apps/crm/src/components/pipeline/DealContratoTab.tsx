@@ -184,7 +184,7 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
   const selectClass =
     "w-full rounded-md border border-border bg-popover py-2 px-3 text-sm text-foreground outline-none focus:border-primary appearance-none";
   const labelClass = "text-xs font-medium text-muted-foreground";
-  const cardClass = "rounded-xl border border-border bg-card p-4";
+  const cardClass = "rounded-xl glass-card p-4";
 
   if (loading) {
     return (

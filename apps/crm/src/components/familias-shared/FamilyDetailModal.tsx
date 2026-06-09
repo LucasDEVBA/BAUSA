@@ -202,7 +202,7 @@ export function FamilyDetailModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl max-h-[92vh] rounded-2xl border border-border bg-popover shadow-xl flex flex-col overflow-hidden"
+        className="w-full max-w-4xl max-h-[92vh] rounded-2xl flex flex-col overflow-hidden liquid-glass"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header com gradient sutil */}
@@ -523,7 +523,7 @@ function TabGeral({ family }: { family: FamilyModalData }) {
           {infoCards.map((it) => (
             <div
               key={it.label}
-              className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 hover:border-primary/30 transition-colors"
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:shadow-md transition-all glass-card"
             >
               <span className="text-lg">{it.icon}</span>
               <div className="min-w-0 flex-1">

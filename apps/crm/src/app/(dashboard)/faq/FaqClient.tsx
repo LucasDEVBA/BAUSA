@@ -252,7 +252,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
 
       {/* Detail sheet (right sidebar) */}
       {selectedArtigo && (
-        <div className="ml-4 w-[400px] flex-shrink-0 rounded-xl border border-border bg-card flex flex-col overflow-hidden">
+        <div className="glass-card ml-4 w-[400px] flex-shrink-0 rounded-xl flex flex-col overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-foreground line-clamp-1">
               {selectedArtigo.titulo}
@@ -342,7 +342,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
       {/* Form sheet (novo artigo) */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-popover p-6">
+          <div className="liquid-glass w-full max-w-lg rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-foreground">
                 {editingId ? "Editar Artigo" : "Novo Artigo"}
@@ -429,7 +429,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
       {/* History Modal */}
       {showHistoryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-popover p-6 max-h-[80vh] flex flex-col">
+          <div className="liquid-glass w-full max-w-lg rounded-2xl p-6 max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <History className="h-4 w-4 text-primary" />

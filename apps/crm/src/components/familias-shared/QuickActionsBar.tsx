@@ -171,7 +171,7 @@ export function QuickActionsBar({
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
+    <div className="rounded-xl p-3 glass-card">
       <div className="mb-2.5 flex items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Ações rápidas de contato

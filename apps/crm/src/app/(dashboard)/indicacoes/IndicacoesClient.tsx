@@ -138,7 +138,7 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="glass-card flex items-center gap-3 rounded-xl px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
             <Users className="h-4 w-4 text-primary" />
           </div>
@@ -147,7 +147,7 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
             <p className="text-lg font-bold text-foreground">{kpis.total}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="glass-card flex items-center gap-3 rounded-xl px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-green/10">
             <TrendingUp className="h-4 w-4 text-sys-green" />
           </div>
@@ -157,7 +157,7 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
             <p className="text-[10px] text-label-tertiary">{kpis.convertidos} convertidos</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="glass-card flex items-center gap-3 rounded-xl px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-orange/10">
             <Gift className="h-4 w-4 text-sys-orange" />
           </div>
@@ -192,7 +192,7 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto rounded-xl border border-border bg-card">
+      <div className="glass-card flex-1 overflow-auto rounded-xl">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border">
@@ -293,7 +293,7 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
 
       {/* Top Indicadores */}
       {topIndicadores.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="glass-card rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <Users className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-semibold text-foreground">Top Indicadores</h3>
@@ -332,7 +332,7 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
 
       {/* Origem dos Leads (CAC proxy) */}
       {origemLeads.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="glass-card rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="h-4 w-4 text-sys-green" />
             <h3 className="text-sm font-semibold text-foreground">Origem dos Leads</h3>

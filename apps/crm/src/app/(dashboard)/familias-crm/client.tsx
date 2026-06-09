@@ -126,12 +126,12 @@ function FamilyCard({
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card p-5 cursor-pointer transition-all hover:border-primary/30",
+        "glass-card rounded-xl p-5 cursor-pointer transition-all hover:shadow-md hover:border-primary/30",
         family.family_status === "crise"
           ? "border-sys-red/40"
           : family.family_status === "atencao"
             ? "border-sys-orange/30"
-            : "border-border"
+            : ""
       )}
       onClick={() => onSelect(family)}
     >
@@ -816,7 +816,7 @@ function RegistrarContatoModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl border border-border bg-popover p-5 shadow-xl space-y-4"
+        className="liquid-glass w-full max-w-md rounded-2xl p-5 shadow-xl space-y-4"
       >
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-foreground">Registrar Contato</p>
@@ -925,7 +925,7 @@ function EscalonarCEOModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl border border-sys-red/30 bg-popover p-5 shadow-xl space-y-4"
+        className="liquid-glass w-full max-w-md rounded-2xl border-sys-red/30 p-5 shadow-xl space-y-4"
       >
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-sys-red flex items-center gap-2">
@@ -1000,7 +1000,7 @@ function FamilyDetail({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-border bg-popover overflow-y-auto max-h-[90vh] shadow-xl"
+        className="liquid-glass w-full max-w-lg rounded-2xl overflow-y-auto max-h-[90vh] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-border bg-popover px-5 py-4">
@@ -1399,7 +1399,7 @@ export function FamiliasCrmClient({
 
       {/* Banner de alertas */}
       {alertas.length > 0 && (
-        <div className="rounded-xl border border-sys-orange/30 bg-sys-orange/5 p-4">
+        <div className="glass-card rounded-xl border-sys-orange/30 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Bell className="h-4 w-4 text-sys-orange" />
             <p className="text-xs font-semibold text-sys-orange">

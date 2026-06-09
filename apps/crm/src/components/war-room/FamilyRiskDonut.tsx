@@ -55,7 +55,7 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const item = payload[0];
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-sm shadow-lg">
+    <div className="liquid-glass rounded-lg px-3 py-2 text-sm">
       <p className="font-medium text-foreground">{item.name}</p>
       <p className="text-muted-foreground">{item.value} {item.value === 1 ? "família" : "famílias"}</p>
     </div>
@@ -83,7 +83,7 @@ export function FamilyRiskDonut({ families }: FamilyRiskDonutProps) {
   const data = Object.entries(grouped).map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <h3 className="text-sm font-semibold text-foreground">Distribuição de Risco</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Famílias por nível de risco</p>
 

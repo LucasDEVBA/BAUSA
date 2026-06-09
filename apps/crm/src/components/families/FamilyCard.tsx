@@ -26,7 +26,7 @@ export function FamilyCard({ family }: FamilyCardProps) {
   return (
     <>
       <div
-        className="group flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:border-border hover:shadow-sm cursor-pointer"
+        className="group flex flex-col gap-3 rounded-xl p-4 transition-all hover:shadow-md cursor-pointer glass-card"
         onClick={() => setSheetOpen(true)}
       >
         {/* Header: avatar + nome + estado */}

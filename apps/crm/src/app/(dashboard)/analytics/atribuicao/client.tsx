@@ -96,7 +96,7 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-border bg-popover px-3 py-2 text-xs shadow-xl">
+    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
       <p className="mb-1 font-medium text-foreground">{label}</p>
       {payload.map((entry) => (
         <p key={entry.name} style={{ color: entry.color }}>
@@ -121,7 +121,7 @@ function MetricCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="glass-card rounded-xl p-4">
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
         <Icon className="h-3.5 w-3.5" />
         {label}
@@ -142,7 +142,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         {title}
       </p>
@@ -426,7 +426,7 @@ export function AtribuicaoClient({ leads }: Props) {
                     if (!active || !payload?.length) return null;
                     const d = payload[0]?.payload as (typeof conversionBySource)[0];
                     return (
-                      <div className="rounded-xl border border-border bg-popover px-3 py-2 text-xs shadow-xl">
+                      <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
                         <p className="mb-1 font-medium text-foreground">{label}</p>
                         <p className="text-primary">
                           {d.qualificados}/{d.total} qualificados ({d.taxa}%)
