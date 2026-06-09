@@ -64,7 +64,7 @@ function KpiCard({ title, value, subtitle, delta, compareEnabled, icon: Icon, ac
   const showDelta = compareEnabled && delta !== null && delta !== undefined;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-[#1e2130] bg-[#141720] p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", accent)}>
           <Icon className="h-4 w-4" />
@@ -74,10 +74,10 @@ function KpiCard({ title, value, subtitle, delta, compareEnabled, icon: Icon, ac
             className={cn(
               "flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
               delta > 0
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                ? "border-sys-green/30 bg-sys-green/10 text-sys-green"
                 : delta < 0
-                ? "border-red-500/30 bg-red-500/10 text-red-400"
-                : "border-zinc-600/30 bg-zinc-700/20 text-zinc-500"
+                ? "border-sys-red/30 bg-sys-red/10 text-sys-red"
+                : "border-border bg-secondary text-muted-foreground"
             )}
           >
             {delta > 0 ? (
@@ -92,8 +92,8 @@ function KpiCard({ title, value, subtitle, delta, compareEnabled, icon: Icon, ac
         )}
       </div>
       <div>
-        <p className="text-2xl font-bold text-zinc-100">{value}</p>
-        <p className="mt-0.5 text-xs text-zinc-500">{subtitle ?? title}</p>
+        <p className="text-2xl font-bold text-foreground">{value}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{subtitle ?? title}</p>
       </div>
     </div>
   );
@@ -106,8 +106,8 @@ const CustomBarTooltip = ({ active, payload, label }: {
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-xs shadow-xl">
-      <p className="mb-1.5 font-semibold text-zinc-300">{label}</p>
+    <div className="rounded-xl border border-border bg-popover px-3 py-2 text-xs shadow-xl">
+      <p className="mb-1.5 font-semibold text-foreground">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }} className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: entry.color }} />
@@ -125,8 +125,8 @@ const CustomLineTooltip = ({ active, payload, label }: {
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#0f1117] px-3 py-2 text-xs shadow-xl">
-      <p className="mb-1.5 font-semibold text-zinc-300">{label}</p>
+    <div className="rounded-xl border border-border bg-popover px-3 py-2 text-xs shadow-xl">
+      <p className="mb-1.5 font-semibold text-foreground">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }}>
           {entry.name}: {formatBrl(entry.value)}
@@ -235,12 +235,12 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
     return (
       <div className="flex flex-col gap-6 p-6">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Analytics</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">Sem dados financeiros registrados.</p>
+          <h1 className="text-title-2 text-foreground">Analytics</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">Sem dados financeiros registrados.</p>
         </div>
         <div className="text-center py-16">
-          <BarChart2 className="h-12 w-12 mx-auto text-zinc-600 mb-4" />
-          <p className="text-sm text-zinc-500">Os graficos aparecerão aqui quando houver contratos e parcelas.</p>
+          <BarChart2 className="h-12 w-12 mx-auto text-label-tertiary mb-4" />
+          <p className="text-sm text-muted-foreground">Os graficos aparecerão aqui quando houver contratos e parcelas.</p>
         </div>
       </div>
     );
@@ -251,12 +251,12 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Analytics</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">{PERIOD_LABELS[period]}</p>
+          <h1 className="text-title-2 text-foreground">Analytics</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{PERIOD_LABELS[period]}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <AnalyticsExportButton revenueMonths={currentSlice} />
-          <div className="flex items-center gap-1 rounded-lg border border-[#1e2130] bg-[#141720] p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
             {PERIODS.map((p) => (
               <button
                 key={p}
@@ -264,8 +264,8 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
                 className={cn(
                   "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
                   period === p
-                    ? "bg-indigo-600 text-white"
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
                 )}
               >
                 {p}
@@ -278,14 +278,14 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
             className={cn(
               "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all",
               compareEnabled
-                ? "border-indigo-500/50 bg-indigo-600/20 text-indigo-300"
-                : "border-[#1e2130] bg-[#141720] text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                ? "border-primary/50 bg-primary/15 text-foreground"
+                : "border-border bg-card text-muted-foreground hover:border-border hover:text-foreground"
             )}
           >
             <span
               className={cn(
                 "h-3.5 w-3.5 rounded-full border-2 transition-all",
-                compareEnabled ? "border-indigo-400 bg-indigo-400" : "border-zinc-600 bg-transparent"
+                compareEnabled ? "border-primary bg-primary" : "border-border bg-transparent"
               )}
             />
             Comparar periodos
@@ -302,7 +302,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
           delta={deltaPct(cur.contracted, prev.contracted)}
           compareEnabled={compareEnabled}
           icon={DollarSign}
-          accent="bg-indigo-500/10 text-indigo-400"
+          accent="bg-primary/10 text-primary"
         />
         <KpiCard
           title="Receita Recebida"
@@ -311,7 +311,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
           delta={deltaPct(cur.received, prev.received)}
           compareEnabled={compareEnabled}
           icon={BarChart2}
-          accent="bg-emerald-500/10 text-emerald-400"
+          accent="bg-sys-green/10 text-sys-green"
         />
         <KpiCard
           title="Familias Assinadas"
@@ -320,7 +320,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
           delta={deltaPct(cur.families, prev.families)}
           compareEnabled={compareEnabled}
           icon={Users}
-          accent="bg-purple-500/10 text-purple-400"
+          accent="bg-plan-legacy/10 text-plan-legacy"
         />
         <KpiCard
           title="Media Mensal"
@@ -329,57 +329,57 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
           delta={null}
           compareEnabled={false}
           icon={TrendingUp}
-          accent="bg-blue-500/10 text-blue-400"
+          accent="bg-sys-blue/10 text-sys-blue"
         />
       </div>
 
       {/* Bar chart */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-        <p className="mb-4 text-sm font-semibold text-zinc-200">Contratado vs Recebido por mes</p>
+      <div className="rounded-xl border border-border bg-card p-5">
+        <p className="mb-4 text-sm font-semibold text-foreground">Contratado vs Recebido por mes</p>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={barData} barSize={compareEnabled ? 8 : 14} barCategoryGap="30%">
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-            <XAxis dataKey="month" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+            <XAxis dataKey="month" tick={{ fill: "var(--chart-grid)", fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
-              tick={{ fill: "#71717a", fontSize: 11 }}
+              tick={{ fill: "var(--chart-grid)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`}
             />
             <Tooltip content={<CustomBarTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
+            <Legend wrapperStyle={{ fontSize: 11, color: "var(--muted-foreground)" }} />
             {compareEnabled && (
               <>
-                <Bar dataKey="Contratado (ant.)" fill="#3730a3" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="Recebido (ant.)" fill="#065f46" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="Contratado (ant.)" fill="var(--chart-4)" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="Recebido (ant.)" fill="var(--chart-2)" radius={[3, 3, 0, 0]} />
               </>
             )}
-            <Bar dataKey="Contratado" fill="#6366f1" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Recebido" fill="#10b981" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Contratado" fill="var(--chart-1)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Recebido" fill="var(--chart-2)" radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
       {/* Line chart */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-        <p className="mb-4 text-sm font-semibold text-zinc-200">Receita Acumulada no periodo</p>
+      <div className="rounded-xl border border-border bg-card p-5">
+        <p className="mb-4 text-sm font-semibold text-foreground">Receita Acumulada no periodo</p>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={lineData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-            <XAxis dataKey="label" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+            <XAxis dataKey="label" tick={{ fill: "var(--chart-grid)", fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
-              tick={{ fill: "#71717a", fontSize: 11 }}
+              tick={{ fill: "var(--chart-grid)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`}
             />
             <Tooltip content={<CustomLineTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11, color: "#71717a" }} />
+            <Legend wrapperStyle={{ fontSize: 11, color: "var(--muted-foreground)" }} />
             {compareEnabled && (
               <Line
                 type="monotone"
                 dataKey="Acumulado anterior"
-                stroke="#6366f1"
+                stroke="var(--chart-1)"
                 strokeWidth={1.5}
                 strokeDasharray="4 2"
                 dot={false}
@@ -388,10 +388,10 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
             <Line
               type="monotone"
               dataKey="Acumulado atual"
-              stroke="#10b981"
+              stroke="var(--chart-2)"
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4, fill: "#10b981" }}
+              activeDot={{ r: 4, fill: "var(--chart-2)" }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -399,16 +399,16 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
 
       {/* Table + highlights */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 rounded-xl border border-[#1e2130] bg-[#141720]">
-          <div className="border-b border-[#1e2130] px-5 py-3">
-            <p className="text-sm font-semibold text-zinc-200">Detalhamento mensal</p>
+        <div className="col-span-2 rounded-xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-3">
+            <p className="text-sm font-semibold text-foreground">Detalhamento mensal</p>
           </div>
           <div className="overflow-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-[#1e2130]">
+                <tr className="border-b border-border">
                   {["Mes", "Contratado", "Recebido", "Familias", "Taxa recv."].map((h) => (
-                    <th key={h} className="px-5 py-2.5 text-left font-medium text-zinc-500">
+                    <th key={h} className="px-5 py-2.5 text-left font-medium text-muted-foreground">
                       {h}
                     </th>
                   ))}
@@ -418,21 +418,21 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
                 {tableData.map((row, i) => (
                   <tr
                     key={i}
-                    className="border-b border-[#1e2130]/50 transition-colors hover:bg-white/[0.02]"
+                    className="border-b border-border/50 transition-colors hover:bg-accent"
                   >
-                    <td className="px-5 py-2.5 font-medium text-zinc-300">{row.label}</td>
-                    <td className="px-5 py-2.5 text-indigo-400">{formatBrl(row.contracted)}</td>
-                    <td className="px-5 py-2.5 text-emerald-400">{formatBrl(row.received)}</td>
-                    <td className="px-5 py-2.5 text-zinc-400">{row.families}</td>
+                    <td className="px-5 py-2.5 font-medium text-foreground">{row.label}</td>
+                    <td className="px-5 py-2.5 text-primary">{formatBrl(row.contracted)}</td>
+                    <td className="px-5 py-2.5 text-sys-green">{formatBrl(row.received)}</td>
+                    <td className="px-5 py-2.5 text-muted-foreground">{row.families}</td>
                     <td className="px-5 py-2.5">
                       <span
                         className={cn(
                           "font-semibold",
                           row.recvRate >= 90
-                            ? "text-emerald-400"
+                            ? "text-sys-green"
                             : row.recvRate >= 70
-                            ? "text-amber-400"
-                            : "text-red-400"
+                            ? "text-sys-orange"
+                            : "text-sys-red"
                         )}
                       >
                         {row.recvRate}%
@@ -446,33 +446,33 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
         </div>
 
         <div className="flex flex-col gap-3">
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-600">
+          <div className="rounded-xl border border-sys-green/20 bg-sys-green/5 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-sys-green">
               Melhor mes
             </p>
-            <p className="mt-1 text-lg font-bold text-emerald-400">{bestMonth.label}</p>
-            <p className="text-xs text-zinc-500">{formatBrl(bestMonth.received)} recebido</p>
+            <p className="mt-1 text-lg font-bold text-sys-green">{bestMonth.label}</p>
+            <p className="text-xs text-muted-foreground">{formatBrl(bestMonth.received)} recebido</p>
           </div>
-          <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-red-600">
+          <div className="rounded-xl border border-sys-red/20 bg-sys-red/5 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-sys-red">
               Pior mes
             </p>
-            <p className="mt-1 text-lg font-bold text-red-400">{worstMonth.label}</p>
-            <p className="text-xs text-zinc-500">{formatBrl(worstMonth.received)} recebido</p>
+            <p className="mt-1 text-lg font-bold text-sys-red">{worstMonth.label}</p>
+            <p className="text-xs text-muted-foreground">{formatBrl(worstMonth.received)} recebido</p>
           </div>
-          <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-label-tertiary">
               Taxa de recebimento
             </p>
-            <p className="mt-1 text-lg font-bold text-zinc-100">{overallRecvRate}%</p>
-            <p className="text-xs text-zinc-500">Recebido / contratado no periodo</p>
+            <p className="mt-1 text-lg font-bold text-foreground">{overallRecvRate}%</p>
+            <p className="text-xs text-muted-foreground">Recebido / contratado no periodo</p>
           </div>
-          <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-label-tertiary">
               Media mensal
             </p>
-            <p className="mt-1 text-lg font-bold text-zinc-100">{formatBrl(avgMonthly)}</p>
-            <p className="text-xs text-zinc-500">Receita recebida por mes</p>
+            <p className="mt-1 text-lg font-bold text-foreground">{formatBrl(avgMonthly)}</p>
+            <p className="text-xs text-muted-foreground">Receita recebida por mes</p>
           </div>
         </div>
       </div>

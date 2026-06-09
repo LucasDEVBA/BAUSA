@@ -73,18 +73,18 @@ function ReceivableRow({ rec }: { rec: Receivable }) {
   const isOverdue = rec.status === "atrasado";
 
   return (
-    <tr className={cn("border-b border-[#1e2130] transition-colors hover:bg-[#1a1f2e]", isOverdue && "bg-red-500/5")}>
+    <tr className={cn("border-b border-border transition-colors hover:bg-accent", isOverdue && "bg-sys-red/5")}>
       <td className="py-3 pl-4 pr-3">
-        <p className="text-sm font-medium text-white">{rec.client_name}</p>
-        <p className="text-xs text-zinc-500">{rec.description}</p>
+        <p className="text-sm font-medium text-foreground">{rec.client_name}</p>
+        <p className="text-xs text-muted-foreground">{rec.description}</p>
       </td>
       <td className="px-3 py-3">
         <span className={cn("inline-flex rounded-md border px-2 py-0.5 text-[10px] font-semibold", planCfg.bg, planCfg.color)}>
           {rec.plan}
         </span>
       </td>
-      <td className="px-3 py-3 text-sm font-semibold text-white">{formatBRL(rec.amount)}</td>
-      <td className="px-3 py-3 text-sm text-zinc-400">
+      <td className="px-3 py-3 text-sm font-semibold text-foreground">{formatBRL(rec.amount)}</td>
+      <td className="px-3 py-3 text-sm text-muted-foreground">
         {dueDate.toLocaleDateString("pt-BR")}
       </td>
       <td className="px-3 py-3">
@@ -278,14 +278,14 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Gestao Financeira</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">Contratos, recebiveis e analise de custos</p>
+          <h1 className="text-title-2 text-foreground">Gestao Financeira</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">Contratos, recebiveis e analise de custos</p>
         </div>
         <div className="flex items-center gap-3">
           <Suspense fallback={null}>
             <FinanceiroTabs />
           </Suspense>
-          <button className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700">
+          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90">
             <FileText className="h-4 w-4" />
             Novo contrato
           </button>
@@ -295,39 +295,39 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
       {/* Tab: NFs Pendentes */}
       {activeTab === "nf_pendentes" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+          <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 px-4 py-3">
             <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-amber-400" />
-              <p className="text-sm font-semibold text-amber-400">
+              <FileText className="h-4 w-4 text-sys-orange" />
+              <p className="text-sm font-semibold text-sys-orange">
                 {nfPendentes.length} NF{nfPendentes.length !== 1 ? "s" : ""} pendente{nfPendentes.length !== 1 ? "s" : ""} com entrada paga
               </p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#1e2130] bg-[#141720] overflow-hidden">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[#1e2130] bg-[#0f1117]">
-                  <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Cliente</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Plano</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Valor</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">NF Status</th>
+                <tr className="border-b border-border bg-popover">
+                  <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Cliente</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Plano</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Valor</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">NF Status</th>
                 </tr>
               </thead>
               <tbody>
                 {nfPendentes.map((c) => {
                   const planCfg = PLAN_CONFIG[planMap[c.plano] ?? "Journey"];
                   return (
-                    <tr key={c.id} className="border-b border-[#1e2130] transition-colors hover:bg-[#1a1f2e]">
+                    <tr key={c.id} className="border-b border-border transition-colors hover:bg-accent">
                       <td className="py-3 pl-4 pr-3">
-                        <p className="text-sm font-medium text-white">{c.atletaNome}</p>
+                        <p className="text-sm font-medium text-foreground">{c.atletaNome}</p>
                       </td>
                       <td className="px-3 py-3">
                         <span className={cn("inline-flex rounded-md border px-2 py-0.5 text-[10px] font-semibold", planCfg.bg, planCfg.color)}>
                           {planMap[c.plano] ?? c.plano}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-sm font-semibold text-white">{formatBRL(c.valor_total)}</td>
+                      <td className="px-3 py-3 text-sm font-semibold text-foreground">{formatBRL(c.valor_total)}</td>
                       <td className="px-3 py-3">
                         <NfEditRow
                           contractId={c.id}
@@ -344,8 +344,8 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             </table>
             {nfPendentes.length === 0 && (
               <div className="text-center py-8">
-                <CheckCircle className="mx-auto h-8 w-8 text-emerald-500/50" />
-                <p className="mt-2 text-sm text-zinc-500">Nenhuma NF pendente com entrada paga.</p>
+                <CheckCircle className="mx-auto h-8 w-8 text-sys-green/50" />
+                <p className="mt-2 text-sm text-muted-foreground">Nenhuma NF pendente com entrada paga.</p>
               </div>
             )}
           </div>
@@ -355,54 +355,54 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
       {/* Tab: Cancelamentos */}
       {activeTab === "cancelamentos" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3">
+          <div className="rounded-xl border border-sys-red/20 bg-sys-red/5 px-4 py-3">
             <div className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-red-400" />
-              <p className="text-sm font-semibold text-red-400">
+              <XCircle className="h-4 w-4 text-sys-red" />
+              <p className="text-sm font-semibold text-sys-red">
                 {cancellations.length} cancelamento{cancellations.length !== 1 ? "s" : ""} / perda{cancellations.length !== 1 ? "s" : ""}
               </p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#1e2130] bg-[#141720] overflow-hidden">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[#1e2130] bg-[#0f1117]">
-                  <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Atleta</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Valor</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Motivo</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Data</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Status</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Reativacao</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Acoes</th>
+                <tr className="border-b border-border bg-popover">
+                  <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Atleta</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Valor</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Motivo</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Data</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Status</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Reativacao</th>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Acoes</th>
                 </tr>
               </thead>
               <tbody>
                 {cancellations.map((c) => (
-                  <tr key={c.id} className="border-b border-[#1e2130] transition-colors hover:bg-[#1a1f2e]">
+                  <tr key={c.id} className="border-b border-border transition-colors hover:bg-accent">
                     <td className="py-3 pl-4 pr-3">
-                      <p className="text-sm font-medium text-white">{c.athlete_name}</p>
+                      <p className="text-sm font-medium text-foreground">{c.athlete_name}</p>
                     </td>
-                    <td className="px-3 py-3 text-sm font-semibold text-white">
+                    <td className="px-3 py-3 text-sm font-semibold text-foreground">
                       {c.valor_estimado > 0 ? formatBRL(c.valor_estimado) : "—"}
                     </td>
                     <td className="px-3 py-3">
-                      <p className="text-xs text-zinc-400">
+                      <p className="text-xs text-muted-foreground">
                         {c.motivo_perda ? MOTIVO_PERDA_LABELS[c.motivo_perda] || c.motivo_perda : "Nao informado"}
                       </p>
                       {c.detalhe_perda && (
-                        <p className="text-[10px] text-zinc-600 mt-0.5 truncate max-w-[200px]">{c.detalhe_perda}</p>
+                        <p className="text-[10px] text-label-tertiary mt-0.5 truncate max-w-[200px]">{c.detalhe_perda}</p>
                       )}
                     </td>
-                    <td className="px-3 py-3 text-sm text-zinc-400">
+                    <td className="px-3 py-3 text-sm text-muted-foreground">
                       {new Date(c.updated_at).toLocaleDateString("pt-BR")}
                     </td>
                     <td className="px-3 py-3">
                       <span className={cn(
                         "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium",
                         c.etapa === "cancelamento_solicitado"
-                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
-                          : "bg-red-500/10 border-red-500/20 text-red-400"
+                          ? "bg-sys-orange/10 border-sys-orange/20 text-sys-orange"
+                          : "bg-sys-red/10 border-sys-red/20 text-sys-red"
                       )}>
                         {c.etapa === "cancelamento_solicitado" ? "Cancelamento" : "Perdido"}
                       </span>
@@ -410,15 +410,15 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                     <td className="px-3 py-3">
                       {c.pode_reativar ? (
                         <div className="flex items-center gap-1">
-                          <RotateCcw className="h-3 w-3 text-emerald-400" />
-                          <span className="text-[10px] text-emerald-400">
+                          <RotateCcw className="h-3 w-3 text-sys-green" />
+                          <span className="text-[10px] text-sys-green">
                             {c.data_reativacao
                               ? new Date(c.data_reativacao).toLocaleDateString("pt-BR")
                               : "Possivel"}
                           </span>
                         </div>
                       ) : (
-                        <span className="text-[10px] text-zinc-600">Nao</span>
+                        <span className="text-[10px] text-label-tertiary">Nao</span>
                       )}
                     </td>
                     <td className="px-3 py-3">
@@ -432,8 +432,8 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             </table>
             {cancellations.length === 0 && (
               <div className="text-center py-8">
-                <CheckCircle className="mx-auto h-8 w-8 text-emerald-500/50" />
-                <p className="mt-2 text-sm text-zinc-500">Nenhum cancelamento ou perda registrado.</p>
+                <CheckCircle className="mx-auto h-8 w-8 text-sys-green/50" />
+                <p className="mt-2 text-sm text-muted-foreground">Nenhum cancelamento ou perda registrado.</p>
               </div>
             )}
           </div>
@@ -451,43 +451,43 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                 value: formatBRL(summary.total_received_brl),
                 sub: "total acumulado",
                 icon: CheckCircle,
-                color: "text-emerald-400",
-                bg: "bg-emerald-500/10",
+                color: "text-sys-green",
+                bg: "bg-sys-green/10",
               },
               {
                 label: "A receber",
                 value: formatBRL(summary.total_receivable_brl),
                 sub: "em aberto",
                 icon: Clock,
-                color: "text-blue-400",
-                bg: "bg-blue-500/10",
+                color: "text-sys-blue",
+                bg: "bg-sys-blue/10",
               },
               {
                 label: "Em atraso",
                 value: formatBRL(summary.overdue_brl),
                 sub: `${overdueReceivables.length} parcela${overdueReceivables.length !== 1 ? "s" : ""}`,
                 icon: AlertTriangle,
-                color: "text-red-400",
-                bg: "bg-red-500/10",
+                color: "text-sys-red",
+                bg: "bg-sys-red/10",
               },
               {
                 label: "Margem liquida",
                 value: `${summary.net_margin_pct}%`,
                 sub: "apos custos fixos",
                 icon: TrendingUp,
-                color: "text-purple-400",
-                bg: "bg-purple-500/10",
+                color: "text-plan-legacy",
+                bg: "bg-plan-legacy/10",
               },
             ].map((kpi) => {
               const Icon = kpi.icon;
               return (
-                <div key={kpi.label} className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
+                <div key={kpi.label} className="rounded-xl border border-border bg-card p-4">
                   <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", kpi.bg)}>
                     <Icon className={cn("h-4 w-4", kpi.color)} />
                   </div>
-                  <p className="text-xl font-bold text-white">{kpi.value}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">{kpi.label}</p>
-                  <p className="text-[10px] text-zinc-600">{kpi.sub}</p>
+                  <p className="text-xl font-bold text-foreground">{kpi.value}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
+                  <p className="text-[10px] text-label-tertiary">{kpi.sub}</p>
                 </div>
               );
             })}
@@ -495,8 +495,8 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
 
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Planos contratados */}
-            <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-              <h2 className="mb-4 text-sm font-semibold text-white">Planos Ativos</h2>
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h2 className="mb-4 text-sm font-semibold text-foreground">Planos Ativos</h2>
               <div className="space-y-3">
                 {(["Legacy", "Journey", "Start"] as const).map((plan) => {
                   const cfg = PLAN_CONFIG[plan];
@@ -508,12 +508,12 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                           <span className={cn("rounded-md border px-2 py-0.5 text-[10px] font-bold", cfg.bg, cfg.color)}>
                             {plan}
                           </span>
-                          <span className="text-xs text-zinc-400">{count} contrato{count !== 1 ? "s" : ""}</span>
+                          <span className="text-xs text-muted-foreground">{count} contrato{count !== 1 ? "s" : ""}</span>
                         </div>
-                        <span className="text-xs font-semibold text-white">{formatBRL(cfg.price)}</span>
+                        <span className="text-xs font-semibold text-foreground">{formatBRL(cfg.price)}</span>
                       </div>
-                      <p className="text-[10px] text-zinc-600">{cfg.description}</p>
-                      <div className="flex gap-2 text-[10px] text-zinc-600">
+                      <p className="text-[10px] text-label-tertiary">{cfg.description}</p>
+                      <div className="flex gap-2 text-[10px] text-label-tertiary">
                         <span>Pix: {formatBRL(cfg.pix_price)}</span>
                         <span>-</span>
                         <span>Sinal: {formatBRL(cfg.signal)}</span>
@@ -525,50 +525,50 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             </div>
 
             {/* Custos fixos */}
-            <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+            <div className="rounded-xl border border-border bg-card p-5">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-white">Custos Fixos Mensais</h2>
-                <span className="text-sm font-bold text-red-400">{formatBRL(totalFixedCosts)}</span>
+                <h2 className="text-sm font-semibold text-foreground">Custos Fixos Mensais</h2>
+                <span className="text-sm font-bold text-sys-red">{formatBRL(totalFixedCosts)}</span>
               </div>
               <div className="space-y-2">
                 {FIXED_COSTS.filter((c) => c.active).map((cost) => (
                   <div key={cost.id} className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-zinc-400 flex-1 min-w-0 truncate">{cost.name}</p>
-                    <p className="text-xs font-semibold text-white flex-shrink-0">{formatBRL(cost.amount_monthly)}</p>
+                    <p className="text-xs text-muted-foreground flex-1 min-w-0 truncate">{cost.name}</p>
+                    <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(cost.amount_monthly)}</p>
                   </div>
                 ))}
               </div>
-              <div className="mt-4 border-t border-[#1e2130] pt-3">
-                <h3 className="mb-2 text-xs font-semibold text-zinc-500">Custos Variaveis (por contrato)</h3>
+              <div className="mt-4 border-t border-border pt-3">
+                <h3 className="mb-2 text-xs font-semibold text-muted-foreground">Custos Variaveis (por contrato)</h3>
                 {VARIABLE_COSTS.map((vc) => (
                   <div key={vc.id} className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <span className={cn("rounded-md border px-1.5 py-0.5 text-[9px] font-bold", PLAN_CONFIG[vc.plan].bg, PLAN_CONFIG[vc.plan].color)}>
                         {vc.plan}
                       </span>
-                      <p className="text-xs text-zinc-500 truncate">{vc.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{vc.name}</p>
                     </div>
-                    <p className="text-xs font-semibold text-white flex-shrink-0">{formatBRL(vc.amount)}</p>
+                    <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(vc.amount)}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Alertas de recebiveis */}
-            <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-              <h2 className="mb-4 text-sm font-semibold text-white">Alertas de Recebimento</h2>
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h2 className="mb-4 text-sm font-semibold text-foreground">Alertas de Recebimento</h2>
 
               {overdueReceivables.length > 0 && (
                 <div className="mb-4">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-red-400">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-sys-red">
                     Em Atraso ({overdueReceivables.length})
                   </p>
                   <div className="space-y-2">
                     {overdueReceivables.map((r) => (
-                      <div key={r.id} className="rounded-lg border border-red-500/20 bg-red-500/5 p-2.5">
-                        <p className="text-xs font-medium text-white">{r.client_name}</p>
-                        <p className="text-[10px] text-zinc-500">{r.description}</p>
-                        <p className="mt-1 text-xs font-semibold text-red-400">{formatBRL(r.amount)}</p>
+                      <div key={r.id} className="rounded-lg border border-sys-red/20 bg-sys-red/5 p-2.5">
+                        <p className="text-xs font-medium text-foreground">{r.client_name}</p>
+                        <p className="text-[10px] text-muted-foreground">{r.description}</p>
+                        <p className="mt-1 text-xs font-semibold text-sys-red">{formatBRL(r.amount)}</p>
                       </div>
                     ))}
                   </div>
@@ -576,21 +576,21 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
               )}
 
               <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Proximos vencimentos
                 </p>
                 <div className="space-y-2">
                   {upcomingReceivables.slice(0, 5).map((r) => (
                     <div key={r.id} className="flex items-center justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-white truncate">{r.client_name}</p>
-                        <p className="text-[10px] text-zinc-600">{new Date(r.due_date).toLocaleDateString("pt-BR")}</p>
+                        <p className="text-xs font-medium text-foreground truncate">{r.client_name}</p>
+                        <p className="text-[10px] text-label-tertiary">{new Date(r.due_date).toLocaleDateString("pt-BR")}</p>
                       </div>
-                      <p className="text-xs font-semibold text-zinc-300 flex-shrink-0">{formatBRL(r.amount)}</p>
+                      <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(r.amount)}</p>
                     </div>
                   ))}
                   {upcomingReceivables.length === 0 && (
-                    <p className="text-xs text-zinc-600">Nenhum vencimento proximo.</p>
+                    <p className="text-xs text-label-tertiary">Nenhum vencimento proximo.</p>
                   )}
                 </div>
               </div>
@@ -598,12 +598,12 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
           </div>
 
           {/* Contratos com NF Status + Lucro */}
-          <div className="rounded-xl border border-[#1e2130] bg-[#141720] overflow-hidden">
-            <div className="border-b border-[#1e2130] px-5 py-4">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="border-b border-border px-5 py-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-white">Contratos — Controle de NF e Rentabilidade</h2>
-                  <p className="mt-0.5 text-xs text-zinc-500">{contractsWithNf.length} contratos registrados</p>
+                  <h2 className="text-sm font-semibold text-foreground">Contratos — Controle de NF e Rentabilidade</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{contractsWithNf.length} contratos registrados</p>
                 </div>
                 <ContractsExportButton contracts={contractsWithNf} />
               </div>
@@ -611,14 +611,14 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#1e2130] bg-[#0f1117]">
-                    <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Cliente</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Plano</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Valor Total</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Lucro Est.</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Margem</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Entrada</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">NF</th>
+                  <tr className="border-b border-border bg-popover">
+                    <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Cliente</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Plano</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Valor Total</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Lucro Est.</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Margem</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Entrada</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">NF</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -627,12 +627,12 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                     const custom = isCustomizado(c);
                     const { lucro, margem } = calcularLucro(c);
                     return (
-                      <tr key={c.id} className="border-b border-[#1e2130] transition-colors hover:bg-[#1a1f2e]">
+                      <tr key={c.id} className="border-b border-border transition-colors hover:bg-accent">
                         <td className="py-3 pl-4 pr-3">
-                          <p className="text-sm font-medium text-white">{c.atletaNome}</p>
+                          <p className="text-sm font-medium text-foreground">{c.atletaNome}</p>
                           {custom && (
                             <span
-                              className="mt-0.5 inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400 cursor-help"
+                              className="mt-0.5 inline-flex items-center gap-1 rounded-md border border-sys-orange/20 bg-sys-orange/10 px-1.5 py-0.5 text-[9px] font-semibold text-sys-orange cursor-help"
                               title={c.justificativa_customizacao ?? "Valor difere do plano padrao"}
                             >
                               <AlertTriangle className="h-2.5 w-2.5" />
@@ -645,16 +645,16 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                             {planMap[c.plano] ?? c.plano}
                           </span>
                         </td>
-                        <td className="px-3 py-3 text-sm font-semibold text-white">{formatBRL(c.valor_total)}</td>
-                        <td className="px-3 py-3 text-sm font-semibold text-emerald-400">{formatBRL(lucro)}</td>
+                        <td className="px-3 py-3 text-sm font-semibold text-foreground">{formatBRL(c.valor_total)}</td>
+                        <td className="px-3 py-3 text-sm font-semibold text-sys-green">{formatBRL(lucro)}</td>
                         <td className="px-3 py-3">
                           <span className={cn(
                             "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold",
                             margem >= 50
-                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                              ? "border-sys-green/20 bg-sys-green/10 text-sys-green"
                               : margem >= 30
-                              ? "border-amber-500/20 bg-amber-500/10 text-amber-400"
-                              : "border-red-500/20 bg-red-500/10 text-red-400"
+                              ? "border-sys-orange/20 bg-sys-orange/10 text-sys-orange"
+                              : "border-sys-red/20 bg-sys-red/10 text-sys-red"
                           )}>
                             {margem}%
                           </span>
@@ -663,8 +663,8 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                           <span className={cn(
                             "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium",
                             c.entrada_paga
-                              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                              : "bg-zinc-500/10 border-zinc-500/20 text-zinc-500"
+                              ? "bg-sys-green/10 border-sys-green/20 text-sys-green"
+                              : "bg-secondary border-border text-muted-foreground"
                           )}>
                             {c.entrada_paga ? "Paga" : "Pendente"}
                           </span>
@@ -687,19 +687,19 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                     const avgMargin = Math.round(allProfits.reduce((s, p) => s + p.margem, 0) / allProfits.length);
                     const totalLucro = allProfits.reduce((s, p) => s + p.lucro, 0);
                     return (
-                      <tr className="border-t-2 border-indigo-500/30 bg-[#0f1117]">
-                        <td colSpan={3} className="py-3 pl-4 pr-3 text-xs font-bold text-zinc-300">
+                      <tr className="border-t-2 border-primary/30 bg-popover">
+                        <td colSpan={3} className="py-3 pl-4 pr-3 text-xs font-bold text-foreground">
                           Margem media (todos os contratos)
                         </td>
-                        <td className="px-3 py-3 text-sm font-bold text-emerald-400">{formatBRL(totalLucro)}</td>
+                        <td className="px-3 py-3 text-sm font-bold text-sys-green">{formatBRL(totalLucro)}</td>
                         <td className="px-3 py-3">
                           <span className={cn(
                             "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold",
                             avgMargin >= 50
-                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                              ? "border-sys-green/20 bg-sys-green/10 text-sys-green"
                               : avgMargin >= 30
-                              ? "border-amber-500/20 bg-amber-500/10 text-amber-400"
-                              : "border-red-500/20 bg-red-500/10 text-red-400"
+                              ? "border-sys-orange/20 bg-sys-orange/10 text-sys-orange"
+                              : "border-sys-red/20 bg-sys-red/10 text-sys-red"
                           )}>
                             {avgMargin}%
                           </span>
@@ -712,19 +712,19 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
               </table>
               {contractsWithNf.length === 0 && (
                 <div className="text-center py-8">
-                  <p className="text-sm text-zinc-500">Nenhum contrato registrado.</p>
+                  <p className="text-sm text-muted-foreground">Nenhum contrato registrado.</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Agenda de recebiveis completa */}
-          <div className="rounded-xl border border-[#1e2130] bg-[#141720] overflow-hidden">
-            <div className="border-b border-[#1e2130] px-5 py-4">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="border-b border-border px-5 py-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-white">Agenda de Recebiveis</h2>
-                  <p className="mt-0.5 text-xs text-zinc-500">{receivables.length} lancamentos no periodo</p>
+                  <h2 className="text-sm font-semibold text-foreground">Agenda de Recebiveis</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{receivables.length} lancamentos no periodo</p>
                 </div>
                 <ParcelasExportButton
                   parcelas={receivables.map((r) => ({
@@ -741,12 +741,12 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#1e2130] bg-[#0f1117]">
-                    <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Cliente</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Plano</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Valor</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Vencimento</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Status</th>
+                  <tr className="border-b border-border bg-popover">
+                    <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Cliente</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Plano</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Valor</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Vencimento</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -761,7 +761,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             </div>
             {receivables.length === 0 && (
               <div className="text-center py-8">
-                <p className="text-sm text-zinc-500">Nenhuma parcela registrada.</p>
+                <p className="text-sm text-muted-foreground">Nenhuma parcela registrada.</p>
               </div>
             )}
           </div>
