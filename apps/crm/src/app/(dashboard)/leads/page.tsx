@@ -199,8 +199,8 @@ export default async function LeadsPage() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Leads</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
+          <h1 className="text-title-2 text-foreground">Leads</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Todos os leads qualificados pelo sistema
           </p>
         </div>
@@ -208,29 +208,29 @@ export default async function LeadsPage() {
         {/* Quick stats + export */}
         <div className="hidden items-center gap-3 md:flex">
           <LeadsExportButton leads={leads} />
-          <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5">
-            <Flame className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="text-sm font-semibold text-emerald-400">{quente}</span>
-            <span className="text-xs text-emerald-500/70">quentes</span>
+          <div className="flex items-center gap-1.5 rounded-lg border border-lead-hot/20 bg-lead-hot/10 px-3 py-1.5">
+            <Flame className="h-3.5 w-3.5 text-lead-hot" />
+            <span className="text-sm font-semibold text-lead-hot">{quente}</span>
+            <span className="text-xs text-lead-hot/70">quentes</span>
           </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1.5">
-            <Thermometer className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-sm font-semibold text-amber-400">{morno}</span>
-            <span className="text-xs text-amber-500/70">mornos</span>
+          <div className="flex items-center gap-1.5 rounded-lg border border-lead-warm/20 bg-lead-warm/10 px-3 py-1.5">
+            <Thermometer className="h-3.5 w-3.5 text-lead-warm" />
+            <span className="text-sm font-semibold text-lead-warm">{morno}</span>
+            <span className="text-xs text-lead-warm/70">mornos</span>
           </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5">
-            <Snowflake className="h-3.5 w-3.5 text-blue-400" />
-            <span className="text-sm font-semibold text-blue-400">{frio}</span>
-            <span className="text-xs text-blue-500/70">frios</span>
+          <div className="flex items-center gap-1.5 rounded-lg border border-lead-cold/20 bg-lead-cold/10 px-3 py-1.5">
+            <Snowflake className="h-3.5 w-3.5 text-lead-cold" />
+            <span className="text-sm font-semibold text-lead-cold">{frio}</span>
+            <span className="text-xs text-lead-cold/70">frios</span>
           </div>
           {timingAlternativo > 0 && (
             <div
-              className="flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5"
+              className="flex items-center gap-1.5 rounded-lg border border-plan-legacy/20 bg-plan-legacy/10 px-3 py-1.5"
               title="Leads em 'muito cedo' ou 'tarde demais' — fora da janela ideal de aplicação"
             >
-              <Clock className="h-3.5 w-3.5 text-purple-400" />
-              <span className="text-sm font-semibold text-purple-400">{timingAlternativo}</span>
-              <span className="text-xs text-purple-500/70">timing alternativo</span>
+              <Clock className="h-3.5 w-3.5 text-plan-legacy" />
+              <span className="text-sm font-semibold text-plan-legacy">{timingAlternativo}</span>
+              <span className="text-xs text-plan-legacy/70">timing alternativo</span>
             </div>
           )}
         </div>

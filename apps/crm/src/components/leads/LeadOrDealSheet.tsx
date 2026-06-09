@@ -55,10 +55,10 @@ export function LeadOrDealSheet({ lead, onClose }: LeadOrDealSheetProps) {
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
           onClick={onClose}
         />
-        <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg items-center justify-center border-l border-[#1e2130] bg-[#0f1117]">
+        <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg items-center justify-center border-l border-border bg-popover">
           <div className="flex flex-col items-center gap-3">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-            <span className="text-sm text-zinc-500">Carregando deal...</span>
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span className="text-sm text-muted-foreground">Carregando deal...</span>
           </div>
         </div>
       </>

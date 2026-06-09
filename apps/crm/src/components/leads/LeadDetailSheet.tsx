@@ -35,7 +35,7 @@ const TABS: { id: TabId; label: string }[] = [
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
       {children}
     </h4>
   );
@@ -45,8 +45,8 @@ function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
   return (
     <div className="flex items-start justify-between gap-4 py-1.5 text-sm">
-      <span className="flex-shrink-0 text-zinc-500">{label}</span>
-      <span className="text-right text-zinc-200">{value}</span>
+      <span className="flex-shrink-0 text-muted-foreground">{label}</span>
+      <span className="text-right text-foreground">{value}</span>
     </div>
   );
 }
@@ -60,19 +60,19 @@ function CommunicationStep({ icon, label, date, done, disabled }: {
 }) {
   return (
     <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 ${
-      done ? "bg-emerald-500/5" : disabled ? "bg-zinc-900/30 opacity-50" : "bg-zinc-800/50"
+      done ? "bg-sys-green/5" : disabled ? "bg-secondary/30 opacity-50" : "bg-secondary/50"
     }`}>
       <div className="flex items-center gap-2 text-sm">
-        <span className={done ? "text-emerald-400" : "text-zinc-500"}>{icon}</span>
-        <span className={done ? "text-zinc-200" : "text-zinc-400"}>{label}</span>
+        <span className={done ? "text-sys-green" : "text-muted-foreground"}>{icon}</span>
+        <span className={done ? "text-foreground" : "text-muted-foreground"}>{label}</span>
       </div>
       {done ? (
-        <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
+        <div className="flex items-center gap-1.5 text-sys-green text-xs font-medium">
           <Check className="h-3.5 w-3.5" />
           {date ? formatDate(date) : "Enviado"}
         </div>
       ) : (
-        <span className="text-xs text-zinc-600">
+        <span className="text-xs text-label-tertiary">
           {disabled ? "—" : "Pendente"}
         </span>
       )}
@@ -90,14 +90,14 @@ function TimelineEvent({ icon: Icon, label, date, detail, active }: {
   return (
     <div className="flex gap-3 py-2">
       <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-        active ? "bg-indigo-500/15 text-indigo-400" : "bg-zinc-800 text-zinc-600"
+        active ? "bg-primary/15 text-primary" : "bg-secondary text-label-tertiary"
       }`}>
         <Icon className="h-3.5 w-3.5" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm ${active ? "text-zinc-200" : "text-zinc-500"}`}>{label}</p>
-        {date && <p className="text-xs text-zinc-500 mt-0.5">{formatDateTime(date)}</p>}
-        {detail && <p className="text-xs text-zinc-400 mt-0.5">{detail}</p>}
+        <p className={`text-sm ${active ? "text-foreground" : "text-muted-foreground"}`}>{label}</p>
+        {date && <p className="text-xs text-muted-foreground mt-0.5">{formatDateTime(date)}</p>}
+        {detail && <p className="text-xs text-muted-foreground mt-0.5">{detail}</p>}
       </div>
     </div>
   );
@@ -118,26 +118,26 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
       <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Sheet */}
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-[#1e2130] bg-[#0f1117] shadow-2xl">
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-border bg-popover shadow-2xl">
         {/* Header */}
-        <div className="flex items-start gap-4 border-b border-[#1e2130] px-6 py-5">
+        <div className="flex items-start gap-4 border-b border-border px-6 py-5">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-base font-bold text-white">
             {getInitials(lead.athlete_name)}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="truncate text-base font-semibold text-zinc-100">
+              <h2 className="truncate text-base font-semibold text-foreground">
                 {lead.athlete_name}
               </h2>
               <LeadStatusBadge classification={lead.qualification_classification} />
             </div>
-            <p className="mt-0.5 text-sm text-zinc-400">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               {lead.position || "—"} {lead.age ? `• ${lead.age} anos` : ""} {lead.school_year ? `• ${lead.school_year}` : ""}
             </p>
             {lead.is_in_pipeline && lead.pipeline_stage && (
               <div className="mt-1 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                <span className="text-xs text-indigo-400 font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="text-xs text-primary font-medium">
                   Pipeline: {DEAL_STAGE_CONFIG[lead.pipeline_stage as DealStage]?.label ?? lead.pipeline_stage}
                 </span>
               </div>
@@ -145,22 +145,22 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/10 hover:text-zinc-300"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-[#1e2130] px-6">
+        <div className="flex border-b border-border px-6">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`px-3 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
                 activeTab === tab.id
-                  ? "border-indigo-500 text-indigo-400"
-                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               {tab.label}
@@ -176,18 +176,18 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
             <>
               {/* Qualificação IA */}
               {lead.qualification_reason && (
-                <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-4">
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="h-4 w-4 text-indigo-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-indigo-400">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold uppercase tracking-wider text-primary">
                       Análise da IA
                     </span>
                   </div>
-                  <p className="text-sm text-zinc-300 leading-relaxed">
+                  <p className="text-sm text-foreground leading-relaxed">
                     {lead.qualification_reason}
                   </p>
                   {lead.qualified_at && (
-                    <p className="mt-2 text-xs text-zinc-500">
+                    <p className="mt-2 text-xs text-muted-foreground">
                       Qualificado em {formatDateTime(lead.qualified_at)}
                     </p>
                   )}
@@ -201,7 +201,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
                     href={whatsappUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600/20 border border-emerald-600/30 py-2.5 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-600/30"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-sys-green/15 border border-sys-green/20 py-2.5 text-sm font-medium text-sys-green transition-colors hover:bg-sys-green/25"
                   >
                     <MessageCircle className="h-4 w-4" />
                     WhatsApp
@@ -209,7 +209,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
                 )}
                 <a
                   href={`mailto:${lead.email}`}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600/20 border border-indigo-600/30 py-2.5 text-sm font-medium text-indigo-400 transition-colors hover:bg-indigo-600/30"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary/15 border border-primary/20 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/25"
                 >
                   <Mail className="h-4 w-4" />
                   E-mail
@@ -218,27 +218,27 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
 
               {/* Info rápida */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3">
-                  <p className="text-xs text-zinc-500">Investimento</p>
-                  <p className="text-sm font-medium text-zinc-200 mt-0.5">
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-xs text-muted-foreground">Investimento</p>
+                  <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.investment_range ? formatInvestmentRange(lead.investment_range) : "—"}
                   </p>
                 </div>
-                <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3">
-                  <p className="text-xs text-zinc-500">Local</p>
-                  <p className="text-sm font-medium text-zinc-200 mt-0.5">
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-xs text-muted-foreground">Local</p>
+                  <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.school_city_state || lead.address_state || "—"}
                   </p>
                 </div>
-                <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3">
-                  <p className="text-xs text-zinc-500">Responsável</p>
-                  <p className="text-sm font-medium text-zinc-200 mt-0.5">
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-xs text-muted-foreground">Responsável</p>
+                  <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.guardian_name || "—"}
                   </p>
                 </div>
-                <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3">
-                  <p className="text-xs text-zinc-500">Profissão</p>
-                  <p className="text-sm font-medium text-zinc-200 mt-0.5">
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-xs text-muted-foreground">Profissão</p>
+                  <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.guardian_profession || "—"}
                   </p>
                 </div>
@@ -248,18 +248,18 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
               {lead.is_in_pipeline && (
                 <Link
                   href="/pipeline"
-                  className="flex items-center justify-between rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-4 py-3 transition-colors hover:bg-indigo-500/15"
+                  className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 transition-colors hover:bg-primary/15"
                 >
                   <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4 text-indigo-400" />
-                    <span className="text-sm font-medium text-indigo-400">Ver no Pipeline</span>
-                    <span className="text-sm text-zinc-300">
+                    <Target className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">Ver no Pipeline</span>
+                    <span className="text-sm text-foreground">
                       {lead.pipeline_stage
                         ? DEAL_STAGE_CONFIG[lead.pipeline_stage as DealStage]?.label
                         : ""}
                     </span>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-indigo-400" />
+                  <ArrowRight className="h-4 w-4 text-primary" />
                 </Link>
               )}
 
@@ -269,16 +269,16 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
                   <SectionTitle>Família ({lead.guardian_name})</SectionTitle>
                   <div className="space-y-2">
                     {lead.siblings.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2">
+                      <div key={s.id} className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2">
                         <div>
-                          <p className="text-sm text-zinc-200">{s.nome}</p>
-                          {s.esporte && <p className="text-xs text-zinc-500">{s.esporte}</p>}
+                          <p className="text-sm text-foreground">{s.nome}</p>
+                          {s.esporte && <p className="text-xs text-muted-foreground">{s.esporte}</p>}
                         </div>
                         {s.classificacao && (
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            s.classificacao === "hot" ? "bg-emerald-500/15 text-emerald-400" :
-                            s.classificacao === "warm" ? "bg-amber-500/15 text-amber-400" :
-                            "bg-blue-500/15 text-blue-400"
+                            s.classificacao === "hot" ? "bg-lead-hot/15 text-lead-hot" :
+                            s.classificacao === "warm" ? "bg-lead-warm/15 text-lead-warm" :
+                            "bg-lead-cold/15 text-lead-cold"
                           }`}>
                             {s.classificacao === "hot" ? "HOT" : s.classificacao === "warm" ? "WARM" : "COLD"}
                           </span>
@@ -296,7 +296,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
             <>
               <div>
                 <SectionTitle>Atleta</SectionTitle>
-                <div className="divide-y divide-[#1e2130]">
+                <div className="divide-y divide-border">
                   <DataRow label="E-mail" value={lead.email} />
                   <DataRow label="WhatsApp" value={lead.athlete_whatsapp ? formatPhone(lead.athlete_whatsapp) : null} />
                   <DataRow label="Nascimento" value={lead.birth_date ? formatDate(lead.birth_date) : null} />
@@ -305,16 +305,16 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
                   <DataRow label="Conquistas" value={lead.achievements} />
                   {lead.instagram && (
                     <div className="flex items-center justify-between gap-4 py-1.5 text-sm">
-                      <span className="text-zinc-500">Instagram</span>
-                      <a href={`https://instagram.com/${lead.instagram.replace("@", "")}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300">
+                      <span className="text-muted-foreground">Instagram</span>
+                      <a href={`https://instagram.com/${lead.instagram.replace("@", "")}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:text-primary/80">
                         <Instagram className="h-3.5 w-3.5" />{lead.instagram}
                       </a>
                     </div>
                   )}
                   {lead.video_highlights && (
                     <div className="flex items-center justify-between gap-4 py-1.5 text-sm">
-                      <span className="text-zinc-500">Vídeo</span>
-                      <a href={lead.video_highlights} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300">
+                      <span className="text-muted-foreground">Vídeo</span>
+                      <a href={lead.video_highlights} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:text-primary/80">
                         <Video className="h-3.5 w-3.5" />Ver highlights
                       </a>
                     </div>
@@ -324,7 +324,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
 
               <div>
                 <SectionTitle>Educação</SectionTitle>
-                <div className="divide-y divide-[#1e2130]">
+                <div className="divide-y divide-border">
                   <DataRow label="Série" value={lead.school_year} />
                   <DataRow label="Escola" value={lead.current_school} />
                   <DataRow label="Cidade / Estado" value={lead.school_city_state} />
@@ -336,7 +336,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
 
               <div>
                 <SectionTitle>Projeto</SectionTitle>
-                <div className="divide-y divide-[#1e2130]">
+                <div className="divide-y divide-border">
                   <DataRow label="Início pretendido" value={lead.start_timing} />
                   <DataRow label="Direção" value={lead.project_direction} />
                   <DataRow label="Investimento" value={lead.investment_range ? formatInvestmentRange(lead.investment_range) : null} />
@@ -348,7 +348,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
 
               <div>
                 <SectionTitle>Responsável Financeiro</SectionTitle>
-                <div className="divide-y divide-[#1e2130]">
+                <div className="divide-y divide-border">
                   <DataRow label="Nome" value={lead.guardian_name} />
                   <DataRow label="Profissão" value={lead.guardian_profession} />
                   <DataRow label="E-mail" value={lead.guardian_email} />
@@ -359,7 +359,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
               {(lead.address_city || lead.address_state) && (
                 <div>
                   <SectionTitle>Endereço</SectionTitle>
-                  <div className="divide-y divide-[#1e2130]">
+                  <div className="divide-y divide-border">
                     <DataRow
                       label="Logradouro"
                       value={lead.address_street ? `${lead.address_street}, ${lead.address_number}${lead.address_complement ? ` - ${lead.address_complement}` : ""}` : null}
@@ -375,7 +375,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
               {(lead.utm_source || lead.cta_source || lead.device_type) && (
                 <div>
                   <SectionTitle>Origem do Lead</SectionTitle>
-                  <div className="divide-y divide-[#1e2130]">
+                  <div className="divide-y divide-border">
                     <DataRow label="Fonte" value={lead.utm_source} />
                     <DataRow label="Meio" value={lead.utm_medium} />
                     <DataRow label="Campanha" value={lead.utm_campaign} />
@@ -388,7 +388,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
               {lead.notes && (
                 <div>
                   <SectionTitle>Notas Internas</SectionTitle>
-                  <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3 text-sm text-zinc-300 whitespace-pre-wrap">
+                  <div className="rounded-lg border border-border bg-card p-3 text-sm text-foreground whitespace-pre-wrap">
                     {lead.notes}
                   </div>
                 </div>
@@ -428,22 +428,22 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
 
                 <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 ${
                   lead.meeting_scheduled
-                    ? "bg-emerald-500/10 border border-emerald-500/20"
-                    : "bg-zinc-800/50"
+                    ? "bg-sys-green/10 border border-sys-green/20"
+                    : "bg-secondary/50"
                 }`}>
                   <div className="flex items-center gap-2 text-sm">
-                    <Calendar className={`h-3.5 w-3.5 ${lead.meeting_scheduled ? "text-emerald-400" : "text-zinc-500"}`} />
-                    <span className={lead.meeting_scheduled ? "text-emerald-400 font-medium" : "text-zinc-400"}>
+                    <Calendar className={`h-3.5 w-3.5 ${lead.meeting_scheduled ? "text-sys-green" : "text-muted-foreground"}`} />
+                    <span className={lead.meeting_scheduled ? "text-sys-green font-medium" : "text-muted-foreground"}>
                       Reunião Agendada
                     </span>
                   </div>
                   {lead.meeting_scheduled ? (
-                    <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
+                    <div className="flex items-center gap-1.5 text-sys-green text-xs font-medium">
                       <Check className="h-3.5 w-3.5" />
                       {lead.meeting_scheduled_at ? formatDate(lead.meeting_scheduled_at) : "Sim"}
                     </div>
                   ) : (
-                    <span className="text-xs text-zinc-600">Aguardando</span>
+                    <span className="text-xs text-label-tertiary">Aguardando</span>
                   )}
                 </div>
               </div>
@@ -457,7 +457,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
                       href={whatsappUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600/20 border border-emerald-600/30 py-2.5 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-600/30"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-sys-green/15 border border-sys-green/20 py-2.5 text-sm font-medium text-sys-green transition-colors hover:bg-sys-green/25"
                     >
                       <MessageCircle className="h-4 w-4" />
                       Abrir WhatsApp do Responsável
@@ -465,7 +465,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
                   )}
                   <a
                     href={`mailto:${lead.email}`}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600/20 border border-indigo-600/30 py-2.5 text-sm font-medium text-indigo-400 transition-colors hover:bg-indigo-600/30"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary/15 border border-primary/20 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/25"
                   >
                     <Mail className="h-4 w-4" />
                     Enviar E-mail

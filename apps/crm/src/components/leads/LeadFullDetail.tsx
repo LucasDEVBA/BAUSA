@@ -64,9 +64,9 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 const CLASSIFICATION_COLORS = {
-  QUENTE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  MORNO: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  FRIO: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  QUENTE: "bg-lead-hot/15 text-lead-hot border-lead-hot/20",
+  MORNO: "bg-lead-warm/15 text-lead-warm border-lead-warm/20",
+  FRIO: "bg-lead-cold/15 text-lead-cold border-lead-cold/20",
 } as const;
 
 const LEAD_SCORE_INFO =
@@ -98,7 +98,7 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
       {children}
     </h4>
   );
@@ -108,17 +108,17 @@ function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
   return (
     <div className="flex items-start justify-between gap-4 py-2 text-sm">
-      <span className="flex-shrink-0 text-zinc-500">{label}</span>
-      <span className="text-right text-zinc-200">{value}</span>
+      <span className="flex-shrink-0 text-muted-foreground">{label}</span>
+      <span className="text-right text-foreground">{value}</span>
     </div>
   );
 }
 
 function InfoCard({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-4">
-      <p className="text-xs text-zinc-500">{label}</p>
-      <p className="text-sm font-medium text-zinc-200 mt-1">{value ?? "---"}</p>
+    <div className="rounded-xl border border-border bg-card p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm font-medium text-foreground mt-1">{value ?? "---"}</p>
     </div>
   );
 }
@@ -141,27 +141,27 @@ function CommunicationStep({
       className={cn(
         "flex items-center justify-between rounded-xl border px-5 py-4",
         done
-          ? "border-emerald-500/20 bg-emerald-500/5"
+          ? "border-sys-green/20 bg-sys-green/5"
           : disabled
-            ? "border-[#1e2130] bg-zinc-900/30 opacity-50"
-            : "border-[#1e2130] bg-[#141720]",
+            ? "border-border bg-secondary/30 opacity-50"
+            : "border-border bg-card",
       )}
     >
       <div className="flex items-center gap-3 text-sm">
-        <span className={done ? "text-emerald-400" : "text-zinc-500"}>
+        <span className={done ? "text-sys-green" : "text-muted-foreground"}>
           {icon}
         </span>
-        <span className={done ? "text-zinc-200 font-medium" : "text-zinc-400"}>
+        <span className={done ? "text-foreground font-medium" : "text-muted-foreground"}>
           {label}
         </span>
       </div>
       {done ? (
-        <div className="flex items-center gap-2 text-emerald-400 text-xs font-medium">
+        <div className="flex items-center gap-2 text-sys-green text-xs font-medium">
           <Check className="h-4 w-4" />
           {date ? formatDate(date) : "Enviado"}
         </div>
       ) : (
-        <span className="text-xs text-zinc-600">
+        <span className="text-xs text-label-tertiary">
           {disabled ? "---" : "Pendente"}
         </span>
       )}
@@ -188,34 +188,34 @@ function TimelineEvent({
         <div
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-full",
-            active ? "bg-indigo-500/20" : "bg-[#1e2130]",
+            active ? "bg-primary/20" : "bg-secondary",
           )}
         >
           <Icon
             className={cn(
               "h-4 w-4",
-              active ? "text-indigo-400" : "text-zinc-600",
+              active ? "text-primary" : "text-label-tertiary",
             )}
           />
         </div>
-        <div className="w-px flex-1 bg-[#1e2130]" />
+        <div className="w-px flex-1 bg-border" />
       </div>
       <div className="pb-6">
         <p
           className={cn(
             "text-sm font-medium",
-            active ? "text-zinc-200" : "text-zinc-500",
+            active ? "text-foreground" : "text-muted-foreground",
           )}
         >
           {label}
         </p>
         {date && (
-          <p className="text-xs text-zinc-500 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             {formatDateTime(date)}
           </p>
         )}
         {detail && (
-          <p className="text-xs text-zinc-400 mt-1 inline-block rounded-md bg-[#141720] px-2 py-1">
+          <p className="text-xs text-muted-foreground mt-1 inline-block rounded-md bg-card px-2 py-1">
             {detail}
           </p>
         )}
@@ -227,16 +227,16 @@ function TimelineEvent({
 function ScoreBar({ score }: { score: number }) {
   const color =
     score >= 80
-      ? "bg-emerald-500"
+      ? "bg-sys-green"
       : score >= 60
-        ? "bg-amber-500"
+        ? "bg-sys-orange"
         : score >= 40
-          ? "bg-orange-500"
-          : "bg-red-500";
+          ? "bg-sys-yellow"
+          : "bg-sys-red";
 
   return (
     <div className="flex items-center gap-3">
-      <div className="flex-1 h-2.5 rounded-full bg-[#1e2130] overflow-hidden">
+      <div className="flex-1 h-2.5 rounded-full bg-secondary overflow-hidden">
         <div
           className={cn(
             "h-full rounded-full transition-all duration-500",
@@ -245,7 +245,7 @@ function ScoreBar({ score }: { score: number }) {
           style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
         />
       </div>
-      <span className="text-sm font-bold text-zinc-100 tabular-nums w-8 text-right">
+      <span className="text-sm font-bold text-foreground tabular-nums w-8 text-right">
         {score}
       </span>
     </div>
@@ -257,7 +257,7 @@ function renderNoteWithMentions(text: string): React.ReactNode {
   return parts.map((part, i) => {
     if (part.startsWith("@")) {
       return (
-        <span key={i} className="font-semibold text-indigo-400">
+        <span key={i} className="font-semibold text-primary">
           {part}
         </span>
       );
@@ -269,7 +269,7 @@ function renderNoteWithMentions(text: string): React.ReactNode {
 function getAuditColor(log: AuditLog): string {
   const campos = log.campos_alterados ?? [];
   if (campos.some((c) => c === "etapa" || c === "etapa_anterior"))
-    return "text-indigo-400";
+    return "text-primary";
   if (
     campos.some(
       (c) =>
@@ -279,14 +279,14 @@ function getAuditColor(log: AuditLog): string {
         c.includes("sinal"),
     )
   )
-    return "text-emerald-400";
-  return "text-blue-400";
+    return "text-sys-green";
+  return "text-sys-blue";
 }
 
 function getAuditBg(log: AuditLog): string {
   const campos = log.campos_alterados ?? [];
   if (campos.some((c) => c === "etapa" || c === "etapa_anterior"))
-    return "bg-indigo-500/20";
+    return "bg-primary/20";
   if (
     campos.some(
       (c) =>
@@ -296,8 +296,8 @@ function getAuditBg(log: AuditLog): string {
         c.includes("sinal"),
     )
   )
-    return "bg-emerald-500/20";
-  return "bg-blue-500/20";
+    return "bg-sys-green/20";
+  return "bg-sys-blue/20";
 }
 
 // ─── Sub-sections ────────────────────────────────────────────────
@@ -336,12 +336,12 @@ function NotesSection({ dealId }: { dealId: string }) {
   if (!loaded) {
     return (
       <div className="flex flex-col items-center gap-3 py-8">
-        <MessageCircle className="h-8 w-8 text-zinc-600" />
-        <p className="text-sm text-zinc-500">Notas internas do deal</p>
+        <MessageCircle className="h-8 w-8 text-label-tertiary" />
+        <p className="text-sm text-muted-foreground">Notas internas do deal</p>
         <button
           onClick={loadNotes}
           disabled={isPendingNotes}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600/20 px-4 py-2 text-xs font-medium text-indigo-300 hover:bg-indigo-600/30 transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-primary/15 px-4 py-2 text-xs font-medium text-primary hover:bg-primary/25 transition-colors"
         >
           {isPendingNotes ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -378,10 +378,10 @@ function NotesSection({ dealId }: { dealId: string }) {
           }}
           placeholder="Escrever nota interna... (use @ para mencionar)"
           rows={3}
-          className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-indigo-500/40 resize-none"
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary/40 resize-none"
         />
         {showMentionDropdown && (
-          <div className="absolute left-0 bottom-full mb-1 z-10 w-56 rounded-lg border border-[#1e2130] bg-[#0f1117] shadow-xl overflow-hidden">
+          <div className="absolute left-0 bottom-full mb-1 z-10 w-56 rounded-xl border border-border bg-popover shadow-lg overflow-hidden">
             {TEAM_MEMBERS.filter((m) =>
               m.nome.toLowerCase().includes(mentionFilter),
             ).map((member) => (
@@ -399,16 +399,16 @@ function NotesSection({ dealId }: { dealId: string }) {
                   }
                   setShowMentionDropdown(false);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:bg-indigo-600/20 hover:text-indigo-300 transition-colors"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-primary/15 hover:text-primary transition-colors"
               >
-                <User className="h-3.5 w-3.5 text-zinc-500" />
+                <User className="h-3.5 w-3.5 text-muted-foreground" />
                 {member.nome}
               </button>
             ))}
             {TEAM_MEMBERS.filter((m) =>
               m.nome.toLowerCase().includes(mentionFilter),
             ).length === 0 && (
-              <p className="px-3 py-2 text-xs text-zinc-600">
+              <p className="px-3 py-2 text-xs text-label-tertiary">
                 Nenhum usuario encontrado
               </p>
             )}
@@ -417,7 +417,7 @@ function NotesSection({ dealId }: { dealId: string }) {
         <button
           onClick={handleSubmit}
           disabled={isPendingNotes || !newNote.trim()}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
         >
           {isPendingNotes ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -430,7 +430,7 @@ function NotesSection({ dealId }: { dealId: string }) {
 
       {/* List */}
       {notes.length === 0 ? (
-        <p className="text-sm text-zinc-600 text-center py-4">
+        <p className="text-sm text-label-tertiary text-center py-4">
           Nenhuma nota ainda.
         </p>
       ) : (
@@ -438,13 +438,13 @@ function NotesSection({ dealId }: { dealId: string }) {
           {notes.map((n) => (
             <div
               key={n.id}
-              className="rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3"
+              className="rounded-xl border border-border bg-card px-4 py-3"
             >
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-indigo-400">
+                <p className="text-xs font-semibold text-primary">
                   {(n.autor as unknown as { nome: string })?.nome ?? "Usuario"}
                 </p>
-                <p className="text-[10px] text-zinc-600">
+                <p className="text-[10px] text-label-tertiary">
                   {new Date(n.created_at).toLocaleDateString("pt-BR", {
                     day: "2-digit",
                     month: "2-digit",
@@ -454,7 +454,7 @@ function NotesSection({ dealId }: { dealId: string }) {
                   })}
                 </p>
               </div>
-              <p className="text-sm text-zinc-300 whitespace-pre-wrap">
+              <p className="text-sm text-foreground whitespace-pre-wrap">
                 {renderNoteWithMentions(n.conteudo)}
               </p>
             </div>
@@ -486,14 +486,14 @@ function AuditTrailSection({
 
   if (!loaded) {
     return (
-      <div className="border-t border-[#1e2130] pt-5 mt-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 mb-3">
+      <div className="border-t border-border pt-5 mt-6">
+        <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3">
           Alteracoes registradas (Audit Trail)
         </p>
         <button
           onClick={loadAuditLogs}
           disabled={isPendingAudit}
-          className="flex items-center gap-2 rounded-lg bg-blue-600/20 px-4 py-2 text-xs font-medium text-blue-300 hover:bg-blue-600/30 transition-colors"
+          className="flex items-center gap-2 rounded-md bg-sys-blue/15 px-4 py-2 text-xs font-medium text-sys-blue hover:bg-sys-blue/25 transition-colors"
         >
           {isPendingAudit ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -508,11 +508,11 @@ function AuditTrailSection({
 
   if (logs.length === 0) {
     return (
-      <div className="border-t border-[#1e2130] pt-5 mt-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 mb-3">
+      <div className="border-t border-border pt-5 mt-6">
+        <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3">
           Alteracoes registradas
         </p>
-        <p className="text-xs text-zinc-600 text-center py-4">
+        <p className="text-xs text-label-tertiary text-center py-4">
           Nenhuma alteracao registrada.
         </p>
       </div>
@@ -520,8 +520,8 @@ function AuditTrailSection({
   }
 
   return (
-    <div className="border-t border-[#1e2130] pt-5 mt-6">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 mb-3">
+    <div className="border-t border-border pt-5 mt-6">
+      <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3">
         Alteracoes registradas ({logs.length})
       </p>
       <div className="space-y-2">
@@ -533,7 +533,7 @@ function AuditTrailSection({
           return (
             <div
               key={log.id}
-              className="rounded-xl border border-[#1e2130] bg-[#141720] px-4 py-3"
+              className="rounded-xl border border-border bg-card px-4 py-3"
             >
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
@@ -553,11 +553,11 @@ function AuditTrailSection({
                   >
                     {log.operacao}
                   </span>
-                  <span className="text-[10px] text-zinc-600">
+                  <span className="text-[10px] text-label-tertiary">
                     {log.tabela}
                   </span>
                 </div>
-                <span className="text-[10px] text-zinc-600">
+                <span className="text-[10px] text-label-tertiary">
                   {new Date(log.created_at).toLocaleDateString("pt-BR", {
                     day: "2-digit",
                     month: "2-digit",
@@ -575,20 +575,20 @@ function AuditTrailSection({
                     const fieldLabel =
                       AUDIT_FIELD_LABELS[campo] ?? campo;
                     return (
-                      <p key={campo} className="text-xs text-zinc-400">
-                        <span className="font-medium text-zinc-300">
+                      <p key={campo} className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
                           {fieldLabel}
                         </span>
                         {anterior != null && (
-                          <span className="text-zinc-600">
+                          <span className="text-label-tertiary">
                             {" "}
                             de{" "}
-                            <span className="text-red-400/70">
+                            <span className="text-sys-red/70">
                               {String(anterior)}
                             </span>
                           </span>
                         )}
-                        <span className="text-zinc-600"> para </span>
+                        <span className="text-label-tertiary"> para </span>
                         <span className={color}>
                           {String(novo ?? "---")}
                         </span>
@@ -598,10 +598,10 @@ function AuditTrailSection({
                 </div>
               )}
               {log.operacao === "INSERT" && (
-                <p className="text-xs text-zinc-500">Registro criado</p>
+                <p className="text-xs text-muted-foreground">Registro criado</p>
               )}
               {log.operacao === "DELETE" && (
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-muted-foreground">
                   Registro removido (soft delete)
                 </p>
               )}
@@ -624,7 +624,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
 
   const classColors = lead.qualification_classification
     ? CLASSIFICATION_COLORS[lead.qualification_classification]
-    : "bg-zinc-500/10 text-zinc-400 border-zinc-500/20";
+    : "bg-secondary text-muted-foreground border-border";
 
   // Lock body scroll when the modal is open
   useEffect(() => {
@@ -650,14 +650,14 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative z-10 flex flex-col w-full max-w-5xl h-[90vh] rounded-2xl border border-[#1e2130] bg-[#0c0e14] shadow-2xl overflow-hidden">
+      <div className="relative z-10 flex flex-col w-full max-w-5xl h-[90vh] rounded-2xl border border-border bg-background shadow-2xl overflow-hidden">
       {/* ── Header ── */}
-      <div className="sticky top-0 z-10 flex-shrink-0 border-b border-[#1e2130] bg-[#0c0e14] px-6 py-4">
+      <div className="sticky top-0 z-10 flex-shrink-0 border-b border-border bg-background px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center gap-4">
           {/* Back button */}
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200"
+            className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
             Voltar
@@ -665,12 +665,12 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
 
           {/* Avatar + Name + Badge */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-sm font-bold text-white">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-sm font-bold text-primary-foreground">
               {getInitials(lead.athlete_name)}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="truncate text-lg font-semibold text-zinc-100">
+                <h1 className="truncate text-lg font-semibold text-foreground">
                   {lead.athlete_name}
                 </h1>
                 <LeadStatusBadge
@@ -680,7 +680,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   <span
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                      "bg-indigo-500/10 text-indigo-300 border border-indigo-500/20",
+                      "bg-primary/10 text-primary border border-primary/20",
                     )}
                   >
                     <span
@@ -695,7 +695,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-muted-foreground">
                 {lead.position || "---"}{" "}
                 {lead.age ? `| ${lead.age} anos` : ""}{" "}
                 {lead.school_year ? `| ${lead.school_year}` : ""}
@@ -710,7 +710,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 border border-emerald-600/30 px-3 py-2 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-600/30"
+                className="flex items-center gap-1.5 rounded-md bg-sys-green/15 border border-sys-green/20 px-3 py-2 text-xs font-medium text-sys-green transition-colors hover:bg-sys-green/25"
               >
                 <MessageCircle className="h-3.5 w-3.5" />
                 WhatsApp
@@ -718,7 +718,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
             )}
             <a
               href={`mailto:${lead.email}`}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600/20 border border-indigo-600/30 px-3 py-2 text-xs font-medium text-indigo-400 transition-colors hover:bg-indigo-600/30"
+              className="flex items-center gap-1.5 rounded-md bg-primary/15 border border-primary/20 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/25"
             >
               <Mail className="h-3.5 w-3.5" />
               E-mail
@@ -728,7 +728,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
           {/* Close */}
           <button
             onClick={onClose}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/10 hover:text-zinc-300"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label="Fechar"
           >
             <X className="h-4 w-4" />
@@ -737,7 +737,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
       </div>
 
       {/* ── Tab Bar ── */}
-      <div className="sticky top-[73px] z-10 flex-shrink-0 border-b border-[#1e2130] bg-[#0c0e14]">
+      <div className="sticky top-[73px] z-10 flex-shrink-0 border-b border-border bg-background">
         <div className="mx-auto flex max-w-6xl gap-1 px-6 overflow-x-auto">
           {TABS.map((tab) => (
             <button
@@ -746,8 +746,8 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
               className={cn(
                 "whitespace-nowrap px-4 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px",
                 activeTab === tab.id
-                  ? "border-indigo-500 text-indigo-400"
-                  : "border-transparent text-zinc-500 hover:text-zinc-300",
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               {tab.label}
@@ -766,23 +766,23 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
               <div className="space-y-6 lg:col-span-3">
                 {/* Qualificacao IA */}
                 {lead.qualification_reason && (
-                  <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-5">
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
                     <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="h-4 w-4 text-indigo-400" />
-                      <span className="text-xs font-semibold uppercase tracking-wider text-indigo-400">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-primary">
                         Analise da IA
                       </span>
                       {lead.qualification_confidence && (
-                        <span className="ml-auto text-[10px] text-zinc-500">
+                        <span className="ml-auto text-[10px] text-muted-foreground">
                           Confianca: {lead.qualification_confidence}
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-zinc-300 leading-relaxed">
+                    <p className="text-sm text-foreground leading-relaxed">
                       {lead.qualification_reason}
                     </p>
                     {lead.qualified_at && (
-                      <p className="mt-2 text-xs text-zinc-500">
+                      <p className="mt-2 text-xs text-muted-foreground">
                         Qualificado em {formatDateTime(lead.qualified_at)}
                       </p>
                     )}
@@ -826,30 +826,30 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {/* Responsavel card */}
-                <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                <div className="rounded-xl border border-border bg-card p-5">
                   <SectionTitle>Responsavel Financeiro</SectionTitle>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-xs text-zinc-500">Nome</p>
-                      <p className="text-zinc-200 mt-0.5">
+                      <p className="text-xs text-muted-foreground">Nome</p>
+                      <p className="text-foreground mt-0.5">
                         {lead.guardian_name || "---"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-zinc-500">Profissao</p>
-                      <p className="text-zinc-200 mt-0.5">
+                      <p className="text-xs text-muted-foreground">Profissao</p>
+                      <p className="text-foreground mt-0.5">
                         {lead.guardian_profession || "---"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-zinc-500">E-mail</p>
-                      <p className="text-zinc-200 mt-0.5">
+                      <p className="text-xs text-muted-foreground">E-mail</p>
+                      <p className="text-foreground mt-0.5">
                         {lead.guardian_email || "---"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-zinc-500">WhatsApp</p>
-                      <p className="text-zinc-200 mt-0.5">
+                      <p className="text-xs text-muted-foreground">WhatsApp</p>
+                      <p className="text-foreground mt-0.5">
                         {lead.guardian_whatsapp
                           ? formatPhone(lead.guardian_whatsapp)
                           : "---"}
@@ -860,7 +860,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
 
                 {/* Siblings */}
                 {lead.siblings && lead.siblings.length > 0 && (
-                  <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                  <div className="rounded-xl border border-border bg-card p-5">
                     <SectionTitle>
                       Familia ({lead.guardian_name})
                     </SectionTitle>
@@ -868,12 +868,12 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                       {lead.siblings.map((s) => (
                         <div
                           key={s.id}
-                          className="flex items-center justify-between rounded-lg border border-[#1e2130] bg-[#0c0e14] px-3 py-2"
+                          className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
                         >
                           <div>
-                            <p className="text-sm text-zinc-200">{s.nome}</p>
+                            <p className="text-sm text-foreground">{s.nome}</p>
                             {s.esporte && (
-                              <p className="text-xs text-zinc-500">
+                              <p className="text-xs text-muted-foreground">
                                 {s.esporte}
                               </p>
                             )}
@@ -883,10 +883,10 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                               className={cn(
                                 "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
                                 s.classificacao === "hot"
-                                  ? "bg-emerald-500/15 text-emerald-400"
+                                  ? "bg-lead-hot/15 text-lead-hot"
                                   : s.classificacao === "warm"
-                                    ? "bg-amber-500/15 text-amber-400"
-                                    : "bg-blue-500/15 text-blue-400",
+                                    ? "bg-lead-warm/15 text-lead-warm"
+                                    : "bg-lead-cold/15 text-lead-cold",
                               )}
                             >
                               {s.classificacao === "hot"
@@ -909,14 +909,14 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 {lead.is_in_pipeline && (
                   <Link
                     href="/pipeline"
-                    className="flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-5 py-4 transition-colors hover:bg-indigo-500/15"
+                    className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/10 px-5 py-4 transition-colors hover:bg-primary/15"
                   >
                     <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-indigo-400" />
-                      <span className="text-sm font-medium text-indigo-400">
+                      <Target className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium text-primary">
                         Ver no Pipeline
                       </span>
-                      <span className="text-sm text-zinc-300">
+                      <span className="text-sm text-foreground">
                         {lead.pipeline_stage
                           ? DEAL_STAGE_CONFIG[
                               lead.pipeline_stage as DealStage
@@ -924,7 +924,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                           : ""}
                       </span>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-indigo-400" />
+                    <ArrowRight className="h-4 w-4 text-primary" />
                   </Link>
                 )}
 
@@ -935,7 +935,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                       href={whatsappUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600/20 border border-emerald-600/30 py-2.5 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-600/30"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-sys-green/15 border border-sys-green/20 py-2.5 text-sm font-medium text-sys-green transition-colors hover:bg-sys-green/25"
                     >
                       <MessageCircle className="h-4 w-4" />
                       WhatsApp
@@ -943,7 +943,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   )}
                   <a
                     href={`mailto:${lead.email}`}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600/20 border border-indigo-600/30 py-2.5 text-sm font-medium text-indigo-400 transition-colors hover:bg-indigo-600/30"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary/15 border border-primary/20 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/25"
                   >
                     <Mail className="h-4 w-4" />
                     E-mail
@@ -951,53 +951,53 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {/* Communication summary */}
-                <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                <div className="rounded-xl border border-border bg-card p-5">
                   <SectionTitle>Comunicacao</SectionTitle>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-500">WhatsApp Inicial</span>
+                      <span className="text-muted-foreground">WhatsApp Inicial</span>
                       {lead.whatsapp_sent_at ? (
-                        <span className="text-emerald-400 text-xs font-medium flex items-center gap-1">
+                        <span className="text-sys-green text-xs font-medium flex items-center gap-1">
                           <Check className="h-3 w-3" />
                           {formatDate(lead.whatsapp_sent_at)}
                         </span>
                       ) : (
-                        <span className="text-zinc-600 text-xs">Pendente</span>
+                        <span className="text-label-tertiary text-xs">Pendente</span>
                       )}
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-500">Follow-up 1</span>
+                      <span className="text-muted-foreground">Follow-up 1</span>
                       {lead.followup_1_sent_at ? (
-                        <span className="text-emerald-400 text-xs font-medium flex items-center gap-1">
+                        <span className="text-sys-green text-xs font-medium flex items-center gap-1">
                           <Check className="h-3 w-3" />
                           {formatDate(lead.followup_1_sent_at)}
                         </span>
                       ) : (
-                        <span className="text-zinc-600 text-xs">---</span>
+                        <span className="text-label-tertiary text-xs">---</span>
                       )}
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-500">Follow-up 2</span>
+                      <span className="text-muted-foreground">Follow-up 2</span>
                       {lead.followup_2_sent_at ? (
-                        <span className="text-emerald-400 text-xs font-medium flex items-center gap-1">
+                        <span className="text-sys-green text-xs font-medium flex items-center gap-1">
                           <Check className="h-3 w-3" />
                           {formatDate(lead.followup_2_sent_at)}
                         </span>
                       ) : (
-                        <span className="text-zinc-600 text-xs">---</span>
+                        <span className="text-label-tertiary text-xs">---</span>
                       )}
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-500">Reuniao</span>
+                      <span className="text-muted-foreground">Reuniao</span>
                       {lead.meeting_scheduled ? (
-                        <span className="text-emerald-400 text-xs font-medium flex items-center gap-1">
+                        <span className="text-sys-green text-xs font-medium flex items-center gap-1">
                           <Check className="h-3 w-3" />
                           {lead.meeting_scheduled_at
                             ? formatDate(lead.meeting_scheduled_at)
                             : "Sim"}
                         </span>
                       ) : (
-                        <span className="text-zinc-600 text-xs">
+                        <span className="text-label-tertiary text-xs">
                           Aguardando
                         </span>
                       )}
@@ -1006,26 +1006,26 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {/* Received date */}
-                <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                <div className="rounded-xl border border-border bg-card p-5">
                   <SectionTitle>Detalhes</SectionTitle>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-zinc-500">Recebido em</span>
-                      <span className="text-zinc-200">
+                      <span className="text-muted-foreground">Recebido em</span>
+                      <span className="text-foreground">
                         {lead.submitted_at
                           ? formatDateTime(lead.submitted_at)
                           : "---"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-zinc-500">E-mail</span>
-                      <span className="text-zinc-200">{lead.email}</span>
+                      <span className="text-muted-foreground">E-mail</span>
+                      <span className="text-foreground">{lead.email}</span>
                     </div>
                     {lead.address_country &&
                       lead.address_country !== "BR" && (
                         <div className="flex items-center justify-between">
-                          <span className="text-zinc-500">Pais</span>
-                          <span className="text-zinc-200">
+                          <span className="text-muted-foreground">Pais</span>
+                          <span className="text-foreground">
                             {lead.address_country}
                           </span>
                         </div>
@@ -1040,9 +1040,9 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
           {activeTab === "dados" && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div className="space-y-6">
-                <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                <div className="rounded-xl border border-border bg-card p-5">
                   <SectionTitle>Atleta</SectionTitle>
-                  <div className="divide-y divide-[#1e2130]">
+                  <div className="divide-y divide-border">
                     <DataRow label="Nome" value={lead.athlete_name} />
                     <DataRow label="E-mail" value={lead.email} />
                     <DataRow
@@ -1067,12 +1067,12 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                     <DataRow label="Conquistas" value={lead.achievements} />
                     {lead.instagram && (
                       <div className="flex items-center justify-between gap-4 py-2 text-sm">
-                        <span className="text-zinc-500">Instagram</span>
+                        <span className="text-muted-foreground">Instagram</span>
                         <a
                           href={`https://instagram.com/${lead.instagram.replace("@", "")}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300"
+                          className="flex items-center gap-1 text-primary hover:text-primary/80"
                         >
                           <Instagram className="h-3.5 w-3.5" />
                           {lead.instagram}
@@ -1081,12 +1081,12 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                     )}
                     {lead.video_highlights && (
                       <div className="flex items-center justify-between gap-4 py-2 text-sm">
-                        <span className="text-zinc-500">Video</span>
+                        <span className="text-muted-foreground">Video</span>
                         <a
                           href={lead.video_highlights}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300"
+                          className="flex items-center gap-1 text-primary hover:text-primary/80"
                         >
                           <Video className="h-3.5 w-3.5" />
                           Ver highlights
@@ -1096,9 +1096,9 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                <div className="rounded-xl border border-border bg-card p-5">
                   <SectionTitle>Educacao</SectionTitle>
-                  <div className="divide-y divide-[#1e2130]">
+                  <div className="divide-y divide-border">
                     <DataRow label="Serie" value={lead.school_year} />
                     <DataRow label="Escola" value={lead.current_school} />
                     <DataRow
@@ -1114,9 +1114,9 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                <div className="rounded-xl border border-border bg-card p-5">
                   <SectionTitle>Responsavel Financeiro</SectionTitle>
-                  <div className="divide-y divide-[#1e2130]">
+                  <div className="divide-y divide-border">
                     <DataRow label="Nome" value={lead.guardian_name} />
                     <DataRow
                       label="Profissao"
@@ -1136,9 +1136,9 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
               </div>
 
               <div className="space-y-6">
-                <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                <div className="rounded-xl border border-border bg-card p-5">
                   <SectionTitle>Projeto</SectionTitle>
-                  <div className="divide-y divide-[#1e2130]">
+                  <div className="divide-y divide-border">
                     <DataRow
                       label="Inicio pretendido"
                       value={lead.start_timing}
@@ -1171,9 +1171,9 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {(lead.address_city || lead.address_state) && (
-                  <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                  <div className="rounded-xl border border-border bg-card p-5">
                     <SectionTitle>Endereco</SectionTitle>
-                    <div className="divide-y divide-[#1e2130]">
+                    <div className="divide-y divide-border">
                       <DataRow
                         label="Logradouro"
                         value={
@@ -1209,9 +1209,9 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 )}
 
                 {(lead.utm_source || lead.referrer_url || lead.cta_source || lead.device_type) && (
-                  <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                  <div className="rounded-xl border border-border bg-card p-5">
                     <SectionTitle>Origem do Lead</SectionTitle>
-                    <div className="divide-y divide-[#1e2130]">
+                    <div className="divide-y divide-border">
                       <DataRow label="UTM Source" value={lead.utm_source} />
                       <DataRow label="UTM Medium" value={lead.utm_medium} />
                       <DataRow label="UTM Campaign" value={lead.utm_campaign} />
@@ -1232,9 +1232,9 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 )}
 
                 {lead.notes && (
-                  <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
+                  <div className="rounded-xl border border-border bg-card p-5">
                     <SectionTitle>Notas Internas</SectionTitle>
-                    <div className="rounded-lg border border-[#1e2130] bg-[#0c0e14] p-3 text-sm text-zinc-300 whitespace-pre-wrap">
+                    <div className="rounded-lg border border-border bg-background p-3 text-sm text-foreground whitespace-pre-wrap">
                       {lead.notes}
                     </div>
                   </div>
@@ -1276,8 +1276,8 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   className={cn(
                     "flex items-center justify-between rounded-xl border px-5 py-4",
                     lead.meeting_scheduled
-                      ? "border-emerald-500/20 bg-emerald-500/10"
-                      : "border-[#1e2130] bg-[#141720]",
+                      ? "border-sys-green/20 bg-sys-green/10"
+                      : "border-border bg-card",
                   )}
                 >
                   <div className="flex items-center gap-3 text-sm">
@@ -1285,29 +1285,29 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                       className={cn(
                         "h-4 w-4",
                         lead.meeting_scheduled
-                          ? "text-emerald-400"
-                          : "text-zinc-500",
+                          ? "text-sys-green"
+                          : "text-muted-foreground",
                       )}
                     />
                     <span
                       className={
                         lead.meeting_scheduled
-                          ? "text-emerald-400 font-medium"
-                          : "text-zinc-400"
+                          ? "text-sys-green font-medium"
+                          : "text-muted-foreground"
                       }
                     >
                       Reuniao Agendada
                     </span>
                   </div>
                   {lead.meeting_scheduled ? (
-                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-medium">
+                    <div className="flex items-center gap-2 text-sys-green text-xs font-medium">
                       <Check className="h-4 w-4" />
                       {lead.meeting_scheduled_at
                         ? formatDate(lead.meeting_scheduled_at)
                         : "Sim"}
                     </div>
                   ) : (
-                    <span className="text-xs text-zinc-600">Aguardando</span>
+                    <span className="text-xs text-label-tertiary">Aguardando</span>
                   )}
                 </div>
               </div>
@@ -1321,7 +1321,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                       href={whatsappUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600/20 border border-emerald-600/30 py-3 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-600/30"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-sys-green/15 border border-sys-green/20 py-3 text-sm font-medium text-sys-green transition-colors hover:bg-sys-green/25"
                     >
                       <MessageCircle className="h-4 w-4" />
                       Abrir WhatsApp do Responsavel
@@ -1329,7 +1329,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   )}
                   <a
                     href={`mailto:${lead.email}`}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600/20 border border-indigo-600/30 py-3 text-sm font-medium text-indigo-400 transition-colors hover:bg-indigo-600/30"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary/15 border border-primary/20 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/25"
                   >
                     <Mail className="h-4 w-4" />
                     Enviar E-mail
@@ -1346,12 +1346,12 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 <DealDocumentsTab atletaId={lead.pipeline_atleta_id} />
               ) : (
                 <div className="flex flex-col items-center gap-4 py-12">
-                  <FileText className="h-10 w-10 text-zinc-600" />
-                  <p className="text-sm text-zinc-500">
+                  <FileText className="h-10 w-10 text-label-tertiary" />
+                  <p className="text-sm text-muted-foreground">
                     Lead precisa estar no pipeline para gerenciar documentos.
                   </p>
                   {!lead.is_in_pipeline && (
-                    <p className="text-xs text-zinc-600">
+                    <p className="text-xs text-label-tertiary">
                       Promova o lead para o pipeline para acessar documentos.
                     </p>
                   )}
@@ -1370,12 +1370,12 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 />
               ) : (
                 <div className="flex flex-col items-center gap-4 py-12">
-                  <FileText className="h-10 w-10 text-zinc-600" />
-                  <p className="text-sm text-zinc-500">
+                  <FileText className="h-10 w-10 text-label-tertiary" />
+                  <p className="text-sm text-muted-foreground">
                     Lead precisa estar no pipeline para criar contrato.
                   </p>
                   {!lead.is_in_pipeline && (
-                    <p className="text-xs text-zinc-600">
+                    <p className="text-xs text-label-tertiary">
                       Promova o lead para o pipeline para acessar contratos.
                     </p>
                   )}
@@ -1473,12 +1473,12 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 <NotesSection dealId={lead.pipeline_deal_id} />
               ) : (
                 <div className="flex flex-col items-center gap-4 py-12">
-                  <MessageCircle className="h-10 w-10 text-zinc-600" />
-                  <p className="text-sm text-zinc-500">
+                  <MessageCircle className="h-10 w-10 text-label-tertiary" />
+                  <p className="text-sm text-muted-foreground">
                     Notas disponiveis apos entrada no pipeline.
                   </p>
                   {!lead.is_in_pipeline && (
-                    <p className="text-xs text-zinc-600">
+                    <p className="text-xs text-label-tertiary">
                       Promova o lead para o pipeline para adicionar notas.
                     </p>
                   )}
