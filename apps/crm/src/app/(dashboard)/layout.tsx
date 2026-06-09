@@ -17,7 +17,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0c0e16]">
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar papel={profile.papel} nome={profile.nome} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header nome={profile.nome} />
@@ -32,10 +32,10 @@ export default async function DashboardLayout({
         toastOptions={{
           classNames: {
             toast:
-              "border border-[#1e2130] bg-[#141720] text-zinc-100 shadow-2xl",
-            description: "text-zinc-400",
-            actionButton: "bg-indigo-600 text-white hover:bg-indigo-500",
-            cancelButton: "bg-zinc-700 text-white hover:bg-zinc-600",
+              "border border-border bg-popover text-foreground shadow-lg",
+            description: "text-muted-foreground",
+            actionButton: "bg-primary text-primary-foreground hover:bg-primary/90",
+            cancelButton: "bg-secondary text-secondary-foreground hover:bg-accent",
           },
         }}
       />

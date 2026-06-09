@@ -152,7 +152,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/indicacoes", label: "Indicações", icon: GitBranch, roles: ["ceo", "head_sucesso"] },
       { href: "/automacoes-monitor", label: "Automacoes", icon: Activity, roles: ["ceo"] },
       { href: "/audit", label: "Audit Trail", icon: Shield, roles: ["ceo"] },
-      { href: "/configuracoes", label: "Configuraç��es", icon: Settings, roles: ["ceo"] },
+      { href: "/configuracoes", label: "Configurações", icon: Settings, roles: ["ceo"] },
     ],
   },
 ];
@@ -174,15 +174,15 @@ export function Sidebar({ papel, nome }: SidebarProps) {
   };
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r border-[#1e2130] bg-[#0f1117]">
+    <aside className="flex h-screen w-60 flex-col border-r border-sidebar-border bg-sidebar">
       {/* Logo */}
-      <div className="flex h-14 items-center gap-2.5 border-b border-[#1e2130] px-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-          <Zap className="h-4 w-4 text-white" />
+      <div className="flex h-14 items-center gap-2.5 border-b border-sidebar-border px-4">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-sys-purple">
+          <Zap className="h-4 w-4 text-primary-foreground" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-white leading-none">BAUSA Engine</p>
-          <p className="text-[10px] text-zinc-500 leading-none mt-0.5">Bolsa Atleta USA</p>
+          <p className="text-sm font-semibold text-sidebar-foreground leading-none">BAUSA Engine</p>
+          <p className="text-[10px] text-muted-foreground leading-none mt-0.5">Bolsa Atleta USA</p>
         </div>
       </div>
 
@@ -195,7 +195,7 @@ export function Sidebar({ papel, nome }: SidebarProps) {
 
             return (
             <div key={group.label}>
-              <p className="mb-1 px-3 text-[10px] font-semibold tracking-widest text-zinc-600">
+              <p className="mb-1 px-3 text-[10px] font-semibold tracking-widest text-label-tertiary">
                 {group.label}
               </p>
               <div className="space-y-0.5">
@@ -218,36 +218,36 @@ export function Sidebar({ papel, nome }: SidebarProps) {
                         className={cn(
                           "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all",
                           isParentActive
-                            ? "bg-indigo-600/20 text-white"
+                            ? "bg-primary/15 text-foreground"
                             : item.soon
-                            ? "text-zinc-600 cursor-not-allowed"
-                            : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100"
+                            ? "text-label-tertiary cursor-not-allowed"
+                            : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
                         )}
                       >
                         {isParentActive && (
-                          <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-indigo-500" />
+                          <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
                         )}
                         <Icon
                           className={cn(
                             "h-4 w-4 flex-shrink-0",
-                            isParentActive ? "text-indigo-400" : ""
+                            isParentActive ? "text-primary" : ""
                           )}
                         />
                         <span className="flex-1 font-medium">{item.label}</span>
                         {item.badge && !item.soon && (
-                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600/30 px-1.5 text-[10px] font-semibold text-indigo-300">
+                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/20 px-1.5 text-[10px] font-semibold text-primary">
                             {item.badge}
                           </span>
                         )}
                         {item.soon && (
-                          <span className="text-[9px] font-medium uppercase tracking-wider text-zinc-600">
+                          <span className="text-[9px] font-medium uppercase tracking-wider text-label-tertiary">
                             em breve
                           </span>
                         )}
                       </Link>
 
                       {showSubItems && (
-                        <div className="ml-4 mt-0.5 space-y-0.5 border-l border-[#1e2130] pl-3">
+                        <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
                           {item.subItems!.map((sub) => {
                             const isSubActive = pathname === sub.href;
                             return (
@@ -257,12 +257,12 @@ export function Sidebar({ papel, nome }: SidebarProps) {
                                 className={cn(
                                   "flex items-center rounded-md px-2 py-1.5 text-xs transition-all",
                                   isSubActive
-                                    ? "bg-indigo-600/15 font-semibold text-indigo-300"
-                                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+                                    ? "bg-primary/12 font-semibold text-primary"
+                                    : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
                                 )}
                               >
                                 {isSubActive && (
-                                  <span className="mr-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-indigo-400" />
+                                  <span className="mr-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-primary" />
                                 )}
                                 {sub.label}
                               </Link>
@@ -281,18 +281,18 @@ export function Sidebar({ papel, nome }: SidebarProps) {
       </nav>
 
       {/* User info */}
-      <div className="border-t border-[#1e2130] p-3">
-        <div className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-white/5">
-          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold text-white">
+      <div className="border-t border-sidebar-border p-3">
+        <div className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-fill-4">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground">
             {nome.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="truncate text-xs font-medium text-zinc-200">{nome}</p>
-            <p className="truncate text-[10px] text-zinc-500 capitalize">{papel.replace("_", " ")}</p>
+            <p className="truncate text-xs font-medium text-foreground">{nome}</p>
+            <p className="truncate text-[10px] text-muted-foreground capitalize">{papel.replace("_", " ")}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="text-zinc-600 hover:text-zinc-300 transition-colors p-1 rounded-lg hover:bg-white/5"
+            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-fill-4"
             aria-label="Sair"
           >
             <LogOut className="h-3.5 w-3.5" />
