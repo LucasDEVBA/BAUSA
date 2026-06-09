@@ -48,6 +48,8 @@ export interface RemarketingLeadAnon {
   score: number;
   cidade: string;
   consentimento: boolean;
+  temTelefone: boolean;
+  temEmail: boolean;
 }
 
 export interface RemarketingSegment extends RemarketingSegmentDef {
@@ -182,6 +184,8 @@ export async function fetchRemarketingData(): Promise<RemarketingData> {
         score: a.lead_score ?? 0,
         cidade: (a.cidade_estado ?? "").trim() || "—",
         consentimento: a.consentimento_lgpd === true,
+        temTelefone: (a.whatsapp ?? "").replace(/\D/g, "").length >= 10,
+        temEmail: (a.email ?? "").includes("@"),
       });
     }
     const conversaoEstimada = Math.round(leads.length * def.taxaEstimada);
