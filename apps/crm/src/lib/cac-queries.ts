@@ -143,10 +143,14 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
   const clientes = contratos.length;
   const receitaTotal = contratos.reduce((s, c) => s + Number(c.valor_total), 0);
 
-  const cacLead = totalLeads > 0 ? gastoTotal / totalLeads : null;
+  // CAC só é definido quando houve gasto no período. Sem gasto, o custo de
+  // aquisição é indefinido (não zero) → null → UI exibe "—" em vez de "R$ 0"
+  // (que sugeriria, erroneamente, que adquirir custou nada).
+  const temGasto = gastoTotal > 0;
+  const cacLead = temGasto && totalLeads > 0 ? gastoTotal / totalLeads : null;
   const cacLeadQualificado =
-    leadsQualificados > 0 ? gastoTotal / leadsQualificados : null;
-  const cacCliente = clientes > 0 ? gastoTotal / clientes : null;
+    temGasto && leadsQualificados > 0 ? gastoTotal / leadsQualificados : null;
+  const cacCliente = temGasto && clientes > 0 ? gastoTotal / clientes : null;
   const ticketMedio = clientes > 0 ? receitaTotal / clientes : null;
   const conversaoGlobal = totalLeads > 0 ? clientes / totalLeads : 0;
 

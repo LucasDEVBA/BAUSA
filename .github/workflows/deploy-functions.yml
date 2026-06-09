@@ -89,6 +89,9 @@ jobs:
             renew-calendar-watch)        echo "entry=renewCalendarWatch"       >> "$GITHUB_OUTPUT"; echo "name=renew-calendar-watch"  >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
             retry-qualification)         echo "entry=retryQualification"       >> "$GITHUB_OUTPUT"; echo "name=retry-qualification"   >> "$GITHUB_OUTPUT"; echo "timeout=540s" >> "$GITHUB_OUTPUT" ;;
             process-scheduled-followups) echo "entry=processScheduledFollowups">> "$GITHUB_OUTPUT"; echo "name=process-scheduled-followups" >> "$GITHUB_OUTPUT"; echo "timeout=540s" >> "$GITHUB_OUTPUT" ;;
+            weekly-report)               echo "entry=weeklyReport"             >> "$GITHUB_OUTPUT"; echo "name=weekly-report"          >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
+            send-remarketing)            echo "entry=sendRemarketing"          >> "$GITHUB_OUTPUT"; echo "name=send-remarketing"       >> "$GITHUB_OUTPUT"; echo "timeout=540s" >> "$GITHUB_OUTPUT" ;;
+            remarketing-unsubscribe)     echo "entry=remarketingUnsubscribe"   >> "$GITHUB_OUTPUT"; echo "name=remarketing-unsubscribe" >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Deploy
         run: |

@@ -17,6 +17,7 @@ As **skills do Claude Code** em `.claude/skills/` são carregadas automaticament
 | `bausa-supabase-migration` | Criar migration em `supabase/migrations/` |
 | `bausa-crm-page` | Criar/editar página/action em `apps/crm/` |
 | `bausa-scheduler-safety` | Tocar em scheduler de mensageria |
+| `bausa-remarketing-dispatch` | Mexer na feature de re-marketing (aba `/remarketing`, CF `send-remarketing`, tabelas `remarketing_*`) |
 | `bausa-gitflow-deploy` | Commit, PR, merge, deploy |
 
 **Índice + princípios + runbook de incidentes:** `docs/ENGINEERING.md`. **Roadmap de features:** task list do projeto + `docs/ROADMAP.md`.

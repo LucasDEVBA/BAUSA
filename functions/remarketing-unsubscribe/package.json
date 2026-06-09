@@ -1,0 +1,12 @@
+{
+  "name": "remarketing-unsubscribe",
+  "version": "1.0.0",
+  "description": "Endpoint público de descadastro (opt-out) de e-mail de re-marketing. Token HMAC, grava em remarketing_optout_email, retorna página de confirmação. LGPD.",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}

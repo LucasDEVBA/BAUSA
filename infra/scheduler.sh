@@ -102,4 +102,54 @@ gcloud scheduler jobs update http "${JOB_CW}" \
   --attempt-deadline=120s
 
 echo "✓ ${JOB_CW} configurado"
+
+# ─── Job 4: Relatório semanal (segunda 08:00 BRT) ─────────────
+JOB_WR="weekly-report-job${SUFFIX}"
+WEEKLY_REPORT_URL="${WEEKLY_REPORT_URL:-https://weekly-report${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_WR}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 8 * * 1" \
+  --uri="${WEEKLY_REPORT_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_WR}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 8 * * 1" \
+  --uri="${WEEKLY_REPORT_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s
+
+echo "✓ ${JOB_WR} configurado"
+
+# ─── Job 5: Re-marketing — continua campanhas em andamento (a cada 15min) ─
+# A CF respeita horário seguro (9-20h) e limite diário internamente; o cron
+# só re-invoca para processar o próximo batch das campanhas 'enviando'.
+JOB_RM="send-remarketing-job${SUFFIX}"
+SEND_REMARKETING_URL="${SEND_REMARKETING_URL:-https://send-remarketing${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_RM}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/15 * * * *" \
+  --uri="${SEND_REMARKETING_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_RM}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/15 * * * *" \
+  --uri="${SEND_REMARKETING_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s
+
+echo "✓ ${JOB_RM} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"

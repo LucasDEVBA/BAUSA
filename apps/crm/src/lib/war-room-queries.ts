@@ -103,7 +103,7 @@ export async function fetchExperienciaStats() {
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase
     .from("crm_experiencia")
-    .select("temperatura, status, ansiedade, satisfacao")
+    .select("temperatura, status, ansiedade, satisfacao, nps_6meses")
     .is("deleted_at", null);
   return data || [];
 }
@@ -163,6 +163,29 @@ export async function fetchWarRoomMetrics(): Promise<WarRoomMetrics> {
   const expTotal = expStats.length;
   const expCrise = expStats.filter((e) => e.status === "crise").length;
 
+  // NPS real (escala 1-10): promotores ≥9, detratores ≤6. Conta apenas quem
+  // respondeu (nps_6meses não-nulo — campo preenchido após 6 meses de contato).
+  // Se ninguém respondeu, nps_respondentes=0 e a UI exibe "—" (não 0 enganoso).
+  const npsRespostas = expStats.filter(
+    (e) => e.nps_6meses != null && typeof e.nps_6meses === "number",
+  );
+  const npsRespondentes = npsRespostas.length;
+  const npsPromotores = npsRespostas.filter((e) => Number(e.nps_6meses) >= 9).length;
+  const npsDetratores = npsRespostas.filter((e) => Number(e.nps_6meses) <= 6).length;
+  const npsAverage =
+    npsRespondentes > 0
+      ? Math.round(((npsPromotores - npsDetratores) / npsRespondentes) * 100)
+      : 0;
+
+  // Next-action compliance: % de deals ativos com next_action preenchido.
+  // Sinal de saúde operacional do pipeline (todo deal ativo deve ter próxima ação).
+  const activeDealsCount = dealsAtivos.length;
+  const dealsComAcao = dealsAtivos.filter(
+    (d) => d.next_action != null && String(d.next_action).trim() !== "",
+  ).length;
+  const nextActionCompliancePct =
+    activeDealsCount > 0 ? Math.round((dealsComAcao / activeDealsCount) * 100) : 0;
+
   // Previous month revenue for trend (simplified)
   const supabase = await createServerSupabaseClient();
   const prevMonth = new Date();
@@ -211,7 +234,10 @@ export async function fetchWarRoomMetrics(): Promise<WarRoomMetrics> {
     conversion_rate: taxaConversao,
     active_families: expTotal,
     at_risk_families: expCrise,
-    nps_average: 0,
+    nps_average: npsAverage,
+    nps_respondentes: npsRespondentes,
+    next_action_compliance_pct: nextActionCompliancePct,
+    active_deals_count: activeDealsCount,
     leads_this_month: leadsThisMonth || 0,
     closed_this_month: closedThisMonth || 0,
     revenue_ytd_usd: revenueYtd,

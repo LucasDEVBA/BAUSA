@@ -79,6 +79,10 @@ Para adicionar função NOVA, editar **ambos** os workflows `.github/workflows/d
    minha-funcao) echo "entry=minhaFuncao" >> "$GITHUB_OUTPUT"; echo "name=minha-funcao" >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
    ```
    (`entry` = nome em `functions.http('...')`; `name` = nome do serviço GCP; UAT usa sufixo `-uat`)
+
+   ⛔ **NUNCA remova o `esac`** ao inserir a linha nova (incidente 2026-06-05: o `esac` do `-uat.yml` foi removido ao adicionar uma função → `case` aberto → `syntax error: unexpected end of file` → **todo deploy UAT de funções quebrou silenciosamente por dias**). A inserção vai ANTES do `esac`, nunca substituindo-o. Validar: `grep -c esac` deve igualar `grep -c 'case "'`.
+
+   ⚠️ **O CI NÃO testa o YAML do workflow de deploy** (só roda `node --check` no código). O deploy só executa no MERGE. Por isso: **após mergear uma função nova, confirmar que ela subiu** — `gcloud functions describe <name>-uat --gen2 --region=us-central1 --project=elite-portal-forms`. 404 = deploy falhou, investigar o run de "Deploy Cloud Functions — UAT".
 3. Cron: adicionar job em `infra/scheduler.sh` (aceita prd/uat/dev) com `--time-zone="America/Sao_Paulo"`
 4. Secrets: via GitHub Secrets + `--update-env-vars` no deploy. **NUNCA `--set-env-vars`** (apaga as existentes). Versões `_UAT` e `_DEV` dos secrets.
 
