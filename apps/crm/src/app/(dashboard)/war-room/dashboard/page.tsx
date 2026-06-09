@@ -119,7 +119,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
           <div className="grid grid-rows-2 gap-4">
             <MetricCard
               title="MRR"
-              value={`US$ ${(m.mrr_usd / 1000).toFixed(1)}k`}
+              value={`R$ ${(m.mrr_usd / 1000).toFixed(1)}k`}
               subtitle="Receita mensal recorrente"
               icon={DollarSign}
               trend={{ value: m.mrr_trend_pct, label: "% vs mes anterior" }}
@@ -127,7 +127,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
             />
             <MetricCard
               title="ARR"
-              value={`US$ ${(m.arr_usd / 1000).toFixed(0)}k`}
+              value={`R$ ${(m.arr_usd / 1000).toFixed(0)}k`}
               subtitle="Receita anual recorrente"
               icon={TrendingUp}
               variant="default"
@@ -137,14 +137,14 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <MetricCard
             title="Pipeline Total"
-            value={`US$ ${(m.pipeline_total_usd / 1000).toFixed(0)}k`}
+            value={`R$ ${(m.pipeline_total_usd / 1000).toFixed(0)}k`}
             subtitle="Em negociacao ativa"
             icon={Layers}
             variant="cold"
           />
           <MetricCard
             title="Ticket Medio"
-            value={`US$ ${(m.avg_ticket_usd / 1000).toFixed(0)}k`}
+            value={`R$ ${(m.avg_ticket_usd / 1000).toFixed(0)}k`}
             subtitle="Por contrato fechado"
             icon={Ticket}
             variant="purple"

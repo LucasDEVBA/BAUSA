@@ -44,7 +44,7 @@ function RiskRevenueCard({ icon: Icon, label, count, valueUsd, severity, descrip
         )}
       </div>
       <p className={`mt-3 text-xl font-bold tabular-nums ${s.value}`}>
-        US$ {(valueUsd / 1000).toFixed(0)}k
+        R$ {(valueUsd / 1000).toFixed(0)}k
       </p>
       <p className="mt-0.5 text-xs font-medium text-foreground">{label}</p>
       <p className="mt-1 text-[10px] text-label-tertiary leading-relaxed">{description}</p>

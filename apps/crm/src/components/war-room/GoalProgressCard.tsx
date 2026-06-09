@@ -25,7 +25,7 @@ export function GoalProgressCard({ data }: GoalProgressCardProps) {
             : "border-sys-red/30 bg-sys-red/10 text-sys-red"
         }`}>
           {isOnTrack ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-          {isOnTrack ? "No target" : `Gap US$ ${Math.abs(gap_to_target_usd / 1000).toFixed(0)}k`}
+          {isOnTrack ? "No target" : `Gap R$ ${Math.abs(gap_to_target_usd / 1000).toFixed(0)}k`}
         </div>
       </div>
 
@@ -34,21 +34,21 @@ export function GoalProgressCard({ data }: GoalProgressCardProps) {
         <div>
           <p className="text-[10px] text-muted-foreground">Recebido</p>
           <p className="text-xl font-bold text-sys-green">
-            US$ {(net_revenue_month_usd / 1000).toFixed(0)}k
+            R$ {(net_revenue_month_usd / 1000).toFixed(0)}k
           </p>
           <p className="text-[10px] text-label-tertiary">{achievedPct}% da meta</p>
         </div>
         <div>
           <p className="text-[10px] text-muted-foreground">Projetado</p>
           <p className="text-xl font-bold text-primary">
-            US$ {(projected_revenue_usd / 1000).toFixed(0)}k
+            R$ {(projected_revenue_usd / 1000).toFixed(0)}k
           </p>
           <p className="text-[10px] text-label-tertiary">{projectedPct}% da meta</p>
         </div>
         <div>
           <p className="text-[10px] text-muted-foreground">Meta</p>
           <p className="text-xl font-bold text-foreground">
-            US$ {(monthly_target_usd / 1000).toFixed(0)}k
+            R$ {(monthly_target_usd / 1000).toFixed(0)}k
           </p>
           <div className="mt-0.5 flex items-center gap-1">
             <Target className="h-3 w-3 text-label-tertiary" />
@@ -97,11 +97,11 @@ export function GoalProgressCard({ data }: GoalProgressCardProps) {
         <p className="text-xs">
           {isOnTrack ? (
             <span className="text-sys-green">
-              Superando a meta em US$ {(gap_to_target_usd / 1000).toFixed(0)}k
+              Superando a meta em R$ {(gap_to_target_usd / 1000).toFixed(0)}k
             </span>
           ) : (
             <span className="text-sys-red">
-              Faltam US$ {(Math.abs(gap_to_target_usd) / 1000).toFixed(0)}k para atingir a meta
+              Faltam R$ {(Math.abs(gap_to_target_usd) / 1000).toFixed(0)}k para atingir a meta
             </span>
           )}
         </p>
