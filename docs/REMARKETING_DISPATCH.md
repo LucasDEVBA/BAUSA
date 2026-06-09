@@ -87,6 +87,27 @@ que expiraria durante os dias de throttle. O CEO também pode colar uma URL exte
 abre o `DealDetailSheet` completo in-place (reusa `fetchDeal` de `lib/deal-fetch.ts`).
 O nome vai ao client (ferramenta CEO-only); contato (email/telefone) só server-side.
 
+## Canais: WhatsApp ou E-mail
+
+A campanha tem um `canal` (`whatsapp` default ou `email`). Mesmos segmentos, filtros,
+lista de leads e dry-run; o que muda é o contato exigido e o transporte:
+
+| Canal | Contato | Transporte | Salvaguardas |
+|---|---|---|---|
+| `whatsapp` | telefone (E.164) | Z-API (texto/imagem/link) | horário 9–20h, ~120/dia, throttle 30–45s |
+| `email` | e-mail | Resend → Brevo (fallback) | sem horário, ~500/dia, throttle ~2,5s, **descadastro 1-clique** |
+
+**E-mail = template HTML único** (logo + imagem opcional + corpo `{nome}`/`{esporte}` +
+**botão CTA real** + rodapé com descadastro). O "botão" que o WhatsApp não entrega de forma
+confiável **funciona no e-mail** (HTML). Assunto obrigatório.
+
+**Descadastro (LGPD):** cada e-mail tem link com token HMAC → CF pública
+`remarketing-unsubscribe` grava em `remarketing_optout_email`. A CF de envio respeita
+opt-out por **e-mail** (email) e por **telefone** (whatsapp), separadamente.
+
+> A `alcance`/lista de leads filtra por contato do canal (e-mail tem e-mail; WhatsApp tem
+> telefone) via flags `temEmail`/`temTelefone`.
+
 ## Variáveis de ambiente
 
 ### Engine (`bolsa-atleta-crm` — Vercel)
@@ -98,7 +119,14 @@ O nome vai ao client (ferramenta CEO-only); contato (email/telefone) só server-
 ### Cloud Function `send-remarketing` (GCP)
 CI (`deploy-functions.yml`) injeta só `WEBHOOK_SECRET` + `SUPABASE_SCHEMA`. As demais
 são manuais pós-primeiro-deploy (padrão das outras funções), via `--update-env-vars`:
-`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN`, `ZAPI_CLIENT_TOKEN`.
+- **WhatsApp:** `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN`, `ZAPI_CLIENT_TOKEN`.
+- **E-mail:** `RESEND_API_KEY`, `BREVO_API_KEY`, `FROM_EMAIL`, `LOGO_URL`, `UNSUBSCRIBE_URL`
+  (URL da CF `remarketing-unsubscribe`, p/ montar o link de descadastro com token HMAC).
+
+### Cloud Function `remarketing-unsubscribe` (GCP, pública)
+Endpoint público de descadastro (LGPD). Env: `WEBHOOK_SECRET` (valida o token HMAC),
+`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SCHEMA`. Não tem scheduler (é acionada
+pelo clique do lead no link do e-mail).
 
 ---
 

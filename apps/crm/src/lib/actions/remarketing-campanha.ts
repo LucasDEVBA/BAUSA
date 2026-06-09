@@ -52,34 +52,52 @@ export async function prepararCampanha(
   if ((await getUserPapel()) !== "ceo") {
     return { success: false, error: "Apenas o CEO pode criar campanhas." };
   }
-  const cfg: MensagemConfig = config ?? { tipo: "texto" };
+  const cfg: MensagemConfig = config ?? { canal: "whatsapp", tipo: "texto" };
+  const canal = cfg.canal ?? "whatsapp";
   const msg = (mensagem || "").trim();
 
-  // Caption é opcional quando a mensagem é uma imagem; corpo é obrigatório p/ texto/link.
-  if (cfg.tipo !== "imagem" && !msg) return { success: false, error: "Mensagem vazia." };
-  if (msg.length > MENSAGEM_MAX) return { success: false, error: `Mensagem excede ${MENSAGEM_MAX} caracteres.` };
-
-  if (cfg.tipo === "imagem" && !isHttpUrl(cfg.imagemUrl)) {
-    return { success: false, error: "Informe uma URL de imagem válida (https) ou faça upload." };
-  }
-  if (cfg.tipo === "link") {
-    if (!isHttpUrl(cfg.linkUrl)) return { success: false, error: "Informe uma URL de link válida (https)." };
-    if (cfg.linkImagem && !isHttpUrl(cfg.linkImagem)) {
-      return { success: false, error: "A imagem do link deve ser uma URL válida (https)." };
+  if (canal === "email") {
+    if (!(cfg.assunto ?? "").trim()) return { success: false, error: "Informe o assunto do e-mail." };
+    if (!msg) return { success: false, error: "Escreva o corpo do e-mail." };
+    if (cfg.imagemUrl && !isHttpUrl(cfg.imagemUrl)) return { success: false, error: "Imagem do e-mail: URL inválida (https)." };
+    if (cfg.linkUrl && !isHttpUrl(cfg.linkUrl)) return { success: false, error: "Botão do e-mail: URL inválida (https)." };
+  } else {
+    // Caption opcional p/ imagem; corpo obrigatório p/ texto/link.
+    if (cfg.tipo !== "imagem" && !msg) return { success: false, error: "Mensagem vazia." };
+    if (cfg.tipo === "imagem" && !isHttpUrl(cfg.imagemUrl)) {
+      return { success: false, error: "Informe uma URL de imagem válida (https) ou faça upload." };
+    }
+    if (cfg.tipo === "link") {
+      if (!isHttpUrl(cfg.linkUrl)) return { success: false, error: "Informe uma URL de link válida (https)." };
+      if (cfg.linkImagem && !isHttpUrl(cfg.linkImagem)) {
+        return { success: false, error: "A imagem do link deve ser uma URL válida (https)." };
+      }
     }
   }
+  if (msg.length > MENSAGEM_MAX) return { success: false, error: `Mensagem excede ${MENSAGEM_MAX} caracteres.` };
 
   const def = REMARKETING_SEGMENTS.find((s) => s.key === segmentKey);
   if (!def) return { success: false, error: "Segmento inválido." };
 
   const leads = await fetchSegmentoLeadsFull(segmentKey, filtros);
-  const comTelefone = leads.filter((l) => toE164(l.whatsapp));
-  if (comTelefone.length === 0) {
-    return { success: false, error: "Nenhum lead com telefone válido neste segmento/filtros." };
+  const comContato =
+    canal === "email"
+      ? leads.filter((l) => (l.email || "").includes("@"))
+      : leads.filter((l) => toE164(l.whatsapp));
+  if (comContato.length === 0) {
+    return {
+      success: false,
+      error:
+        canal === "email"
+          ? "Nenhum lead com e-mail válido neste segmento/filtros."
+          : "Nenhum lead com telefone válido neste segmento/filtros.",
+    };
   }
 
   const supabase = await createAuditedSupabaseClient();
   const user = await getSession();
+  const isEmail = canal === "email";
+  const isWaLink = canal === "whatsapp" && cfg.tipo === "link";
 
   const { data: camp, error: errCamp } = await supabase
     .from("remarketing_campanhas")
@@ -87,15 +105,23 @@ export async function prepararCampanha(
       segmento: segmentKey,
       mensagem: msg,
       filtros: (filtros ?? {}) as Record<string, unknown>,
-      total_alvo: comTelefone.length,
+      total_alvo: comContato.length,
       status: "rascunho",
       criada_por: user?.id ?? null,
-      tipo_mensagem: cfg.tipo,
-      imagem_url: cfg.tipo === "imagem" ? (cfg.imagemUrl ?? "").trim() : null,
-      link_url: cfg.tipo === "link" ? (cfg.linkUrl ?? "").trim() : null,
-      link_titulo: cfg.tipo === "link" ? ((cfg.linkTitulo ?? "").trim() || null) : null,
-      link_descricao: cfg.tipo === "link" ? ((cfg.linkDescricao ?? "").trim() || null) : null,
-      link_imagem: cfg.tipo === "link" ? ((cfg.linkImagem ?? "").trim() || null) : null,
+      canal,
+      assunto: isEmail ? (cfg.assunto ?? "").trim() : null,
+      tipo_mensagem: isEmail ? "texto" : cfg.tipo,
+      // Email: imagem_url = header, link_url/link_titulo = botão CTA.
+      // WhatsApp: imagem (tipo=imagem) ou link (tipo=link).
+      imagem_url: isEmail
+        ? ((cfg.imagemUrl ?? "").trim() || null)
+        : cfg.tipo === "imagem" ? (cfg.imagemUrl ?? "").trim() : null,
+      link_url: isEmail
+        ? ((cfg.linkUrl ?? "").trim() || null)
+        : isWaLink ? (cfg.linkUrl ?? "").trim() : null,
+      link_titulo: isEmail || isWaLink ? ((cfg.linkTitulo ?? "").trim() || null) : null,
+      link_descricao: isWaLink ? ((cfg.linkDescricao ?? "").trim() || null) : null,
+      link_imagem: isWaLink ? ((cfg.linkImagem ?? "").trim() || null) : null,
     })
     .select("id")
     .single();
@@ -106,12 +132,13 @@ export async function prepararCampanha(
 
   // Idempotência: UNIQUE(campanha_id, deal_id). Dedup por dealId defensivo.
   const vistos = new Set<string>();
-  const envios = comTelefone
+  const envios = comContato
     .filter((l) => (vistos.has(l.dealId) ? false : (vistos.add(l.dealId), true)))
     .map((l) => ({
       campanha_id: camp.id,
       deal_id: l.dealId,
-      telefone: toE164(l.whatsapp),
+      telefone: isEmail ? null : toE164(l.whatsapp),
+      email: isEmail ? (l.email || "").trim().toLowerCase() : null,
       nome: l.nome,
       esporte: l.esporte,
       status: "pendente",
@@ -127,7 +154,7 @@ export async function prepararCampanha(
     success: true,
     campanhaId: camp.id,
     total: envios.length,
-    amostra: comTelefone.slice(0, 5).map((l) => (l.nome || "").trim().split(/\s+/)[0] || "—"),
+    amostra: comContato.slice(0, 5).map((l) => (l.nome || "").trim().split(/\s+/)[0] || "—"),
   };
 }
 

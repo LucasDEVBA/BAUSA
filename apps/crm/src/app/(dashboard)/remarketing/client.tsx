@@ -19,6 +19,8 @@ import {
   Upload,
   Users,
   ChevronRight,
+  Mail,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,7 +32,7 @@ import {
 } from "@/lib/actions/remarketing-campanha";
 import { uploadRemarketingImage } from "@/lib/actions/remarketing-media";
 import { RemarketingLeadSheet } from "@/components/remarketing/RemarketingLeadSheet";
-import type { MensagemConfig, MensagemTipo } from "@/lib/remarketing-types";
+import type { MensagemConfig, MensagemTipo, MensagemCanal } from "@/lib/remarketing-types";
 import type {
   RemarketingData,
   RemarketingLeadAnon,
@@ -86,7 +88,9 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
   const [preparada, setPreparada] = useState<CampanhaPreparada | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
 
-  // Tipo de mensagem + mídia
+  // Canal + tipo de mensagem + mídia
+  const [canal, setCanal] = useState<MensagemCanal>("whatsapp");
+  const [assunto, setAssunto] = useState("");
   const [tipo, setTipo] = useState<MensagemTipo>("texto");
   const [imagemUrl, setImagemUrl] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
@@ -120,26 +124,33 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
   }
 
   function handlePreparar() {
-    if (tipo !== "imagem" && mensagem.trim().length === 0) {
-      toast.error("Escreva a mensagem antes de disparar.");
-      return;
+    if (canal === "email") {
+      if (!assunto.trim()) { toast.error("Informe o assunto do e-mail."); return; }
+      if (mensagem.trim().length === 0) { toast.error("Escreva o corpo do e-mail."); return; }
+    } else {
+      if (tipo !== "imagem" && mensagem.trim().length === 0) { toast.error("Escreva a mensagem antes de disparar."); return; }
+      if (tipo === "imagem" && !imagemUrl.trim()) { toast.error("Adicione a imagem (upload ou URL)."); return; }
+      if (tipo === "link" && !linkUrl.trim()) { toast.error("Informe a URL do link."); return; }
     }
-    if (tipo === "imagem" && !imagemUrl.trim()) {
-      toast.error("Adicione a imagem (upload ou URL).");
-      return;
-    }
-    if (tipo === "link" && !linkUrl.trim()) {
-      toast.error("Informe a URL do link.");
-      return;
-    }
-    const config: MensagemConfig = {
-      tipo,
-      imagemUrl: tipo === "imagem" ? imagemUrl.trim() : undefined,
-      linkUrl: tipo === "link" ? linkUrl.trim() : undefined,
-      linkTitulo: tipo === "link" ? linkTitulo.trim() : undefined,
-      linkDescricao: tipo === "link" ? linkDescricao.trim() : undefined,
-      linkImagem: tipo === "link" ? linkImagem.trim() : undefined,
-    };
+    const config: MensagemConfig =
+      canal === "email"
+        ? {
+            canal,
+            tipo: "texto",
+            assunto: assunto.trim(),
+            imagemUrl: imagemUrl.trim() || undefined,
+            linkUrl: linkUrl.trim() || undefined,
+            linkTitulo: linkTitulo.trim() || undefined,
+          }
+        : {
+            canal,
+            tipo,
+            imagemUrl: tipo === "imagem" ? imagemUrl.trim() : undefined,
+            linkUrl: tipo === "link" ? linkUrl.trim() : undefined,
+            linkTitulo: tipo === "link" ? linkTitulo.trim() : undefined,
+            linkDescricao: tipo === "link" ? linkDescricao.trim() : undefined,
+            linkImagem: tipo === "link" ? linkImagem.trim() : undefined,
+          };
     startTransition(async () => {
       const r = await prepararCampanha(selectedKey, mensagem, filtrosAtuais(), config);
       if (r.success) {
@@ -187,9 +198,12 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
   }
 
   const filtrados = useMemo(
-    () => (segment ? segment.leads.filter(passa) : []),
+    () =>
+      segment
+        ? segment.leads.filter((l) => passa(l) && (canal === "email" ? l.temEmail : l.temTelefone))
+        : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [segment, faixas, esportesSel, classesSel],
+    [segment, faixas, esportesSel, classesSel, canal],
   );
 
   const alcance = filtrados.length;
@@ -239,7 +253,8 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
     .replace(/\{nome\}/g, "João")
     .replace(/\{esporte\}/g, segment?.leads[0]?.esporte ?? "futebol");
 
-  const tipoLabel = tipo === "imagem" ? "Imagem" : tipo === "link" ? "Link (card)" : "Texto";
+  const tipoLabel =
+    canal === "email" ? "E-mail" : tipo === "imagem" ? "Imagem" : tipo === "link" ? "Link (card)" : "Texto";
 
   return (
     <div className="space-y-5 p-6">
@@ -259,10 +274,10 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
       <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
         <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-400" />
         <p className="text-xs leading-relaxed text-amber-200/80">
-          <strong className="text-amber-300">Disparo controlado (LGPD).</strong> Os envios
-          saem em ritmo seguro (~120/dia, 1 a cada 30–45s, das 9h às 20h), com opt-out e
-          <strong> dry-run obrigatório</strong> antes do envio real. Contate apenas com base
-          legal válida. Você também pode exportar a audiência como Custom Audience da Meta.
+          <strong className="text-amber-300">Disparo controlado (LGPD).</strong> WhatsApp sai
+          em ritmo seguro (~120/dia, 30–45s, 9h–20h); e-mail com link de descadastro 1-clique.
+          Ambos com opt-out e <strong> dry-run obrigatório</strong> antes do envio real. Contate
+          apenas com base legal válida. Você também pode exportar como Custom Audience da Meta.
         </p>
       </div>
 
@@ -447,71 +462,121 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
 
           {/* Editor de mensagem */}
           <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-            <p className="mb-2 text-sm font-semibold text-zinc-200">Mensagem WhatsApp</p>
+            <p className="mb-2 text-sm font-semibold text-zinc-200">Mensagem</p>
 
-            {/* Seletor de tipo */}
-            <div className="mb-3 grid grid-cols-3 gap-1.5">
-              <TypeButton active={tipo === "texto"} onClick={() => setTipo("texto")} icon={<Type className="h-3.5 w-3.5" />}>
-                Texto
+            {/* Seletor de canal */}
+            <div className="mb-3 grid grid-cols-2 gap-1.5">
+              <TypeButton active={canal === "whatsapp"} onClick={() => setCanal("whatsapp")} icon={<MessageCircle className="h-3.5 w-3.5" />}>
+                WhatsApp
               </TypeButton>
-              <TypeButton active={tipo === "imagem"} onClick={() => setTipo("imagem")} icon={<ImageIcon className="h-3.5 w-3.5" />}>
-                Imagem
-              </TypeButton>
-              <TypeButton active={tipo === "link"} onClick={() => setTipo("link")} icon={<Link2 className="h-3.5 w-3.5" />}>
-                Link
+              <TypeButton active={canal === "email"} onClick={() => setCanal("email")} icon={<Mail className="h-3.5 w-3.5" />}>
+                E-mail
               </TypeButton>
             </div>
 
-            {tipo === "imagem" && (
-              <div className="mb-3">
+            {canal === "whatsapp" && (
+              <>
+                {/* Tipo (WhatsApp) */}
+                <div className="mb-3 grid grid-cols-3 gap-1.5">
+                  <TypeButton active={tipo === "texto"} onClick={() => setTipo("texto")} icon={<Type className="h-3.5 w-3.5" />}>
+                    Texto
+                  </TypeButton>
+                  <TypeButton active={tipo === "imagem"} onClick={() => setTipo("imagem")} icon={<ImageIcon className="h-3.5 w-3.5" />}>
+                    Imagem
+                  </TypeButton>
+                  <TypeButton active={tipo === "link"} onClick={() => setTipo("link")} icon={<Link2 className="h-3.5 w-3.5" />}>
+                    Link
+                  </TypeButton>
+                </div>
+
+                {tipo === "imagem" && (
+                  <div className="mb-3">
+                    <MediaImageField
+                      label="Imagem da campanha"
+                      url={imagemUrl}
+                      setUrl={setImagemUrl}
+                      fileRef={imagemFileRef}
+                      onFile={(f) => handleUploadImage(f, "imagem")}
+                      uploading={isPending}
+                    />
+                  </div>
+                )}
+
+                {tipo === "link" && (
+                  <div className="mb-3 space-y-2">
+                    <input
+                      type="url"
+                      placeholder="URL do link (https://…)"
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Título (ex: Agende sua reunião)"
+                      value={linkTitulo}
+                      onChange={(e) => setLinkTitulo(e.target.value)}
+                      className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Descrição curta"
+                      value={linkDescricao}
+                      onChange={(e) => setLinkDescricao(e.target.value)}
+                      className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
+                    />
+                    <MediaImageField
+                      label="Imagem do card (opcional)"
+                      url={linkImagem}
+                      setUrl={setLinkImagem}
+                      fileRef={linkImagemFileRef}
+                      onFile={(f) => handleUploadImage(f, "link")}
+                      uploading={isPending}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            {canal === "email" && (
+              <div className="mb-3 space-y-2">
+                <input
+                  type="text"
+                  placeholder="Assunto do e-mail"
+                  value={assunto}
+                  onChange={(e) => setAssunto(e.target.value)}
+                  className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
+                />
                 <MediaImageField
-                  label="Imagem da campanha"
+                  label="Imagem do topo (opcional)"
                   url={imagemUrl}
                   setUrl={setImagemUrl}
                   fileRef={imagemFileRef}
                   onFile={(f) => handleUploadImage(f, "imagem")}
                   uploading={isPending}
                 />
-              </div>
-            )}
-
-            {tipo === "link" && (
-              <div className="mb-3 space-y-2">
-                <input
-                  type="url"
-                  placeholder="URL do link (https://…)"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
-                />
-                <input
-                  type="text"
-                  placeholder="Título (ex: Agende sua reunião)"
-                  value={linkTitulo}
-                  onChange={(e) => setLinkTitulo(e.target.value)}
-                  className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
-                />
-                <input
-                  type="text"
-                  placeholder="Descrição curta"
-                  value={linkDescricao}
-                  onChange={(e) => setLinkDescricao(e.target.value)}
-                  className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500/50"
-                />
-                <MediaImageField
-                  label="Imagem do card (opcional)"
-                  url={linkImagem}
-                  setUrl={setLinkImagem}
-                  fileRef={linkImagemFileRef}
-                  onFile={(f) => handleUploadImage(f, "link")}
-                  uploading={isPending}
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="url"
+                    placeholder="URL do botão (opcional)"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500/50"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Texto do botão"
+                    value={linkTitulo}
+                    onChange={(e) => setLinkTitulo(e.target.value)}
+                    className="w-full rounded-lg border border-[#1e2130] bg-[#0f1117] px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500/50"
+                  />
+                </div>
               </div>
             )}
 
             <div className="mb-1 flex items-center justify-between">
               <span className="text-[11px] text-zinc-500">
-                {tipo === "imagem" ? "Legenda (opcional)" : "Mensagem"}
+                {canal === "email" ? "Corpo do e-mail" : tipo === "imagem" ? "Legenda (opcional)" : "Mensagem"}
               </span>
               <span className={`text-[10px] ${mensagem.length > 1024 ? "text-red-400" : "text-zinc-500"}`}>
                 {mensagem.length}/1024
@@ -528,34 +593,57 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
               <code className="text-zinc-400">{"{esporte}"}</code>
             </p>
 
-            {/* Preview por tipo */}
+            {/* Preview por canal/tipo */}
             <div className="mt-2 rounded-lg border border-[#1e2130] bg-[#0c0e16] p-2.5">
               <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">
                 Preview — {tipoLabel}
               </p>
-              {tipo === "imagem" && imagemUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={imagemUrl} alt="Imagem da campanha" className="mb-1.5 max-h-32 w-full rounded object-cover" />
-              )}
-              {preview && (
-                <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-300">{preview}</p>
-              )}
-              {tipo === "link" && (
-                <div className="mt-2 flex gap-2 rounded-lg border border-[#1e2130] bg-[#11141d] p-2">
-                  {linkImagem && (
+
+              {canal === "email" ? (
+                <>
+                  <p className="mb-1.5 truncate text-xs font-semibold text-zinc-200">
+                    {assunto || "Assunto do e-mail"}
+                  </p>
+                  {imagemUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={linkImagem} alt="" className="h-12 w-12 flex-shrink-0 rounded object-cover" />
+                    <img src={imagemUrl} alt="" className="mb-1.5 max-h-32 w-full rounded object-cover" />
                   )}
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold text-zinc-200">
-                      {linkTitulo || "Título do link"}
-                    </p>
-                    <p className="truncate text-[11px] text-zinc-500">
-                      {linkDescricao || "descrição do link"}
-                    </p>
-                    <p className="truncate text-[10px] text-indigo-400">{linkUrl || "https://…"}</p>
-                  </div>
-                </div>
+                  {preview && (
+                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-300">{preview}</p>
+                  )}
+                  {linkUrl && (
+                    <span className="mt-2 inline-block rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white">
+                      {linkTitulo || "Saiba mais"}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  {tipo === "imagem" && imagemUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={imagemUrl} alt="Imagem da campanha" className="mb-1.5 max-h-32 w-full rounded object-cover" />
+                  )}
+                  {preview && (
+                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-300">{preview}</p>
+                  )}
+                  {tipo === "link" && (
+                    <div className="mt-2 flex gap-2 rounded-lg border border-[#1e2130] bg-[#11141d] p-2">
+                      {linkImagem && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={linkImagem} alt="" className="h-12 w-12 flex-shrink-0 rounded object-cover" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-zinc-200">
+                          {linkTitulo || "Título do link"}
+                        </p>
+                        <p className="truncate text-[11px] text-zinc-500">
+                          {linkDescricao || "descrição do link"}
+                        </p>
+                        <p className="truncate text-[10px] text-indigo-400">{linkUrl || "https://…"}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -602,8 +690,12 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
             </div>
             <p className="text-sm text-zinc-300">
               <strong className="text-emerald-400">{preparada.total}</strong> leads vão receber a
-              mensagem (<strong>{tipoLabel}</strong>) via WhatsApp, em <strong>ritmo seguro</strong>{" "}
-              (~120/dia, 1 a cada 30-45s, só das 9h às 20h).
+              mensagem (<strong>{tipoLabel}</strong>){" "}
+              {canal === "email" ? (
+                <>via <strong>e-mail</strong>, em ritmo controlado e com link de descadastro (LGPD).</>
+              ) : (
+                <>via <strong>WhatsApp</strong>, em <strong>ritmo seguro</strong> (~120/dia, 1 a cada 30-45s, só das 9h às 20h).</>
+              )}
             </p>
             {preparada.amostra.length > 0 && (
               <p className="mt-2 text-xs text-zinc-500">
@@ -612,13 +704,15 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
               </p>
             )}
             <div className="mt-3 rounded-lg border border-[#1e2130] bg-[#0c0e16] p-2.5">
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">Mensagem</p>
-              {tipo === "imagem" && imagemUrl && (
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">
+                {canal === "email" && assunto ? assunto : "Mensagem"}
+              </p>
+              {((canal === "whatsapp" && tipo === "imagem") || canal === "email") && imagemUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={imagemUrl} alt="" className="mb-1.5 max-h-28 w-full rounded object-cover" />
               )}
               <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-300">{preview}</p>
-              {tipo === "link" && (
+              {linkUrl && (canal === "email" || tipo === "link") && (
                 <p className="mt-1 truncate text-[10px] text-indigo-400">{linkUrl}</p>
               )}
             </div>
@@ -643,13 +737,16 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
       )}
 
       {/* Sheet de detalhe do lead (reusa DealDetailSheet) */}
-      <RemarketingLeadSheet dealId={selectedDealId} onClose={() => setSelectedDealId(null)} />
+      <RemarketingLeadSheet
+        key={selectedDealId ?? "none"}
+        dealId={selectedDealId}
+        onClose={() => setSelectedDealId(null)}
+      />
 
       <p className="flex items-center gap-1.5 text-xs text-zinc-600">
         <Info className="h-3 w-3" />
-        Disparo via WhatsApp (Z-API) com salvaguardas anti-ban + dry-run obrigatório. CSV no
-        formato Meta Custom Audience (email, telefone E.164, primeiro nome) também disponível para
-        Públicos da Meta Ads.
+        Disparo via WhatsApp (Z-API) ou e-mail (Resend/Brevo), com dry-run obrigatório, ritmo
+        controlado e descadastro (e-mail). CSV no formato Meta Custom Audience também disponível.
       </p>
     </div>
   );

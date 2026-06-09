@@ -48,6 +48,16 @@ Imagem exige **URL pública estável**: upload vai ao bucket PÚBLICO `remarketi
 (`getPublicUrl`), nunca signed URL (expiraria durante os dias de throttle do disparo).
 A CF tem fallback defensivo para texto se faltar a mídia (não quebra o disparo).
 
+## ⛔ INVARIANTE nº 5 — canal de e-mail exige descadastro (LGPD)
+
+Campanha tem `canal` (`whatsapp`|`email`). E-mail usa Resend→Brevo (espelha
+`functions/send-messages`), template HTML único (logo+imagem+corpo+botão CTA real+rodapé).
+**Todo e-mail DEVE ter link de descadastro** (token HMAC → CF pública `remarketing-unsubscribe`
+→ `remarketing_optout_email`). A CF respeita opt-out por **e-mail** (canal email) e por
+**telefone** (canal whatsapp), em tabelas separadas. E-mail não tem horário restrito nem risco
+de ban; limite/throttle próprios (`REMKTG_EMAIL_*`). Envio sem contato do canal → marca erro,
+não quebra o batch. Nunca remover o descadastro do rodapé.
+
 ## Regras de Supabase
 
 - A fila de envios é criada pelo **CEO autenticado** (`createAuditedSupabaseClient` →
