@@ -88,14 +88,14 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
   ]);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       {/* Critical alerts banner */}
       <CriticalAlertsBanner counts={criticalCounts} />
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">War Room — Dashboard</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
+          <h1 className="text-title-2 text-foreground">War Room — Dashboard</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Visao executiva completa — metricas, graficos e alertas em uma tela.
           </p>
         </div>
@@ -109,7 +109,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
 
       {/* Secao 1: Meta e Receita */}
       <section>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Meta e Receita
         </p>
         <div className="grid grid-cols-3 gap-4">
@@ -154,7 +154,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
 
       {/* Secao 2: Leads Prioritarios + Proximas Acoes */}
       <section>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Operacional
         </p>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -165,7 +165,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
 
       {/* Secao 3: Funil Comercial */}
       <section>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Funil Comercial
         </p>
         <CommercialFunnelSection data={commercialFunnel} />
@@ -176,7 +176,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
 
       {/* Secao 4: Caixa */}
       <section>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Caixa
         </p>
         <div className="grid grid-cols-2 gap-4">
@@ -192,7 +192,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
 
       {/* Secao 6: Receita em Risco */}
       <section>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Receita em Risco
         </p>
         <RiskRevenueSection data={revenueAtRisk} />
@@ -200,7 +200,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
 
       {/* Secao 7: Posicionamento */}
       <section>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Posicionamento
         </p>
         <PositioningSection data={positioning} />
@@ -208,7 +208,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
 
       {/* Secao 8: Experiencia das Familias */}
       <section>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Experiencia das Familias
         </p>
         <FamilyExperienceSection data={familyExperience} />
@@ -220,7 +220,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
 
       {/* Secao 9: Alertas e Gargalos */}
       <section>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Alertas e Gargalos
         </p>
         <AlertsPanel alerts={alerts} bottlenecks={bottlenecks} />

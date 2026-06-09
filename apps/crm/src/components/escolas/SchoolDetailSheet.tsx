@@ -81,10 +81,10 @@ const TEMPERATURA_OPTIONS = [
 ];
 
 const inputClass =
-  "w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30";
+  "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30";
 const selectClass =
-  "w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2 text-sm text-zinc-200 focus:border-indigo-500/50 focus:outline-none appearance-none";
-const labelClass = "text-[10px] font-medium text-zinc-500 mb-1 block";
+  "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary/50 focus:outline-none appearance-none";
+const labelClass = "text-[10px] font-medium text-muted-foreground mb-1 block";
 
 export function SchoolDetailSheet({
   school,
@@ -193,33 +193,33 @@ export function SchoolDetailSheet({
       />
 
       {/* Sheet */}
-      <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col border-l border-[#1e2130] bg-[#0c0e16] shadow-2xl">
+      <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col shadow-2xl liquid-glass">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#1e2130] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-white">{school.name}</h2>
-            <p className="flex items-center gap-1 text-xs text-zinc-500">
+            <h2 className="text-lg font-semibold text-foreground">{school.name}</h2>
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
               <MapPin className="h-3 w-3" />
               {school.city}, {school.state}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 px-6 py-2 border-b border-[#1e2130]">
+        <div className="flex gap-1 px-6 py-2 border-b border-border">
           <button
             onClick={() => setActiveTab("info")}
             className={cn(
-              "flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+              "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors",
               activeTab === "info"
-                ? "bg-indigo-600/20 text-indigo-300"
-                : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5",
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent",
             )}
           >
             Informacoes
@@ -227,10 +227,10 @@ export function SchoolDetailSheet({
           <button
             onClick={() => setActiveTab("contatos")}
             className={cn(
-              "flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+              "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors",
               activeTab === "contatos"
-                ? "bg-indigo-600/20 text-indigo-300"
-                : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5",
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent",
             )}
           >
             Contatos ({contatos.length})
@@ -247,7 +247,7 @@ export function SchoolDetailSheet({
                 {!isEditing ? (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
+                    className="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
                   >
                     <Pencil className="h-3 w-3" />
                     Editar
@@ -256,14 +256,14 @@ export function SchoolDetailSheet({
                   <div className="flex gap-2">
                     <button
                       onClick={() => setIsEditing(false)}
-                      className="rounded-lg border border-[#1e2130] px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-white/5"
+                      className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent"
                     >
                       Cancelar
                     </button>
                     <button
                       onClick={handleSaveSchool}
                       disabled={isPending}
-                      className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+                      className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
                     >
                       {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                       Salvar
@@ -273,8 +273,8 @@ export function SchoolDetailSheet({
               </div>
 
               {/* School Info */}
-              <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4 space-y-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+              <div className="rounded-lg p-4 space-y-4 glass-card">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Dados Principais
                 </p>
 
@@ -318,21 +318,21 @@ export function SchoolDetailSheet({
                 ) : (
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-[10px] text-zinc-600">Status</p>
-                      <p className="text-zinc-200 capitalize">{school.status.replace("_", " ")}</p>
+                      <p className="text-[10px] text-label-tertiary">Status</p>
+                      <p className="text-foreground capitalize">{school.status.replace("_", " ")}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-zinc-600">Tipo</p>
-                      <p className="text-zinc-200">{school.type}</p>
+                      <p className="text-[10px] text-label-tertiary">Tipo</p>
+                      <p className="text-foreground">{school.type}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-zinc-600">Temperatura</p>
-                      <p className="text-zinc-200 capitalize">{school.temperatura_relacionamento ?? "neutro"}</p>
+                      <p className="text-[10px] text-label-tertiary">Temperatura</p>
+                      <p className="text-foreground capitalize">{school.temperatura_relacionamento ?? "neutro"}</p>
                     </div>
                     {school.gpa_minimo != null && school.gpa_minimo > 0 && (
                       <div>
-                        <p className="text-[10px] text-zinc-600">GPA Minimo</p>
-                        <p className="text-zinc-200">{school.gpa_minimo.toFixed(1)}</p>
+                        <p className="text-[10px] text-label-tertiary">GPA Minimo</p>
+                        <p className="text-foreground">{school.gpa_minimo.toFixed(1)}</p>
                       </div>
                     )}
                   </div>
@@ -340,8 +340,8 @@ export function SchoolDetailSheet({
               </div>
 
               {/* Budget */}
-              <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4 space-y-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+              <div className="rounded-lg p-4 space-y-4 glass-card">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Regras Financeiras
                 </p>
 
@@ -397,28 +397,28 @@ export function SchoolDetailSheet({
                 ) : (
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-[10px] text-zinc-600">Budget Minimo</p>
-                      <p className="text-amber-400 font-semibold">US$ {(school.min_budget_usd / 1000).toFixed(0)}k</p>
+                      <p className="text-[10px] text-label-tertiary">Budget Minimo</p>
+                      <p className="text-sys-orange font-semibold">US$ {(school.min_budget_usd / 1000).toFixed(0)}k</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-zinc-600">Budget Forte</p>
-                      <p className="text-emerald-400 font-semibold">US$ {(school.strong_budget_usd / 1000).toFixed(0)}k</p>
+                      <p className="text-[10px] text-label-tertiary">Budget Forte</p>
+                      <p className="text-sys-green font-semibold">US$ {(school.strong_budget_usd / 1000).toFixed(0)}k</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-zinc-600">Agressividade</p>
-                      <p className="text-zinc-200 capitalize">{school.scholarship_aggressiveness}</p>
+                      <p className="text-[10px] text-label-tertiary">Agressividade</p>
+                      <p className="text-foreground capitalize">{school.scholarship_aggressiveness}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-zinc-600">Influencia Esportiva</p>
-                      <p className="text-zinc-200 capitalize">{school.sport_influence}</p>
+                      <p className="text-[10px] text-label-tertiary">Influencia Esportiva</p>
+                      <p className="text-foreground capitalize">{school.sport_influence}</p>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Academico */}
-              <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4 space-y-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+              <div className="rounded-lg p-4 space-y-4 glass-card">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Academico e Prazos
                 </p>
 
@@ -463,9 +463,9 @@ export function SchoolDetailSheet({
                           type="checkbox"
                           checked={editData.rolling_admission}
                           onChange={(e) => setEditData((p) => ({ ...p, rolling_admission: e.target.checked }))}
-                          className="h-4 w-4 rounded border-zinc-600 bg-[#141720] text-indigo-600 focus:ring-indigo-500/30"
+                          className="h-4 w-4 rounded border-border bg-card text-primary focus:ring-primary/30"
                         />
-                        <label className="text-xs text-zinc-400">Rolling Admission</label>
+                        <label className="text-xs text-muted-foreground">Rolling Admission</label>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -492,29 +492,29 @@ export function SchoolDetailSheet({
                 ) : (
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-[10px] text-zinc-600">Ingles Minimo</p>
-                      <p className="text-zinc-200">{school.min_english_level}</p>
+                      <p className="text-[10px] text-label-tertiary">Ingles Minimo</p>
+                      <p className="text-foreground">{school.min_english_level}</p>
                     </div>
                     {school.serie_maxima && (
                       <div>
-                        <p className="text-[10px] text-zinc-600">Serie Maxima</p>
-                        <p className="text-zinc-200">{school.serie_maxima}</p>
+                        <p className="text-[10px] text-label-tertiary">Serie Maxima</p>
+                        <p className="text-foreground">{school.serie_maxima}</p>
                       </div>
                     )}
                     <div>
-                      <p className="text-[10px] text-zinc-600">Rolling Admission</p>
-                      <p className="text-zinc-200">{school.rolling_admission ? "Sim" : "Nao"}</p>
+                      <p className="text-[10px] text-label-tertiary">Rolling Admission</p>
+                      <p className="text-foreground">{school.rolling_admission ? "Sim" : "Nao"}</p>
                     </div>
                     {school.deadline_fall && (
                       <div>
-                        <p className="text-[10px] text-zinc-600">Deadline Fall</p>
-                        <p className="text-zinc-200">{new Date(school.deadline_fall).toLocaleDateString("pt-BR")}</p>
+                        <p className="text-[10px] text-label-tertiary">Deadline Fall</p>
+                        <p className="text-foreground">{new Date(school.deadline_fall).toLocaleDateString("pt-BR")}</p>
                       </div>
                     )}
                     {school.deadline_spring && (
                       <div>
-                        <p className="text-[10px] text-zinc-600">Deadline Spring</p>
-                        <p className="text-zinc-200">{new Date(school.deadline_spring).toLocaleDateString("pt-BR")}</p>
+                        <p className="text-[10px] text-label-tertiary">Deadline Spring</p>
+                        <p className="text-foreground">{new Date(school.deadline_spring).toLocaleDateString("pt-BR")}</p>
                       </div>
                     )}
                   </div>
@@ -522,8 +522,8 @@ export function SchoolDetailSheet({
               </div>
 
               {/* Admissions Officer */}
-              <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4 space-y-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+              <div className="rounded-lg p-4 space-y-4 glass-card">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Admissions Officer
                 </p>
 
@@ -562,22 +562,22 @@ export function SchoolDetailSheet({
                   </div>
                 ) : school.coach_name ? (
                   <div>
-                    <p className="text-sm font-medium text-white">{school.coach_name}</p>
+                    <p className="text-sm font-medium text-foreground">{school.coach_name}</p>
                     {school.coach_email && (
-                      <p className="mt-1 text-xs text-indigo-400">{school.coach_email}</p>
+                      <p className="mt-1 text-xs text-primary">{school.coach_email}</p>
                     )}
                     {school.coach_phone && (
-                      <p className="mt-0.5 text-xs text-zinc-400">{school.coach_phone}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{school.coach_phone}</p>
                     )}
                   </div>
                 ) : (
-                  <p className="text-xs text-zinc-600">Nenhum officer cadastrado.</p>
+                  <p className="text-xs text-label-tertiary">Nenhum officer cadastrado.</p>
                 )}
               </div>
 
               {/* Regra pratica + notas */}
-              <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4 space-y-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+              <div className="rounded-lg p-4 space-y-4 glass-card">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Regra BAUSA e Notas
                 </p>
 
@@ -608,18 +608,18 @@ export function SchoolDetailSheet({
                   <div className="space-y-2">
                     {school.practical_rule && (
                       <div>
-                        <p className="text-[10px] text-indigo-400 font-semibold mb-0.5">Regra BAUSA</p>
-                        <p className="text-xs text-zinc-400 leading-relaxed">{school.practical_rule}</p>
+                        <p className="text-[10px] text-primary font-semibold mb-0.5">Regra BAUSA</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{school.practical_rule}</p>
                       </div>
                     )}
                     {school.notes && (
                       <div>
-                        <p className="text-[10px] text-zinc-500 font-semibold mb-0.5">Notas</p>
-                        <p className="text-xs text-zinc-400 leading-relaxed">{school.notes}</p>
+                        <p className="text-[10px] text-muted-foreground font-semibold mb-0.5">Notas</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{school.notes}</p>
                       </div>
                     )}
                     {!school.practical_rule && !school.notes && (
-                      <p className="text-xs text-zinc-600">Sem regras ou notas.</p>
+                      <p className="text-xs text-label-tertiary">Sem regras ou notas.</p>
                     )}
                   </div>
                 )}
@@ -631,12 +631,12 @@ export function SchoolDetailSheet({
           {activeTab === "contatos" && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-white">
+                <p className="text-sm font-semibold text-foreground">
                   Timeline de Contatos
                 </p>
                 <button
                   onClick={() => setShowForm(!showForm)}
-                  className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
+                  className="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
                 >
                   <Plus className="h-3 w-3" />
                   Novo contato
@@ -645,7 +645,7 @@ export function SchoolDetailSheet({
 
               {/* Form */}
               {showForm && (
-                <div className="mb-4 rounded-lg border border-indigo-500/20 bg-[#141720] p-4 space-y-3">
+                <div className="mb-4 rounded-lg border border-primary/20 p-4 space-y-3 glass-card">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelClass}>Data</label>
@@ -690,14 +690,14 @@ export function SchoolDetailSheet({
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setShowForm(false)}
-                      className="rounded-lg border border-[#1e2130] px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-white/5"
+                      className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
                     >
                       Cancelar
                     </button>
                     <button
                       onClick={handleSubmitContato}
                       disabled={isPending}
-                      className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+                      className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
                     >
                       {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
                       Salvar
@@ -708,15 +708,15 @@ export function SchoolDetailSheet({
 
               {/* Timeline */}
               {contatos.length === 0 ? (
-                <div className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-8 text-center">
-                  <MessageSquare className="mx-auto h-8 w-8 text-zinc-700 mb-2" />
-                  <p className="text-xs text-zinc-500">
+                <div className="rounded-lg px-4 py-8 text-center glass-card">
+                  <MessageSquare className="mx-auto h-8 w-8 text-label-tertiary mb-2" />
+                  <p className="text-xs text-muted-foreground">
                     Nenhum contato registrado com esta escola.
                   </p>
                 </div>
               ) : (
                 <div className="relative space-y-0">
-                  <div className="absolute left-3 top-2 bottom-2 w-px bg-[#1e2130]" />
+                  <div className="absolute left-3 top-2 bottom-2 w-px bg-border" />
 
                   {contatos.map((contato) => {
                     const tipoConfig = TIPO_CONTATO_OPTIONS.find(
@@ -726,19 +726,19 @@ export function SchoolDetailSheet({
 
                     return (
                       <div key={contato.id} className="relative flex gap-3 py-2">
-                        <div className="z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-[#1e2130] bg-[#141720]">
-                          <Icon className="h-3 w-3 text-indigo-400" />
+                        <div className="z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-border bg-card">
+                          <Icon className="h-3 w-3 text-primary" />
                         </div>
-                        <div className="flex-1 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5">
+                        <div className="flex-1 rounded-lg border border-border bg-card px-3 py-2.5">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-medium text-indigo-400">
+                            <span className="text-[10px] font-medium text-primary">
                               {tipoConfig?.label ?? contato.tipo_contato}
                             </span>
-                            <span className="text-[10px] text-zinc-600">
+                            <span className="text-[10px] text-label-tertiary">
                               {new Date(contato.data_contato).toLocaleDateString("pt-BR")}
                             </span>
                           </div>
-                          <p className="text-xs text-zinc-300 leading-relaxed">
+                          <p className="text-xs text-foreground leading-relaxed">
                             {contato.resumo}
                           </p>
                         </div>

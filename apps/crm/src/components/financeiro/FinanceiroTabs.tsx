@@ -37,7 +37,7 @@ export function FinanceiroTabs({ className }: FinanceiroTabsProps) {
   );
 
   return (
-    <div className={cn("flex gap-1 rounded-lg border border-[#1e2130] bg-[#0f1117] p-1", className)}>
+    <div className={cn("liquid-glass flex gap-1 rounded-lg p-1", className)}>
       {TABS.map((tab) => (
         <button
           key={tab.id}
@@ -45,8 +45,8 @@ export function FinanceiroTabs({ className }: FinanceiroTabsProps) {
           className={cn(
             "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
             currentTab === tab.id
-              ? "bg-indigo-600 text-white"
-              : "text-zinc-400 hover:bg-[#1e2130] hover:text-zinc-200"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
           )}
         >
           {tab.label}

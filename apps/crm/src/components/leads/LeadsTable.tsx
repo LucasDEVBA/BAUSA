@@ -70,7 +70,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
           const lead = row.original;
           return (
             <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-zinc-700 to-zinc-800 text-[10px] font-bold text-zinc-300">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-secondary/80 text-[10px] font-bold text-muted-foreground">
                 {lead.athlete_name
                   .split(" ")
                   .slice(0, 2)
@@ -80,7 +80,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-medium text-zinc-100">{lead.athlete_name}</p>
+                  <p className="text-sm font-medium text-foreground">{lead.athlete_name}</p>
                   {lead.possible_duplicate && !dismissedDuplicates.has(lead.id) && !linkedSiblings.has(lead.id) && (
                     <span className="relative">
                       <button
@@ -88,14 +88,14 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                           e.stopPropagation();
                           setOpenDuplicatePopover(openDuplicatePopover === lead.id ? null : lead.id);
                         }}
-                        className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400 hover:bg-amber-500/20 transition-colors"
+                        className="inline-flex items-center gap-0.5 rounded-full bg-sys-orange/10 border border-sys-orange/20 px-1.5 py-0.5 text-[9px] font-semibold text-sys-orange hover:bg-sys-orange/20 transition-colors"
                       >
                         <AlertTriangle className="h-2.5 w-2.5" />
                         Duplicata?
                       </button>
                       {openDuplicatePopover === lead.id && (
                         <div
-                          className="absolute left-0 top-full z-30 mt-1 w-52 rounded-lg border border-[#1e2130] bg-[#0f1117] shadow-xl"
+                          className="absolute left-0 top-full z-30 mt-1 w-52 rounded-xl border border-border bg-popover shadow-lg"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
@@ -103,9 +103,9 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                               setDismissedDuplicates((prev) => new Set([...prev, lead.id]));
                               setOpenDuplicatePopover(null);
                             }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 transition-colors rounded-t-lg"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors rounded-t-xl"
                           >
-                            <EyeOff className="h-3.5 w-3.5 text-zinc-500" />
+                            <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
                             Ignorar
                           </button>
                           <button
@@ -115,9 +115,9 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                               try { localStorage.setItem("crm_linked_siblings", JSON.stringify([...updated])); } catch { /* noop */ }
                               setOpenDuplicatePopover(null);
                             }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 transition-colors border-t border-[#1e2130]"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors border-t border-border"
                           >
-                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            <Check className="h-3.5 w-3.5 text-sys-green" />
                             E o mesmo lead
                           </button>
                           <button
@@ -125,9 +125,9 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                               toast.success("Vinculado como irmao");
                               setOpenDuplicatePopover(null);
                             }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 transition-colors border-t border-[#1e2130] rounded-b-lg"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors border-t border-border rounded-b-xl"
                           >
-                            <Users className="h-3.5 w-3.5 text-indigo-400" />
+                            <Users className="h-3.5 w-3.5 text-primary" />
                             Novo atleta, mesma familia
                           </button>
                         </div>
@@ -135,7 +135,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-zinc-500">{lead.email}</p>
+                <p className="text-xs text-muted-foreground">{lead.email}</p>
               </div>
             </div>
           );
@@ -158,7 +158,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         cell: ({ getValue }) => {
           const v = getValue() as string | null;
           return (
-            <span className="text-sm text-zinc-300">
+            <span className="text-sm text-foreground">
               {v ? formatInvestmentRange(v) : "—"}
             </span>
           );
@@ -169,7 +169,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         accessorKey: "position",
         header: "Posição",
         cell: ({ getValue }) => (
-          <span className="text-sm text-zinc-400">
+          <span className="text-sm text-muted-foreground">
             {(getValue() as string | null) ?? "—"}
           </span>
         ),
@@ -180,7 +180,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         header: "Local",
         accessorFn: (row) => row.address_state ?? row.school_city_state,
         cell: ({ getValue }) => (
-          <span className="text-sm text-zinc-400">
+          <span className="text-sm text-muted-foreground">
             {(getValue() as string | null) ?? "—"}
           </span>
         ),
@@ -200,7 +200,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
           const lead = row.original;
           if (lead.meeting_scheduled) {
             return (
-              <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+              <div className="flex items-center gap-1.5 text-xs text-sys-green font-medium">
                 <Calendar className="h-3.5 w-3.5" />
                 Reunião
               </div>
@@ -208,7 +208,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
           }
           if (lead.followup_2_sent_at) {
             return (
-              <div className="flex items-center gap-1.5 text-xs text-amber-400 font-medium">
+              <div className="flex items-center gap-1.5 text-xs text-sys-orange font-medium">
                 <MessageCircle className="h-3.5 w-3.5" />
                 Follow-up 2
               </div>
@@ -216,7 +216,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
           }
           if (lead.followup_1_sent_at) {
             return (
-              <div className="flex items-center gap-1.5 text-xs text-amber-400 font-medium">
+              <div className="flex items-center gap-1.5 text-xs text-sys-orange font-medium">
                 <MessageCircle className="h-3.5 w-3.5" />
                 Follow-up 1
               </div>
@@ -224,14 +224,14 @@ export function LeadsTable({ leads }: LeadsTableProps) {
           }
           if (lead.whatsapp_sent_at) {
             return (
-              <div className="flex items-center gap-1.5 text-xs text-blue-400 font-medium">
+              <div className="flex items-center gap-1.5 text-xs text-sys-blue font-medium">
                 <Send className="h-3.5 w-3.5" />
                 Enviado
               </div>
             );
           }
           return (
-            <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Clock className="h-3.5 w-3.5" />
               Pendente
             </div>
@@ -246,7 +246,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         cell: ({ row }) => {
           const lead = row.original;
           if (!lead.is_in_pipeline) {
-            return <span className="text-xs text-zinc-600">—</span>;
+            return <span className="text-xs text-label-tertiary">—</span>;
           }
           const stage = lead.pipeline_stage as DealStage | null;
           const config = stage ? DEAL_STAGE_CONFIG[stage] : null;
@@ -255,8 +255,8 @@ export function LeadsTable({ leads }: LeadsTableProps) {
             <span className={cn(
               "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium",
               config
-                ? "bg-indigo-500/10 text-indigo-300 border border-indigo-500/20"
-                : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20",
+                ? "bg-primary/10 text-primary border border-primary/20"
+                : "bg-secondary text-muted-foreground border border-border",
             )}>
               {config && (
                 <span className={cn("h-1.5 w-1.5 rounded-full", config.dotColor)} />
@@ -274,16 +274,16 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         cell: ({ row }) => {
           const lead = row.original;
           const source = lead.utm_source || lead.cta_source;
-          if (!source) return <span className="text-xs text-zinc-600">—</span>;
+          if (!source) return <span className="text-xs text-label-tertiary">—</span>;
 
           const device = lead.device_type;
           return (
             <div className="flex flex-col gap-0.5">
-              <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-300 border border-purple-500/20 w-fit">
+              <span className="inline-flex items-center gap-1 rounded-full bg-plan-legacy/10 px-2 py-0.5 text-xs font-medium text-plan-legacy border border-plan-legacy/20 w-fit">
                 {source}
               </span>
               {device && (
-                <span className="text-[10px] text-zinc-500">{device}</span>
+                <span className="text-[10px] text-muted-foreground">{device}</span>
               )}
             </div>
           );
@@ -294,7 +294,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         accessorKey: "submitted_at",
         header: "Recebido",
         cell: ({ getValue }) => (
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-muted-foreground">
             {formatRelativeTime(getValue() as string)}
           </span>
         ),
@@ -323,17 +323,17 @@ export function LeadsTable({ leads }: LeadsTableProps) {
       <div className="mb-4 flex items-center gap-3">
         {/* Search */}
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
             placeholder="Buscar por nome, email..."
-            className="w-full rounded-lg border border-[#1e2130] bg-[#141720] py-2 pl-9 pr-4 text-sm text-zinc-200 placeholder-zinc-500 outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+            className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-4 text-sm text-foreground placeholder:text-placeholder outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/30"
           />
         </div>
 
         {/* Filtro por classificação */}
-        <div className="flex rounded-lg border border-[#1e2130] bg-[#141720] p-0.5">
+        <div className="flex rounded-md border border-border bg-card p-0.5">
           {CLASSIFICATION_FILTERS.map((filter) => (
             <button
               key={filter.value}
@@ -341,8 +341,8 @@ export function LeadsTable({ leads }: LeadsTableProps) {
               className={cn(
                 "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
                 classificationFilter === filter.value
-                  ? "bg-indigo-600/30 text-indigo-300"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-primary/15 text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               {filter.label}
@@ -350,17 +350,17 @@ export function LeadsTable({ leads }: LeadsTableProps) {
           ))}
         </div>
 
-        <div className="ml-auto text-xs text-zinc-500">
+        <div className="ml-auto text-xs text-muted-foreground">
           {table.getFilteredRowModel().rows.length} leads
         </div>
       </div>
 
       {/* Tabela */}
-      <div className="overflow-hidden rounded-xl border border-[#1e2130] bg-[#141720]">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[#1e2130]">
+              <tr className="border-b border-border">
                 {table.getHeaderGroups().map((headerGroup) =>
                   headerGroup.headers.map((header) => (
                     <th
@@ -368,9 +368,9 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                       onClick={header.column.getToggleSortingHandler()}
                       style={{ width: header.getSize() }}
                       className={cn(
-                        "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500",
+                        "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground",
                         header.column.getCanSort() &&
-                          "cursor-pointer select-none hover:text-zinc-300"
+                          "cursor-pointer select-none hover:text-foreground"
                       )}
                     >
                       <div className="flex items-center gap-1.5">
@@ -390,8 +390,8 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                   key={row.id}
                   onClick={() => setSelectedLead(row.original)}
                   className={cn(
-                    "cursor-pointer border-b border-[#1e2130] transition-colors last:border-0 hover:bg-white/[0.03]",
-                    i % 2 === 0 ? "" : "bg-white/[0.01]"
+                    "cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent",
+                    i % 2 === 0 ? "" : "bg-fill-4"
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -403,7 +403,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
               ))}
               {table.getRowModel().rows.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length} className="py-12 text-center text-sm text-zinc-500">
+                  <td colSpan={columns.length} className="py-12 text-center text-sm text-muted-foreground">
                     Nenhum lead encontrado
                   </td>
                 </tr>
@@ -413,8 +413,8 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         </div>
 
         {/* Paginação */}
-        <div className="flex items-center justify-between border-t border-[#1e2130] px-4 py-3">
-          <p className="text-xs text-zinc-500">
+        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          <p className="text-xs text-muted-foreground">
             Página {table.getState().pagination.pageIndex + 1} de{" "}
             {table.getPageCount()}
           </p>
@@ -422,14 +422,14 @@ export function LeadsTable({ leads }: LeadsTableProps) {
             <button
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/10 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/10 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

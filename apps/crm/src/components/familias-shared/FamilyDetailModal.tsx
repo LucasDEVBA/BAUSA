@@ -98,22 +98,22 @@ const TIPOS_DOC_PRESET = [
 ];
 
 const STATUS_DOC_LABELS: Record<string, { label: string; bg: string; color: string }> = {
-  pendente: { label: "Pendente", bg: "bg-zinc-700/30", color: "text-zinc-300" },
+  pendente: { label: "Pendente", bg: "bg-secondary", color: "text-muted-foreground" },
   enviado_atleta: {
     label: "Enviado pelo atleta",
-    bg: "bg-blue-500/15",
-    color: "text-blue-300",
+    bg: "bg-sys-blue/15",
+    color: "text-sys-blue",
   },
-  revisado: { label: "Revisado", bg: "bg-amber-500/15", color: "text-amber-300" },
+  revisado: { label: "Revisado", bg: "bg-sys-orange/15", color: "text-sys-orange" },
   enviado_escola: {
     label: "Enviado à escola",
-    bg: "bg-indigo-500/15",
-    color: "text-indigo-300",
+    bg: "bg-primary/15",
+    color: "text-primary",
   },
   aprovado: {
     label: "Aprovado",
-    bg: "bg-emerald-500/15",
-    color: "text-emerald-300",
+    bg: "bg-sys-green/15",
+    color: "text-sys-green",
   },
 };
 
@@ -198,17 +198,17 @@ export function FamilyDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl max-h-[92vh] rounded-2xl border border-[#1e2130] bg-[#0f1117] shadow-[0_20px_70px_-15px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden"
+        className="w-full max-w-4xl max-h-[92vh] rounded-2xl flex flex-col overflow-hidden liquid-glass"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header com gradient sutil */}
-        <div className="relative border-b border-[#1e2130] bg-gradient-to-br from-indigo-500/5 via-[#0f1117] to-purple-500/5 px-6 py-5">
+        <div className="relative border-b border-border bg-gradient-to-br from-primary/5 via-popover to-plan-legacy/5 px-6 py-5">
           {/* Decorative gradient orb */}
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
           <div className="relative flex items-start justify-between gap-3">
             <div className="flex items-center gap-4 min-w-0 flex-1">
@@ -219,11 +219,11 @@ export function FamilyDetailModal({
                     "flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold shadow-lg",
                     "bg-gradient-to-br",
                     family.temperatura === "verde" &&
-                      "from-emerald-500/30 to-emerald-700/30 text-emerald-200 ring-2 ring-emerald-500/30",
+                      "from-sys-green/30 to-sys-green/20 text-sys-green ring-2 ring-sys-green/30",
                     family.temperatura === "amarelo" &&
-                      "from-amber-500/30 to-amber-700/30 text-amber-200 ring-2 ring-amber-500/30",
+                      "from-sys-orange/30 to-sys-orange/20 text-sys-orange ring-2 ring-sys-orange/30",
                     family.temperatura === "vermelho" &&
-                      "from-red-500/30 to-red-700/30 text-red-200 ring-2 ring-red-500/30",
+                      "from-sys-red/30 to-sys-red/20 text-sys-red ring-2 ring-sys-red/30",
                   )}
                 >
                   {getInitials(family.athlete_name)}
@@ -234,12 +234,12 @@ export function FamilyDetailModal({
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="text-xl font-bold text-white tracking-tight">
+                <p className="text-xl font-bold text-foreground tracking-tight">
                   {family.athlete_name}
                 </p>
-                <p className="mt-0.5 text-xs text-zinc-400">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   Responsável:{" "}
-                  <span className="font-medium text-zinc-300">
+                  <span className="font-medium text-foreground/80">
                     {family.guardian_name}
                   </span>
                 </p>
@@ -254,14 +254,14 @@ export function FamilyDetailModal({
                     <span className={cn("h-1.5 w-1.5 rounded-full", statusCfg.dot)} />
                     {statusCfg.label}
                   </span>
-                  <span className="rounded-full bg-indigo-500/10 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
+                  <span className="rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary">
                     {stageCfg.label}
                   </span>
-                  <span className="rounded-full bg-[#141720] border border-[#1e2130] px-2 py-0.5 text-[10px] text-zinc-400">
+                  <span className="rounded-full bg-card border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
                     Plano {family.plano}
                   </span>
                   {family.esporte && (
-                    <span className="rounded-full bg-[#141720] border border-[#1e2130] px-2 py-0.5 text-[10px] text-zinc-400">
+                    <span className="rounded-full bg-card border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
                       {family.esporte}
                     </span>
                   )}
@@ -271,7 +271,7 @@ export function FamilyDetailModal({
 
             <button
               onClick={onClose}
-              className="rounded-lg p-2 text-zinc-500 hover:bg-white/5 hover:text-white transition-colors flex-shrink-0"
+              className="rounded-md p-2 text-muted-foreground hover:bg-fill-4 hover:text-foreground transition-colors flex-shrink-0"
             >
               <X className="h-4 w-4" />
             </button>
@@ -297,7 +297,7 @@ export function FamilyDetailModal({
           </div>
 
           {/* Tabs */}
-          <div className="relative mt-4 flex gap-0.5 overflow-x-auto rounded-xl border border-[#1e2130] bg-[#141720]/80 backdrop-blur p-1">
+          <div className="relative mt-4 flex gap-0.5 overflow-x-auto rounded-xl border border-border bg-card/80 backdrop-blur p-1">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -305,8 +305,8 @@ export function FamilyDetailModal({
                 className={cn(
                   "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150",
                   tab === id
-                    ? "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-200 shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-200 hover:bg-white/5",
+                    ? "bg-primary/15 text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-fill-4",
                 )}
               >
                 <Icon className="h-3 w-3" /> {label}
@@ -316,7 +316,7 @@ export function FamilyDetailModal({
         </div>
 
         {/* Conteúdo */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 bg-popover">
           {tab === "geral" && <TabGeral family={family} />}
           {tab === "indicadores" && (
             <TabIndicadores family={family} onSaved={handleSaved} />
@@ -439,7 +439,7 @@ function TabGeral({ family }: { family: FamilyModalData }) {
     <div className="space-y-5">
       {/* Health Score */}
       <div>
-        <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Saúde da família
         </p>
         <HealthScoreCard
@@ -454,7 +454,7 @@ function TabGeral({ family }: { family: FamilyModalData }) {
 
       {/* Indicadores em destaque */}
       <div>
-        <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Indicadores principais
         </p>
         <div className="grid grid-cols-3 gap-3">
@@ -464,31 +464,31 @@ function TabGeral({ family }: { family: FamilyModalData }) {
               className={cn(
                 "relative overflow-hidden rounded-xl border bg-gradient-to-br p-4",
                 ind.color === "emerald" &&
-                  "border-emerald-500/30 from-emerald-500/10 to-emerald-500/5",
+                  "border-sys-green/30 from-sys-green/15 to-sys-green/5",
                 ind.color === "amber" &&
-                  "border-amber-500/30 from-amber-500/10 to-amber-500/5",
+                  "border-sys-orange/30 from-sys-orange/15 to-sys-orange/5",
                 ind.color === "red" &&
-                  "border-red-500/30 from-red-500/10 to-red-500/5",
+                  "border-sys-red/30 from-sys-red/15 to-sys-red/5",
                 ind.color === "blue" &&
-                  "border-blue-500/30 from-blue-500/10 to-blue-500/5",
+                  "border-sys-blue/30 from-sys-blue/15 to-sys-blue/5",
               )}
             >
-              <p className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                 {ind.label}
               </p>
               <div className="mt-1 flex items-baseline gap-1">
                 <span
                   className={cn(
                     "text-2xl font-bold",
-                    ind.color === "emerald" && "text-emerald-300",
-                    ind.color === "amber" && "text-amber-300",
-                    ind.color === "red" && "text-red-300",
-                    ind.color === "blue" && "text-blue-300",
+                    ind.color === "emerald" && "text-sys-green",
+                    ind.color === "amber" && "text-sys-orange",
+                    ind.color === "red" && "text-sys-red",
+                    ind.color === "blue" && "text-sys-blue",
                   )}
                 >
                   {ind.value}
                 </span>
-                <span className="text-xs text-zinc-500">/5</span>
+                <span className="text-xs text-muted-foreground">/5</span>
               </div>
               <div className="mt-2 flex gap-0.5">
                 {[1, 2, 3, 4, 5].map((n) => (
@@ -498,13 +498,13 @@ function TabGeral({ family }: { family: FamilyModalData }) {
                       "h-1 flex-1 rounded-full",
                       n <= ind.value
                         ? ind.color === "emerald"
-                          ? "bg-emerald-500"
+                          ? "bg-sys-green"
                           : ind.color === "amber"
-                            ? "bg-amber-500"
+                            ? "bg-sys-orange"
                             : ind.color === "red"
-                              ? "bg-red-500"
-                              : "bg-blue-500"
-                        : "bg-white/5",
+                              ? "bg-sys-red"
+                              : "bg-sys-blue"
+                        : "bg-fill-4",
                     )}
                   />
                 ))}
@@ -516,19 +516,19 @@ function TabGeral({ family }: { family: FamilyModalData }) {
 
       {/* Info secundária */}
       <div>
-        <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Informações da família
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {infoCards.map((it) => (
             <div
               key={it.label}
-              className="flex items-center gap-3 rounded-xl border border-[#1e2130] bg-[#141720] px-3 py-2.5 hover:border-indigo-500/30 transition-colors"
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:shadow-md transition-all glass-card"
             >
               <span className="text-lg">{it.icon}</span>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-zinc-500">{it.label}</p>
-                <p className="text-xs font-medium text-zinc-200 truncate">
+                <p className="text-[10px] text-muted-foreground">{it.label}</p>
+                <p className="text-xs font-medium text-foreground truncate">
                   {it.value}
                 </p>
               </div>
@@ -539,14 +539,14 @@ function TabGeral({ family }: { family: FamilyModalData }) {
 
       {family.tipos_risco.length > 0 && (
         <div>
-          <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Tipos de risco sinalizados
           </p>
           <div className="flex flex-wrap gap-1.5">
             {family.tipos_risco.map((t) => (
               <span
                 key={t}
-                className="rounded-lg border border-red-500/30 bg-gradient-to-br from-red-500/10 to-red-500/5 px-2.5 py-1 text-[11px] font-semibold text-red-300"
+                className="rounded-lg border border-sys-red/30 bg-sys-red/15 px-2.5 py-1 text-[11px] font-semibold text-sys-red"
               >
                 {RISK_DIMENSION_LABELS[t]}
               </span>
@@ -599,7 +599,7 @@ function TabIndicadores({
   return (
     <div className="space-y-5">
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
           Indicadores (1–5)
         </p>
         {[
@@ -618,9 +618,9 @@ function TabIndicadores({
           { label: "Risco percebido", v: risco, set: setRisco },
         ].map((it) => (
           <div key={it.label} className="mb-4">
-            <div className="flex justify-between text-xs text-zinc-400 mb-1">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
               <span>{it.label}</span>
-              <span className="text-zinc-500">
+              <span className="text-muted-foreground">
                 {it.v}/5{it.hint ? ` — ${it.hint}` : ""}
               </span>
             </div>
@@ -630,14 +630,14 @@ function TabIndicadores({
               max={5}
               value={it.v}
               onChange={(e) => it.set(Number(e.target.value))}
-              className="w-full accent-indigo-500"
+              className="w-full accent-primary"
             />
           </div>
         ))}
       </div>
 
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
           Tipos de Risco
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
@@ -651,8 +651,8 @@ function TabIndicadores({
                 className={cn(
                   "rounded-md border px-2 py-1.5 text-[11px] font-medium transition-colors text-left",
                   active
-                    ? "border-red-500/40 bg-red-500/10 text-red-300"
-                    : "border-[#1e2130] bg-[#141720] text-zinc-500 hover:text-zinc-300",
+                    ? "border-sys-red/40 bg-sys-red/15 text-sys-red"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground",
                 )}
               >
                 {opt.label}
@@ -665,7 +665,7 @@ function TabIndicadores({
       <button
         onClick={handleSave}
         disabled={isPending}
-        className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
       >
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
         Salvar indicadores
@@ -692,7 +692,7 @@ function TabEtapas({ experienciaId }: { experienciaId: string }) {
 
   if (loadPending) {
     return (
-      <div className="flex items-center justify-center py-12 text-zinc-500">
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin mr-2" />
         Carregando histórico...
       </div>
@@ -701,8 +701,8 @@ function TabEtapas({ experienciaId }: { experienciaId: string }) {
 
   if (historico.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-[#1e2130] py-10 text-center">
-        <p className="text-xs text-zinc-500">
+      <div className="rounded-xl border border-dashed border-border py-10 text-center">
+        <p className="text-xs text-muted-foreground">
           Nenhuma alteração registrada ainda.
         </p>
       </div>
@@ -711,7 +711,7 @@ function TabEtapas({ experienciaId }: { experienciaId: string }) {
 
   return (
     <div className="space-y-2">
-      <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
         Timeline de alterações (últimas 50)
       </p>
       {historico.map((h) => {
@@ -720,13 +720,13 @@ function TabEtapas({ experienciaId }: { experienciaId: string }) {
         return (
           <div
             key={h.id}
-            className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5"
+            className="rounded-xl border border-border bg-card px-3 py-2.5"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-semibold text-indigo-400">
+              <span className="text-[10px] font-semibold text-primary">
                 {h.user_papel ?? "sistema"}
               </span>
-              <span className="text-[10px] text-zinc-600">
+              <span className="text-[10px] text-label-tertiary">
                 {new Date(h.created_at).toLocaleString("pt-BR", {
                   day: "2-digit",
                   month: "2-digit",
@@ -742,10 +742,10 @@ function TabEtapas({ experienciaId }: { experienciaId: string }) {
                 return (
                   <span
                     key={c}
-                    className="rounded-md bg-[#0c0e16] border border-[#1e2130] px-1.5 py-0.5 text-[10px] text-zinc-400"
+                    className="rounded-md bg-background border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground"
                   >
-                    <span className="text-zinc-500">{c}:</span>{" "}
-                    <span className="text-zinc-300">
+                    <span className="text-label-tertiary">{c}:</span>{" "}
+                    <span className="text-foreground/80">
                       {String(oldVal ?? "—")} → {String(newVal ?? "—")}
                     </span>
                   </span>
@@ -833,12 +833,12 @@ function TabRegistros({
   return (
     <div className="space-y-5">
       {/* Form */}
-      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+      <div className="rounded-xl border border-sys-green/20 bg-sys-green/5 p-3 space-y-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-sys-green">
           Novo registro de contato
         </p>
         <div>
-          <p className="mb-1.5 text-[10px] text-zinc-500">Canal</p>
+          <p className="mb-1.5 text-[10px] text-muted-foreground">Canal</p>
           <div className="grid grid-cols-4 gap-1.5">
             {(["whatsapp", "email", "ligacao", "presencial"] as const).map(
               (t) => (
@@ -849,8 +849,8 @@ function TabRegistros({
                   className={cn(
                     "rounded-md border px-2 py-1.5 text-[10px] font-medium capitalize",
                     tipo === t
-                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                      : "border-[#1e2130] bg-[#141720] text-zinc-500",
+                      ? "border-sys-green/40 bg-sys-green/15 text-sys-green"
+                      : "border-border bg-card text-muted-foreground",
                   )}
                 >
                   {t}
@@ -860,26 +860,26 @@ function TabRegistros({
           </div>
         </div>
         <div>
-          <p className="mb-1.5 text-[10px] text-zinc-500">Resumo *</p>
+          <p className="mb-1.5 text-[10px] text-muted-foreground">Resumo *</p>
           <textarea
             value={resumo}
             onChange={(e) => setResumo(e.target.value)}
             rows={3}
-            className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-emerald-500/40"
+            className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-sys-green/40"
             placeholder="O que foi discutido..."
           />
         </div>
         <div>
-          <p className="mb-1.5 text-[10px] text-zinc-500">Próximo contato *</p>
+          <p className="mb-1.5 text-[10px] text-muted-foreground">Próximo contato *</p>
           <input
             type="date"
             value={proximo}
             onChange={(e) => setProximo(e.target.value)}
-            className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-emerald-500/40"
+            className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-sys-green/40"
           />
         </div>
         <div>
-          <p className="mb-1.5 text-[10px] text-zinc-500">
+          <p className="mb-1.5 text-[10px] text-muted-foreground">
             Anexar prints / arquivos (opcional)
           </p>
           <FileUploader
@@ -894,7 +894,7 @@ function TabRegistros({
         <button
           onClick={handleSubmit}
           disabled={isPending}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 rounded-md bg-sys-green px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
         >
           {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           Registrar contato
@@ -903,16 +903,16 @@ function TabRegistros({
 
       {/* Lista */}
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
           Histórico de contatos
         </p>
         {loadPending ? (
-          <div className="flex items-center justify-center py-6 text-zinc-500">
+          <div className="flex items-center justify-center py-6 text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin mr-2" />
             Carregando...
           </div>
         ) : contatos.length === 0 ? (
-          <p className="text-[11px] text-zinc-600 italic">
+          <p className="text-[11px] text-label-tertiary italic">
             Nenhum contato registrado ainda.
           </p>
         ) : (
@@ -920,13 +920,13 @@ function TabRegistros({
             {contatos.map((c) => (
               <div
                 key={c.id}
-                className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2"
+                className="rounded-xl border border-border bg-card px-3 py-2"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="rounded-md bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300">
+                  <span className="rounded-md bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                     {c.tipo}
                   </span>
-                  <p className="text-[10px] text-zinc-600">
+                  <p className="text-[10px] text-label-tertiary">
                     {new Date(c.created_at).toLocaleString("pt-BR", {
                       day: "2-digit",
                       month: "2-digit",
@@ -935,12 +935,12 @@ function TabRegistros({
                     })}
                   </p>
                 </div>
-                <p className="text-xs text-zinc-300">{c.resumo}</p>
+                <p className="text-xs text-foreground/80">{c.resumo}</p>
                 {Array.isArray(c.anexos) && c.anexos.length > 0 && (
                   <AttachmentList attachments={c.anexos} />
                 )}
                 {c.proximo_contato && (
-                  <p className="text-[10px] text-zinc-500 mt-1">
+                  <p className="text-[10px] text-muted-foreground mt-1">
                     Próximo:{" "}
                     {new Date(c.proximo_contato).toLocaleDateString("pt-BR")}
                   </p>
@@ -983,7 +983,7 @@ function DocumentOpenButton({ url }: { url: string }) {
       type="button"
       onClick={handleOpen}
       disabled={loading}
-      className="inline-flex items-center gap-1 rounded-md border border-[#1e2130] bg-[#0c0e16] px-2 py-1 text-[10px] text-indigo-300 hover:bg-indigo-500/10 disabled:opacity-50"
+      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[10px] text-primary hover:bg-primary/10 disabled:opacity-50"
     >
       {loading && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
       Abrir arquivo
@@ -1087,17 +1087,17 @@ function TabDocumentos({
   return (
     <div className="space-y-5">
       {/* Form de novo doc */}
-      <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-3 space-y-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
           Adicionar documento
         </p>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="mb-1 text-[10px] text-zinc-500">Tipo *</p>
+            <p className="mb-1 text-[10px] text-muted-foreground">Tipo *</p>
             <select
               value={novoTipo}
               onChange={(e) => setNovoTipo(e.target.value)}
-              className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+              className="w-full rounded-md border border-input bg-card px-2.5 py-2 text-xs text-foreground outline-none focus:border-primary/40"
             >
               {TIPOS_DOC_PRESET.map((t) => (
                 <option key={t} value={t}>
@@ -1107,29 +1107,29 @@ function TabDocumentos({
             </select>
           </div>
           <div>
-            <p className="mb-1 text-[10px] text-zinc-500">Deadline (opcional)</p>
+            <p className="mb-1 text-[10px] text-muted-foreground">Deadline (opcional)</p>
             <input
               type="date"
               value={novoDeadline}
               onChange={(e) => setNovoDeadline(e.target.value)}
-              className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+              className="w-full rounded-md border border-input bg-card px-2.5 py-2 text-xs text-foreground outline-none focus:border-primary/40"
             />
           </div>
         </div>
         {novoTipo === "Outro" && (
           <div>
-            <p className="mb-1 text-[10px] text-zinc-500">Especifique o tipo *</p>
+            <p className="mb-1 text-[10px] text-muted-foreground">Especifique o tipo *</p>
             <input
               type="text"
               value={novoTipoCustom}
               onChange={(e) => setNovoTipoCustom(e.target.value)}
               placeholder="Ex: Comprovante de vacinação"
-              className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+              className="w-full rounded-md border border-input bg-card px-2.5 py-2 text-xs text-foreground outline-none focus:border-primary/40"
             />
           </div>
         )}
         <div>
-          <p className="mb-1 text-[10px] text-zinc-500">Arquivo (opcional)</p>
+          <p className="mb-1 text-[10px] text-muted-foreground">Arquivo (opcional)</p>
           <FileUploader
             scope="documentos"
             scopeId={atletaId}
@@ -1141,19 +1141,19 @@ function TabDocumentos({
           />
         </div>
         <div>
-          <p className="mb-1 text-[10px] text-zinc-500">Observação</p>
+          <p className="mb-1 text-[10px] text-muted-foreground">Observação</p>
           <textarea
             value={novoObs}
             onChange={(e) => setNovoObs(e.target.value)}
             rows={2}
-            className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-2.5 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-indigo-500/40"
+            className="w-full rounded-md border border-input bg-card px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40"
             placeholder="Observações sobre este documento..."
           />
         </div>
         <button
           onClick={handleAdd}
           disabled={savePending}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           {savePending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1166,16 +1166,16 @@ function TabDocumentos({
 
       {/* Lista */}
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
           Documentos do atleta ({docs.length})
         </p>
         {loadPending ? (
-          <div className="flex items-center justify-center py-6 text-zinc-500">
+          <div className="flex items-center justify-center py-6 text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin mr-2" />
             Carregando...
           </div>
         ) : docs.length === 0 ? (
-          <p className="text-[11px] text-zinc-600 italic">
+          <p className="text-[11px] text-label-tertiary italic">
             Nenhum documento cadastrado.
           </p>
         ) : (
@@ -1186,24 +1186,24 @@ function TabDocumentos({
               return (
                 <div
                   key={d.id}
-                  className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5"
+                  className="rounded-xl border border-border bg-card px-3 py-2.5"
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-white">
+                      <p className="text-xs font-semibold text-foreground">
                         {d.tipo}
                       </p>
                       {d.arquivo_nome && (
-                        <p className="text-[10px] text-zinc-500 mt-0.5 truncate">
+                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                           {d.arquivo_nome}
                         </p>
                       )}
                       {d.observacao && (
-                        <p className="text-[10px] text-zinc-500 mt-1">
+                        <p className="text-[10px] text-muted-foreground mt-1">
                           {d.observacao}
                         </p>
                       )}
-                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-zinc-600">
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-label-tertiary">
                         {d.deadline && (
                           <span className="flex items-center gap-1">
                             <Clock className="h-2.5 w-2.5" />
@@ -1238,7 +1238,7 @@ function TabDocumentos({
                       value={d.status}
                       onChange={(e) => handleStatus(d.id, e.target.value)}
                       disabled={savePending}
-                      className="rounded-md border border-[#1e2130] bg-[#0c0e16] px-2 py-1 text-[10px] text-zinc-300 outline-none focus:border-indigo-500/40"
+                      className="rounded-md border border-border bg-background px-2 py-1 text-[10px] text-muted-foreground outline-none focus:border-primary/40"
                     >
                       {Object.entries(STATUS_DOC_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>
@@ -1319,13 +1319,13 @@ function TabStatus({
   return (
     <div className="space-y-5">
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
           Fase da Jornada
         </label>
         <select
           value={fase}
           onChange={(e) => setFase(e.target.value as FamilyJourneyStage)}
-          className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
         >
           {FAMILY_JOURNEY_STAGES.map((f) => (
             <option key={f} value={f}>
@@ -1336,19 +1336,19 @@ function TabStatus({
       </div>
 
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
           Data prevista de embarque
         </label>
         <input
           type="date"
           value={embarque}
           onChange={(e) => setEmbarque(e.target.value)}
-          className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/40"
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
         />
       </div>
 
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
           Status da Família
         </label>
         <div className="grid grid-cols-3 gap-1.5">
@@ -1367,11 +1367,11 @@ function TabStatus({
                 "rounded-md border px-2 py-2 text-[11px] font-semibold",
                 status === opt.v
                   ? opt.color === "emerald"
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                    ? "border-sys-green/40 bg-sys-green/15 text-sys-green"
                     : opt.color === "amber"
-                      ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                      : "border-red-500/40 bg-red-500/10 text-red-300"
-                  : "border-[#1e2130] bg-[#141720] text-zinc-500",
+                      ? "border-sys-orange/40 bg-sys-orange/15 text-sys-orange"
+                      : "border-sys-red/40 bg-sys-red/15 text-sys-red"
+                  : "border-border bg-card text-muted-foreground",
               )}
             >
               {opt.label}
@@ -1381,43 +1381,43 @@ function TabStatus({
       </div>
 
       {requireProblema && (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-3">
-          <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+        <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-3 space-y-3">
+          <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-sys-orange">
             <AlertTriangle className="h-3 w-3" />
             {status === "crise" ? "Protocolo de Crise" : "Registro de Atenção"}
           </p>
           <div>
-            <label className="block text-[10px] text-zinc-400 mb-1">
+            <label className="block text-[10px] text-muted-foreground mb-1">
               Descrição do problema *
             </label>
             <textarea
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
               rows={3}
-              className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40"
+              className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-orange/40"
             />
           </div>
           <div>
-            <label className="block text-[10px] text-zinc-400 mb-1">
+            <label className="block text-[10px] text-muted-foreground mb-1">
               Ação em andamento *
             </label>
             <textarea
               value={acao}
               onChange={(e) => setAcao(e.target.value)}
               rows={2}
-              className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40"
+              className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-orange/40"
             />
           </div>
           {status === "atencao" && (
             <div>
-              <label className="block text-[10px] text-zinc-400 mb-1">
+              <label className="block text-[10px] text-muted-foreground mb-1">
                 Próxima ação
               </label>
               <input
                 type="text"
                 value={proximaAcao}
                 onChange={(e) => setProximaAcao(e.target.value)}
-                className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40"
+                className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-orange/40"
               />
             </div>
           )}
@@ -1425,13 +1425,13 @@ function TabStatus({
             <>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] text-zinc-400 mb-1">
+                  <label className="block text-[10px] text-muted-foreground mb-1">
                     Tipo *
                   </label>
                   <select
                     value={tipoCrise}
                     onChange={(e) => setTipoCrise(e.target.value)}
-                    className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-red-500/40"
+                    className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
                   >
                     <option value="">Selecione</option>
                     {TIPO_CRISE_OPTIONS.map((t) => (
@@ -1442,13 +1442,13 @@ function TabStatus({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-zinc-400 mb-1">
+                  <label className="block text-[10px] text-muted-foreground mb-1">
                     Nível *
                   </label>
                   <select
                     value={nivelCrise}
                     onChange={(e) => setNivelCrise(e.target.value)}
-                    className="w-full rounded-md border border-[#1e2130] bg-[#0c0e16] px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-red-500/40"
+                    className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
                   >
                     <option value="">Selecione</option>
                     {NIVEL_CRISE_OPTIONS.map((n) => (
@@ -1459,18 +1459,18 @@ function TabStatus({
                   </select>
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <label className="flex items-center gap-2 text-xs text-foreground/80">
                 <input
                   type="checkbox"
                   checked={psicologa}
                   onChange={(e) => setPsicologa(e.target.checked)}
-                  className="accent-red-500"
+                  className="accent-destructive"
                 />
                 Psicóloga acionada
               </label>
             </>
           )}
-          <p className="text-[10px] text-amber-300/80">
+          <p className="text-[10px] text-sys-orange/80">
             Ao salvar, o CEO será notificado automaticamente.
           </p>
         </div>
@@ -1479,7 +1479,7 @@ function TabStatus({
       <button
         onClick={handleSave}
         disabled={isPending}
-        className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
       >
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
         Salvar status
@@ -1537,12 +1537,12 @@ function TabNotas({ experienciaId }: { experienciaId: string }) {
             }
           }}
           placeholder="Escrever nota interna..."
-          className="flex-1 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-indigo-500/40"
+          className="flex-1 rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40"
         />
         <button
           onClick={handleSubmit}
           disabled={isPending || !newNote.trim()}
-          className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -1553,19 +1553,19 @@ function TabNotas({ experienciaId }: { experienciaId: string }) {
       </div>
 
       {notes.length === 0 ? (
-        <p className="text-[11px] text-zinc-600 italic">Nenhuma nota ainda.</p>
+        <p className="text-[11px] text-label-tertiary italic">Nenhuma nota ainda.</p>
       ) : (
         <div className="space-y-2 max-h-80 overflow-y-auto">
           {notes.map((n) => (
             <div
               key={n.id}
-              className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2"
+              className="rounded-xl border border-border bg-card px-3 py-2"
             >
               <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] font-semibold text-indigo-400">
+                <p className="text-[10px] font-semibold text-primary">
                   {(n.autor as unknown as { nome?: string })?.nome ?? "Usuário"}
                 </p>
-                <p className="text-[10px] text-zinc-600">
+                <p className="text-[10px] text-label-tertiary">
                   {new Date(n.created_at).toLocaleDateString("pt-BR", {
                     day: "2-digit",
                     month: "2-digit",
@@ -1574,7 +1574,7 @@ function TabNotas({ experienciaId }: { experienciaId: string }) {
                   })}
                 </p>
               </div>
-              <p className="text-xs text-zinc-300">{n.conteudo}</p>
+              <p className="text-xs text-foreground/80">{n.conteudo}</p>
             </div>
           ))}
         </div>
@@ -1617,9 +1617,9 @@ function TabEscalonar({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 flex items-start gap-2">
-        <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
-        <p className="text-[11px] text-red-200">
+      <div className="rounded-xl border border-sys-red/30 bg-sys-red/5 p-3 flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 text-sys-red flex-shrink-0 mt-0.5" />
+        <p className="text-[11px] text-sys-red/80">
           Cria <strong>tarefa crítica</strong> com prazo de 2h + notificação
           imediata ao CEO. Use para situações que exigem decisão executiva.
         </p>
@@ -1629,14 +1629,14 @@ function TabEscalonar({
         value={contexto}
         onChange={(e) => setContexto(e.target.value)}
         rows={6}
-        className="w-full rounded-md border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 outline-none focus:border-red-500/40"
+        className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
         placeholder="Contexto detalhado do escalonamento — o que aconteceu, o que tentou, por que precisa do CEO..."
       />
 
       <button
         onClick={handleSubmit}
         disabled={isPending}
-        className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 rounded-md bg-destructive px-4 py-2.5 text-xs font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-50"
       >
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
         Escalonar ao CEO agora

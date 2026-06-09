@@ -13,26 +13,26 @@ interface RiskRevenueCardProps {
 function RiskRevenueCard({ icon: Icon, label, count, valueUsd, severity, description }: RiskRevenueCardProps) {
   const styles = {
     critical: {
-      border: "border-red-500/20",
-      bg: "bg-red-500/5",
-      iconBg: "bg-red-500/10",
-      icon: "text-red-400",
-      value: "text-red-400",
-      badge: "bg-red-500/20 text-red-400 border-red-500/30",
+      border: "border-sys-red/20",
+      bg: "bg-sys-red/5",
+      iconBg: "bg-sys-red/10",
+      icon: "text-sys-red",
+      value: "text-sys-red",
+      badge: "bg-sys-red/20 text-sys-red border-sys-red/30",
     },
     warning: {
-      border: "border-amber-500/20",
-      bg: "bg-amber-500/5",
-      iconBg: "bg-amber-500/10",
-      icon: "text-amber-400",
-      value: "text-amber-400",
-      badge: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+      border: "border-sys-orange/20",
+      bg: "bg-sys-orange/5",
+      iconBg: "bg-sys-orange/10",
+      icon: "text-sys-orange",
+      value: "text-sys-orange",
+      badge: "bg-sys-orange/20 text-sys-orange border-sys-orange/30",
     },
   };
   const s = styles[severity];
 
   return (
-    <div className={`rounded-xl border p-4 ${s.border} ${s.bg}`}>
+    <div className={`glass-card rounded-xl p-4 ${s.border}`}>
       <div className="flex items-start justify-between">
         <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${s.iconBg}`}>
           <Icon className={`h-4.5 w-4.5 ${s.icon}`} />
@@ -46,8 +46,8 @@ function RiskRevenueCard({ icon: Icon, label, count, valueUsd, severity, descrip
       <p className={`mt-3 text-xl font-bold tabular-nums ${s.value}`}>
         US$ {(valueUsd / 1000).toFixed(0)}k
       </p>
-      <p className="mt-0.5 text-xs font-medium text-zinc-300">{label}</p>
-      <p className="mt-1 text-[10px] text-zinc-600 leading-relaxed">{description}</p>
+      <p className="mt-0.5 text-xs font-medium text-foreground">{label}</p>
+      <p className="mt-1 text-[10px] text-label-tertiary leading-relaxed">{description}</p>
     </div>
   );
 }

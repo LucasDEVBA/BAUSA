@@ -185,6 +185,7 @@ jobs:
           - weekly-report
           - send-remarketing
           - remarketing-unsubscribe
+          - sync-meta-spend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

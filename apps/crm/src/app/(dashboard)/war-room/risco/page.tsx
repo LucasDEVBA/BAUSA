@@ -13,10 +13,10 @@ export default async function WarRoomRiscoPage() {
   ]);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-zinc-100">Receita em Risco</h1>
-        <p className="mt-0.5 text-sm text-zinc-500">
+        <h1 className="text-title-2 text-foreground">Receita em Risco</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           Contratos sem assinatura, sinais nao pagos, remanescentes e alertas criticos.
         </p>
       </div>

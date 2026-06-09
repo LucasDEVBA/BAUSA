@@ -82,25 +82,25 @@ function PipelineCard({
       }}
       onClick={onClick}
       className={cn(
-        "group relative rounded-lg border bg-[#141720] p-3 cursor-grab active:cursor-grabbing transition-colors hover:border-indigo-500/40",
+        "group relative rounded-xl border bg-card p-3 cursor-grab active:cursor-grabbing transition-colors hover:border-primary/40",
         card.status === "crise"
-          ? "border-red-500/40"
+          ? "border-sys-red/40"
           : card.status === "atencao"
-            ? "border-amber-500/30"
-            : "border-[#1e2130]",
+            ? "border-sys-orange/30"
+            : "border-border",
       )}
     >
       {/* Indicador de "click para editar" */}
       <span className="pointer-events-none absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
-        <Pencil className="h-3 w-3 text-indigo-400" />
+        <Pencil className="h-3 w-3 text-primary" />
       </span>
 
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-white truncate">
+          <p className="text-xs font-semibold text-foreground truncate">
             {card.athlete_name}
           </p>
-          <p className="text-[10px] text-zinc-500 truncate">
+          <p className="text-[10px] text-muted-foreground truncate">
             {card.guardian_name}
           </p>
         </div>
@@ -127,23 +127,23 @@ function PipelineCard({
         >
           {statusCfg.label}
         </span>
-        <span className="inline-flex rounded-md bg-[#0c0e16] border border-[#1e2130] px-1.5 py-0.5 text-[9px] text-zinc-400">
+        <span className="inline-flex rounded-md bg-background border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground">
           {card.plano}
         </span>
         {card.esporte && (
-          <span className="inline-flex rounded-md bg-[#0c0e16] border border-[#1e2130] px-1.5 py-0.5 text-[9px] text-zinc-500 truncate max-w-[80px]">
+          <span className="inline-flex rounded-md bg-background border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground truncate max-w-[80px]">
             {card.esporte}
           </span>
         )}
       </div>
 
-      <div className="space-y-1 text-[10px] text-zinc-500">
+      <div className="space-y-1 text-[10px] text-muted-foreground">
         <div className="flex items-center justify-between">
           <span>Ansiedade</span>
           <span
             className={cn(
               "font-semibold",
-              card.ansiedade >= 4 ? "text-red-400" : "text-zinc-300",
+              card.ansiedade >= 4 ? "text-sys-red" : "text-foreground/80",
             )}
           >
             {card.ansiedade}/5
@@ -154,7 +154,7 @@ function PipelineCard({
           <span
             className={cn(
               "font-semibold",
-              card.satisfacao <= 2 ? "text-red-400" : "text-zinc-300",
+              card.satisfacao <= 2 ? "text-sys-red" : "text-foreground/80",
             )}
           >
             {card.satisfacao}/5
@@ -162,8 +162,8 @@ function PipelineCard({
         </div>
         {card.data_prevista_embarque && (
           <div className="flex items-center gap-1 mt-1.5">
-            <Plane className="h-3 w-3 text-blue-400" />
-            <span className="text-blue-300">
+            <Plane className="h-3 w-3 text-sys-blue" />
+            <span className="text-sys-blue">
               {new Date(card.data_prevista_embarque).toLocaleDateString("pt-BR")}
             </span>
           </div>
@@ -175,8 +175,8 @@ function PipelineCard({
           className={cn(
             "mt-2 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-semibold",
             card.status === "crise"
-              ? "bg-red-500/10 border border-red-500/30 text-red-300"
-              : "bg-amber-500/10 border border-amber-500/30 text-amber-300",
+              ? "bg-sys-red/10 border border-sys-red/30 text-sys-red"
+              : "bg-sys-orange/10 border border-sys-orange/30 text-sys-orange",
           )}
         >
           <AlertTriangle className="h-2.5 w-2.5" />
@@ -187,7 +187,7 @@ function PipelineCard({
       )}
 
       {card.proximo_contato && (
-        <div className="mt-2 flex items-center gap-1 text-[9px] text-zinc-600">
+        <div className="mt-2 flex items-center gap-1 text-[9px] text-label-tertiary">
           <Phone className="h-2.5 w-2.5" />
           Próximo:{" "}
           {new Date(card.proximo_contato).toLocaleDateString("pt-BR", {
@@ -305,9 +305,9 @@ export function FamiliasPipelineClient({
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-white">Pipeline da Família</h1>
-          <p className="mt-0.5 text-sm text-zinc-500 flex items-center gap-1.5">
-            <ArrowLeftRight className="h-3.5 w-3.5 text-zinc-600" />
+          <h1 className="text-title-2 text-foreground">Pipeline da Família</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground flex items-center gap-1.5">
+            <ArrowLeftRight className="h-3.5 w-3.5 text-label-tertiary" />
             Arraste cards entre fases em qualquer direção. Clique em um card
             para editar.
           </p>
@@ -315,14 +315,14 @@ export function FamiliasPipelineClient({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowNovaModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors"
           >
             <UserPlus className="h-4 w-4" />
             Nova Família
           </button>
           <a
             href="/familias-crm"
-            className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-2 text-sm font-medium text-zinc-300 hover:border-indigo-500/30 hover:text-indigo-300"
+            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground hover:border-primary/30 hover:text-primary"
           >
             Voltar à lista
           </a>
@@ -330,7 +330,7 @@ export function FamiliasPipelineClient({
       </div>
 
       {isPending && (
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Atualizando...
         </div>
@@ -345,10 +345,10 @@ export function FamiliasPipelineClient({
             <div
               key={fase}
               className={cn(
-                "rounded-xl border bg-[#0f1117] p-3 transition-colors flex flex-col min-h-[360px]",
+                "liquid-glass rounded-xl p-3 transition-all flex flex-col min-h-[360px]",
                 isHovering
-                  ? "border-indigo-500/50 bg-indigo-500/5"
-                  : "border-[#1e2130]",
+                  ? "border-primary/50"
+                  : "",
               )}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -363,14 +363,14 @@ export function FamiliasPipelineClient({
               }}
             >
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-300">
+                <p className="text-xs font-semibold uppercase tracking-wider text-foreground/80">
                   {cfg.label}
                 </p>
-                <span className="rounded-full bg-zinc-800 px-2 text-[10px] font-bold text-zinc-300">
+                <span className="rounded-full bg-secondary px-2 text-[10px] font-bold text-muted-foreground">
                   {list.length}
                 </span>
               </div>
-              <p className="mb-3 text-[10px] text-zinc-600">
+              <p className="mb-3 text-[10px] text-label-tertiary">
                 Alerta: {cfg.alertDays} dia(s) sem contato
               </p>
               <div className="flex-1 space-y-2 overflow-y-auto pr-1">
@@ -383,7 +383,7 @@ export function FamiliasPipelineClient({
                   />
                 ))}
                 {list.length === 0 && (
-                  <div className="rounded-md border border-dashed border-[#1e2130] py-6 text-center text-[10px] text-zinc-600">
+                  <div className="rounded-xl border border-dashed border-border py-6 text-center text-[10px] text-label-tertiary">
                     Vazio
                   </div>
                 )}

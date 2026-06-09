@@ -57,17 +57,17 @@ const PRIORIDADE_ORDER: Record<PrioridadeTarefa, number> = {
 };
 
 const PRIORIDADE_CONFIG: Record<PrioridadeTarefa, { label: string; bg: string; text: string }> = {
-  critica: { label: "Critica", bg: "bg-red-500/15", text: "text-red-400" },
-  alta: { label: "Alta", bg: "bg-orange-500/15", text: "text-orange-400" },
-  media: { label: "Media", bg: "bg-blue-500/15", text: "text-blue-400" },
-  baixa: { label: "Baixa", bg: "bg-zinc-500/15", text: "text-zinc-400" },
+  critica: { label: "Critica", bg: "bg-sys-red/15", text: "text-sys-red" },
+  alta: { label: "Alta", bg: "bg-sys-orange/15", text: "text-sys-orange" },
+  media: { label: "Media", bg: "bg-sys-blue/15", text: "text-sys-blue" },
+  baixa: { label: "Baixa", bg: "bg-secondary", text: "text-muted-foreground" },
 };
 
 const MODULO_CONFIG: Record<string, { label: string; color: string }> = {
-  comercial: { label: "Comercial", color: "text-indigo-400" },
-  experiencia: { label: "Experiencia", color: "text-purple-400" },
-  financeiro: { label: "Financeiro", color: "text-emerald-400" },
-  admissao: { label: "Admissao", color: "text-amber-400" },
+  comercial: { label: "Comercial", color: "text-primary" },
+  experiencia: { label: "Experiencia", color: "text-plan-legacy" },
+  financeiro: { label: "Financeiro", color: "text-sys-green" },
+  admissao: { label: "Admissao", color: "text-sys-orange" },
 };
 
 function getRelativeTime(dateStr: string): string {
@@ -365,10 +365,10 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
   };
 
   const inputClass =
-    "w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30";
-  const labelClass = "text-xs font-medium text-zinc-400";
+    "w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary focus:ring-1 focus:ring-primary/30";
+  const labelClass = "text-xs font-medium text-muted-foreground";
   const selectClass =
-    "w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 appearance-none";
+    "w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 appearance-none";
 
   return (
     <div className="flex h-full flex-col gap-5">
@@ -376,16 +376,16 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <CheckSquare className="h-5 w-5 text-indigo-400" />
-            <h1 className="text-xl font-bold text-zinc-100">Tarefas</h1>
+            <CheckSquare className="h-5 w-5 text-primary" />
+            <h1 className="text-title-2 text-foreground">Tarefas</h1>
           </div>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             Gerencie tarefas manuais e automaticas do CRM
           </p>
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" />
           Nova Tarefa
@@ -395,7 +395,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
       {/* Status Tabs */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-1 overflow-x-auto rounded-lg border border-[#1e2130] bg-[#141720] p-1">
+          <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1">
             {STATUS_TABS.map((tab) => {
               const count = countByStatus(tab.value);
               return (
@@ -405,35 +405,35 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                   className={cn(
                     "flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                     statusFiltro === tab.value
-                      ? "bg-indigo-600/20 text-indigo-300"
-                      : "text-zinc-500 hover:text-zinc-300",
+                      ? "bg-primary/15 text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {tab.label}
                   {count > 0 && (
-                    <span className="rounded-full bg-zinc-800 px-1.5 text-[10px]">{count}</span>
+                    <span className="rounded-full bg-secondary px-1.5 text-[10px]">{count}</span>
                   )}
                 </button>
               );
             })}
           </div>
 
-          <div className="flex items-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2">
-            <Search className="h-3.5 w-3.5 text-zinc-500" />
+          <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
+            <Search className="h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="text"
               placeholder="Buscar tarefa..."
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 outline-none w-48"
+              className="bg-transparent text-sm text-foreground placeholder:text-placeholder outline-none w-48"
             />
           </div>
         </div>
 
         {/* Prioridade + Modulo Tabs */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-600 mr-1">Prioridade:</span>
-          <div className="flex gap-1 rounded-lg border border-[#1e2130] bg-[#141720] p-0.5">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-label-tertiary mr-1">Prioridade:</span>
+          <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5">
             {PRIORIDADE_TABS.map((tab) => {
               const count = countByPrioridade(tab.value);
               return (
@@ -443,21 +443,21 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                   className={cn(
                     "flex items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
                     prioridadeFiltro === tab.value
-                      ? "bg-indigo-600/20 text-indigo-300"
-                      : "text-zinc-500 hover:text-zinc-300",
+                      ? "bg-primary/15 text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {tab.label}
                   {count > 0 && (
-                    <span className="rounded-full bg-zinc-800 px-1.5 text-[10px]">{count}</span>
+                    <span className="rounded-full bg-secondary px-1.5 text-[10px]">{count}</span>
                   )}
                 </button>
               );
             })}
           </div>
 
-          <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-600 ml-2 mr-1">Modulo:</span>
-          <div className="flex gap-1 rounded-lg border border-[#1e2130] bg-[#141720] p-0.5">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-label-tertiary ml-2 mr-1">Modulo:</span>
+          <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5">
             {MODULO_TABS.map((tab) => {
               const count = countByModulo(tab.value);
               return (
@@ -467,13 +467,13 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                   className={cn(
                     "flex items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
                     moduloFiltro === tab.value
-                      ? "bg-indigo-600/20 text-indigo-300"
-                      : "text-zinc-500 hover:text-zinc-300",
+                      ? "bg-primary/15 text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {tab.label}
                   {count > 0 && (
-                    <span className="rounded-full bg-zinc-800 px-1.5 text-[10px]">{count}</span>
+                    <span className="rounded-full bg-secondary px-1.5 text-[10px]">{count}</span>
                   )}
                 </button>
               );
@@ -485,7 +485,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
       {/* Tarefa list */}
       <div className="flex-1 space-y-2 overflow-y-auto">
         {tarefasFiltradas.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-zinc-600">
+          <div className="flex flex-col items-center justify-center py-16 text-label-tertiary">
             <CheckSquare className="mb-3 h-10 w-10" />
             <p className="text-sm">Nenhuma tarefa encontrada</p>
           </div>
@@ -496,7 +496,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
           const prio = PRIORIDADE_CONFIG[tarefa.prioridade];
           const modulo = MODULO_CONFIG[tarefa.modulo_origem] ?? {
             label: tarefa.modulo_origem,
-            color: "text-zinc-400",
+            color: "text-muted-foreground",
           };
           const done = tarefa.status === "concluida";
           const responsavelNome = usuarioNomeMap.get(tarefa.responsavel_id);
@@ -507,8 +507,8 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
               className={cn(
                 "rounded-xl border transition-colors",
                 overdue
-                  ? "border-red-500/30 bg-red-500/5"
-                  : "border-[#1e2130] bg-[#141720]",
+                  ? "border-sys-red/30 bg-sys-red/5"
+                  : "border-border bg-card",
                 done && "opacity-60",
               )}
             >
@@ -519,7 +519,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                 disabled={done || isPending}
                 className={cn(
                   "mt-0.5 flex-shrink-0 transition-colors",
-                  done ? "text-emerald-500" : "text-zinc-600 hover:text-indigo-400",
+                  done ? "text-sys-green" : "text-label-tertiary hover:text-primary",
                 )}
                 aria-label={done ? "Tarefa concluida" : "Marcar como concluida"}
               >
@@ -536,8 +536,8 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                   <button
                     onClick={() => openEditModal(tarefa)}
                     className={cn(
-                      "text-sm font-medium text-left hover:text-indigo-300 transition-colors",
-                      done ? "text-zinc-500 line-through" : "text-zinc-100",
+                      "text-sm font-medium text-left hover:text-primary transition-colors",
+                      done ? "text-muted-foreground line-through" : "text-foreground",
                     )}
                     title="Clique para editar"
                   >
@@ -557,7 +557,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
 
                   {/* Auto badge */}
                   {tarefa.criada_automaticamente && (
-                    <span className="flex items-center gap-0.5 rounded-full bg-purple-500/15 px-2 py-0.5 text-[10px] font-semibold text-purple-400">
+                    <span className="flex items-center gap-0.5 rounded-full bg-plan-legacy/15 px-2 py-0.5 text-[10px] font-semibold text-plan-legacy">
                       <Zap className="h-2.5 w-2.5" />
                       Auto
                     </span>
@@ -565,7 +565,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
 
                   {/* Recorrencia badge */}
                   {tarefa.recorrencia && tarefa.recorrencia !== "nenhuma" && (
-                    <span className="flex items-center gap-0.5 rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-400">
+                    <span className="flex items-center gap-0.5 rounded-full bg-sys-teal/15 px-2 py-0.5 text-[10px] font-semibold text-sys-teal">
                       <RefreshCw className="h-2.5 w-2.5" />
                       {RECORRENCIA_LABELS[tarefa.recorrencia as RecorrenciaTarefa] ?? tarefa.recorrencia}
                     </span>
@@ -573,9 +573,9 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                 </div>
 
                 {/* Meta */}
-                <div className="mt-1 flex items-center gap-3 text-[11px] text-zinc-500">
+                <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
                   {/* Prazo */}
-                  <span className={cn("flex items-center gap-1", overdue && "text-red-400")}>
+                  <span className={cn("flex items-center gap-1", overdue && "text-sys-red")}>
                     {overdue ? (
                       <AlertTriangle className="h-3 w-3" />
                     ) : (
@@ -589,12 +589,12 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
 
                   {/* Responsavel */}
                   {responsavelNome && (
-                    <span className="text-zinc-500">{responsavelNome}</span>
+                    <span className="text-muted-foreground">{responsavelNome}</span>
                   )}
                 </div>
 
                 {tarefa.descricao && (
-                  <p className="mt-1 text-xs text-zinc-600 line-clamp-1">
+                  <p className="mt-1 text-xs text-label-tertiary line-clamp-1">
                     {getDescriptionWithoutComments(tarefa.descricao) || (parseComments(tarefa.descricao).length > 0 ? `${parseComments(tarefa.descricao).length} comentario(s)` : tarefa.descricao)}
                   </p>
                 )}
@@ -606,7 +606,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                   setExpandedTarefaId(expandedTarefaId === tarefa.id ? null : tarefa.id);
                   setNewComment("");
                 }}
-                className="mt-0.5 flex-shrink-0 text-zinc-600 hover:text-indigo-400 transition-colors"
+                className="mt-0.5 flex-shrink-0 text-label-tertiary hover:text-primary transition-colors"
                 aria-label="Comentarios"
               >
                 <MessageCircle className="h-4 w-4" />
@@ -616,7 +616,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
               {!done && (
                 <button
                   onClick={() => openEditModal(tarefa)}
-                  className="mt-0.5 flex-shrink-0 text-zinc-600 hover:text-indigo-400 transition-colors"
+                  className="mt-0.5 flex-shrink-0 text-label-tertiary hover:text-primary transition-colors"
                   aria-label="Editar tarefa"
                 >
                   <Pencil className="h-4 w-4" />
@@ -626,24 +626,24 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
 
             {/* Expanded comment section */}
             {expandedTarefaId === tarefa.id && (
-              <div className="border-t border-[#1e2130] pt-3 pb-3 mx-4 ml-12">
+              <div className="border-t border-border pt-3 pb-3 mx-4 ml-12">
                 {/* Existing comments */}
                 {(() => {
                   const comments = parseComments(tarefa.descricao);
                   if (comments.length === 0) {
                     return (
-                      <p className="text-xs text-zinc-600 mb-3">Nenhum comentario ainda.</p>
+                      <p className="text-xs text-label-tertiary mb-3">Nenhum comentario ainda.</p>
                     );
                   }
                   return (
                     <div className="space-y-2 mb-3">
                       {comments.map((c, i) => (
-                        <div key={i} className="rounded-lg bg-[#0c0e16] px-3 py-2">
+                        <div key={i} className="rounded-md bg-background px-3 py-2">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-semibold text-indigo-400">{c.author}</span>
-                            <span className="text-[10px] text-zinc-600">{c.date}</span>
+                            <span className="text-[11px] font-semibold text-primary">{c.author}</span>
+                            <span className="text-[10px] text-label-tertiary">{c.date}</span>
                           </div>
-                          <p className="text-xs text-zinc-300">{c.text}</p>
+                          <p className="text-xs text-foreground">{c.text}</p>
                         </div>
                       ))}
                     </div>
@@ -663,12 +663,12 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                       }
                     }}
                     placeholder="Adicionar comentario..."
-                    className="flex-1 rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-indigo-500/40"
+                    className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40"
                   />
                   <button
                     onClick={() => handleAddComment(tarefa.id)}
                     disabled={isPending || !newComment.trim()}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors"
+                    className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
                     aria-label="Enviar comentario"
                   >
                     <Send className="h-3.5 w-3.5" />
@@ -690,17 +690,17 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
-              className="w-full max-w-md rounded-2xl border border-[#1e2130] bg-[#0f1117] shadow-2xl"
+              className="liquid-glass w-full max-w-md rounded-2xl shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal header */}
-              <div className="flex items-center justify-between border-b border-[#1e2130] px-6 py-4">
-                <h2 className="text-base font-semibold text-zinc-100">
+              <div className="flex items-center justify-between border-b border-border px-6 py-4">
+                <h2 className="text-base font-semibold text-foreground">
                   {editingTarefa ? "Editar Tarefa" : "Nova Tarefa"}
                 </h2>
                 <button
                   onClick={closeModal}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-fill-4 hover:text-foreground"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -817,17 +817,17 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
               </div>
 
               {/* Modal footer */}
-              <div className="flex items-center justify-end gap-3 border-t border-[#1e2130] px-6 py-4">
+              <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
                 <button
                   onClick={closeModal}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+                  className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={isPending}
-                  className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
                   {isPending ? (
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />

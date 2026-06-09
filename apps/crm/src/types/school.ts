@@ -71,22 +71,22 @@ export interface SchoolStageStrategy {
 }
 
 export const SCHOOL_STATUS_CONFIG: Record<SchoolStatus, { label: string; color: string; bg: string }> = {
-  ativa: { label: "Ativa", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  inativa: { label: "Inativa", color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
-  em_avaliacao: { label: "Em Avaliação", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
+  ativa: { label: "Ativa", color: "text-sys-green", bg: "bg-sys-green/15 border-sys-green/20" },
+  inativa: { label: "Inativa", color: "text-sys-red", bg: "bg-sys-red/15 border-sys-red/20" },
+  em_avaliacao: { label: "Em Avaliação", color: "text-sys-orange", bg: "bg-sys-orange/15 border-sys-orange/20" },
 };
 
 export const SCHOOL_TYPE_CONFIG: Record<SchoolType, { label: string; color: string; bg: string }> = {
-  "Division I": { label: "Div. I", color: "text-purple-300", bg: "bg-purple-500/15 border-purple-500/30" },
-  "Division II": { label: "Div. II", color: "text-blue-300", bg: "bg-blue-500/15 border-blue-500/30" },
-  "Division III": { label: "Div. III", color: "text-cyan-300", bg: "bg-cyan-500/15 border-cyan-500/30" },
-  NAIA: { label: "NAIA", color: "text-teal-300", bg: "bg-teal-500/15 border-teal-500/30" },
-  JUCO: { label: "JUCO", color: "text-zinc-300", bg: "bg-zinc-500/15 border-zinc-500/30" },
+  "Division I": { label: "Div. I", color: "text-plan-legacy", bg: "bg-plan-legacy/15 border-plan-legacy/30" },
+  "Division II": { label: "Div. II", color: "text-primary", bg: "bg-primary/15 border-primary/30" },
+  "Division III": { label: "Div. III", color: "text-sys-cyan", bg: "bg-sys-cyan/15 border-sys-cyan/30" },
+  NAIA: { label: "NAIA", color: "text-sys-teal", bg: "bg-sys-teal/15 border-sys-teal/30" },
+  JUCO: { label: "JUCO", color: "text-muted-foreground", bg: "bg-secondary border-border" },
 };
 
 export const STAGE_STRATEGY_STATUS_CONFIG = {
-  pre_acordada: { label: "Pré-acordada", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  rede_ativa: { label: "Rede Ativa", color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
-  planejamento: { label: "Planejamento", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
-  observacao_futura: { label: "Observação Futura", color: "text-zinc-400", bg: "bg-zinc-500/10 border-zinc-500/20" },
+  pre_acordada: { label: "Pré-acordada", color: "text-sys-green", bg: "bg-sys-green/15 border-sys-green/20" },
+  rede_ativa: { label: "Rede Ativa", color: "text-primary", bg: "bg-primary/15 border-primary/20" },
+  planejamento: { label: "Planejamento", color: "text-sys-orange", bg: "bg-sys-orange/15 border-sys-orange/20" },
+  observacao_futura: { label: "Observação Futura", color: "text-muted-foreground", bg: "bg-secondary border-border" },
 };

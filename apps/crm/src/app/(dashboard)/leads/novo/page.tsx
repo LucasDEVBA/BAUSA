@@ -40,8 +40,8 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-xs font-medium text-zinc-400">
-        {label} {required && <span className="text-red-400">*</span>}
+      <label className="block text-xs font-medium text-muted-foreground">
+        {label} {required && <span className="text-sys-red">*</span>}
       </label>
       {children}
     </div>
@@ -49,10 +49,10 @@ function Field({
 }
 
 const inputClass =
-  "w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 transition-colors focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30";
+  "w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-placeholder transition-colors focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30";
 
 const selectClass =
-  "w-full rounded-lg border border-[#1e2130] bg-[#0c0e16] px-3 py-2.5 text-sm text-zinc-200 focus:border-indigo-500/50 focus:outline-none";
+  "w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground focus:border-primary/50 focus:outline-none";
 
 export default function NovoLeadPage() {
   const router = useRouter();
@@ -201,21 +201,21 @@ export default function NovoLeadPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="w-full max-w-md text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/30">
-            <CheckCircle className="h-8 w-8 text-emerald-400" />
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sys-green/10 border border-sys-green/30">
+            <CheckCircle className="h-8 w-8 text-sys-green" />
           </div>
-          <h2 className="mb-2 text-xl font-bold text-white">Lead cadastrado com sucesso!</h2>
-          <p className="mb-2 text-sm text-zinc-400">
-            <span className="font-semibold text-white">{form.athlete_name}</span> foi adicionado ao CRM.
+          <h2 className="mb-2 text-xl font-bold text-foreground">Lead cadastrado com sucesso!</h2>
+          <p className="mb-2 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{form.athlete_name}</span> foi adicionado ao CRM.
           </p>
-          <p className="mb-6 text-xs text-zinc-600">
+          <p className="mb-6 text-xs text-label-tertiary">
             A IA irá analisar automaticamente o perfil e calcular o Lead Score nas próximas horas.
             Um convite de reunião será enviado em 22h.
           </p>
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => router.push("/leads")}
-              className="rounded-lg border border-[#1e2130] bg-[#141720] px-4 py-2 text-sm text-zinc-300 transition-colors hover:bg-[#1a1f2e]"
+              className="rounded-md border border-border bg-card px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent"
             >
               Ver lista de leads
             </button>
@@ -229,7 +229,7 @@ export default function NovoLeadPage() {
                 origem: "", indicador_nome: "", indicador_tipo: "",
                 address_cep: "", address_city: "", address_state: "", address_street: "",
               }); }}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
             >
               + Novo lead
             </button>
@@ -245,10 +245,10 @@ export default function NovoLeadPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-1">
-            <Zap className="h-5 w-5 text-indigo-400" />
-            <h1 className="text-xl font-bold text-white">Novo Lead</h1>
+            <Zap className="h-5 w-5 text-primary" />
+            <h1 className="text-title-2 text-foreground">Novo Lead</h1>
           </div>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             Cadastro completo do atleta — alimenta a IA de análise e o motor de match
           </p>
         </div>
@@ -266,20 +266,20 @@ export default function NovoLeadPage() {
                     className={cn(
                       "flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition-all",
                       isActive
-                        ? "border-indigo-500 bg-indigo-600 text-white"
+                        ? "border-primary bg-primary text-primary-foreground"
                         : isDone
-                        ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
-                        : "border-[#1e2130] bg-[#141720] text-zinc-600"
+                        ? "border-sys-green bg-sys-green/20 text-sys-green"
+                        : "border-border bg-card text-label-tertiary"
                     )}
                   >
                     {isDone ? <CheckCircle className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                   </div>
-                  <span className={cn("text-[10px] font-medium hidden sm:block", isActive ? "text-white" : isDone ? "text-emerald-400" : "text-zinc-600")}>
+                  <span className={cn("text-[10px] font-medium hidden sm:block", isActive ? "text-foreground" : isDone ? "text-sys-green" : "text-label-tertiary")}>
                     {s.label}
                   </span>
                 </div>
                 {idx < STEPS.length - 1 && (
-                  <div className={cn("flex-1 h-px mx-2", isDone ? "bg-emerald-500/40" : "bg-[#1e2130]")} />
+                  <div className={cn("flex-1 h-px mx-2", isDone ? "bg-sys-green/40" : "bg-border")} />
                 )}
               </div>
             );
@@ -287,13 +287,13 @@ export default function NovoLeadPage() {
         </div>
 
         {/* Form card */}
-        <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-6">
+        <div className="glass-card rounded-xl p-6">
           {/* Step 1 — Atleta */}
           {step === 1 && (
             <div className="space-y-4">
               <div className="mb-5">
-                <h2 className="text-base font-semibold text-white">Dados do Atleta</h2>
-                <p className="text-xs text-zinc-500">Informações pessoais e de contato</p>
+                <h2 className="text-base font-semibold text-foreground">Dados do Atleta</h2>
+                <p className="text-xs text-muted-foreground">Informações pessoais e de contato</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
@@ -332,8 +332,8 @@ export default function NovoLeadPage() {
           {step === 2 && (
             <div className="space-y-4">
               <div className="mb-5">
-                <h2 className="text-base font-semibold text-white">Perfil Educacional</h2>
-                <p className="text-xs text-zinc-500">Informações acadêmicas para o motor de match</p>
+                <h2 className="text-base font-semibold text-foreground">Perfil Educacional</h2>
+                <p className="text-xs text-muted-foreground">Informações acadêmicas para o motor de match</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
@@ -381,8 +381,8 @@ export default function NovoLeadPage() {
           {step === 3 && (
             <div className="space-y-4">
               <div className="mb-5">
-                <h2 className="text-base font-semibold text-white">Trajetória Esportiva</h2>
-                <p className="text-xs text-zinc-500">Informações para análise do perfil atlético</p>
+                <h2 className="text-base font-semibold text-foreground">Trajetória Esportiva</h2>
+                <p className="text-xs text-muted-foreground">Informações para análise do perfil atlético</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Posição" required>
@@ -412,8 +412,8 @@ export default function NovoLeadPage() {
           {step === 4 && (
             <div className="space-y-4">
               <div className="mb-5">
-                <h2 className="text-base font-semibold text-white">Projeto e Investimento</h2>
-                <p className="text-xs text-zinc-500">Timing, direção e capacidade de investimento</p>
+                <h2 className="text-base font-semibold text-foreground">Projeto e Investimento</h2>
+                <p className="text-xs text-muted-foreground">Timing, direção e capacidade de investimento</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Momento de início" required>
@@ -472,8 +472,8 @@ export default function NovoLeadPage() {
           {step === 5 && (
             <div className="space-y-4">
               <div className="mb-5">
-                <h2 className="text-base font-semibold text-white">Dados do Responsável</h2>
-                <p className="text-xs text-zinc-500">Pai, mãe ou responsável legal pelo atleta</p>
+                <h2 className="text-base font-semibold text-foreground">Dados do Responsável</h2>
+                <p className="text-xs text-muted-foreground">Pai, mãe ou responsável legal pelo atleta</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
@@ -495,8 +495,8 @@ export default function NovoLeadPage() {
               </div>
 
               {/* Origem / Indicação */}
-              <div className="mt-6 border-t border-[#1e2130] pt-5">
-                <h3 className="text-sm font-semibold text-zinc-300 mb-3">Origem do Lead</h3>
+              <div className="mt-6 border-t border-border pt-5">
+                <h3 className="text-sm font-semibold text-foreground/80 mb-3">Origem do Lead</h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
                     <Field label="Como conheceu a BAUSA?">
@@ -534,8 +534,8 @@ export default function NovoLeadPage() {
           {step === 6 && (
             <div className="space-y-4">
               <div className="mb-5">
-                <h2 className="text-base font-semibold text-white">Endereço</h2>
-                <p className="text-xs text-zinc-500">Localização da família — usada para análise regional</p>
+                <h2 className="text-base font-semibold text-foreground">Endereço</h2>
+                <p className="text-xs text-muted-foreground">Localização da família — usada para análise regional</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="CEP">
@@ -555,12 +555,12 @@ export default function NovoLeadPage() {
                     />
                     {cepLoading && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
                       </div>
                     )}
                   </div>
                   {cepError && (
-                    <p className="mt-1 text-xs text-red-400">{cepError}</p>
+                    <p className="mt-1 text-xs text-sys-red">{cepError}</p>
                   )}
                 </Field>
                 <Field label="Estado" required>
@@ -580,25 +580,25 @@ export default function NovoLeadPage() {
               </div>
 
               {/* Preview de lead score */}
-              <div className="mt-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4">
+              <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Zap className="h-4 w-4 text-indigo-400" />
-                  <p className="text-sm font-semibold text-white">Inteligência Automática — após cadastro</p>
+                  <Zap className="h-4 w-4 text-primary" />
+                  <p className="text-sm font-semibold text-foreground">Inteligência Automática — após cadastro</p>
                 </div>
-                <ul className="space-y-1 text-xs text-zinc-400">
+                <ul className="space-y-1 text-xs text-muted-foreground">
                   <li>• IA analisará perfil acadêmico, esportivo, financeiro e timing</li>
                   <li>• Lead Score calculado automaticamente (0–100)</li>
-                  <li>• Classificação: <span className="text-emerald-400">Quente</span> / <span className="text-amber-400">Morno</span> / <span className="text-blue-400">Frio</span></li>
+                  <li>• Classificação: <span className="text-sys-green">Quente</span> / <span className="text-sys-orange">Morno</span> / <span className="text-sys-blue">Frio</span></li>
                   <li>• Convite de reunião enviado automaticamente em 22h</li>
                   <li>• Se não agendar em 24h → tarefa criada para follow-up do CEO</li>
                 </ul>
               </div>
 
               {/* LGPD Consent */}
-              <div className="mt-4 rounded-xl border border-[#1e2130] bg-[#0c0e16] p-4 space-y-3">
+              <div className="mt-4 rounded-xl border border-border bg-background p-4 space-y-3">
                 <div className="flex items-center gap-2 mb-1">
-                  <Shield className="h-4 w-4 text-indigo-400" />
-                  <p className="text-sm font-semibold text-white">Consentimento LGPD</p>
+                  <Shield className="h-4 w-4 text-primary" />
+                  <p className="text-sm font-semibold text-foreground">Consentimento LGPD</p>
                 </div>
 
                 <label className="flex items-start gap-2.5 cursor-pointer">
@@ -606,10 +606,10 @@ export default function NovoLeadPage() {
                     type="checkbox"
                     checked={consentimentoLgpd}
                     onChange={(e) => setConsentimentoLgpd(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-[#141720] text-indigo-600 focus:ring-indigo-500/30"
+                    className="mt-0.5 h-4 w-4 rounded border-border bg-card text-primary focus:ring-primary/30"
                   />
-                  <span className="text-xs text-zinc-300">
-                    Li e concordo com a Politica de Privacidade e Termos de Uso <span className="text-red-400">*</span>
+                  <span className="text-xs text-foreground/80">
+                    Li e concordo com a Politica de Privacidade e Termos de Uso <span className="text-sys-red">*</span>
                   </span>
                 </label>
 
@@ -618,9 +618,9 @@ export default function NovoLeadPage() {
                     type="checkbox"
                     checked={aceiteWhatsapp}
                     onChange={(e) => setAceiteWhatsapp(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-[#141720] text-indigo-600 focus:ring-indigo-500/30"
+                    className="mt-0.5 h-4 w-4 rounded border-border bg-card text-primary focus:ring-primary/30"
                   />
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-muted-foreground">
                     Autorizo contato via WhatsApp
                   </span>
                 </label>
@@ -630,14 +630,14 @@ export default function NovoLeadPage() {
                     type="checkbox"
                     checked={aceiteEmail}
                     onChange={(e) => setAceiteEmail(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-[#141720] text-indigo-600 focus:ring-indigo-500/30"
+                    className="mt-0.5 h-4 w-4 rounded border-border bg-card text-primary focus:ring-primary/30"
                   />
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-muted-foreground">
                     Autorizo contato via E-mail
                   </span>
                 </label>
 
-                <p className="text-[10px] text-zinc-600 leading-relaxed pt-1">
+                <p className="text-[10px] text-label-tertiary leading-relaxed pt-1">
                   Ao enviar este formulario, voce consente com o tratamento dos seus dados pessoais conforme a Lei Geral de Protecao de Dados (Lei 13.709/2018). Os dados serao utilizados exclusivamente para fins de assessoria em bolsas esportivas e nao serao compartilhados com terceiros sem consentimento previo.
                 </p>
               </div>
@@ -645,25 +645,25 @@ export default function NovoLeadPage() {
           )}
 
           {/* Navegação */}
-          <div className="mt-6 flex items-center justify-between border-t border-[#1e2130] pt-5">
+          <div className="mt-6 flex items-center justify-between border-t border-border pt-5">
             <button
               onClick={() => setStep(Math.max(1, step - 1))}
               disabled={step === 1}
               className={cn(
-                "flex items-center gap-2 rounded-lg border border-[#1e2130] px-4 py-2 text-sm text-zinc-400 transition-colors",
-                step === 1 ? "opacity-30 cursor-not-allowed" : "hover:bg-[#1a1f2e] hover:text-zinc-200"
+                "flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm text-muted-foreground transition-colors",
+                step === 1 ? "opacity-30 cursor-not-allowed" : "hover:bg-accent hover:text-foreground"
               )}
             >
               <ChevronLeft className="h-4 w-4" />
               Anterior
             </button>
 
-            <p className="text-xs text-zinc-600">Etapa {step} de {STEPS.length}</p>
+            <p className="text-xs text-label-tertiary">Etapa {step} de {STEPS.length}</p>
 
             {step < STEPS.length ? (
               <button
                 onClick={() => setStep(Math.min(STEPS.length, step + 1))}
-                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
               >
                 Próximo
                 <ChevronRight className="h-4 w-4" />
@@ -672,7 +672,7 @@ export default function NovoLeadPage() {
               <button
                 onClick={handleSubmit}
                 disabled={!form.athlete_name || !form.guardian_name || !consentimentoLgpd || isSubmitting}
-                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 rounded-md bg-sys-green px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

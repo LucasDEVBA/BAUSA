@@ -22,9 +22,9 @@ interface AuditClientProps {
 }
 
 const OPERACAO_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-  INSERT: { label: "INSERT", bg: "bg-emerald-500/10 border-emerald-500/20", color: "text-emerald-400" },
-  UPDATE: { label: "UPDATE", bg: "bg-blue-500/10 border-blue-500/20", color: "text-blue-400" },
-  DELETE: { label: "DELETE", bg: "bg-red-500/10 border-red-500/20", color: "text-red-400" },
+  INSERT: { label: "INSERT", bg: "bg-sys-green/10 border-sys-green/20", color: "text-sys-green" },
+  UPDATE: { label: "UPDATE", bg: "bg-sys-blue/10 border-sys-blue/20", color: "text-sys-blue" },
+  DELETE: { label: "DELETE", bg: "bg-sys-red/10 border-sys-red/20", color: "text-sys-red" },
 };
 
 export function AuditClient({ logs, tabelas }: AuditClientProps) {
@@ -68,17 +68,17 @@ export function AuditClient({ logs, tabelas }: AuditClientProps) {
   ]);
 
   const selectClass =
-    "rounded-lg border border-[#1e2130] bg-[#141720] py-2 px-3 text-sm text-zinc-300 outline-none focus:border-indigo-500";
+    "rounded-md border border-border bg-card py-2 px-3 text-sm text-foreground outline-none focus:border-primary";
 
   return (
-    <div className="flex flex-col gap-5 p-6">
+    <div className="flex flex-col gap-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-indigo-400" />
+          <Shield className="h-5 w-5 text-primary" />
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">Audit Trail</h1>
-            <p className="mt-0.5 text-sm text-zinc-500">
+            <h1 className="text-title-2 text-foreground">Audit Trail</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Historico de alteracoes — {filtered.length} registros
             </p>
           </div>
@@ -93,8 +93,8 @@ export function AuditClient({ logs, tabelas }: AuditClientProps) {
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-zinc-500" />
-          <span className="text-xs font-medium text-zinc-500">Filtros:</span>
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">Filtros:</span>
         </div>
         <select
           value={filterTabela}
@@ -138,7 +138,7 @@ export function AuditClient({ logs, tabelas }: AuditClientProps) {
               setFilterDateFrom("");
               setFilterDateTo("");
             }}
-            className="text-xs text-indigo-400 hover:text-indigo-300"
+            className="text-xs text-primary hover:text-primary/80"
           >
             Limpar filtros
           </button>
@@ -146,27 +146,27 @@ export function AuditClient({ logs, tabelas }: AuditClientProps) {
       </div>
 
       {/* Tabela */}
-      <div className="rounded-xl border border-[#1e2130] bg-[#141720] overflow-hidden">
+      <div className="glass-card rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[#1e2130] bg-[#0f1117]">
-                <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+              <tr className="border-b border-border bg-secondary/50">
+                <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Data
                 </th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Tabela
                 </th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Operacao
                 </th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Registro
                 </th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Usuario
                 </th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Campos Alterados
                 </th>
               </tr>
@@ -174,7 +174,7 @@ export function AuditClient({ logs, tabelas }: AuditClientProps) {
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-sm text-zinc-500">
+                  <td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
                     Nenhum registro encontrado.
                   </td>
                 </tr>
@@ -184,13 +184,13 @@ export function AuditClient({ logs, tabelas }: AuditClientProps) {
                 return (
                   <tr
                     key={log.id}
-                    className="border-b border-[#1e2130]/50 transition-colors hover:bg-[#1a1f2e]"
+                    className="border-b border-border transition-colors hover:bg-accent"
                   >
-                    <td className="py-2.5 pl-4 pr-3 text-xs text-zinc-400">
+                    <td className="py-2.5 pl-4 pr-3 text-xs text-muted-foreground">
                       {new Date(log.created_at).toLocaleString("pt-BR")}
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className="rounded-md bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-300">
+                      <span className="rounded-md bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                         {log.tabela}
                       </span>
                     </td>
@@ -205,13 +205,13 @@ export function AuditClient({ logs, tabelas }: AuditClientProps) {
                         {opCfg.label}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-zinc-500 font-mono">
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground font-mono">
                       {log.registro_id.slice(0, 8)}...
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-zinc-400">
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground">
                       {log.user_papel ?? "sistema"}
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-zinc-500 max-w-[300px] truncate">
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[300px] truncate">
                       {(log.campos_alterados ?? []).join(", ") || "—"}
                     </td>
                   </tr>

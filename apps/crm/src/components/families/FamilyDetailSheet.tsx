@@ -31,32 +31,32 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Sheet */}
-      <div className="fixed right-0 top-0 z-50 flex h-screen w-[480px] flex-col border-l border-[#1e2130] bg-[#0f1117] shadow-2xl">
+      <div className="fixed right-0 top-0 z-50 flex h-screen w-[480px] flex-col shadow-xl liquid-glass">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-[#1e2130] p-5">
+        <div className="flex items-start justify-between border-b border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500/30 to-purple-500/30 text-lg font-bold text-indigo-300">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-plan-legacy/30 text-lg font-bold text-primary">
               {getInitials(family.athlete_name)}
             </div>
             <div>
-              <p className="text-base font-bold text-zinc-100">{family.athlete_name}</p>
-              <p className="text-sm text-zinc-500">{family.guardian_name}</p>
+              <p className="text-base font-bold text-foreground">{family.athlete_name}</p>
+              <p className="text-sm text-muted-foreground">{family.guardian_name}</p>
               {family.address_state && (
                 <div className="mt-0.5 flex items-center gap-1">
-                  <MapPin className="h-3 w-3 text-zinc-600" />
-                  <span className="text-xs text-zinc-600">{family.address_state}</span>
+                  <MapPin className="h-3 w-3 text-label-tertiary" />
+                  <span className="text-xs text-label-tertiary">{family.address_state}</span>
                 </div>
               )}
             </div>
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#1e2130] text-zinc-500 transition-colors hover:border-zinc-600 hover:text-zinc-300"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-border hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
@@ -66,29 +66,29 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Indicadores rápidos */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3 text-center">
-              <p className="text-[10px] text-zinc-500">Risco</p>
+            <div className="rounded-xl p-3 text-center glass-card">
+              <p className="text-[10px] text-muted-foreground">Risco</p>
               <div className="mt-1 flex justify-center">
                 <RiskBadge level={family.risk_level ?? "baixo"} />
               </div>
             </div>
-            <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3 text-center">
-              <p className="text-[10px] text-zinc-500">Temperatura</p>
+            <div className="rounded-xl p-3 text-center glass-card">
+              <p className="text-[10px] text-muted-foreground">Temperatura</p>
               <div className="mt-1 flex justify-center">
                 <EmotionalTempBadge temperature={family.emotional_temperature ?? "bem"} />
               </div>
             </div>
-            <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-3 text-center">
-              <p className="text-[10px] text-zinc-500">NPS</p>
+            <div className="rounded-xl p-3 text-center glass-card">
+              <p className="text-[10px] text-muted-foreground">NPS</p>
               <p
                 className={`mt-1 text-xl font-bold ${
                   (family.nps_score ?? null) === null
-                    ? "text-zinc-500"
+                    ? "text-muted-foreground"
                     : (family.nps_score ?? 0) >= 9
-                    ? "text-emerald-400"
+                    ? "text-sys-green"
                     : (family.nps_score ?? 0) >= 7
-                    ? "text-amber-400"
-                    : "text-red-400"
+                    ? "text-sys-orange"
+                    : "text-sys-red"
                 }`}
               >
                 {family.nps_score ?? "—"}
@@ -97,8 +97,8 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
           </div>
 
           {/* Jornada */}
-          <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4">
-            <p className="mb-3 text-xs font-semibold text-zinc-300">Progresso da Jornada</p>
+          <div className="rounded-xl p-4 glass-card">
+            <p className="mb-3 text-xs font-semibold text-foreground/80">Progresso da Jornada</p>
             <JourneyProgress currentStage={family.journey_stage} />
 
             {/* Timeline vertical */}
@@ -112,28 +112,28 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
                   <div key={stage} className="flex items-start gap-3">
                     <div className="mt-0.5 flex-shrink-0">
                       {isPast ? (
-                        <CheckCircle2 className="h-4 w-4 text-indigo-400" />
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
                       ) : isCurrent ? (
-                        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500">
+                        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                           <span className="h-1.5 w-1.5 rounded-full bg-white" />
                         </div>
                       ) : (
-                        <Circle className="h-4 w-4 text-zinc-700" />
+                        <Circle className="h-4 w-4 text-label-quaternary" />
                       )}
                     </div>
                     <div>
                       <p
                         className={`text-xs font-medium ${
                           isCurrent
-                            ? "text-indigo-400"
+                            ? "text-primary"
                             : isPast
-                            ? "text-zinc-400"
-                            : "text-zinc-600"
+                            ? "text-muted-foreground"
+                            : "text-label-tertiary"
                         }`}
                       >
                         {stageConfig.label}
                       </p>
-                      <p className="text-[10px] text-zinc-600">{stageConfig.description}</p>
+                      <p className="text-[10px] text-label-tertiary">{stageConfig.description}</p>
                     </div>
                   </div>
                 );
@@ -142,12 +142,12 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
           </div>
 
           {/* Próximo marco */}
-          <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-4">
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
             <div className="flex items-start gap-2">
-              <Calendar className="mt-0.5 h-4 w-4 flex-shrink-0 text-indigo-400" />
+              <Calendar className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
               <div>
-                <p className="text-xs font-semibold text-zinc-200">{family.next_milestone}</p>
-                <p className="mt-0.5 text-[11px] text-zinc-500">
+                <p className="text-xs font-semibold text-foreground">{family.next_milestone}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
                   {formatDate(family.next_milestone_date)}
                 </p>
               </div>
@@ -155,55 +155,55 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
           </div>
 
           {/* Contrato */}
-          <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4">
-            <p className="mb-2 text-xs font-semibold text-zinc-300">Informações do Contrato</p>
+          <div className="rounded-xl p-4 glass-card">
+            <p className="mb-2 text-xs font-semibold text-foreground/80">Informações do Contrato</p>
             <div className="space-y-1.5">
               {family.target_university && (
                 <div className="flex justify-between text-xs">
-                  <span className="text-zinc-500">Universidade</span>
-                  <span className="font-medium text-zinc-200">{family.target_university}</span>
+                  <span className="text-muted-foreground">Universidade</span>
+                  <span className="font-medium text-foreground">{family.target_university}</span>
                 </div>
               )}
               <div className="flex justify-between text-xs">
-                <span className="text-zinc-500">Valor contratado</span>
-                <span className="font-semibold text-emerald-400">
+                <span className="text-muted-foreground">Valor contratado</span>
+                <span className="font-semibold text-sys-green">
                   R$ {(family.contract_value_usd ?? family.contract_value_brl).toLocaleString("pt-BR")}
                 </span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-zinc-500">Início</span>
-                <span className="text-zinc-200">{formatDate(family.contracted_at)}</span>
+                <span className="text-muted-foreground">Início</span>
+                <span className="text-foreground">{formatDate(family.contracted_at)}</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-zinc-500">Último contato</span>
-                <span className="text-zinc-200">{formatRelativeTime(family.last_contact_at)}</span>
+                <span className="text-muted-foreground">Último contato</span>
+                <span className="text-foreground">{formatRelativeTime(family.last_contact_at)}</span>
               </div>
             </div>
           </div>
 
           {/* Notas do consultor */}
           {family.consultant_notes && (
-            <div className="rounded-lg border border-[#1e2130] bg-[#141720] p-4">
-              <p className="mb-2 text-xs font-semibold text-zinc-300">
+            <div className="rounded-xl p-4 glass-card">
+              <p className="mb-2 text-xs font-semibold text-foreground/80">
                 Notas — {family.consultant ?? "Consultora"}
               </p>
-              <p className="text-xs text-zinc-400 leading-relaxed">{family.consultant_notes}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{family.consultant_notes}</p>
             </div>
           )}
         </div>
 
         {/* Ações rápidas */}
-        <div className="border-t border-[#1e2130] p-4">
+        <div className="border-t border-border p-4">
           <div className="grid grid-cols-3 gap-2">
-            <button className="flex items-center justify-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5 text-xs font-medium text-zinc-300 transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-400">
+            <button className="flex items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-sys-green/30 hover:bg-sys-green/10 hover:text-sys-green">
               <MessageCircle className="h-3.5 w-3.5" />
               WhatsApp
             </button>
-            <button className="flex items-center justify-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5 text-xs font-medium text-zinc-300 transition-colors hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-blue-400">
+            <button className="flex items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-sys-blue/30 hover:bg-sys-blue/10 hover:text-sys-blue">
               <Phone className="h-3.5 w-3.5" />
               Ligar
             </button>
-            <button className="flex items-center justify-center gap-2 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2.5 text-xs font-medium text-zinc-300 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-400">
+            <button className="flex items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary">
               <Calendar className="h-3.5 w-3.5" />
               Agendar
             </button>

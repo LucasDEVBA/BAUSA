@@ -42,38 +42,38 @@ export function RetrocessoModal({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-amber-500/30 bg-[#0f1117] p-5 shadow-2xl"
+        className="w-full max-w-md rounded-2xl border-sys-orange/30 liquid-glass p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4 text-amber-400" />
-            <p className="text-sm font-bold text-amber-300">
+            <ArrowLeft className="h-4 w-4 text-sys-orange" />
+            <p className="text-sm font-bold text-sys-orange">
               Retroceder etapa
             </p>
           </div>
           <button
             onClick={onCancel}
-            className="rounded-md p-1 text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+            className="rounded-md p-1 text-muted-foreground hover:bg-fill-4 hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mb-4 rounded-lg border border-[#1e2130] bg-[#141720] p-3">
-          <p className="text-xs text-zinc-500">Atleta</p>
-          <p className="mb-2 text-sm font-semibold text-white">{athleteName}</p>
-          <p className="text-xs text-zinc-500">
+        <div className="mb-4 rounded-xl border border-border bg-card p-3">
+          <p className="text-xs text-muted-foreground">Atleta</p>
+          <p className="mb-2 text-sm font-semibold text-foreground">{athleteName}</p>
+          <p className="text-xs text-muted-foreground">
             {labelEtapa(fromStage)}{" "}
-            <span className="text-amber-400">{"→"}</span>{" "}
-            <span className="font-semibold text-amber-300">
+            <span className="text-sys-orange">{"→"}</span>{" "}
+            <span className="font-semibold text-sys-orange">
               {labelEtapa(toStage)}
             </span>
           </p>
         </div>
 
-        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-          Motivo do retrocesso <span className="text-amber-400">*</span>
+        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Motivo do retrocesso <span className="text-sys-orange">*</span>
         </label>
         <textarea
           autoFocus
@@ -82,9 +82,9 @@ export function RetrocessoModal({
           rows={3}
           minLength={5}
           placeholder="Explique por que esta etapa precisa ser revisitada (mín. 5 caracteres)"
-          className="w-full rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500/40"
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
         />
-        <p className="mt-1 text-[10px] text-zinc-600">
+        <p className="mt-1 text-[10px] text-label-tertiary">
           O retrocesso fica registrado no histórico do deal (audit trail).
         </p>
 
@@ -92,7 +92,7 @@ export function RetrocessoModal({
           <button
             onClick={onCancel}
             disabled={isPending}
-            className="flex-1 rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-[#1a1d2a] disabled:opacity-50"
+            className="flex-1 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary disabled:opacity-50"
           >
             Cancelar
           </button>
@@ -100,10 +100,10 @@ export function RetrocessoModal({
             onClick={handleConfirm}
             disabled={!valid || isPending}
             className={cn(
-              "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+              "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors",
               valid && !isPending
-                ? "bg-amber-600 text-white hover:bg-amber-500"
-                : "bg-amber-600/30 text-white/50 cursor-not-allowed",
+                ? "bg-sys-orange text-white hover:bg-sys-orange/80"
+                : "bg-sys-orange/30 text-white/50 cursor-not-allowed",
             )}
           >
             {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

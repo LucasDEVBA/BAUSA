@@ -20,14 +20,14 @@ export function PipelineFilterToggle({
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex gap-1 rounded-lg border border-[#1e2130] bg-[#0f1117] p-1">
+      <div className="flex gap-1 rounded-lg border border-border bg-popover p-1">
         <button
           onClick={() => onFilterChange("todos")}
           className={cn(
             "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
             filterMode === "todos"
-              ? "bg-indigo-600 text-white"
-              : "text-zinc-400 hover:bg-[#1e2130] hover:text-zinc-200"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-fill-3 hover:text-foreground"
           )}
         >
           <Users className="h-3.5 w-3.5" />
@@ -38,15 +38,15 @@ export function PipelineFilterToggle({
           className={cn(
             "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
             filterMode === "meus"
-              ? "bg-indigo-600 text-white"
-              : "text-zinc-400 hover:bg-[#1e2130] hover:text-zinc-200"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-fill-3 hover:text-foreground"
           )}
         >
           <User className="h-3.5 w-3.5" />
           Meus
         </button>
       </div>
-      <span className="text-[10px] text-zinc-600">
+      <span className="text-[10px] text-label-tertiary">
         {count} deal{count !== 1 ? "s" : ""}
       </span>
     </div>

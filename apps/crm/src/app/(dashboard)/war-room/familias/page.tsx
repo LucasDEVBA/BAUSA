@@ -13,10 +13,10 @@ export default async function WarRoomFamiliasPage() {
   ]);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-zinc-100">Experiencia das Familias</h1>
-        <p className="mt-0.5 text-sm text-zinc-500">
+        <h1 className="text-title-2 text-foreground">Experiencia das Familias</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           Familias ativas, saude da jornada, NPS e potencial de indicacao.
         </p>
       </div>

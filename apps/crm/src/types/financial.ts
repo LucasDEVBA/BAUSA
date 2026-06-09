@@ -11,31 +11,31 @@ export const PLAN_CONFIG: Record<
     pix_price: 23000,
     signal: 4500,
     description: "Plano completo com acompanhamento psicológico intercultural",
-    color: "text-blue-300",
-    bg: "bg-blue-500/15 border-blue-500/30",
+    color: "text-plan-journey",
+    bg: "bg-plan-journey/15 border-plan-journey/30",
   },
   Legacy: {
     price: 32000,
     pix_price: 28500,
     signal: 4500,
     description: "Plano premium com serviços exclusivos e suporte VIP",
-    color: "text-purple-300",
-    bg: "bg-purple-500/15 border-purple-500/30",
+    color: "text-plan-legacy",
+    bg: "bg-plan-legacy/15 border-plan-legacy/30",
   },
   Start: {
     price: 18000,
     pix_price: 16000,
     signal: 4500,
     description: "Plano essencial para famílias em início de jornada",
-    color: "text-zinc-300",
-    bg: "bg-zinc-500/15 border-zinc-500/30",
+    color: "text-plan-start",
+    bg: "bg-plan-start/15 border-plan-start/30",
   },
 };
 
 export const RECEIVABLE_STATUS_CONFIG: Record<ReceivableStatus, { label: string; color: string; bg: string }> = {
-  previsto: { label: "Previsto", color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
-  recebido: { label: "Recebido", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  atrasado: { label: "Atrasado", color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
+  previsto: { label: "Previsto", color: "text-sys-blue", bg: "bg-sys-blue/10 border-sys-blue/20" },
+  recebido: { label: "Recebido", color: "text-sys-green", bg: "bg-sys-green/10 border-sys-green/20" },
+  atrasado: { label: "Atrasado", color: "text-sys-red", bg: "bg-sys-red/10 border-sys-red/20" },
 };
 
 export interface Contract {

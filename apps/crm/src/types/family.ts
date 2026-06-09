@@ -180,28 +180,28 @@ export const JOURNEY_STAGE_CONFIG: Record<FamilyJourneyStage, FamilyJourneyStage
 export const FAMILY_STATUS_CONFIG: Record<FamilyStatus, { label: string; color: string; bg: string; dot: string }> = {
   satisfeita: {
     label: "Satisfeita",
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10 border-emerald-500/20",
-    dot: "bg-emerald-400",
+    color: "text-sys-green",
+    bg: "bg-sys-green/15 border-sys-green/20",
+    dot: "bg-sys-green",
   },
   atencao: {
     label: "Atenção",
-    color: "text-amber-400",
-    bg: "bg-amber-500/10 border-amber-500/20",
-    dot: "bg-amber-400",
+    color: "text-sys-orange",
+    bg: "bg-sys-orange/15 border-sys-orange/20",
+    dot: "bg-sys-orange",
   },
   crise: {
     label: "Crise",
-    color: "text-red-400",
-    bg: "bg-red-500/10 border-red-500/20",
-    dot: "bg-red-400",
+    color: "text-sys-red",
+    bg: "bg-sys-red/15 border-sys-red/20",
+    dot: "bg-sys-red",
   },
 };
 
 export const TEMPERATURE_CONFIG: Record<FamilyTemperature, { label: string; color: string; bg: string; icon: string }> = {
-  verde: { label: "Verde", color: "text-emerald-400", bg: "bg-emerald-500/10", icon: "🟢" },
-  amarelo: { label: "Amarelo", color: "text-amber-400", bg: "bg-amber-500/10", icon: "🟡" },
-  vermelho: { label: "Vermelho", color: "text-red-400", bg: "bg-red-500/10", icon: "🔴" },
+  verde: { label: "Verde", color: "text-sys-green", bg: "bg-sys-green/15", icon: "🟢" },
+  amarelo: { label: "Amarelo", color: "text-sys-orange", bg: "bg-sys-orange/15", icon: "🟡" },
+  vermelho: { label: "Vermelho", color: "text-sys-red", bg: "bg-sys-red/15", icon: "🔴" },
 };
 
 export const RISK_DIMENSION_LABELS: Record<RiskDimension, string> = {
@@ -218,15 +218,15 @@ export type RiskLevel = "baixo" | "medio" | "alto" | "critico";
 export type EmotionalTemperature = "otimo" | "bem" | "atento" | "preocupante";
 
 export const RISK_LEVEL_CONFIG: Record<RiskLevel, { label: string; color: string; bgColor: string; dotColor: string }> = {
-  baixo: { label: "Baixo", color: "text-emerald-400", bgColor: "bg-emerald-500/10 border-emerald-500/20", dotColor: "bg-emerald-400" },
-  medio: { label: "Médio", color: "text-amber-400", bgColor: "bg-amber-500/10 border-amber-500/20", dotColor: "bg-amber-400" },
-  alto: { label: "Alto", color: "text-orange-400", bgColor: "bg-orange-500/10 border-orange-500/20", dotColor: "bg-orange-400" },
-  critico: { label: "Crítico", color: "text-red-400", bgColor: "bg-red-500/10 border-red-500/20", dotColor: "bg-red-400" },
+  baixo: { label: "Baixo", color: "text-sys-green", bgColor: "bg-sys-green/15 border-sys-green/20", dotColor: "bg-sys-green" },
+  medio: { label: "Médio", color: "text-sys-orange", bgColor: "bg-sys-orange/15 border-sys-orange/20", dotColor: "bg-sys-orange" },
+  alto: { label: "Alto", color: "text-sys-orange", bgColor: "bg-sys-orange/15 border-sys-orange/20", dotColor: "bg-sys-orange" },
+  critico: { label: "Crítico", color: "text-sys-red", bgColor: "bg-sys-red/15 border-sys-red/20", dotColor: "bg-sys-red" },
 };
 
 export const EMOTIONAL_TEMP_CONFIG: Record<EmotionalTemperature, { label: string; emoji: string; color: string; bgColor: string }> = {
-  otimo: { label: "Ótimo", emoji: "😊", color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
-  bem: { label: "Bem", emoji: "🙂", color: "text-blue-400", bgColor: "bg-blue-500/10" },
-  atento: { label: "Atenção", emoji: "😐", color: "text-amber-400", bgColor: "bg-amber-500/10" },
-  preocupante: { label: "Preocupante", emoji: "😟", color: "text-red-400", bgColor: "bg-red-500/10" },
+  otimo: { label: "Ótimo", emoji: "😊", color: "text-sys-green", bgColor: "bg-sys-green/15" },
+  bem: { label: "Bem", emoji: "🙂", color: "text-sys-blue", bgColor: "bg-sys-blue/15" },
+  atento: { label: "Atenção", emoji: "😐", color: "text-sys-orange", bgColor: "bg-sys-orange/15" },
+  preocupante: { label: "Preocupante", emoji: "😟", color: "text-sys-red", bgColor: "bg-sys-red/15" },
 };

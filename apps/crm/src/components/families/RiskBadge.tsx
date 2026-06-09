@@ -3,23 +3,23 @@ import { type RiskLevel } from "@/types/family";
 
 const RISK_STYLES: Record<RiskLevel, { wrapper: string; dot: string; label: string }> = {
   baixo: {
-    wrapper: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-    dot: "bg-emerald-400",
+    wrapper: "bg-sys-green/15 text-sys-green border border-sys-green/20",
+    dot: "bg-sys-green",
     label: "Baixo",
   },
   medio: {
-    wrapper: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-    dot: "bg-amber-400",
+    wrapper: "bg-sys-yellow/15 text-sys-yellow border border-sys-yellow/20",
+    dot: "bg-sys-yellow",
     label: "Médio",
   },
   alto: {
-    wrapper: "bg-orange-500/10 text-orange-400 border border-orange-500/20",
-    dot: "bg-orange-400",
+    wrapper: "bg-sys-orange/15 text-sys-orange border border-sys-orange/20",
+    dot: "bg-sys-orange",
     label: "Alto",
   },
   critico: {
-    wrapper: "bg-red-500/10 text-red-400 border border-red-500/20",
-    dot: "bg-red-400",
+    wrapper: "bg-sys-red/15 text-sys-red border border-sys-red/20",
+    dot: "bg-sys-red",
     label: "Crítico",
   },
 };

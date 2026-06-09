@@ -16,34 +16,34 @@ interface MetricCardProps {
 
 const VARIANT_STYLES = {
   default: {
-    icon: "bg-zinc-800 text-zinc-300",
-    border: "border-[#1e2130]",
-    value: "text-white",
-    trend: "text-zinc-400",
+    icon: "bg-secondary text-foreground",
+    border: "border-border",
+    value: "text-foreground",
+    trend: "text-muted-foreground",
   },
   hot: {
-    icon: "bg-emerald-500/10 text-emerald-400",
-    border: "border-emerald-500/20",
-    value: "text-emerald-400",
-    trend: "text-emerald-500",
+    icon: "bg-sys-green/15 text-sys-green",
+    border: "border-sys-green/20",
+    value: "text-sys-green",
+    trend: "text-sys-green",
   },
   warm: {
-    icon: "bg-amber-500/10 text-amber-400",
-    border: "border-amber-500/20",
-    value: "text-amber-400",
-    trend: "text-amber-500",
+    icon: "bg-sys-orange/15 text-sys-orange",
+    border: "border-sys-orange/20",
+    value: "text-sys-orange",
+    trend: "text-sys-orange",
   },
   cold: {
-    icon: "bg-blue-500/10 text-blue-400",
-    border: "border-blue-500/20",
-    value: "text-blue-400",
-    trend: "text-blue-500",
+    icon: "bg-sys-blue/15 text-sys-blue",
+    border: "border-sys-blue/20",
+    value: "text-sys-blue",
+    trend: "text-sys-blue",
   },
   purple: {
-    icon: "bg-purple-500/10 text-purple-400",
-    border: "border-purple-500/20",
-    value: "text-purple-400",
-    trend: "text-purple-500",
+    icon: "bg-sys-purple/15 text-sys-purple",
+    border: "border-sys-purple/20",
+    value: "text-sys-purple",
+    trend: "text-sys-purple",
   },
 };
 
@@ -61,19 +61,19 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl border bg-[#141720] p-5 transition-all hover:bg-[#1a1f2e]",
+        "relative overflow-hidden rounded-xl glass-card p-5 transition-all hover:shadow-md",
         styles.border,
         className
       )}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-zinc-400">{title}</p>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
           <p className={cn("mt-1.5 text-3xl font-bold tabular-nums", styles.value)}>
             {value}
           </p>
           {subtitle && (
-            <p className="mt-1 text-xs text-zinc-500">{subtitle}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
           )}
           {trend && (
             <p className={cn("mt-1.5 text-xs", styles.trend)}>

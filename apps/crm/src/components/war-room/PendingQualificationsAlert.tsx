@@ -50,17 +50,17 @@ export function PendingQualificationsAlert({ data }: PendingQualificationsAlertP
 
   return (
     <section className="mb-6">
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+      <div className="rounded-lg border border-sys-orange/30 bg-sys-orange/5 p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="rounded-md bg-amber-500/15 p-2">
-              <AlertTriangle className="h-5 w-5 text-amber-400" />
+            <div className="rounded-md bg-sys-orange/15 p-2">
+              <AlertTriangle className="h-5 w-5 text-sys-orange" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-amber-200">
+              <p className="text-sm font-semibold text-sys-orange">
                 {data.count} lead{data.count > 1 ? "s" : ""} pendente{data.count > 1 ? "s" : ""} de qualificação Gemini
               </p>
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-muted-foreground">
                 <Clock className="mr-1 inline h-3 w-3" />
                 Última tentativa {formatRelative(data.oldest_attempt_at)}. A rotina diária reprocessa
                 automaticamente em até 6h. Você pode forçar uma nova tentativa agora.
@@ -73,7 +73,7 @@ export function PendingQualificationsAlert({ data }: PendingQualificationsAlertP
               type="button"
               onClick={handleRetryAll}
               disabled={isPending}
-              className="inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md border border-sys-orange/40 bg-sys-orange/10 px-3 py-1.5 text-xs font-medium text-sys-orange hover:bg-sys-orange/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RotateCw className={`h-3.5 w-3.5 ${isPending ? "animate-spin" : ""}`} />
               {isPending ? "Reprocessando…" : "Forçar retry de todos"}
@@ -81,7 +81,7 @@ export function PendingQualificationsAlert({ data }: PendingQualificationsAlertP
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-transparent px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800/60"
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-xs text-foreground hover:bg-fill-4"
               aria-expanded={expanded}
             >
               {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -94,8 +94,8 @@ export function PendingQualificationsAlert({ data }: PendingQualificationsAlertP
           <div
             className={`mt-3 rounded-md border px-3 py-2 text-xs ${
               feedback.type === "success"
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-                : "border-red-500/40 bg-red-500/10 text-red-200"
+                ? "border-sys-green/40 bg-sys-green/10 text-sys-green"
+                : "border-sys-red/40 bg-sys-red/10 text-sys-red"
             }`}
           >
             {feedback.msg}
@@ -103,9 +103,9 @@ export function PendingQualificationsAlert({ data }: PendingQualificationsAlertP
         )}
 
         {expanded && (
-          <div className="mt-4 overflow-hidden rounded-md border border-amber-500/20">
+          <div className="mt-4 overflow-hidden rounded-md border border-sys-orange/20">
             <table className="w-full text-xs">
-              <thead className="bg-amber-500/10 text-amber-100">
+              <thead className="bg-sys-orange/10 text-sys-orange">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">Atleta</th>
                   <th className="px-3 py-2 text-left font-medium">Email</th>
@@ -115,16 +115,16 @@ export function PendingQualificationsAlert({ data }: PendingQualificationsAlertP
                   <th className="px-3 py-2 text-right font-medium">Ação</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-amber-500/10 bg-[#141720] text-zinc-300">
+              <tbody className="divide-y divide-sys-orange/10 bg-card text-foreground">
                 {data.leads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-amber-500/5">
-                    <td className="px-3 py-2 font-medium text-zinc-100">{lead.athlete_name}</td>
-                    <td className="px-3 py-2 text-zinc-400">{lead.email}</td>
-                    <td className="px-3 py-2 text-zinc-400">{lead.qualification_attempts}x</td>
-                    <td className="px-3 py-2 text-zinc-400">
+                  <tr key={lead.id} className="hover:bg-sys-orange/5">
+                    <td className="px-3 py-2 font-medium text-foreground">{lead.athlete_name}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{lead.email}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{lead.qualification_attempts}x</td>
+                    <td className="px-3 py-2 text-muted-foreground">
                       {formatRelative(lead.last_qualification_attempt_at)}
                     </td>
-                    <td className="max-w-xs truncate px-3 py-2 text-zinc-500" title={lead.last_qualification_error || ""}>
+                    <td className="max-w-xs truncate px-3 py-2 text-label-tertiary" title={lead.last_qualification_error || ""}>
                       {lead.last_qualification_error?.substring(0, 60) || "—"}
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -132,7 +132,7 @@ export function PendingQualificationsAlert({ data }: PendingQualificationsAlertP
                         type="button"
                         onClick={() => handleRetryOne(lead.id)}
                         disabled={isPending}
-                        className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-100 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-1 rounded border border-sys-orange/40 bg-sys-orange/10 px-2 py-1 text-[10px] font-medium text-sys-orange hover:bg-sys-orange/20 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <RotateCw className={`h-3 w-3 ${isPending ? "animate-spin" : ""}`} />
                         Retry

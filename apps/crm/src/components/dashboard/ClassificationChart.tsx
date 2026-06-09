@@ -16,9 +16,9 @@ interface ClassificationChartProps {
 }
 
 const COLORS = {
-  QUENTE: "#22c55e",
-  MORNO: "#f59e0b",
-  FRIO: "#3b82f6",
+  QUENTE: "var(--lead-hot)",
+  MORNO: "var(--lead-warm)",
+  FRIO: "var(--lead-cold)",
 };
 
 function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: PieLabelRenderProps) {
@@ -59,9 +59,9 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const item = payload[0];
   return (
-    <div className="rounded-lg border border-[#1e2130] bg-[#141720] px-3 py-2 text-sm shadow-lg">
-      <p className="font-medium text-zinc-100">{item.name}</p>
-      <p className="text-zinc-400">{item.value} leads</p>
+    <div className="rounded-xl border border-border bg-popover px-3 py-2 text-sm shadow-lg">
+      <p className="font-medium text-foreground">{item.name}</p>
+      <p className="text-muted-foreground">{item.value} leads</p>
     </div>
   );
 }
@@ -74,9 +74,9 @@ export function ClassificationChart({ quente, morno, frio }: ClassificationChart
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="rounded-xl border border-[#1e2130] bg-[#141720] p-5">
-      <h3 className="text-sm font-semibold text-zinc-100">Distribuição por Classificação</h3>
-      <p className="mt-0.5 text-xs text-zinc-500">Qualificação via IA (Gemini)</p>
+    <div className="rounded-xl glass-card p-5">
+      <h3 className="text-sm font-semibold text-foreground">Distribuição por Classificação</h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">Qualificação via IA (Gemini)</p>
 
       <div className="mt-4 h-52">
         <ResponsiveContainer width="100%" height="100%">
@@ -106,8 +106,8 @@ export function ClassificationChart({ quente, morno, frio }: ClassificationChart
         {data.map((item) => (
           <div key={item.name} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-            <span className="text-xs text-zinc-400">{item.name}</span>
-            <span className="text-xs font-semibold text-zinc-200">{item.value}</span>
+            <span className="text-xs text-muted-foreground">{item.name}</span>
+            <span className="text-xs font-semibold text-foreground">{item.value}</span>
           </div>
         ))}
       </div>
