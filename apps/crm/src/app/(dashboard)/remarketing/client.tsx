@@ -257,7 +257,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
     canal === "email" ? "E-mail" : tipo === "imagem" ? "Imagem" : tipo === "link" ? "Link (card)" : "Texto";
 
   return (
-    <div className="space-y-5 p-6">
+    <div className="space-y-5">
       {/* Header */}
       <div>
         <h1 className="flex items-center gap-2 text-title-2 text-foreground">

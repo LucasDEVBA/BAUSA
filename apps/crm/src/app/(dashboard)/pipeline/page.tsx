@@ -290,7 +290,7 @@ export default async function PipelinePage() {
   ).length;
 
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
+    <div className="flex h-full flex-col gap-4">
       {/* Page header + export na mesma linha (economiza altura) */}
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-title-2 text-foreground">Pipeline de Vendas</h1>

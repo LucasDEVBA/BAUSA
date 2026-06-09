@@ -21,7 +21,7 @@ export default async function DashboardLayout({
       <Sidebar papel={profile.papel} nome={profile.nome} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header nome={profile.nome} />
-        <main className="flex-1 overflow-y-auto px-6 py-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-2">{children}</main>
       </div>
       {/* Toaster global — sonner. richColors ativa verde/vermelho semântico. */}
       <Toaster

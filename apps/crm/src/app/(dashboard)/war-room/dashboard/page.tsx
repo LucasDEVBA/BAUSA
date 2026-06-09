@@ -88,7 +88,7 @@ export default async function WarRoomDashboardPage({ searchParams }: PageProps) 
   ]);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       {/* Critical alerts banner */}
       <CriticalAlertsBanner counts={criticalCounts} />
 

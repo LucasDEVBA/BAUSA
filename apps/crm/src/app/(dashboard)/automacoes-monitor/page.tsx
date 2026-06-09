@@ -84,7 +84,7 @@ export default async function AutomacoesMonitorPage() {
   const StatusGeralIcon = statusGeralConfig.icon;
 
   return (
-    <div className="flex h-full flex-col gap-5 p-6 overflow-y-auto">
+    <div className="flex h-full flex-col gap-5 overflow-y-auto">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>

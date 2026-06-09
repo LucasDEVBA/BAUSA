@@ -77,7 +77,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
   const isPipelineHealthy = parseFloat(pipelineRatio) >= 3;
 
   return (
-    <div className="flex h-full flex-col gap-5 p-6 overflow-y-auto">
+    <div className="flex h-full flex-col gap-5 overflow-y-auto">
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>

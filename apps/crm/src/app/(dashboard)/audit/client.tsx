@@ -71,7 +71,7 @@ export function AuditClient({ logs, tabelas }: AuditClientProps) {
     "rounded-md border border-border bg-card py-2 px-3 text-sm text-foreground outline-none focus:border-primary";
 
   return (
-    <div className="flex flex-col gap-5 p-6">
+    <div className="flex flex-col gap-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

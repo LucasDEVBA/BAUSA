@@ -233,7 +233,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
 
   if (allMonths.length === 0) {
     return (
-      <div className="flex flex-col gap-6 p-6">
+      <div className="flex flex-col gap-6">
         <div>
           <h1 className="text-title-2 text-foreground">Analytics</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">Sem dados financeiros registrados.</p>
@@ -247,7 +247,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
