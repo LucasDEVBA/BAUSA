@@ -1,20 +1,8 @@
-import {
-  GraduationCap,
-  MapPin,
-  TrendingUp,
-  Users,
-  Star,
-  Filter,
-  Search,
-  ExternalLink,
-  AlertTriangle,
-  Calendar,
-  CheckCircle,
-} from "lucide-react";
+import { GraduationCap, TrendingUp, Users, Star } from "lucide-react";
+
+import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
-  SCHOOL_STATUS_CONFIG,
-  SCHOOL_TYPE_CONFIG,
   type School,
   type SchoolType,
   type SchoolStatus,
@@ -88,218 +76,9 @@ function mapSupabaseToSchool(row: Record<string, unknown>): School {
   };
 }
 
-function SchoolCard({ school }: { school: School }) {
-  const statusCfg = SCHOOL_STATUS_CONFIG[school.status];
-  const typeCfg = SCHOOL_TYPE_CONFIG[school.type];
-  const acceptanceRate = school.total_applications > 0
-    ? Math.round((school.acceptance_count / school.total_applications) * 100)
-    : 0;
-
-  return (
-    <div
-      data-school-id={school.id}
-      role="button"
-      tabIndex={0}
-      className="glass-card cursor-pointer rounded-xl p-5 transition-all hover:border-primary/30 hover:shadow-md">
-      {/* Header */}
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold", typeCfg.bg, typeCfg.color)}>
-              {typeCfg.label}
-            </span>
-            <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium", statusCfg.bg, statusCfg.color)}>
-              <span className={cn("h-1.5 w-1.5 rounded-full", statusCfg.color.replace("text-", "bg-"))} />
-              {statusCfg.label}
-            </span>
-          </div>
-          <h3 className="text-sm font-semibold text-foreground leading-tight">{school.name}</h3>
-          <p className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3" />
-            {school.city}, {school.state}
-          </p>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <p className="text-xs text-label-tertiary">Match medio</p>
-          <p className="text-xl font-bold text-sys-green">{school.avg_scholarship_pct}%</p>
-          <p className="text-[10px] text-label-tertiary">bolsa media</p>
-        </div>
-      </div>
-
-      {/* Stats grid */}
-      <div className="mb-4 grid grid-cols-3 gap-3">
-        <div className="rounded-lg bg-secondary px-3 py-2 text-center">
-          <p className="text-lg font-bold text-foreground">{acceptanceRate}%</p>
-          <p className="text-[10px] text-muted-foreground">Taxa aceite</p>
-        </div>
-        <div className="rounded-lg bg-secondary px-3 py-2 text-center">
-          <p className="text-lg font-bold text-foreground">{school.total_applications}</p>
-          <p className="text-[10px] text-muted-foreground">Aplicacoes</p>
-        </div>
-        <div className="rounded-lg bg-secondary px-3 py-2 text-center">
-          <p className="text-lg font-bold text-foreground">{school.avg_response_days}d</p>
-          <p className="text-[10px] text-muted-foreground">Resp. media</p>
-        </div>
-      </div>
-
-      {/* Regras financeiras */}
-      <div className="mb-3 space-y-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Budget exigido</p>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 rounded-md border border-border bg-secondary px-2.5 py-1.5">
-            <p className="text-[10px] text-label-tertiary">Minimo</p>
-            <p className="text-xs font-semibold text-sys-orange">US$ {(school.min_budget_usd / 1000).toFixed(0)}k</p>
-          </div>
-          <div className="flex-1 rounded-md border border-border bg-secondary px-2.5 py-1.5">
-            <p className="text-[10px] text-label-tertiary">Forte</p>
-            <p className="text-xs font-semibold text-sys-green">US$ {(school.strong_budget_usd / 1000).toFixed(0)}k</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Agressividade de bolsa */}
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-[10px] text-label-tertiary">Agressividade bolsa</p>
-        <span className={cn(
-          "rounded-md border px-2 py-0.5 text-[10px] font-medium",
-          school.scholarship_aggressiveness === "agressiva"
-            ? "border-sys-green/30 bg-sys-green/10 text-sys-green"
-            : school.scholarship_aggressiveness === "moderada"
-            ? "border-sys-orange/30 bg-sys-orange/10 text-sys-orange"
-            : "bg-secondary border-border text-muted-foreground"
-        )}>
-          {school.scholarship_aggressiveness.charAt(0).toUpperCase() + school.scholarship_aggressiveness.slice(1)}
-        </span>
-      </div>
-
-      {/* Influencia esportiva */}
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-[10px] text-label-tertiary">Influencia esportiva</p>
-        <span className={cn(
-          "rounded-md border px-2 py-0.5 text-[10px] font-medium",
-          school.sport_influence === "decisiva"
-            ? "border-plan-legacy/30 bg-plan-legacy/10 text-plan-legacy"
-            : school.sport_influence === "alta"
-            ? "border-primary/30 bg-primary/10 text-primary"
-            : school.sport_influence === "media"
-            ? "border-sys-orange/30 bg-sys-orange/10 text-sys-orange"
-            : "bg-secondary border-border text-muted-foreground"
-        )}>
-          {school.sport_influence.charAt(0).toUpperCase() + school.sport_influence.slice(1)}
-        </span>
-      </div>
-
-      {/* Temperatura do relacionamento */}
-      {school.temperatura_relacionamento && (
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[10px] text-label-tertiary">Relacionamento</p>
-          <span className={cn(
-            "rounded-md border px-2 py-0.5 text-[10px] font-medium",
-            school.temperatura_relacionamento === "forte"
-              ? "border-sys-green/30 bg-sys-green/10 text-sys-green"
-              : school.temperatura_relacionamento === "bom"
-              ? "border-primary/30 bg-primary/10 text-primary"
-              : school.temperatura_relacionamento === "frio"
-              ? "border-sys-red/30 bg-sys-red/10 text-sys-red"
-              : "bg-secondary border-border text-muted-foreground"
-          )}>
-            {school.temperatura_relacionamento.charAt(0).toUpperCase() + school.temperatura_relacionamento.slice(1)}
-          </span>
-        </div>
-      )}
-
-      {/* Ultimo contato */}
-      {school.ultimo_contato_at && (() => {
-        const dias = Math.floor((Date.now() - new Date(school.ultimo_contato_at!).getTime()) / (1000 * 60 * 60 * 24));
-        const isAlert = dias > 90;
-        return (
-          <div className={cn("mb-3 flex items-center justify-between rounded-md px-2 py-1.5", isAlert && "bg-sys-red/5 border border-sys-red/20")}>
-            <p className="text-[10px] text-label-tertiary">Ultimo contato</p>
-            <span className={cn("flex items-center gap-1 text-[10px] font-medium", isAlert ? "text-sys-red" : "text-muted-foreground")}>
-              {isAlert && <AlertTriangle className="h-3 w-3" />}
-              {dias}d atras
-            </span>
-          </div>
-        );
-      })()}
-
-      {/* Deadlines */}
-      {(school.deadline_fall || school.deadline_spring) && (
-      <div className="mb-3 grid grid-cols-2 gap-2">
-        {school.deadline_fall && (
-          <div className="rounded-md border border-border bg-secondary px-2.5 py-1.5">
-            <p className="text-[10px] text-label-tertiary flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />Fall</p>
-            <p className="text-xs font-medium text-sys-orange">{new Date(school.deadline_fall).toLocaleDateString("pt-BR")}</p>
-          </div>
-        )}
-        {school.deadline_spring && (
-          <div className="rounded-md border border-border bg-secondary px-2.5 py-1.5">
-            <p className="text-[10px] text-label-tertiary flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />Spring</p>
-            <p className="text-xs font-medium text-sys-blue">{new Date(school.deadline_spring).toLocaleDateString("pt-BR")}</p>
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* Rolling admission + Serie maxima */}
-      <div className="mb-3 flex items-center gap-2 flex-wrap">
-        <span className={cn(
-          "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium",
-          school.rolling_admission
-            ? "border-sys-green/30 bg-sys-green/10 text-sys-green"
-            : "bg-secondary border-border text-muted-foreground"
-        )}>
-          {school.rolling_admission && <CheckCircle className="h-2.5 w-2.5" />}
-          Rolling: {school.rolling_admission ? "Sim" : "Nao"}
-        </span>
-        {school.serie_maxima && (
-          <span className="rounded-md border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-            Serie max: {school.serie_maxima}
-          </span>
-        )}
-        {school.gpa_minimo != null && school.gpa_minimo > 0 && (
-          <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-            GPA min: {school.gpa_minimo.toFixed(1)}
-          </span>
-        )}
-      </div>
-
-      {/* Regra pratica BAUSA */}
-      {school.practical_rule && (
-        <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
-          <p className="text-[10px] font-semibold text-primary mb-0.5">Regra BAUSA</p>
-          <p className="text-[11px] text-muted-foreground leading-relaxed">{school.practical_rule}</p>
-        </div>
-      )}
-
-      {/* Testes exigidos */}
-      {school.required_tests.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          {school.required_tests.map((test) => (
-            <span key={test} className="rounded-md bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {test}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Coach info */}
-      {school.coach_name && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Users className="h-3 w-3 flex-shrink-0" />
-          <span>{school.coach_name}</span>
-          {school.coach_email && (
-            <a href={`mailto:${school.coach_email}`} className="ml-auto text-primary hover:text-primary/80">
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default async function EscolasPage() {
+  await requirePapel("ceo");
+
   const supabase = await createServerSupabaseClient();
 
   const { data: rawEscolas } = await supabase
@@ -320,19 +99,13 @@ export default async function EscolasPage() {
     : 0;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-title-2 text-foreground">Banco de Escolas</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Inteligencia institucional acumulada — {schools.length} instituicoes cadastradas
-          </p>
-        </div>
-        <button className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-          <GraduationCap className="h-4 w-4" />
-          Adicionar escola
-        </button>
+      <div>
+        <h1 className="text-title-2 text-foreground">Banco de Escolas</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Inteligencia institucional acumulada — {schools.length} instituicoes cadastradas
+        </p>
       </div>
 
       {/* KPIs */}
@@ -356,53 +129,7 @@ export default async function EscolasPage() {
         })}
       </div>
 
-      {/* Filtros */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Buscar escola..."
-            className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-placeholder focus:border-primary/50 focus:outline-none"
-          />
-        </div>
-        <button className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent">
-          <Filter className="h-4 w-4" />
-          Filtrar
-        </button>
-      </div>
-
-      {/* Grid por tipo */}
-      {(["Division I", "Division II", "Division III", "NAIA", "JUCO"] as const).map((type) => {
-        const typeSchools = schools.filter((s) => s.type === type);
-        if (typeSchools.length === 0) return null;
-        const typeCfg = SCHOOL_TYPE_CONFIG[type];
-        return (
-          <div key={type}>
-            <div className="mb-3 flex items-center gap-2">
-              <span className={cn("rounded-md border px-2.5 py-1 text-xs font-bold", typeCfg.bg, typeCfg.color)}>
-                {type}
-              </span>
-              <p className="text-xs text-label-tertiary">{typeSchools.length} escola{typeSchools.length !== 1 ? "s" : ""}</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {typeSchools.map((school) => (
-                <SchoolCard key={school.id} school={school} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
-
-      {schools.length === 0 && (
-        <div className="text-center py-12">
-          <GraduationCap className="h-10 w-10 mx-auto text-label-tertiary mb-3" />
-          <p className="text-sm text-muted-foreground">Nenhuma escola cadastrada.</p>
-          <p className="text-xs text-label-tertiary mt-1">Adicione escolas para construir a base institucional.</p>
-        </div>
-      )}
-
-      {/* Client component for school detail sheet */}
+      {/* Toolbar + grid + sheets (client) */}
       <EscolasClient schools={schools} />
     </div>
   );

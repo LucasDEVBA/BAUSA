@@ -6,9 +6,21 @@ const UTM_PARAMS = [
   "utm_campaign",
   "utm_content",
   "utm_term",
+  // utm_id = {{campaign.id}} no Meta Ads: chave estável que sobrevive a renomear
+  // a campanha (utm_campaign muda; o id não). Base do join CAC por campanha.
+  "utm_id",
 ] as const;
 
 type UTMParams = Record<(typeof UTM_PARAMS)[number], string | null>;
+
+const EMPTY_UTMS: UTMParams = {
+  utm_source: null,
+  utm_medium: null,
+  utm_campaign: null,
+  utm_content: null,
+  utm_term: null,
+  utm_id: null,
+};
 
 export function captureUTMs(): void {
   if (typeof window === "undefined") return;
@@ -30,26 +42,12 @@ export function captureUTMs(): void {
 }
 
 export function getStoredUTMs(): UTMParams {
-  if (typeof window === "undefined") {
-    return {
-      utm_source: null,
-      utm_medium: null,
-      utm_campaign: null,
-      utm_content: null,
-      utm_term: null,
-    };
-  }
+  if (typeof window === "undefined") return { ...EMPTY_UTMS };
 
   const stored = localStorage.getItem(UTM_STORAGE_KEY);
-  if (!stored) {
-    return {
-      utm_source: null,
-      utm_medium: null,
-      utm_campaign: null,
-      utm_content: null,
-      utm_term: null,
-    };
-  }
+  if (!stored) return { ...EMPTY_UTMS };
 
-  return JSON.parse(stored) as UTMParams;
+  // Mescla sobre EMPTY_UTMS para garantir todas as chaves (ex.: utm_id) mesmo em
+  // entradas antigas do localStorage gravadas antes de utm_id existir.
+  return { ...EMPTY_UTMS, ...(JSON.parse(stored) as Partial<UTMParams>) };
 }
