@@ -6,11 +6,15 @@
 
 **Prioridade:** Alta
 **Estimativa:** 2-3 sessões
-**Status:** 🟡 Fase 1 implementada (2026-05-18) — Fase 2 (Meta API) é issue futura
+**Status:** 🟢 Fase 1 (manual) + 🟢 Fase 2A (sync Meta automático) implementadas — Fase 2B (por campanha) futura
 
 > **Fase 1 entregue (input manual):** tabela `investimentos_marketing` (migration `20260518120000`), dashboard `/analytics/cac` com 3 CACs (lead / lead qualificado / cliente) + ROI por canal aproximado + input manual de gasto. Server actions `salvarInvestimento`/`deletarInvestimento` (CEO-only), queries em `apps/crm/src/lib/cac-queries.ts`. ROI por **canal** (aproximado: taxa de conversão global × ticket médio; gasto por canal × atribuição por utm_source via dicionário de aliases).
 >
-> **Fase 2 pendente (automação Meta API):** Cloud Function `sync-meta-spend` (cron diário) que popula `investimentos_marketing` com `source='meta_api'` e habilita ROI exato por campanha (`level=campaign`). Pré-requisitos manuais abaixo + System User token (não expira). O dashboard da Fase 1 já é agnóstico a `source` — funciona sem mudança.
+> **Fase 2A entregue (2026-06-09 — automação Meta API):** Cloud Function `sync-meta-spend` (cron diário 06h BRT) puxa o gasto agregado da conta de anúncios (Ads Insights, `act_{id}/insights`) e faz UPSERT em `investimentos_marketing` (`canal='meta'`, `source='meta_api'`, `mes`+canal+source). Mês atual + N-1 anteriores (Meta reajusta). System User token (`META_ACCESS_TOKEN`, não expira) + `META_AD_ACCOUNT_ID` + `META_GRAPH_VERSION`. O dashboard é agnóstico a `source` → exibe o gasto Meta real sem mudança.
+> ⚠️ **Higiene de dados:** após ativar o sync, **não inserir gasto Meta manualmente** (canal meta/instagram/facebook) para o mesmo mês — o dashboard soma todas as linhas e duplicaria. O auto-sync (`source='meta_api'`) passa a ser a fonte de verdade do gasto Meta.
+> 💱 **Moeda:** `valor_gasto` é BRL; a CF assume a conta de anúncios em BRL (loga `account_currency` e alerta se ≠ BRL). Conversão de moeda = trabalho futuro.
+>
+> **Fase 2B pendente (por campanha):** ROI exato por campanha (`level=campaign`) cruzando `investimentos_marketing.campaign` ↔ `form_submissions.utm_id` (= `{{campaign.id}}`, já capturado). Requer coluna `campaign`/`campaign_id` + unique estendido + enriquecimento do `cac-queries`. Opcional: assistente AI via **MCP oficial da Meta** (`mcp.facebook.com/ads`, OAuth) para análise conversacional.
 
 ### O que é
 
