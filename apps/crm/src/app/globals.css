@@ -1,59 +1,443 @@
+/* ============================================================================
+   BAUSA ENGINE — APPLE-GRADE DESIGN SYSTEM
+   Tailwind CSS v4 (CSS-first) + shadcn/ui + Radix
+
+   Valores de cor = sistema oficial da Apple (sRGB), tema claro e escuro.
+   class="dark" no <html> mantém o dark como padrão.
+   Doc: apps/crm/docs/design-system/  (rulebook + design doc + brief)
+   ============================================================================ */
+
 @import "tailwindcss";
 
-@theme inline {
-  /* Tipografia */
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Variante dark do shadcn (classe .dark no html/body) */
+@custom-variant dark (&:is(.dark *));
 
-  /* Cores base — tema escuro profissional */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+/* ----------------------------------------------------------------------------
+   1. TEMA CLARO  (:root)  — base = systemGroupedBackground, cards brancos
+   ---------------------------------------------------------------------------- */
+:root {
+  /* — shadcn core — */
+  --background: #f2f2f7;                 /* systemGroupedBackground */
+  --foreground: #000000;                 /* label */
+  --card: #ffffff;                       /* secondarySystemGroupedBackground */
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #007aff;                    /* systemBlue (tint) */
+  --primary-foreground: #ffffff;
+  --secondary: #e5e5ea;                  /* systemGray5 (fill) */
+  --secondary-foreground: #000000;
+  --muted: #e9e9ee;
+  --muted-foreground: rgba(60, 60, 67, 0.60);   /* secondaryLabel */
+  --accent: #e5e5ea;                     /* hover fill */
+  --accent-foreground: #000000;
+  --destructive: #ff3b30;                /* systemRed */
+  --destructive-foreground: #ffffff;
+  --border: #d1d1d6;                     /* systemGray4 / separator opaco */
+  --input: #d1d1d6;
+  --ring: #007aff;                       /* foco = tint */
 
-  /* Paleta CRM */
-  --color-sidebar: #0f1117;
-  --color-sidebar-border: #1e2130;
-  --color-surface: #141720;
-  --color-surface-hover: #1a1f2e;
-  --color-border: #1e2130;
-  --color-muted: #64748b;
+  /* — Apple label hierarchy (use com texto) — */
+  --label: #000000;
+  --label-secondary: rgba(60, 60, 67, 0.60);
+  --label-tertiary: rgba(60, 60, 67, 0.30);
+  --label-quaternary: rgba(60, 60, 67, 0.18);
+  --placeholder: rgba(60, 60, 67, 0.30);
 
-  /* Classificação de leads */
-  --color-hot: #22c55e;
-  --color-warm: #f59e0b;
-  --color-cold: #3b82f6;
+  /* — Apple fills (preenchimentos translúcidos) — */
+  --fill-1: rgba(120, 120, 128, 0.20);
+  --fill-2: rgba(120, 120, 128, 0.16);
+  --fill-3: rgba(118, 118, 128, 0.12);
+  --fill-4: rgba(116, 116, 128, 0.08);
+
+  /* — Apple separators — */
+  --separator: rgba(60, 60, 67, 0.29);
+  --separator-opaque: #c6c6c8;
+
+  /* — Apple system colors (paleta completa, light) — */
+  --sys-red: #ff3b30;     --sys-orange: #ff9500;  --sys-yellow: #ffcc00;
+  --sys-green: #34c759;   --sys-mint: #00c7be;    --sys-teal: #30b0c7;
+  --sys-cyan: #32ade6;    --sys-blue: #007aff;    --sys-indigo: #5856d6;
+  --sys-purple: #af52de;  --sys-pink: #ff2d55;    --sys-brown: #a2845e;
+
+  /* — Domínio BAU: classificação de lead — */
+  --lead-hot: #34c759;    /* systemGreen  (quente) */
+  --lead-warm: #ff9500;   /* systemOrange (morno)  */
+  --lead-cold: #007aff;   /* systemBlue   (frio)   */
+
+  /* — Domínio BAU: planos (Journey movido p/ indigo p/ não colidir c/ Cold) — */
+  --plan-legacy: #af52de; /* systemPurple */
+  --plan-journey: #5856d6;/* systemIndigo */
+  --plan-start: #8e8e93;  /* systemGray   */
+
+  /* — Recharts / analytics (War Room) — */
+  --chart-1: #007aff;     /* blue   */
+  --chart-2: #34c759;     /* green  */
+  --chart-3: #ff9500;     /* orange */
+  --chart-4: #af52de;     /* purple */
+  --chart-5: #ff2d55;     /* pink   */
+  --chart-grid: rgba(60, 60, 67, 0.18);
+
+  /* — Sidebar — */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #007aff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e5e5ea;
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #d1d1d6;
+  --sidebar-ring: #007aff;
+
+  /* — Materiais (Liquid Glass) — */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-highlight: rgba(255, 255, 255, 0.90);
+  --glass-shadow: rgba(0, 0, 0, 0.10);
+
+  /* — Raio base (Apple ~10pt). shadcn deriva sm/md/lg/xl daqui — */
+  --radius: 0.625rem;      /* 10px */
+
+  /* esquema nativo (form controls, scrollbar) */
+  color-scheme: light;
 }
 
-:root {
-  --background: #0c0e16;
-  --foreground: #e2e8f0;
+/* ----------------------------------------------------------------------------
+   2. TEMA ESCURO  (.dark)  — Apple neutro fiel (#000 / #1C1C1E / #2C2C2E)
+   ---------------------------------------------------------------------------- */
+.dark {
+  --background: #000000;                 /* systemBackground (dark) */
+  --foreground: #ffffff;                 /* label */
+  --card: #1c1c1e;                       /* secondarySystemBackground */
+  --card-foreground: #ffffff;
+  --popover: #1c1c1e;
+  --popover-foreground: #ffffff;
+  --primary: #0a84ff;                    /* systemBlue (dark) */
+  --primary-foreground: #ffffff;
+  --secondary: #2c2c2e;                  /* fill elevado */
+  --secondary-foreground: #ffffff;
+  --muted: #2c2c2e;
+  --muted-foreground: rgba(235, 235, 245, 0.60);  /* secondaryLabel dark */
+  --accent: #2c2c2e;
+  --accent-foreground: #ffffff;
+  --destructive: #ff453a;                /* systemRed dark */
+  --destructive-foreground: #ffffff;
+  --border: #38383a;                     /* opaqueSeparator dark */
+  --input: #38383a;
+  --ring: #0a84ff;
+
+  --label: #ffffff;
+  --label-secondary: rgba(235, 235, 245, 0.60);
+  --label-tertiary: rgba(235, 235, 245, 0.30);
+  --label-quaternary: rgba(235, 235, 245, 0.16);
+  --placeholder: rgba(235, 235, 245, 0.30);
+
+  --fill-1: rgba(120, 120, 128, 0.36);
+  --fill-2: rgba(120, 120, 128, 0.32);
+  --fill-3: rgba(118, 118, 128, 0.24);
+  --fill-4: rgba(118, 118, 128, 0.18);
+
+  --separator: rgba(84, 84, 88, 0.60);
+  --separator-opaque: #38383a;
+
+  --sys-red: #ff453a;     --sys-orange: #ff9f0a;  --sys-yellow: #ffd60a;
+  --sys-green: #30d158;   --sys-mint: #63e6e2;    --sys-teal: #40c8e0;
+  --sys-cyan: #64d2ff;    --sys-blue: #0a84ff;    --sys-indigo: #5e5ce6;
+  --sys-purple: #bf5af2;  --sys-pink: #ff375f;    --sys-brown: #ac8e68;
+
+  --lead-hot: #30d158;
+  --lead-warm: #ff9f0a;
+  --lead-cold: #0a84ff;
+
+  --plan-legacy: #bf5af2;
+  --plan-journey: #5e5ce6;
+  --plan-start: #98989f;
+
+  --chart-1: #0a84ff;
+  --chart-2: #30d158;
+  --chart-3: #ff9f0a;
+  --chart-4: #bf5af2;
+  --chart-5: #ff375f;
+  --chart-grid: rgba(235, 235, 245, 0.16);
+
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #0a84ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2c2c2e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #38383a;
+  --sidebar-ring: #0a84ff;
+
+  --glass-bg: rgba(28, 28, 30, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-highlight: rgba(255, 255, 255, 0.16);
+  --glass-shadow: rgba(0, 0, 0, 0.40);
 
   color-scheme: dark;
 }
 
-* {
-  box-sizing: border-box;
+/* ----------------------------------------------------------------------------
+   2b. (OPCIONAL) DARK COM IDENTIDADE BAU — descomente p/ reintroduzir o azul.
+       Cola DEPOIS do bloco .dark acima; sobrescreve só as 4 bases neutras.
+   ----------------------------------------------------------------------------
+.dark {
+  --background: #0c0e16;
+  --card: #141720;
+  --popover: #141720;
+  --sidebar: #0f1117;
+  --border: #1e2130;
+  --input: #1e2130;
+  --sidebar-border: #1e2130;
+}
+*/
+
+/* ----------------------------------------------------------------------------
+   3. @theme inline — expõe os tokens como utilitários Tailwind (bg-*, text-*…)
+   ---------------------------------------------------------------------------- */
+@theme inline {
+  /* tipografia — stack de sistema (SF Pro nativo) + Inter (carregado via next/font, --font-inter) */
+  --font-sans: -apple-system, "SF Pro Text", "SF Pro Display", var(--font-inter),
+               system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+  /* cores core shadcn */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* label / fill / separator */
+  --color-label: var(--label);
+  --color-label-secondary: var(--label-secondary);
+  --color-label-tertiary: var(--label-tertiary);
+  --color-label-quaternary: var(--label-quaternary);
+  --color-fill-1: var(--fill-1);
+  --color-fill-2: var(--fill-2);
+  --color-fill-3: var(--fill-3);
+  --color-fill-4: var(--fill-4);
+  --color-separator: var(--separator);
+  --color-separator-opaque: var(--separator-opaque);
+  --color-placeholder: var(--placeholder);
+
+  /* system colors */
+  --color-sys-red: var(--sys-red);
+  --color-sys-orange: var(--sys-orange);
+  --color-sys-yellow: var(--sys-yellow);
+  --color-sys-green: var(--sys-green);
+  --color-sys-mint: var(--sys-mint);
+  --color-sys-teal: var(--sys-teal);
+  --color-sys-cyan: var(--sys-cyan);
+  --color-sys-blue: var(--sys-blue);
+  --color-sys-indigo: var(--sys-indigo);
+  --color-sys-purple: var(--sys-purple);
+  --color-sys-pink: var(--sys-pink);
+  --color-sys-brown: var(--sys-brown);
+
+  /* domínio BAU */
+  --color-lead-hot: var(--lead-hot);
+  --color-lead-warm: var(--lead-warm);
+  --color-lead-cold: var(--lead-cold);
+  --color-plan-legacy: var(--plan-legacy);
+  --color-plan-journey: var(--plan-journey);
+  --color-plan-start: var(--plan-start);
+
+  /* ALIASES DE COMPAT — nomes de token legados do projeto, mapeados aos
+     valores Apple. Mantidos para não quebrar usos remanescentes. */
+  --color-surface: var(--card);
+  --color-surface-hover: var(--secondary);
+  --color-hot: var(--lead-hot);
+  --color-warm: var(--lead-warm);
+  --color-cold: var(--lead-cold);
+
+  /* charts */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-grid: var(--chart-grid);
+
+  /* sidebar */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* raios — escala Apple (contínua); shadcn deriva a partir de --radius */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;     /* default inputs/botões */
+  --radius-lg: 12px;     /* cards */
+  --radius-xl: 16px;     /* cards grandes / sheets */
+  --radius-2xl: 20px;    /* modais */
+  --radius-3xl: 28px;
+
+  /* sombras — Apple: baixíssima opacidade, difusas */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06);
+  --shadow-xl: 0 24px 64px rgba(0,0,0,0.18);
+
+  /* easing/motion — usado por transições e como referência p/ Framer Motion */
+  --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1.0);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 350ms;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ----------------------------------------------------------------------------
+   4. Base layer
+   ---------------------------------------------------------------------------- */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv01", "ss01";  /* recursos opcionais Inter */
+  }
+  /* anel de foco acessível Apple-like (não use outline: none sozinho) */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::placeholder { color: var(--placeholder); }
 }
 
-/* Scrollbar personalizada */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ----------------------------------------------------------------------------
+   5. TIPOGRAFIA — escala iOS (SF Pro). Tamanhos em rem (base 16px).
+      Densidade desktop do CRM: corpo de leitura 1 passo abaixo do iOS canônico.
+   ---------------------------------------------------------------------------- */
+@layer components {
+  .text-large-title { font-size: 2.125rem; line-height: 2.5625rem; font-weight: 700; letter-spacing: -0.022em; }
+  .text-title-1     { font-size: 1.75rem;  line-height: 2.125rem;  font-weight: 700; letter-spacing: -0.020em; }
+  .text-title-2     { font-size: 1.375rem; line-height: 1.75rem;   font-weight: 700; letter-spacing: -0.016em; }
+  .text-title-3     { font-size: 1.25rem;  line-height: 1.5625rem; font-weight: 600; letter-spacing: -0.012em; }
+  .text-headline    { font-size: 1.0625rem;line-height: 1.375rem;  font-weight: 600; letter-spacing: -0.024em; }
+  .text-body        { font-size: 1.0625rem;line-height: 1.375rem;  font-weight: 400; letter-spacing: -0.024em; }
+  .text-callout     { font-size: 1rem;     line-height: 1.3125rem; font-weight: 400; letter-spacing: -0.019em; }
+  .text-subhead     { font-size: 0.9375rem;line-height: 1.25rem;   font-weight: 400; letter-spacing: -0.015em; }
+  .text-footnote    { font-size: 0.8125rem;line-height: 1.125rem;  font-weight: 400; letter-spacing: -0.006em; }
+  .text-caption-1   { font-size: 0.75rem;  line-height: 1rem;      font-weight: 400; letter-spacing: 0; }
+  .text-caption-2   { font-size: 0.6875rem;line-height: 0.8125rem; font-weight: 500; letter-spacing: 0.006em; }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+/* ----------------------------------------------------------------------------
+   6. MATERIAIS / LIQUID GLASS
+      Use em barras, headers fixos, sidebars translúcidas, modais e popovers.
+      Sempre garanta contraste de texto AA sobre o vidro.
+   ---------------------------------------------------------------------------- */
+@layer components {
+  .glass-thin,
+  .glass-regular,
+  .glass-thick {
+    background-color: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 8px 32px var(--glass-shadow);
+  }
+  .glass-thin    { backdrop-filter: blur(12px) saturate(160%); -webkit-backdrop-filter: blur(12px) saturate(160%); }
+  .glass-regular { backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); }
+  .glass-thick   { backdrop-filter: blur(40px) saturate(200%); -webkit-backdrop-filter: blur(40px) saturate(200%); }
+
+  /* Liquid Glass: vidro + brilho especular sutil no topo */
+  .liquid-glass {
+    position: relative;
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 12px 40px var(--glass-shadow),
+                inset 0 1px 0 var(--glass-highlight);
+    overflow: hidden;
+  }
+  .liquid-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg,
+      var(--glass-highlight) 0%, transparent 35%);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  /* Fallback p/ navegadores sem backdrop-filter → cor sólida do tema */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-thin, .glass-regular, .glass-thick, .liquid-glass {
+      background-color: var(--popover);
+    }
+  }
 }
+
+/* ----------------------------------------------------------------------------
+   7. CANTOS CONTÍNUOS (squircle) — a assinatura visual da Apple.
+      Progressive enhancement: usa corner-shape onde houver suporte.
+      Fallback = border-radius normal (já aplicado pelos tokens de raio).
+   ---------------------------------------------------------------------------- */
+@layer utilities {
+  @supports (corner-shape: superellipse(2.4)) {
+    .squircle    { corner-shape: superellipse(2.4); }   /* botões/inputs */
+    .squircle-lg { corner-shape: superellipse(3); }     /* cards/modais  */
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   8. Acessibilidade de movimento e transparência
+   ---------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-thin, .glass-regular, .glass-thick, .liquid-glass {
+    background-color: var(--popover) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   9. SCROLLBAR — preservada do projeto, agora tokenizada (estilo macOS).
+   ---------------------------------------------------------------------------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: #2d3448;
-  border-radius: 3px;
+  background-color: var(--fill-2);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 9999px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #3d4561;
-}
+::-webkit-scrollbar-thumb:hover { background-color: var(--fill-1); }
+::-webkit-scrollbar-corner { background: transparent; }
