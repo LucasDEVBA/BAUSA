@@ -61,7 +61,7 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl border bg-card p-5 transition-all hover:bg-secondary",
+        "relative overflow-hidden rounded-xl glass-card p-5 transition-all hover:shadow-md",
         styles.border,
         className
       )}

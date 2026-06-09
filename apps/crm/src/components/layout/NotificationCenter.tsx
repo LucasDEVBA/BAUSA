@@ -110,7 +110,7 @@ export function NotificationCenter() {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-border bg-popover shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl liquid-glass">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <p className="text-xs font-semibold text-foreground">

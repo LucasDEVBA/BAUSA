@@ -321,6 +321,13 @@
   }
   body {
     background-color: var(--background);
+    /* Aurora sutil — dá profundidade para os materiais de vidro refratarem.
+       Usa tokens do tema, então adapta claro/escuro automaticamente. */
+    background-image:
+      radial-gradient(at 0% 0%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 55%),
+      radial-gradient(at 100% 0%, color-mix(in srgb, var(--sys-purple) 9%, transparent), transparent 55%),
+      radial-gradient(at 50% 120%, color-mix(in srgb, var(--sys-indigo) 8%, transparent), transparent 55%);
+    background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
     font-feature-settings: "cv01", "ss01";  /* recursos opcionais Inter */
@@ -390,11 +397,24 @@
     pointer-events: none;
   }
 
+  /* Card de vidro — material padrão das superfícies de conteúdo do app.
+     Reaproveita os tokens de vidro (claro/escuro). Aplique em containers
+     de card (substitui bg-card + border). Borda de cor (status) sobrescreve
+     via utilitário, pois utilities vencem o @layer components. */
+  .glass-card {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-sm), inset 0 1px 0 0 var(--glass-highlight);
+  }
+
   /* Fallback p/ navegadores sem backdrop-filter → cor sólida do tema */
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .glass-thin, .glass-regular, .glass-thick, .liquid-glass {
       background-color: var(--popover);
     }
+    .glass-card { background-color: var(--card); }
   }
 }
 
@@ -421,11 +441,14 @@
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .glass-thin, .glass-regular, .glass-thick, .liquid-glass {
-    background-color: var(--popover) !important;
+  .glass-thin, .glass-regular, .glass-thick, .liquid-glass, .glass-card {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
+  .glass-thin, .glass-regular, .glass-thick, .liquid-glass {
+    background-color: var(--popover) !important;
+  }
+  .glass-card { background-color: var(--card) !important; }
 }
 
 /* ----------------------------------------------------------------------------

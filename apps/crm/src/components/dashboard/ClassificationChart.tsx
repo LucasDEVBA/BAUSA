@@ -74,7 +74,7 @@ export function ClassificationChart({ quente, morno, frio }: ClassificationChart
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="rounded-xl glass-card p-5">
       <h3 className="text-sm font-semibold text-foreground">Distribuição por Classificação</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Qualificação via IA (Gemini)</p>
 

@@ -46,7 +46,7 @@ export function LeadsOverTimeChart({ data }: LeadsOverTimeChartProps) {
   const visibleData = data.slice(-14);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="rounded-xl glass-card p-5">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Leads por Dia</h3>
