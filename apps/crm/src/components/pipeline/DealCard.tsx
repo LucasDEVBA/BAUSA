@@ -7,10 +7,10 @@ import { formatRelativeTime, formatInvestmentRange, getInitials } from "@/lib/ut
 import { cn } from "@/lib/utils";
 
 function getScoreClassification(score: number | undefined): { label: string; bg: string; text: string; border: string } {
-  if (!score && score !== 0) return { label: "—", bg: "bg-zinc-500/15", text: "text-zinc-400", border: "border-zinc-500/30" };
-  if (score >= 70) return { label: "HOT", bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30" };
-  if (score >= 40) return { label: "WARM", bg: "bg-amber-500/15", text: "text-amber-400", border: "border-amber-500/30" };
-  return { label: "COLD", bg: "bg-blue-500/15", text: "text-blue-400", border: "border-blue-500/30" };
+  if (!score && score !== 0) return { label: "—", bg: "bg-secondary", text: "text-muted-foreground", border: "border-border" };
+  if (score >= 70) return { label: "HOT", bg: "bg-sys-green/15", text: "text-sys-green", border: "border-sys-green/20" };
+  if (score >= 40) return { label: "WARM", bg: "bg-sys-orange/15", text: "text-sys-orange", border: "border-sys-orange/20" };
+  return { label: "COLD", bg: "bg-sys-blue/15", text: "text-sys-blue", border: "border-sys-blue/20" };
 }
 
 interface DealCardProps {
@@ -53,10 +53,10 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
           : undefined
       }
       className={cn(
-        "group relative rounded-lg border border-[#1e2130] bg-[#141720] p-3 transition-all hover:border-zinc-600/50 hover:shadow-lg hover:shadow-black/20 cursor-grab active:cursor-grabbing",
-        isDragging && "opacity-50 shadow-xl rotate-1 scale-105",
-        isOverdue && "border-red-500/30",
-        isUnconfigured && !isLost && "ring-1 ring-red-500/20",
+        "group relative rounded-xl border border-border bg-card p-3 transition-all hover:border-fill-1 hover:shadow-lg cursor-grab active:cursor-grabbing",
+        isDragging && "opacity-50 shadow-lg rotate-1 scale-105",
+        isOverdue && "border-sys-red/30",
+        isUnconfigured && !isLost && "ring-1 ring-sys-red/20",
       )}
     >
       {/* Indicador visível: deal incompleto não avança */}
@@ -65,14 +65,14 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
           className="pointer-events-none absolute -right-1 -top-1 flex h-3 w-3 items-center justify-center"
           aria-label="Próxima ação não preenchida"
         >
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/40" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sys-red/40" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-sys-red" />
         </span>
       )}
       {/* Header: avatar + badges */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500/30 to-purple-500/30 text-[11px] font-bold text-indigo-300">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-plan-legacy/30 text-[11px] font-bold text-primary">
             {getInitials(deal.athlete_name)}
           </div>
           {/* Lead Score badge (dinâmico) */}
@@ -87,13 +87,13 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
           </span>
           {/* Gemini Qualificado badge */}
           {isQualified && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400">
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-sys-green/15 border border-sys-green/20 px-1.5 py-0.5 text-[9px] font-semibold text-sys-green">
               <CheckCircle className="h-2.5 w-2.5" />
               Qualif.
             </span>
           )}
           {deal.flag_retrocedido && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400">
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-sys-orange/15 border border-sys-orange/20 px-1.5 py-0.5 text-[9px] font-semibold text-sys-orange">
               <ArrowLeft className="h-2.5 w-2.5" />
               Retrocedido
             </span>
@@ -105,32 +105,32 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
           )}
         </div>
         <button
-          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100 hover:bg-white/10"
+          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100 hover:bg-fill-4"
           onClick={(e) => { e.stopPropagation(); }}
         >
-          <MoreHorizontal className="h-3.5 w-3.5 text-zinc-500" />
+          <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
       </div>
 
       {/* Nome */}
       <div className="mt-2">
-        <p className="text-sm font-semibold text-zinc-100 leading-tight">{deal.athlete_name}</p>
-        <p className="text-xs text-zinc-500 mt-0.5">{deal.guardian_name}</p>
+        <p className="text-sm font-semibold text-foreground leading-tight">{deal.athlete_name}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{deal.guardian_name}</p>
       </div>
 
       {/* Valor */}
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-xs font-semibold text-emerald-400">
+        <span className="text-xs font-semibold text-sys-green">
           R$ {deal.deal_value_brl.toLocaleString("pt-BR")}
         </span>
         {deal.address_state && (
-          <span className="text-[10px] text-zinc-500">{deal.address_state}</span>
+          <span className="text-[10px] text-muted-foreground">{deal.address_state}</span>
         )}
       </div>
 
       {/* Next action */}
       {deal.next_action && (
-        <p className={cn("mt-1.5 text-[10px] truncate", isOverdue ? "text-red-400 font-medium" : "text-zinc-500")}>
+        <p className={cn("mt-1.5 text-[10px] truncate", isOverdue ? "text-sys-red font-medium" : "text-muted-foreground")}>
           {isOverdue && <AlertTriangle className="h-2.5 w-2.5 inline mr-0.5" />}
           {deal.next_action}
         </p>
@@ -139,13 +139,13 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
       {/* Financial bar */}
       {stageConfig.isFinancial && deal.signal_value_brl && deal.deal_value_brl > 0 && (
         <div className="mt-2 space-y-1">
-          <div className="flex justify-between text-[9px] text-zinc-500">
+          <div className="flex justify-between text-[9px] text-muted-foreground">
             <span>Sinal R$ {deal.signal_value_brl.toLocaleString("pt-BR")}</span>
             <span>Total R$ {deal.deal_value_brl.toLocaleString("pt-BR")}</span>
           </div>
-          <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-800">
+          <div className="h-1 w-full overflow-hidden rounded-full bg-secondary">
             <div
-              className="h-full rounded-full bg-emerald-500 transition-all"
+              className="h-full rounded-full bg-sys-green transition-all"
               style={{ width: `${Math.round((deal.signal_value_brl / deal.deal_value_brl) * 100)}%` }}
             />
           </div>
@@ -154,11 +154,11 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
 
       {/* Motivo de perda */}
       {deal.lost_reason && (
-        <p className="mt-1.5 text-[10px] text-red-400/70 leading-tight italic">{deal.lost_reason}</p>
+        <p className="mt-1.5 text-[10px] text-sys-red/70 leading-tight italic">{deal.lost_reason}</p>
       )}
 
       {/* Tempo */}
-      <div className="mt-2 flex items-center gap-1 text-[10px] text-zinc-500">
+      <div className="mt-2 flex items-center gap-1 text-[10px] text-muted-foreground">
         <Clock className="h-3 w-3" />
         <span>{timeInStage}</span>
       </div>

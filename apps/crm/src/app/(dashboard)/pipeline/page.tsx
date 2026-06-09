@@ -191,13 +191,13 @@ function StatChip({
   highlight?: boolean;
 }) {
   return (
-    <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${highlight ? "border-emerald-500/20 bg-emerald-500/5" : "border-[#1e2130] bg-[#141720]"}`}>
-      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${highlight ? "bg-emerald-500/10" : "bg-indigo-500/10"}`}>
-        <Icon className={`h-4 w-4 ${highlight ? "text-emerald-400" : "text-indigo-400"}`} />
+    <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${highlight ? "border-sys-green/20 bg-sys-green/5" : "border-border bg-card"}`}>
+      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${highlight ? "bg-sys-green/10" : "bg-primary/10"}`}>
+        <Icon className={`h-4 w-4 ${highlight ? "text-sys-green" : "text-primary"}`} />
       </div>
       <div>
-        <p className="text-xs text-zinc-500">{label}</p>
-        <p className={`text-sm font-bold ${highlight ? "text-emerald-400" : "text-zinc-100"}`}>{value}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className={`text-sm font-bold ${highlight ? "text-sys-green" : "text-foreground"}`}>{value}</p>
       </div>
     </div>
   );
@@ -299,8 +299,8 @@ export default async function PipelinePage() {
     <div className="flex h-full flex-col gap-5 p-6">
       {/* Page header */}
       <div>
-        <h1 className="text-xl font-bold text-zinc-100">Pipeline de Vendas</h1>
-        <p className="mt-0.5 text-sm text-zinc-500">
+        <h1 className="text-title-2 text-foreground">Pipeline de Vendas</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           Lead {"\u2192"} Reuniao {"\u2192"} Proposta {"\u2192"} Negociacao {"\u2192"} Contrato {"\u2192"} Sinal {"\u2192"} Matricula {"\u2192"} Remanescente {"\u2192"} Concluido
         </p>
       </div>
