@@ -1,0 +1,12 @@
+{
+  "name": "sync-meta-spend",
+  "version": "1.0.0",
+  "description": "CAC Fase 2A — ingere gasto de anúncios da Meta (Marketing API/Ads Insights) por mês e faz upsert em investimentos_marketing (source=meta_api). Cron diário.",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}

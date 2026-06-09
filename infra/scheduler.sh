@@ -152,4 +152,28 @@ gcloud scheduler jobs update http "${JOB_RM}" \
   --attempt-deadline=600s
 
 echo "✓ ${JOB_RM} configurado"
+
+# ─── Job 6: CAC — sync de gasto da Meta Ads (diário 06h BRT) ──────────
+JOB_MS="sync-meta-spend-job${SUFFIX}"
+SYNC_META_SPEND_URL="${SYNC_META_SPEND_URL:-https://sync-meta-spend${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_MS}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 6 * * *" \
+  --uri="${SYNC_META_SPEND_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=320s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_MS}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 6 * * *" \
+  --uri="${SYNC_META_SPEND_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=320s
+
+echo "✓ ${JOB_MS} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"
