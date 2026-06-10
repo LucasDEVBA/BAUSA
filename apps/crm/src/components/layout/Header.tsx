@@ -1,9 +1,12 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 import { NotificationCenter } from "./NotificationCenter";
 import { ThemeToggle } from "./ThemeToggle";
+import { getInitials } from "@/lib/utils";
 
 const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/dashboard": { label: "Dashboard", parent: "Leads" },
@@ -45,9 +48,10 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
 
 interface HeaderProps {
   nome?: string;
+  avatarUrl?: string | null;
 }
 
-export function Header({ nome }: HeaderProps) {
+export function Header({ nome, avatarUrl }: HeaderProps) {
   const pathname = usePathname();
 
   const currentPage = BREADCRUMB_MAP[pathname] ?? BREADCRUMB_MAP["/" + pathname.split("/")[1]];
@@ -89,6 +93,24 @@ export function Header({ nome }: HeaderProps) {
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sys-green" />
           <span className="text-[10px] font-medium text-sys-green">Ao vivo</span>
         </div>
+
+        {/* Avatar → Meu Perfil */}
+        <Link href="/perfil" title="Meu perfil" className="ml-1 flex-shrink-0">
+          {avatarUrl ? (
+            <Image
+              src={avatarUrl}
+              alt={nome ?? "Perfil"}
+              width={32}
+              height={32}
+              unoptimized
+              className="h-8 w-8 rounded-full object-cover ring-1 ring-border transition-opacity hover:opacity-80"
+            />
+          ) : (
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground transition-opacity hover:opacity-80">
+              {nome ? getInitials(nome) : "U"}
+            </span>
+          )}
+        </Link>
       </div>
     </header>
   );

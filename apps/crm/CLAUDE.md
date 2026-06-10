@@ -50,28 +50,48 @@ sonner — toasts
 
 ## Paleta e Design System
 
-> **Dark theme ativo.** O BAUSA tem um light theme separado (`app/crm.css`), mas este projeto usa dark theme.
+> **Design System Apple-grade** (2026-06). Tokens em `src/app/globals.css` (CSS-first, Tailwind v4).
+> Docs em `docs/design-system/` (`HIG-Rulebook-BAUSA.md`, `BAUSA-CRM-DesignSystem-AppleGrade.md`,
+> `conversion-guide.md`). **Regra: zero hex solto — sempre tokens.**
 
-O CRM usa tema escuro com estas variáveis semânticas de cor:
+- **Temas claro/escuro** com toggle no Header (classe `.dark` no `<html>`; persiste em `localStorage`
+  `bausa-theme`; **dark é o padrão**; anti-FOUC via script inline no layout).
+- **Cores = tokens semânticos** (paleta de sistema Apple):
+  - Superfícies: `bg-background` · `bg-card` · `bg-popover` · `bg-secondary` · `bg-sidebar`.
+  - Texto (hierarquia por alpha): `text-foreground` · `text-muted-foreground` · `text-label-tertiary`.
+  - Ação (azul) = `primary`. Status (tinted fill ~15%): `sys-green/orange/red/blue/yellow`,
+    lead `lead-hot/warm/cold`, planos `plan-legacy/journey/start`.
+  - Marca BAUSA: `bau-blue` · `bau-burgundy` · `bau-gold`.
+  - Recharts: props de cor via `var(--chart-*/--sys-*/--lead-*)`.
+- **Liquid glass**: `.glass-card` (cards de conteúdo) e `.liquid-glass` (modais/sheets/popovers);
+  fundo com gradiente aurora; fallback de `prefers-reduced-transparency`.
+- **Tipografia** SF/Inter via `.text-title-*` · `.text-headline` · `.text-footnote` (tracking negativo).
+- **Raios**: inputs/botões `rounded-md` (10px) · cards `rounded-xl` · modais `rounded-2xl` (20px).
+- **Sidebar**: logo BAU (`/brand/bausa-bau.png`), **recolhível** (persiste); item ativo `bg-primary/15`
+  + barra `bg-primary`; **footer abre Meu Perfil (`/perfil`)** e mostra o avatar do usuário.
+- **A11y**: `:focus-visible` global (anel `--ring`), `prefers-reduced-motion`/`-transparency`.
 
-| Uso | Valor |
-|---|---|
-| Background base | `#0c0e16` |
-| Background card | `#141720` |
-| Background sidebar | `#0f1117` |
-| Borda padrão | `#1e2130` |
-| Texto primário | `zinc-100` |
-| Texto secundário | `zinc-400 / zinc-500` |
-| Acento principal | `indigo-500 / indigo-600` |
-| Sucesso / receita recebida | `emerald-400 / emerald-500` |
-| Alerta crítico | `red-400 / red-500` |
-| Atenção | `amber-400 / amber-500` |
-| Produto Legacy | `purple-400` |
-| Produto Journey | `blue-400` |
-| Produto Start | `zinc-400` |
+> Exceções de cor real (não-tema): budgets de **escola** em USD (`min/strong_budget_usd`) e
+> gradientes de marca pontuais (login).
 
-**Borda active no sidebar:** linha vertical esquerda `w-0.5 bg-indigo-500`.
-**Item ativo:** `bg-indigo-600/20 text-white`.
+---
+
+## Atualizações recentes (2026-06)
+
+- **Design System Apple-grade** no CRM inteiro + **tema claro/escuro** (toggle no Header) + **liquid glass**.
+- **Logo BAU** no sidebar; **sidebar recolhível** (persiste em `localStorage`).
+- **Meu Perfil** (`/perfil`): editar nome, **trocar senha** (Supabase Auth), **foto de perfil**
+  (Storage bucket `avatars`, público). Abre pelo nome no footer do sidebar; **avatar no sidebar e header**.
+- **Gestão de usuários** (Configurações → aba **Usuários**): listar, editar **papel/ativo**, e **criar usuário**
+  (CEO; admin API do Supabase Auth — requer `SUPABASE_SERVICE_KEY` no ambiente; sem ela, o resto funciona).
+  **CTO usa o papel `ceo`** (mesmas regras; sem enum novo).
+- **Rename** de campos: métricas de receita (War Room/analytics) `*_usd` → `*_brl` (valores sempre BRL).
+  Budgets de **escola** seguem `*_usd` (orçamento real em USD). War Room agora exibe **R$**.
+
+> Arquivos-chave: `src/lib/actions/usuarios.ts` (server actions), `src/lib/supabase-admin.ts`
+> (client service-role, **server-only**), `src/lib/avatar-upload.ts`, `src/app/(dashboard)/perfil/`,
+> `src/components/configuracoes/UsuariosTab.tsx`,
+> `supabase/migrations/20260610000000_avatars_bucket.sql`.
 
 ---
 
@@ -165,6 +185,9 @@ Leads QUENTES e MORNOS entram **automaticamente** no pipeline:
 | `/matching` | CEO | atletas + escolas + estrategia_escolas |
 | `/familias-crm` | CEO + Head | crm_experiencia + atletas + deals |
 | `/analytics` | CEO | parcelas + contratos (receita 24 meses) |
+| `/configuracoes` | CEO | Configurações (8 abas) + aba **Usuários** (listar/editar papel·ativo / criar usuário) |
+| `/perfil` | Autenticado (todos) | **Meu Perfil**: nome, **trocar senha** (Supabase Auth), **foto** (bucket `avatars`). Abre pelo nome no footer do sidebar |
+| `/minha-area` | Head | Área do Head (dashboard) — **distinto** de `/perfil` |
 
 **Pipeline DealDetailSheet (4 abas):**
 - Resumo: Qualificação Gemini + Lead Score + info rápida + campos editáveis
