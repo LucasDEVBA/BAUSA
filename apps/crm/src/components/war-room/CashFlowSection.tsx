@@ -10,7 +10,7 @@ export function CashFlowSection({ data }: CashFlowSectionProps) {
     {
       label: "Receita Líquida Recebida",
       sublabel: "Março 2026",
-      value: data.net_received_usd,
+      value: data.net_received_brl,
       icon: DollarSign,
       color: "text-sys-green",
       border: "border-sys-green/20",
@@ -20,7 +20,7 @@ export function CashFlowSection({ data }: CashFlowSectionProps) {
     {
       label: "Prevista — 30 dias",
       sublabel: "Abril 2026",
-      value: data.projected_30d_usd,
+      value: data.projected_30d_brl,
       icon: ArrowRight,
       color: "text-primary",
       border: "border-primary/20",
@@ -30,7 +30,7 @@ export function CashFlowSection({ data }: CashFlowSectionProps) {
     {
       label: "Prevista — 90 dias",
       sublabel: "Mai–Jun 2026",
-      value: data.projected_90d_usd,
+      value: data.projected_90d_brl,
       icon: TrendingUp,
       color: "text-plan-legacy",
       border: "border-plan-legacy/20",

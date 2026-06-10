@@ -226,11 +226,11 @@ export async function fetchWarRoomMetrics(): Promise<WarRoomMetrics> {
   const revenueYtd = (ytdParcelas || []).reduce((s, p) => s + Number(p.valor), 0);
 
   return {
-    mrr_usd: receitaMes,
+    mrr_brl: receitaMes,
     mrr_trend_pct: mrrTrend,
-    arr_usd: receitaMes * 12,
-    pipeline_total_usd: pipelineTotal,
-    avg_ticket_usd: avgTicket,
+    arr_brl: receitaMes * 12,
+    pipeline_total_brl: pipelineTotal,
+    avg_ticket_brl: avgTicket,
     conversion_rate: taxaConversao,
     active_families: expTotal,
     at_risk_families: expCrise,
@@ -240,7 +240,7 @@ export async function fetchWarRoomMetrics(): Promise<WarRoomMetrics> {
     active_deals_count: activeDealsCount,
     leads_this_month: leadsThisMonth || 0,
     closed_this_month: closedThisMonth || 0,
-    revenue_ytd_usd: revenueYtd,
+    revenue_ytd_brl: revenueYtd,
   };
 }
 
@@ -259,10 +259,10 @@ export async function fetchMetaRevenue(): Promise<MetaRevenueMetrics> {
   const gap = projected - metaMensal;
 
   return {
-    net_revenue_month_usd: receitaRecebida,
-    monthly_target_usd: metaMensal,
-    projected_revenue_usd: projected,
-    gap_to_target_usd: gap,
+    net_revenue_month_brl: receitaRecebida,
+    monthly_target_brl: metaMensal,
+    projected_revenue_brl: projected,
+    gap_to_target_brl: gap,
   };
 }
 
@@ -312,9 +312,9 @@ export async function fetchCashFlow(): Promise<CashFlowMetrics> {
   ]);
 
   return {
-    net_received_usd: recebido,
-    projected_30d_usd: proj30,
-    projected_90d_usd: proj90,
+    net_received_brl: recebido,
+    projected_30d_brl: proj30,
+    projected_90d_brl: proj90,
   };
 }
 
@@ -352,12 +352,12 @@ export async function fetchRevenueAtRisk(): Promise<RevenueAtRiskMetrics> {
 
   return {
     contracts_without_signature_count: semAssinaturaList.length,
-    contracts_without_signature_usd: semAssinaturaList.reduce((s, d) => s + (Number(d.valor_estimado) || 0), 0),
+    contracts_without_signature_brl: semAssinaturaList.reduce((s, d) => s + (Number(d.valor_estimado) || 0), 0),
     unpaid_signals_count: semSinalList.length,
-    unpaid_signals_usd: semSinalList.reduce((s, d) => s + (Number(d.valor_estimado) || 0) * 0.15, 0),
+    unpaid_signals_brl: semSinalList.reduce((s, d) => s + (Number(d.valor_estimado) || 0) * 0.15, 0),
     pending_remaining_count: semRemanList.length,
-    pending_remaining_usd: semRemanList.reduce((s, d) => s + (Number(d.valor_estimado) || 0) * 0.85, 0),
-    overdue_receivables_usd: totalAtrasado,
+    pending_remaining_brl: semRemanList.reduce((s, d) => s + (Number(d.valor_estimado) || 0) * 0.85, 0),
+    overdue_receivables_brl: totalAtrasado,
   };
 }
 
@@ -375,7 +375,7 @@ export async function fetchPositioning(): Promise<PositioningMetrics> {
     pct_legacy: Math.round((legacy / total) * 100),
     pct_journey: Math.round((journey / total) * 100),
     pct_start: Math.round((start / total) * 100),
-    avg_ticket_usd: total > 0 ? Math.round(totalValor / total) : 0,
+    avg_ticket_brl: total > 0 ? Math.round(totalValor / total) : 0,
     pct_discounted: Math.round((withDiscount / total) * 100),
   };
 }
@@ -497,9 +497,9 @@ export async function fetchRevenueMonths(): Promise<RevenueMonth[]> {
       month,
       year,
       month_label: monthLabel,
-      contracted_usd: contracted,
-      received_usd: received,
-      projected_usd: projected,
+      contracted_brl: contracted,
+      received_brl: received,
+      projected_brl: projected,
       families_signed: familiesSigned || 0,
     });
   }

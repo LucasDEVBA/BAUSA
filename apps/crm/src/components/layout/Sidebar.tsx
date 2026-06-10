@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -11,7 +12,6 @@ import {
   Target,
   Home,
   DollarSign,
-  Zap,
   ChevronsLeft,
   ChevronsRight,
   GraduationCap,
@@ -164,15 +164,18 @@ const STORAGE_KEY = "bausa-sidebar-collapsed";
 interface SidebarProps {
   papel: PapelUsuario;
   nome: string;
+  avatarUrl: string | null;
 }
 
-export function Sidebar({ papel, nome }: SidebarProps) {
+export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     try {
+      // Sync inicial a partir do localStorage (evita hydration mismatch via effect).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
     } catch {
       /* localStorage indisponivel — mantem expandida */
@@ -212,9 +215,14 @@ export function Sidebar({ papel, nome }: SidebarProps) {
           collapsed ? "justify-center px-2" : "gap-2.5 px-4",
         )}
       >
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-sys-purple">
-          <Zap className="h-4 w-4 text-primary-foreground" />
-        </div>
+        <Image
+          src="/brand/bausa-bau.png"
+          alt="BAUSA"
+          width={48}
+          height={32}
+          priority
+          className="flex-shrink-0"
+        />
         {!collapsed && (
           <div>
             <p className="text-sm font-semibold text-sidebar-foreground leading-none">BAUSA Engine</p>
@@ -344,26 +352,41 @@ export function Sidebar({ papel, nome }: SidebarProps) {
         )}
       </button>
 
-      {/* User info */}
+      {/* User info → Meu Perfil */}
       <div className={cn("border-t border-sidebar-border", collapsed ? "p-2" : "p-3")}>
-        <div
-          className={cn(
-            "flex items-center rounded-lg transition-colors hover:bg-fill-4",
-            collapsed ? "flex-col gap-2 p-1.5" : "gap-2.5 px-2 py-2 text-left",
-          )}
-        >
-          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground">
-            {nome.charAt(0).toUpperCase()}
-          </div>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-xs font-medium text-foreground">{nome}</p>
-              <p className="truncate text-[10px] text-muted-foreground capitalize">{papel.replace("_", " ")}</p>
-            </div>
-          )}
+        <div className={cn("flex items-center", collapsed ? "flex-col gap-2" : "gap-1")}>
+          <Link
+            href="/perfil"
+            title="Meu perfil"
+            className={cn(
+              "flex min-w-0 items-center rounded-lg transition-colors hover:bg-fill-4",
+              collapsed ? "p-1" : "flex-1 gap-2.5 px-2 py-2 text-left",
+            )}
+          >
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt={nome}
+                width={28}
+                height={28}
+                unoptimized
+                className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground">
+                {nome.charAt(0).toUpperCase()}
+              </div>
+            )}
+            {!collapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-xs font-medium text-foreground">{nome}</p>
+                <p className="truncate text-[10px] text-muted-foreground capitalize">{papel.replace("_", " ")}</p>
+              </div>
+            )}
+          </Link>
           <button
             onClick={handleLogout}
-            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-fill-4"
+            className="flex-shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-fill-4 hover:text-foreground"
             aria-label="Sair"
             title="Sair"
           >

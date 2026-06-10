@@ -167,27 +167,27 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
     arr.reduce((acc, m) => acc + (m[field] as number), 0);
 
   const cur = {
-    contracted: sumField(currentSlice, "contracted_usd"),
-    received: sumField(currentSlice, "received_usd"),
+    contracted: sumField(currentSlice, "contracted_brl"),
+    received: sumField(currentSlice, "received_brl"),
     families: sumField(currentSlice, "families_signed"),
     contracts: currentSlice.length,
   };
 
   const prev = {
-    contracted: sumField(previousSlice, "contracted_usd"),
-    received: sumField(previousSlice, "received_usd"),
+    contracted: sumField(previousSlice, "contracted_brl"),
+    received: sumField(previousSlice, "received_brl"),
     families: sumField(previousSlice, "families_signed"),
     contracts: previousSlice.length,
   };
 
   const barData = currentSlice.map((m, i) => ({
     month: m.month_label,
-    Contratado: m.contracted_usd,
-    Recebido: m.received_usd,
+    Contratado: m.contracted_brl,
+    Recebido: m.received_brl,
     ...(compareEnabled && previousSlice[i]
       ? {
-          "Contratado (ant.)": previousSlice[i].contracted_usd,
-          "Recebido (ant.)": previousSlice[i].received_usd,
+          "Contratado (ant.)": previousSlice[i].contracted_brl,
+          "Recebido (ant.)": previousSlice[i].received_brl,
         }
       : {}),
   }));
@@ -200,8 +200,8 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
     return Array.from({ length: maxLen }, (_, i) => {
       const curMonth = currentSlice[i];
       const prv = previousSlice[i];
-      if (curMonth) cumCurrent += curMonth.received_usd;
-      if (prv && compareEnabled) cumPrev += prv.received_usd;
+      if (curMonth) cumCurrent += curMonth.received_brl;
+      if (prv && compareEnabled) cumPrev += prv.received_brl;
 
       return {
         idx: i + 1,
@@ -214,10 +214,10 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
 
   const tableData = currentSlice.map((m) => ({
     label: m.month_label,
-    contracted: m.contracted_usd,
-    received: m.received_usd,
+    contracted: m.contracted_brl,
+    received: m.received_brl,
     families: m.families_signed,
-    recvRate: m.contracted_usd > 0 ? Math.round((m.received_usd / m.contracted_usd) * 100) : 0,
+    recvRate: m.contracted_brl > 0 ? Math.round((m.received_brl / m.contracted_brl) * 100) : 0,
   }));
 
   const bestMonth = tableData.length > 0

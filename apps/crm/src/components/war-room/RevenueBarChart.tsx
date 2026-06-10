@@ -68,8 +68,8 @@ export function RevenueBarChart({ data }: RevenueBarChartProps) {
               iconType="circle"
               iconSize={8}
             />
-            <Bar dataKey="received_usd" name="Recebido" fill="var(--sys-green)" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="projected_usd" name="Projetado" fill="var(--chart-1)" radius={[3, 3, 0, 0]} opacity={0.7} />
+            <Bar dataKey="received_brl" name="Recebido" fill="var(--sys-green)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="projected_brl" name="Projetado" fill="var(--chart-1)" radius={[3, 3, 0, 0]} opacity={0.7} />
           </BarChart>
         </ResponsiveContainer>
       </div>

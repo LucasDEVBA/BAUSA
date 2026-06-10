@@ -63,7 +63,7 @@ export function RiskRevenueSection({ data }: RiskRevenueSectionProps) {
         icon={FileX}
         label="Contratos sem Assinatura"
         count={data.contracts_without_signature_count}
-        valueUsd={data.contracts_without_signature_usd}
+        valueUsd={data.contracts_without_signature_brl}
         severity="warning"
         description="Negociações concluídas aguardando assinatura formal do contrato."
       />
@@ -71,7 +71,7 @@ export function RiskRevenueSection({ data }: RiskRevenueSectionProps) {
         icon={AlertCircle}
         label="Sinais Não Pagos"
         count={data.unpaid_signals_count}
-        valueUsd={data.unpaid_signals_usd}
+        valueUsd={data.unpaid_signals_brl}
         severity="critical"
         description="Contratos assinados onde o sinal inicial ainda não foi recebido."
       />
@@ -79,14 +79,14 @@ export function RiskRevenueSection({ data }: RiskRevenueSectionProps) {
         icon={Clock}
         label="Remanescentes Pendentes"
         count={data.pending_remaining_count}
-        valueUsd={data.pending_remaining_usd}
+        valueUsd={data.pending_remaining_brl}
         severity="warning"
         description="Matrículas confirmadas com parcela final ainda em aberto."
       />
       <RiskRevenueCard
         icon={DollarSign}
         label="Recebíveis Vencidos"
-        valueUsd={data.overdue_receivables_usd}
+        valueUsd={data.overdue_receivables_brl}
         severity="critical"
         description="Valores com prazo de pagamento expirado. Ação de cobrança necessária."
       />
