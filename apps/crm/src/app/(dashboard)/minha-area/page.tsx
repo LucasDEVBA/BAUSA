@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getUserProfile } from "@/lib/auth";
+import { isCeoLevel } from "@/lib/papel";
 import { redirect } from "next/navigation";
 import { MinhaAreaClient } from "./client";
 import type {
@@ -129,7 +130,7 @@ export default async function MinhaAreaPage() {
     redirect("/login");
   }
 
-  const isCeo = profile.papel === "ceo";
+  const isCeo = isCeoLevel(profile.papel);
 
   if (!isCeo && profile.papel !== "head_sucesso") {
     redirect("/war-room");

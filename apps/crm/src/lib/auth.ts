@@ -22,9 +22,18 @@ export async function getUserProfile(): Promise<UserProfile | null> {
   return data as UserProfile | null;
 }
 
+/**
+ * Papel EFETIVO de autorização do usuário autenticado.
+ *
+ * CTO compartilha as permissões do CEO, então resolvemos cto→ceo AQUI — este é
+ * o único ponto de autorização do app (requirePapel + todos os gates
+ * `=== "ceo"` nas server actions passam por aqui). Espelha a função SQL
+ * `public.get_user_papel()` que faz o mesmo no RLS. Para o papel REAL de
+ * exibição (que mantém 'cto'), use `getUserProfile().papel`.
+ */
 export async function getUserPapel(): Promise<PapelUsuario | null> {
-  const profile = await getUserProfile();
-  return profile?.papel ?? null;
+  const papel = (await getUserProfile())?.papel ?? null;
+  return papel === 'cto' ? 'ceo' : papel;
 }
 
 export async function requireAuth() {
