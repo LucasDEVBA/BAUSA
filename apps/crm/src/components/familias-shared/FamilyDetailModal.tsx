@@ -17,6 +17,8 @@ import {
   Upload,
   CheckCircle2,
   Clock,
+  Sparkles as SparklesIcon,
+  Video as VideoIcon,
 } from "lucide-react";
 import {
   JOURNEY_STAGE_CONFIG,
@@ -47,6 +49,8 @@ import type { NotaInterna } from "@/types/crm";
 import { QuickActionsBar } from "./QuickActionsBar";
 import { FileUploader, AttachmentList, type UploadedFile } from "./FileUploader";
 import { HealthScoreCard } from "./HealthBadge";
+import { OnboardingTab } from "./OnboardingTab";
+import { ReunioesTab } from "./ReunioesTab";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -161,6 +165,8 @@ interface FamilyDetailModalProps {
 
 type Tab =
   | "geral"
+  | "onboarding"
+  | "reunioes"
   | "indicadores"
   | "etapas"
   | "registros"
@@ -171,6 +177,8 @@ type Tab =
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "geral", label: "Visão geral", icon: ClipboardList },
+  { id: "onboarding", label: "Onboarding", icon: SparklesIcon },
+  { id: "reunioes", label: "Reuniões", icon: VideoIcon },
   { id: "indicadores", label: "Indicadores", icon: Heart },
   { id: "etapas", label: "Etapas", icon: History },
   { id: "registros", label: "Registros", icon: Phone },
@@ -318,6 +326,18 @@ export function FamilyDetailModal({
         {/* Conteúdo */}
         <div className="flex-1 overflow-y-auto p-6 bg-popover">
           {tab === "geral" && <TabGeral family={family} />}
+          {tab === "onboarding" && (
+            <OnboardingTab
+              experienciaId={family.experiencia_id}
+              athleteName={family.athlete_name}
+            />
+          )}
+          {tab === "reunioes" && (
+            <ReunioesTab
+              experienciaId={family.experiencia_id}
+              athleteName={family.athlete_name}
+            />
+          )}
           {tab === "indicadores" && (
             <TabIndicadores family={family} onSaved={handleSaved} />
           )}
