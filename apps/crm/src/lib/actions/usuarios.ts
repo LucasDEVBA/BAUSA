@@ -5,18 +5,19 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAdminClient, hasServiceKey } from "@/lib/supabase-admin";
 import { getUserProfile } from "@/lib/auth";
+import { isCeoLevel } from "@/lib/papel";
 import type { PapelUsuario, UserProfile } from "@/types/crm";
 
 type Result<T = undefined> =
   | { success: true; data?: T }
   | { success: false; error: string };
 
-const PAPEIS_VALIDOS: PapelUsuario[] = ["ceo", "head_sucesso", "comercial"];
+const PAPEIS_VALIDOS: PapelUsuario[] = ["ceo", "cto", "head_sucesso", "comercial"];
 
 /** Lista todos os usuários (apenas CEO). */
 export async function listarUsuarios(): Promise<Result<UserProfile[]>> {
   const me = await getUserProfile();
-  if (me?.papel !== "ceo") return { success: false, error: "Acesso restrito ao CEO." };
+  if (!me || !isCeoLevel(me.papel)) return { success: false, error: "Acesso restrito ao CEO." };
 
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
@@ -34,14 +35,15 @@ export async function atualizarUsuario(
   patch: { papel?: PapelUsuario; ativo?: boolean; nome?: string; avatar_url?: string | null },
 ): Promise<Result> {
   const me = await getUserProfile();
-  if (me?.papel !== "ceo") return { success: false, error: "Acesso restrito ao CEO." };
+  if (!me || !isCeoLevel(me.papel)) return { success: false, error: "Acesso restrito ao CEO." };
 
   if (patch.papel && !PAPEIS_VALIDOS.includes(patch.papel)) {
     return { success: false, error: "Papel inválido." };
   }
-  // Trava de segurança: o CEO não pode rebaixar/desativar a si mesmo (evita lockout).
-  if (id === me.id && (patch.papel && patch.papel !== "ceo")) {
-    return { success: false, error: "Você não pode alterar o próprio papel de CEO." };
+  // Trava de segurança: ninguém com nível CEO pode rebaixar/desativar a si mesmo
+  // (evita lockout). Trocar entre ceo↔cto é permitido (ambos são nível CEO).
+  if (id === me.id && patch.papel && !isCeoLevel(patch.papel)) {
+    return { success: false, error: "Você não pode rebaixar o próprio papel." };
   }
   if (id === me.id && patch.ativo === false) {
     return { success: false, error: "Você não pode desativar a própria conta." };
@@ -100,7 +102,7 @@ export async function criarUsuario(input: {
   senha: string;
 }): Promise<Result> {
   const me = await getUserProfile();
-  if (me?.papel !== "ceo") return { success: false, error: "Acesso restrito ao CEO." };
+  if (!me || !isCeoLevel(me.papel)) return { success: false, error: "Acesso restrito ao CEO." };
 
   if (!hasServiceKey()) {
     return {

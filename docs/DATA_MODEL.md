@@ -125,7 +125,7 @@ Todos criados via `CREATE TYPE ... AS ENUM` com guard `DO $$ BEGIN ... EXCEPTION
 
 | Tipo | Valores |
 |------|---------|
-| `papel_usuario` | `ceo`, `head_sucesso`, `comercial` |
+| `papel_usuario` | `ceo`, `cto`, `head_sucesso`, `comercial` (`cto` = mesmas permissões do `ceo`) |
 | `status_deal` | `lead`, `reuniao_marcada`, `reuniao_realizada`, `diagnostico_fit`, `alinhamento_estrategico`, `proposta_enviada`, `followup_proposta`, `negociacao`, `contrato_enviado`, `contrato_assinado`, `sinal_pago`, `admission_process`, `concluido`, `perdido`, `cancelamento_solicitado`, `projeto_futuro` |
 | `classificacao_lead` | `hot`, `warm`, `cold` |
 | `status_parcela` | `previsto`, `recebido`, `atrasado`, `cancelado` |
@@ -235,7 +235,7 @@ Perfis de usuarios do CRM vinculados ao Supabase Auth. Controle RBAC.
 | Coluna | Tipo | Nullable | Default | Constraint | Descricao |
 |--------|------|----------|---------|------------|-----------|
 | `id` | UUID | NOT NULL | — | PK, FK → `auth.users(id)` ON DELETE CASCADE | ID do usuario Supabase |
-| `papel` | `papel_usuario` | NOT NULL | — | — | Papel RBAC: ceo, head_sucesso, comercial |
+| `papel` | `papel_usuario` | NOT NULL | — | — | Papel RBAC: ceo, cto (= ceo em permissões), head_sucesso, comercial |
 | `nome` | TEXT | NOT NULL | — | — | Nome do usuario |
 | `email` | TEXT | NOT NULL | — | — | Email do usuario |
 | `ativo` | BOOLEAN | NOT NULL | `true` | — | Se o usuario esta ativo |
@@ -965,7 +965,7 @@ Colunas com `GENERATED ALWAYS AS ... STORED` que sao calculadas automaticamente 
 | `public.set_updated_at()` | — | TRIGGER | Trigger generico que seta `NEW.updated_at = NOW()`. Usado em todas as tabelas CRM. |
 | `public.update_form_submissions_updated_at()` | — | TRIGGER | Trigger de `updated_at` especifico para `form_submissions`. |
 | `public.update_updated_at_column()` | — | TRIGGER | Variante de `updated_at` para schemas `uat` e `dev`. |
-| `public.get_user_papel()` | — | TEXT | Retorna o papel RBAC (`ceo`/`head_sucesso`/`comercial`) do usuario autenticado (`auth.uid()`). `SECURITY DEFINER STABLE`. Usada em todas as policies RLS. |
+| `public.get_user_papel()` | — | TEXT | Retorna o papel EFETIVO de autorização (`ceo`/`head_sucesso`/`comercial`) do usuario autenticado (`auth.uid()`). **`cto` resolve para `ceo`** (mesmas permissões; por isso policies `= 'ceo'` não mudam). `SECURITY DEFINER STABLE`. Usada em todas as policies RLS. |
 | `public.set_audit_user()` | — | VOID | Seta `audit.user_id` e `audit.user_papel` no contexto da transacao via `set_config`. Chamada via RPC antes de operacoes com audit trail. `SECURITY DEFINER`. |
 | `audit.log_change()` | — | TRIGGER | Trigger generico de audit. Captura tabela, id, operacao, OLD, NEW, campos alterados, user_id, papel, IP. Aplicado em todas as tabelas CRM. `SECURITY DEFINER`. |
 | `audit.prevent_audit_mutation()` | — | TRIGGER | Bloqueia UPDATE e DELETE na tabela `audit_logs`. Lanca excecao. |
