@@ -80,7 +80,7 @@ A promoção é **manual** (CEO decide). Alternativa futura: automática para le
 |---|---|---|
 | **Rota base** | `/crm` dentro do Next.js existente | Evita overhead de 2 apps. Auth compartilhada. Deploy único. (ver ADR-004) |
 | **Auth** | Supabase Auth + tabela `user_profiles` + RLS | Já disponível no projeto. JWT com custom claims para papel. |
-| **RBAC** | Custom claims no JWT via hook Supabase `custom_access_token` | 3 papéis: `ceo`, `head`, `comercial`. Claims consultados pelo RLS. |
+| **RBAC** | Custom claims no JWT via hook Supabase `custom_access_token` | 4 papéis: `ceo`, `cto` (= ceo), `head`, `comercial`. Claims consultados pelo RLS. |
 | **State** | TanStack Query (já no projeto) | Cache, invalidação, optimistic updates. |
 | **UI** | shadcn/ui + Radix (já no projeto) | Consistência visual. |
 | **Tabelas/Data grids** | `@tanstack/react-table` | Necessário para pipeline, leads, financeiro. shadcn/ui já tem wrapper. |
@@ -105,7 +105,7 @@ A promoção é **manual** (CEO decide). Alternativa futura: automática para le
 |---|---|---|
 | id | UUID | PK, FK → auth.users.id |
 | nome | texto | NOT NULL |
-| papel | enum (ceo/head/comercial) | NOT NULL |
+| papel | enum (ceo/cto/head/comercial) | NOT NULL |
 | ativo | boolean | default true |
 | created_at | timestamptz | |
 
@@ -131,7 +131,7 @@ A promoção é **manual** (CEO decide). Alternativa futura: automática para le
 |---|---|---|
 | id | uuid | PK, FK → auth.users(id) ON DELETE CASCADE |
 | nome | text | NOT NULL |
-| papel | user_papel_enum | NOT NULL (ceo / head / comercial) |
+| papel | user_papel_enum | NOT NULL (ceo / cto / head / comercial) |
 | ativo | boolean | NOT NULL DEFAULT true |
 | avatar_url | text | |
 | created_at | timestamptz | DEFAULT now() |

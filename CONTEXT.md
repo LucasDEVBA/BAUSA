@@ -49,6 +49,7 @@
 | Papel | Pessoa | Responsabilidades |
 |-------|--------|------------------|
 | **CEO** | Leandro Ribeiro | Estrategia, vendas, financeiro, escolas, configuracoes. Ve tudo. |
+| **CTO** | Tecnologia | **Mesmas permissoes do CEO** (visao total). Distinto apenas para exibicao. |
 | **Head de Sucesso** | A definir | Acompanhamento pos-venda, contato com familias, escalonamento |
 | **Comercial** | Futuro | Tarefas comerciais delegadas pelo CEO |
 
@@ -178,7 +179,7 @@ Dois conceitos distintos coexistem:
 Um segundo projeto (`../BAUSA Engine`) foi integrado como frontend do CRM:
 - Dark theme com Recharts (gráficos), @dnd-kit (drag-and-drop no Pipeline)
 - Todas as 20 páginas migradas de mock data para Supabase real
-- Auth via Supabase com RBAC (CEO/Head/Comercial)
+- Auth via Supabase com RBAC (CEO/CTO/Head/Comercial — CTO = mesmas permissoes do CEO)
 - Pipeline Kanban com DealDetailSheet de 4 abas (Resumo, Reunião, Dados, Histórico)
 - 58 leads qualificados promovidos para o pipeline (46 QUENTE + 12 MORNO, 9 com reunião)
 
