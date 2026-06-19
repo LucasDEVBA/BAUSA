@@ -15,7 +15,7 @@ import {
 import { type Deal, type DealStage, PIPELINE_STAGE_ORDER } from "@/types/deal";
 import { PipelineColumn } from "./PipelineColumn";
 import { DealCard } from "./DealCard";
-import { DealDetailSheet } from "./DealDetailSheet";
+import { DealDetailModal } from "./DealDetailModal";
 import { PipelineFilterToggle } from "./PipelineFilterToggle";
 import { RetrocessoModal } from "./RetrocessoModal";
 import { LossModal, type LossPayload } from "./LossModal";
@@ -269,9 +269,9 @@ export function PipelineBoard({
         }}
       />
 
-      {/* Deal Detail Sheet */}
+      {/* Modal central super-completo (CEO) */}
       {selectedDeal && (
-        <DealDetailSheet
+        <DealDetailModal
           key={selectedDeal.id}
           deal={selectedDeal}
           onClose={() => setSelectedDeal(null)}
