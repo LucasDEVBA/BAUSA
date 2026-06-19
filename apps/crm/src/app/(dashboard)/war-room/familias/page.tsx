@@ -1,32 +1,26 @@
 import { requirePapel } from "@/lib/auth";
-import { fetchFamilyExperience, fetchFamiliesFromExperiencia } from "@/lib/war-room-queries";
-import { FamilyExperienceSection } from "@/components/war-room/FamilyExperienceSection";
-import { FamilyRiskDonut } from "@/components/war-room/FamilyRiskDonut";
-import { FamilyStageChart } from "@/components/war-room/FamilyStageChart";
+import { getWarRoomFamilias } from "@/lib/actions/war-room-familias";
+import { listarOnboardingsAtivos } from "@/lib/actions/onboarding";
+import { listarProximasReunioes } from "@/lib/actions/reunioes";
+import { WarRoomFamiliasGerencial } from "./client";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function WarRoomFamiliasPage() {
-  await requirePapel("ceo");
+  await requirePapel(["ceo", "cto"]);
 
-  const [familyExperience, families] = await Promise.all([
-    fetchFamilyExperience(),
-    fetchFamiliesFromExperiencia(),
+  const [data, onboardings, proximasReunioes] = await Promise.all([
+    getWarRoomFamilias(),
+    listarOnboardingsAtivos(),
+    listarProximasReunioes(20),
   ]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-title-2 text-foreground">Experiencia das Familias</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Familias ativas, saude da jornada, NPS e potencial de indicacao.
-        </p>
-      </div>
-
-      <FamilyExperienceSection data={familyExperience} />
-
-      <div className="grid grid-cols-2 gap-4">
-        <FamilyRiskDonut families={families} />
-        <FamilyStageChart families={families} />
-      </div>
-    </div>
+    <WarRoomFamiliasGerencial
+      data={data}
+      onboardings={onboardings}
+      proximasReunioes={proximasReunioes}
+    />
   );
 }
