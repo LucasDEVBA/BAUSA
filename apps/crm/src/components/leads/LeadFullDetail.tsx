@@ -51,12 +51,23 @@ interface LeadFullDetailProps {
   onClose: () => void;
 }
 
-type TabId = "resumo" | "dados" | "comunicacao" | "documentos" | "contrato" | "historico" | "notas";
+type TabId =
+  | "resumo"
+  | "dados"
+  | "comunicacao"
+  | "atribuicao"
+  | "timing"
+  | "documentos"
+  | "contrato"
+  | "historico"
+  | "notas";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "resumo", label: "Resumo" },
-  { id: "dados", label: "Dados" },
+  { id: "dados", label: "Dados completos" },
   { id: "comunicacao", label: "Comunicacao" },
+  { id: "atribuicao", label: "Atribuicao & UTM" },
+  { id: "timing", label: "Timing" },
   { id: "documentos", label: "Documentos" },
   { id: "contrato", label: "Contrato" },
   { id: "historico", label: "Historico" },
@@ -1059,6 +1070,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                         lead.birth_date ? formatDate(lead.birth_date) : null
                       }
                     />
+                    <DataRow label="Idade" value={lead.age} />
                     <DataRow
                       label="Esporte / Posicao"
                       value={lead.position}
@@ -1239,6 +1251,110 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                     </div>
                   </div>
                 )}
+
+                <div className="rounded-xl p-5 glass-card">
+                  <SectionTitle>Sistema & status</SectionTitle>
+                  <div className="divide-y divide-border">
+                    <DataRow label="Status CRM" value={lead.status} />
+                    <DataRow
+                      label="Recebido em"
+                      value={
+                        lead.submitted_at
+                          ? formatDateTime(lead.submitted_at)
+                          : null
+                      }
+                    />
+                    <DataRow
+                      label="Ultima atualizacao"
+                      value={
+                        lead.updated_at
+                          ? formatDateTime(lead.updated_at)
+                          : null
+                      }
+                    />
+                    <DataRow
+                      label="Qualificado em"
+                      value={
+                        lead.qualified_at
+                          ? formatDateTime(lead.qualified_at)
+                          : null
+                      }
+                    />
+                    <DataRow
+                      label="Confianca Gemini"
+                      value={lead.qualification_confidence}
+                    />
+                    <DataRow
+                      label="Possivel duplicata"
+                      value={
+                        lead.possible_duplicate ? (
+                          <span className="rounded-md border border-sys-orange/30 bg-sys-orange/10 px-2 py-0.5 text-xs font-medium text-sys-orange">
+                            sim — verificar WhatsApp
+                          </span>
+                        ) : (
+                          "Nao"
+                        )
+                      }
+                    />
+                    <DataRow
+                      label="No pipeline?"
+                      value={
+                        lead.is_in_pipeline ? (
+                          <Link
+                            href="/pipeline"
+                            className="text-primary hover:underline"
+                          >
+                            {lead.pipeline_stage
+                              ? DEAL_STAGE_CONFIG[
+                                  lead.pipeline_stage as DealStage
+                                ]?.label ?? lead.pipeline_stage
+                              : "Sim"}
+                          </Link>
+                        ) : (
+                          "Nao"
+                        )
+                      }
+                    />
+                    <DataRow
+                      label="Lead ID"
+                      value={
+                        <span className="font-mono text-[11px] break-all">
+                          {lead.id}
+                        </span>
+                      }
+                    />
+                    <DataRow
+                      label="Submission ID"
+                      value={
+                        lead.submission_id ? (
+                          <span className="font-mono text-[11px] break-all">
+                            {lead.submission_id}
+                          </span>
+                        ) : null
+                      }
+                    />
+                    {lead.pipeline_deal_id && (
+                      <DataRow
+                        label="Deal ID"
+                        value={
+                          <span className="font-mono text-[11px] break-all">
+                            {lead.pipeline_deal_id}
+                          </span>
+                        }
+                      />
+                    )}
+                    {lead.pipeline_atleta_id && (
+                      <DataRow
+                        label="Atleta ID"
+                        value={
+                          <span className="font-mono text-[11px] break-all">
+                            {lead.pipeline_atleta_id}
+                          </span>
+                        }
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1336,6 +1452,200 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </a>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ══════ TAB: ATRIBUICAO & UTM ══════ */}
+          {activeTab === "atribuicao" && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="rounded-xl p-5 glass-card">
+                <SectionTitle>Campanha</SectionTitle>
+                <div className="divide-y divide-border">
+                  <DataRow label="UTM Source" value={lead.utm_source} />
+                  <DataRow label="UTM Medium" value={lead.utm_medium} />
+                  <DataRow label="UTM Campaign" value={lead.utm_campaign} />
+                  <DataRow label="UTM Content" value={lead.utm_content} />
+                  <DataRow label="UTM Term" value={lead.utm_term} />
+                </div>
+              </div>
+
+              <div className="rounded-xl p-5 glass-card">
+                <SectionTitle>Jornada na landing</SectionTitle>
+                <div className="divide-y divide-border">
+                  <DataRow
+                    label="Landing"
+                    value={
+                      lead.landing_url ? (
+                        <a
+                          href={lead.landing_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline break-all"
+                        >
+                          {lead.landing_url}
+                        </a>
+                      ) : null
+                    }
+                  />
+                  <DataRow
+                    label="Referrer"
+                    value={
+                      lead.referrer_url ? (
+                        <a
+                          href={lead.referrer_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline break-all"
+                        >
+                          {lead.referrer_url}
+                        </a>
+                      ) : null
+                    }
+                  />
+                  <DataRow label="CTA Source" value={lead.cta_source} />
+                  <DataRow label="Dispositivo" value={lead.device_type} />
+                </div>
+              </div>
+
+              <div className="rounded-xl p-5 glass-card lg:col-span-2">
+                <SectionTitle>Sessao</SectionTitle>
+                <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+                  <div className="divide-y divide-border">
+                    <DataRow label="Session ID" value={lead.session_id} />
+                    <DataRow
+                      label="Inicio do Form"
+                      value={
+                        lead.form_started_at
+                          ? formatDateTime(lead.form_started_at)
+                          : null
+                      }
+                    />
+                  </div>
+                  <div className="divide-y divide-border">
+                    <DataRow
+                      label="Form submetido em"
+                      value={
+                        lead.submitted_at
+                          ? formatDateTime(lead.submitted_at)
+                          : null
+                      }
+                    />
+                    <DataRow
+                      label="Tempo no form"
+                      value={
+                        lead.form_started_at && lead.submitted_at
+                          ? `${Math.round(
+                              (new Date(lead.submitted_at).getTime() -
+                                new Date(lead.form_started_at).getTime()) /
+                                60000,
+                            )} min`
+                          : null
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {!lead.utm_source &&
+                !lead.referrer_url &&
+                !lead.cta_source &&
+                !lead.device_type && (
+                  <div className="rounded-xl border border-border bg-card p-5 lg:col-span-2">
+                    <p className="text-sm text-muted-foreground">
+                      Este lead nao trouxe dados de atribuicao. Provavelmente
+                      veio antes da instrumentacao GTM/UTM ou por canal direto.
+                    </p>
+                  </div>
+                )}
+            </div>
+          )}
+
+          {/* ══════ TAB: TIMING ══════ */}
+          {activeTab === "timing" && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="rounded-xl p-5 glass-card">
+                <SectionTitle>Classificacao por timing</SectionTitle>
+                <div className="divide-y divide-border">
+                  <DataRow
+                    label="Status"
+                    value={
+                      lead.timing_status ? (
+                        <span
+                          className={cn(
+                            "rounded-md border px-2 py-0.5 text-xs font-medium",
+                            lead.timing_status === "ideal" &&
+                              "border-sys-green/30 bg-sys-green/10 text-sys-green",
+                            lead.timing_status === "muito_cedo" &&
+                              "border-plan-legacy/30 bg-plan-legacy/10 text-plan-legacy",
+                            lead.timing_status === "tarde_demais" &&
+                              "border-sys-red/30 bg-sys-red/10 text-sys-red",
+                          )}
+                        >
+                          {lead.timing_status}
+                        </span>
+                      ) : (
+                        "ideal (default)"
+                      )
+                    }
+                  />
+                  <DataRow
+                    label="Serie escolar"
+                    value={lead.school_year}
+                  />
+                  <DataRow
+                    label="Inicio pretendido"
+                    value={lead.start_timing}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl p-5 glass-card">
+                <SectionTitle>Retomada agendada</SectionTitle>
+                <div className="divide-y divide-border">
+                  <DataRow
+                    label="Retomada agendada"
+                    value={
+                      lead.scheduled_followup_at
+                        ? formatDateTime(lead.scheduled_followup_at)
+                        : null
+                    }
+                  />
+                  <DataRow
+                    label="Mensagem agendada enviada em"
+                    value={
+                      lead.scheduled_followup_sent_at
+                        ? formatDateTime(lead.scheduled_followup_sent_at)
+                        : null
+                    }
+                  />
+                </div>
+              </div>
+
+              {lead.timing_status === "muito_cedo" && (
+                <div className="rounded-xl border border-plan-legacy/30 bg-plan-legacy/5 p-5 lg:col-span-2">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-plan-legacy">
+                    Muito cedo
+                  </p>
+                  <p className="text-sm text-foreground/90">
+                    Atleta ainda nao esta na janela ideal de aplicacao (ate o 7o
+                    ano). O contato sera retomado em 1o de novembro do ano civil
+                    seguinte, via template <code>scheduled_return</code>. Deal
+                    fica em <strong>aguardando_timing</strong>.
+                  </p>
+                </div>
+              )}
+              {lead.timing_status === "tarde_demais" && (
+                <div className="rounded-xl border border-sys-red/30 bg-sys-red/5 p-5 lg:col-span-2">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-sys-red">
+                    Tarde demais
+                  </p>
+                  <p className="text-sm text-foreground/90">
+                    Atleta ja formou ha 2+ anos. Recebe template{" "}
+                    <code>late_timing</code> e o deal e fechado como{" "}
+                    <strong>perdido</strong> com motivo timing.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
