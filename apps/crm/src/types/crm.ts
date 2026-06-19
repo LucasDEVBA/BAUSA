@@ -1,4 +1,6 @@
-export type PapelUsuario = 'ceo' | 'head_sucesso' | 'comercial';
+// 'cto' tem permissões IDÊNTICAS a 'ceo' (resolvido em get_user_papel/getUserPapel);
+// é distinto apenas para exibição. Ver lib/papel.ts (isCeoLevel).
+export type PapelUsuario = 'ceo' | 'cto' | 'head_sucesso' | 'comercial';
 
 export type StatusDeal =
   | 'lead' | 'reuniao_marcada' | 'reuniao_realizada'

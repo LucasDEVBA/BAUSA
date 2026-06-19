@@ -83,15 +83,18 @@ sonner — toasts
 - **Meu Perfil** (`/perfil`): editar nome, **trocar senha** (Supabase Auth), **foto de perfil**
   (Storage bucket `avatars`, público). Abre pelo nome no footer do sidebar; **avatar no sidebar e header**.
 - **Gestão de usuários** (Configurações → aba **Usuários**): listar, editar **papel/ativo**, e **criar usuário**
-  (CEO; admin API do Supabase Auth — requer `SUPABASE_SERVICE_KEY` no ambiente; sem ela, o resto funciona).
-  **CTO usa o papel `ceo`** (mesmas regras; sem enum novo).
+  (nível CEO; admin API do Supabase Auth — requer `SUPABASE_SERVICE_KEY` no ambiente; sem ela, o resto funciona).
+- **Papel `cto`** (novo, migration `20260619034922_papel_cto.sql`): permissões **IDÊNTICAS ao CEO**, distinto só
+  na exibição. A equivalência é resolvida em **um único ponto** de autorização: `getUserPapel()` (app) e
+  `public.get_user_papel()` (RLS) mapeiam **cto→ceo** — por isso nenhuma policy/gate `= 'ceo'` precisou mudar.
+  O papel REAL de exibição vem de `getUserProfile().papel`. Helpers em `src/lib/papel.ts` (`isCeoLevel`, `PAPEL_LABEL`).
 - **Rename** de campos: métricas de receita (War Room/analytics) `*_usd` → `*_brl` (valores sempre BRL).
   Budgets de **escola** seguem `*_usd` (orçamento real em USD). War Room agora exibe **R$**.
 
-> Arquivos-chave: `src/lib/actions/usuarios.ts` (server actions), `src/lib/supabase-admin.ts`
-> (client service-role, **server-only**), `src/lib/avatar-upload.ts`, `src/app/(dashboard)/perfil/`,
-> `src/components/configuracoes/UsuariosTab.tsx`,
-> `supabase/migrations/20260610000000_avatars_bucket.sql`.
+> Arquivos-chave: `src/lib/papel.ts` (helpers de papel), `src/lib/actions/usuarios.ts` (server actions),
+> `src/lib/supabase-admin.ts` (client service-role, **server-only**), `src/lib/avatar-upload.ts`,
+> `src/app/(dashboard)/perfil/`, `src/components/configuracoes/UsuariosTab.tsx`,
+> `supabase/migrations/20260610000000_avatars_bucket.sql`, `supabase/migrations/20260619034922_papel_cto.sql`.
 
 ---
 

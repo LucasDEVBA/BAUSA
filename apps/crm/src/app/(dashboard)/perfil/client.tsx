@@ -10,13 +10,8 @@ import { createBrowserClient } from "@/lib/supabase-browser";
 import { uploadAvatar } from "@/lib/avatar-upload";
 import { atualizarMeuPerfil } from "@/lib/actions/usuarios";
 import { getInitials } from "@/lib/utils";
-import type { UserProfile, PapelUsuario } from "@/types/crm";
-
-const PAPEL_LABEL: Record<PapelUsuario, string> = {
-  ceo: "CEO",
-  head_sucesso: "Head de Sucesso",
-  comercial: "Comercial",
-};
+import { PAPEL_LABEL } from "@/lib/papel";
+import type { UserProfile } from "@/types/crm";
 
 const inputClass =
   "w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-placeholder focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";

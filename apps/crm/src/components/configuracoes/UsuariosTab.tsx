@@ -11,6 +11,7 @@ import type { UserProfile, PapelUsuario } from "@/types/crm";
 
 const PAPEL_OPTIONS: { value: PapelUsuario; label: string }[] = [
   { value: "ceo", label: "CEO" },
+  { value: "cto", label: "CTO" },
   { value: "head_sucesso", label: "Head de Sucesso" },
   { value: "comercial", label: "Comercial" },
 ];

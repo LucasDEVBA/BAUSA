@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
+import { PAPEL_LABEL } from "@/lib/papel";
 import type { PapelUsuario } from "@/types/crm";
 
 interface NavSubItem {
@@ -171,6 +172,8 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  // CTO tem o mesmo acesso do CEO — normaliza p/ o filtro de visibilidade dos itens.
+  const papelEfetivo: PapelUsuario = papel === "cto" ? "ceo" : papel;
 
   useEffect(() => {
     try {
@@ -235,7 +238,7 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto py-3 px-2">
         <div className="space-y-4">
           {NAV_GROUPS.map((group) => {
-            const visibleItems = group.items.filter((item) => item.roles.includes(papel));
+            const visibleItems = group.items.filter((item) => item.roles.includes(papelEfetivo));
             if (visibleItems.length === 0) return null;
 
             return (
@@ -380,7 +383,7 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
             {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="truncate text-xs font-medium text-foreground">{nome}</p>
-                <p className="truncate text-[10px] text-muted-foreground capitalize">{papel.replace("_", " ")}</p>
+                <p className="truncate text-[10px] text-muted-foreground">{PAPEL_LABEL[papel]}</p>
               </div>
             )}
           </Link>
