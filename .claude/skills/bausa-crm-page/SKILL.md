@@ -37,7 +37,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 ```
 
 ## Reusar (NÃO reinventar)
-- **Auth:** `requirePapel("ceo")` / `requirePapel(["ceo","head_sucesso"])` de `@/lib/auth`
+- **Auth:** `requirePapel("ceo")` / `requirePapel(["ceo","head_sucesso"])` de `@/lib/auth` — o papel `cto` é resolvido para `ceo` em `getUserPapel()`, então `requirePapel("ceo")` já cobre o CTO automaticamente (nunca filtre por `cto` explicitamente).
 - **Supabase server:** `createServerSupabaseClient()` de `@/lib/supabase-server` (leitura). `createAuditedSupabaseClient()` de `@/lib/supabase-audit` (escrita com audit trail via RPC `set_audit_user`).
 - **Queries centralizadas:** `@/lib/war-room-queries.ts` (helpers `mesAtualPrefix`, `firstOfMonth`, `daysAgoISO`). Para CAC: `@/lib/cac-queries.ts`.
 - **MetricCard:** `@/components/dashboard/MetricCard` — props `{title, value, subtitle?, icon: LucideIcon, trend?, variant?: "default"|"hot"|"warm"|"cold"|"purple"}`

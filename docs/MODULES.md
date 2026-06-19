@@ -6,7 +6,7 @@
 
 ## Visao Geral
 
-O CRM possui **14 modulos implementados**, acessiveis via rotas Next.js em `/[locale]/crm/*`. A autenticacao e feita via Supabase Auth + `user_profiles`, e o controle de acesso por papel (`ceo`, `head_sucesso`, `comercial`) e verificado tanto no servidor (server actions) quanto na navegacao (sidebar + requirePapel).
+O CRM possui **14 modulos implementados**, acessiveis via rotas Next.js em `/[locale]/crm/*`. A autenticacao e feita via Supabase Auth + `user_profiles`, e o controle de acesso por papel (`ceo`, `cto`, `head_sucesso`, `comercial` — `cto` tem as mesmas permissoes de `ceo`) e verificado tanto no servidor (server actions) quanto na navegacao (sidebar + requirePapel).
 
 O layout compartilhado (`CrmShell`) inclui sidebar com navegacao filtrada por papel, header com breadcrumb, busca, notificacoes em tempo real e indicador "Ao vivo".
 
@@ -462,7 +462,7 @@ A sidebar (`Sidebar.tsx`) organiza os modulos em 5 grupos:
 
 | Tipo | Descricao |
 |---|---|
-| `PapelUsuario` | `'ceo' \| 'head_sucesso' \| 'comercial'` |
+| `PapelUsuario` | `'ceo' \| 'cto' \| 'head_sucesso' \| 'comercial'` (`cto` = mesmas permissoes de `ceo`) |
 | `StatusDeal` | 16 etapas do pipeline (lead ate projeto_futuro) |
 | `ClassificacaoLead` | `'hot' \| 'warm' \| 'cold'` |
 | `TemperaturaFamilia` | `'verde' \| 'amarelo' \| 'vermelho'` |

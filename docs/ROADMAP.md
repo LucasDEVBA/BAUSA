@@ -16,7 +16,7 @@ O CRM interno da Bolsa Atleta USA foi implementado em todas as 7 fases planejada
 
 | Item Planejado | Status | Implementacao |
 |---|---|---|
-| Auth com RBAC por modulo | ✅ | `user_profiles` com enum `papel_usuario` (ceo, head_sucesso, comercial). Funcao `get_user_papel()` usada em todas as policies RLS. Helper `requirePapel()` nos server components. |
+| Auth com RBAC por modulo | ✅ | `user_profiles` com enum `papel_usuario` (ceo, cto, head_sucesso, comercial; `cto` resolve para `ceo`). Funcao `get_user_papel()` usada em todas as policies RLS (mapeia cto→ceo). Helper `requirePapel()` nos server components. |
 | Schema do banco | ✅ | 20 migrations sequenciais (`20260401000000` a `20260401001900`). 22 enums, 16+ tabelas, schema `audit` separado. |
 | CRUD de leads | ✅ | Pagina `/crm/leads` com listagem de `form_submissions` nao promovidos + atletas no CRM. Server action `promoverLead()` faz dedup de responsavel, cria endereco, atleta e deal atomicamente. |
 | Pipeline basico | ✅ | 16 etapas (`status_deal`): lead → reuniao_marcada → ... → concluido/perdido/projeto_futuro. Kanban board visual com drag conceptual. Funcao `ordem_etapa()` para detectar retrocesso. |

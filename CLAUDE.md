@@ -471,6 +471,8 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | ✅ **UTM Generator** | Gerador de links UTM no Engine com 10 presets | Implementado 2026-04-10 |
 | ✅ **Classificação por Timing** | 3 fluxos por `school_year`: ideal (normal), `muito_cedo` (early_potential + retomada nov), `tarde_demais` (late_timing + perdido). Coluna `aguardando_timing` no Pipeline | Implementado 2026-05-15 |
 | ✅ **Guard anti-regressão schedulers** | CI `node:test` que bloqueia merge se filtro classe/timing sumir dos schedulers (após 2 incidentes) | Implementado 2026-05-18 |
+| ✅ **Engine: Design System Apple + Meu Perfil + Gestão de Usuários** | Tema claro/escuro + liquid glass; `/perfil` (nome/senha/foto via Storage `avatars`); aba Usuários em Configurações (CEO cria/edita papel/ativo) | Implementado 2026-06 |
+| ✅ **Papel `cto` (= CEO)** | Papel RBAC com permissões idênticas ao CEO — `getUserPapel()`/`get_user_papel()` resolvem `cto→ceo`; distinto só na exibição (migration `20260619034922`) | Implementado 2026-06-19 |
 | 🔜 Monitoramento | Cloud Monitoring dashboards + alertas por ambiente | Não iniciado |
 | 🔜 **CAC Meta API** | Custo de Aquisição via Meta Marketing API | Planejado (ver `docs/IMPROVEMENTS.md`) |
 | 🔜 **next/image** | Migrar `<img>` para `next/image` (Core Web Vitals) | Planejado |
@@ -483,7 +485,7 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 
 | Tabela | Descrição | Linhas-chave |
 |--------|-----------|-------------|
-| `user_profiles` | Perfis e papéis (ceo/head_sucesso/comercial) | papel, ativo |
+| `user_profiles` | Perfis e papéis (ceo/cto/head_sucesso/comercial; `cto` = mesmas permissões de `ceo`) | papel, ativo |
 | `audit_logs` | Trail imutável (sem UPDATE/DELETE) | tabela, operacao, dados_anteriores/novos |
 | `configuracoes_sistema` | Configurações CEO (17 chaves seed) | chave, valor (JSONB) |
 | `responsaveis` | Responsáveis financeiros (dedup por whatsapp) | whatsapp UNIQUE, profissao |
