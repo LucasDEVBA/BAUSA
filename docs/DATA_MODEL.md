@@ -1079,6 +1079,8 @@ Legenda: **S** = SELECT, **I** = INSERT, **U** = UPDATE, **D** = DELETE, **A** =
 
 ### Resumo por Tabela e Role
 
+> **CTO:** mesmas permissões da coluna **CEO** em todas as tabelas — `get_user_papel()` resolve `cto→ceo`.
+
 | Tabela | anon | authenticated (todos) | CEO | head_sucesso | comercial | service_role |
 |--------|------|----------------------|-----|--------------|-----------|--------------|
 | `form_submissions` | I | S | S | S | S | A |
