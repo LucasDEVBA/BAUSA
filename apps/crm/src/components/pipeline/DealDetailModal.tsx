@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   X,
   Sparkles,
@@ -8,7 +8,7 @@ import {
   User,
   Users,
   Briefcase,
-  Calendar,
+  CalendarDays,
   MessageSquare,
   FileText,
   History,
@@ -27,44 +27,92 @@ import {
   PenSquare,
   Clock,
   Send,
+  BarChart3,
+  Loader2,
+  Copy,
+  AlertTriangle,
+  Shield,
+  Flame,
+  Smartphone,
+  Layers,
+  ListChecks,
+  TrendingUp,
+  Calendar,
+  PiggyBank,
+  CircleDollarSign,
+  Hash,
+  StickyNote,
+  Pencil,
 } from "lucide-react";
 import { type Deal, DEAL_STAGE_CONFIG } from "@/types/deal";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { DealDetailSheet } from "./DealDetailSheet";
 import { DealDocumentsTab } from "./DealDocumentsTab";
 import { DealContratoTab } from "./DealContratoTab";
 import { VisaoExecutivaPanel } from "./panels/VisaoExecutivaPanel";
 import { AcompanhamentoHeadPanel } from "./panels/AcompanhamentoHeadPanel";
+import { criarNota, listarNotas } from "@/lib/actions/notas";
+import { getAuditLogsForDeal } from "@/lib/actions/audit";
+import type { NotaInterna, AuditLog } from "@/types/crm";
 
 interface DealDetailModalProps {
   deal: Deal | null;
   onClose: () => void;
 }
 
-type TabId =
+type SectionId =
   | "executiva"
   | "acompanhamento"
   | "atleta"
+  | "academico"
+  | "esporte"
   | "familia"
   | "comercial"
   | "reuniao"
   | "comunicacoes"
+  | "atribuicao"
   | "financeiro"
   | "documentos"
-  | "historico";
+  | "notas"
+  | "auditoria";
 
-const TABS: { id: TabId; label: string; icon: typeof Sparkles }[] = [
-  { id: "executiva", label: "Visão Executiva", icon: Sparkles },
-  { id: "acompanhamento", label: "Acompanhamento Head", icon: HeartPulse },
-  { id: "atleta", label: "Atleta", icon: User },
-  { id: "familia", label: "Família", icon: Users },
-  { id: "comercial", label: "Comercial", icon: Briefcase },
-  { id: "reuniao", label: "Reunião", icon: Calendar },
-  { id: "comunicacoes", label: "Comunicações", icon: MessageSquare },
-  { id: "financeiro", label: "Financeiro", icon: Award },
-  { id: "documentos", label: "Documentos", icon: FileText },
-  { id: "historico", label: "Histórico", icon: History },
+interface NavItem {
+  id: SectionId;
+  label: string;
+  icon: typeof Sparkles;
+  group: "estrategia" | "perfil" | "comercial" | "operacao" | "auditoria";
+}
+
+const NAV_ITEMS: NavItem[] = [
+  // Estratégia
+  { id: "executiva", label: "Visão Executiva", icon: Sparkles, group: "estrategia" },
+  { id: "acompanhamento", label: "Acompanhamento Head", icon: HeartPulse, group: "estrategia" },
+  // Perfil
+  { id: "atleta", label: "Atleta", icon: User, group: "perfil" },
+  { id: "academico", label: "Acadêmico", icon: GraduationCap, group: "perfil" },
+  { id: "esporte", label: "Esporte", icon: Trophy, group: "perfil" },
+  { id: "familia", label: "Família", icon: Users, group: "perfil" },
+  // Comercial
+  { id: "comercial", label: "Comercial", icon: Briefcase, group: "comercial" },
+  { id: "reuniao", label: "Reunião", icon: CalendarDays, group: "comercial" },
+  { id: "financeiro", label: "Financeiro", icon: PiggyBank, group: "comercial" },
+  // Operação
+  { id: "comunicacoes", label: "Comunicações", icon: MessageSquare, group: "operacao" },
+  { id: "atribuicao", label: "Atribuição & UTM", icon: BarChart3, group: "operacao" },
+  { id: "documentos", label: "Documentos", icon: FileText, group: "operacao" },
+  // Auditoria
+  { id: "notas", label: "Notas internas", icon: StickyNote, group: "auditoria" },
+  { id: "auditoria", label: "Auditoria", icon: History, group: "auditoria" },
 ];
+
+const GROUP_LABEL: Record<NavItem["group"], string> = {
+  estrategia: "Estratégia",
+  perfil: "Perfil",
+  comercial: "Comercial",
+  operacao: "Operação",
+  auditoria: "Histórico",
+};
 
 const CLASSIFICATION_BADGE: Record<string, string> = {
   QUENTE: "bg-sys-green/15 text-sys-green border-sys-green/30",
@@ -72,7 +120,9 @@ const CLASSIFICATION_BADGE: Record<string, string> = {
   FRIO: "bg-sys-blue/15 text-sys-blue border-sys-blue/30",
 };
 
-function fmtBRL(v?: number) {
+// ─── Helpers ────────────────────────────────────────────────────
+
+function fmtBRL(v?: number): string {
   if (v == null) return "—";
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -81,70 +131,184 @@ function fmtBRL(v?: number) {
   }).format(v);
 }
 
-function diasAtras(iso?: string) {
+function fmtDate(iso?: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
+
+function fmtDateTime(iso?: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function diasAtras(iso?: string | null): number | null {
   if (!iso) return null;
+  // eslint-disable-next-line react-hooks/purity
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 }
 
-function InfoRow({
-  icon: Icon,
+async function copyClipboard(value: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} copiado`);
+  } catch {
+    toast.error("Não foi possível copiar");
+  }
+}
+
+// ─── Field components (denso) ───────────────────────────────────
+
+function Field({
   label,
   value,
   href,
+  mono,
+  copyable,
 }: {
-  icon: typeof User;
   label: string;
-  value: string | null | undefined;
+  value: React.ReactNode;
   href?: string;
+  mono?: boolean;
+  copyable?: boolean;
 }) {
-  if (!value) {
-    return (
-      <div className="flex items-start gap-3 py-2">
-        <Icon className="mt-0.5 h-4 w-4 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            {label}
-          </p>
-          <p className="mt-0.5 text-sm text-muted-foreground/70">—</p>
-        </div>
-      </div>
-    );
-  }
+  const hasValue =
+    value !== null && value !== undefined && value !== "" && value !== "—";
   return (
-    <div className="flex items-start gap-3 py-2">
-      <Icon className="mt-0.5 h-4 w-4 text-sys-blue" />
-      <div className="min-w-0 flex-1">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        {href ? (
+    <div className="border-b border-border/40 py-2 last:border-0">
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          "mt-0.5 flex items-center gap-1.5",
+          mono && "font-mono text-xs",
+          hasValue ? "text-foreground" : "text-muted-foreground/60",
+        )}
+      >
+        {!hasValue ? (
+          <span className="text-sm">—</span>
+        ) : href ? (
           <a
             href={href}
             target="_blank"
             rel="noreferrer"
-            className="mt-0.5 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            className="group inline-flex items-center gap-1 text-sm text-primary hover:underline"
           >
             {value}
-            <ExternalLink className="h-3 w-3" />
+            <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
           </a>
         ) : (
-          <p className="mt-0.5 text-sm text-foreground">{value}</p>
+          <span className={cn("text-sm", mono && "break-all")}>{value}</span>
         )}
-      </div>
+        {hasValue && copyable && typeof value === "string" && (
+          <button
+            onClick={() => copyClipboard(value, label)}
+            className="ml-auto rounded p-1 text-muted-foreground/60 transition-colors hover:bg-secondary hover:text-foreground"
+            title={`Copiar ${label.toLowerCase()}`}
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+        )}
+      </dd>
     </div>
   );
 }
 
+function Card({
+  title,
+  icon: Icon,
+  iconColor,
+  children,
+  action,
+}: {
+  title: string;
+  icon?: typeof Sparkles;
+  iconColor?: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-border bg-card">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          {Icon && (
+            <Icon
+              className={cn("h-3.5 w-3.5", iconColor ?? "text-muted-foreground")}
+            />
+          )}
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
+            {title}
+          </h3>
+        </div>
+        {action}
+      </header>
+      <div className="px-4 py-3">{children}</div>
+    </section>
+  );
+}
+
+function StatPill({
+  label,
+  value,
+  tone,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  tone?: "default" | "green" | "orange" | "red" | "blue";
+  hint?: string;
+}) {
+  const toneClass: Record<NonNullable<typeof tone>, string> = {
+    default: "text-foreground",
+    green: "text-sys-green",
+    orange: "text-sys-orange",
+    red: "text-sys-red",
+    blue: "text-sys-blue",
+  };
+  return (
+    <div className="rounded-lg border border-border bg-background/50 px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={cn(
+          "mt-0.5 text-lg font-bold tabular-nums",
+          toneClass[tone ?? "default"],
+        )}
+      >
+        {value}
+      </p>
+      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+// ─── Main ────────────────────────────────────────────────────────
+
 export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
-  const [tab, setTab] = useState<TabId>("executiva");
+  const [section, setSection] = useState<SectionId>("executiva");
   const [showLateralEditor, setShowLateralEditor] = useState(false);
+
+  // Body scroll lock + Esc to close
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [onClose]);
 
   if (!deal) return null;
 
-  const stageCfg = DEAL_STAGE_CONFIG[deal.stage];
-  const diasEtapa = diasAtras(deal.stage_updated_at) ?? 0;
-
-  // Sheet de edição lateral pode coexistir
   if (showLateralEditor) {
     return (
       <DealDetailSheet
@@ -157,25 +321,42 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
     );
   }
 
+  const stageCfg = DEAL_STAGE_CONFIG[deal.stage];
+  const diasEtapa = diasAtras(deal.stage_updated_at) ?? 0;
+  const diasNoPipeline = diasAtras(deal.created_at) ?? 0;
+
+  const groupedNav = NAV_ITEMS.reduce<Record<string, NavItem[]>>((acc, item) => {
+    acc[item.group] = acc[item.group] ?? [];
+    acc[item.group].push(item);
+    return acc;
+  }, {});
+
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-md"
         onClick={onClose}
-        aria-label="Fechar modal"
       />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-        <div className="relative flex h-full max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border liquid-glass shadow-2xl">
-          {/* Header */}
-          <div className="flex items-start gap-4 border-b border-border bg-card/60 px-6 py-4">
+        <div className="relative flex h-full max-h-[90vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-2xl border border-border liquid-glass shadow-2xl">
+          {/* ── Header compact ── */}
+          <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card/70 px-5 py-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-xs font-bold text-primary-foreground">
+              {deal.athlete_name
+                .split(" ")
+                .slice(0, 2)
+                .map((p) => p[0])
+                .join("")
+                .toUpperCase()}
+            </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h1 className="truncate text-xl font-bold text-foreground">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h1 className="truncate text-base font-semibold leading-tight text-foreground">
                   {deal.athlete_name}
                 </h1>
                 <span
                   className={cn(
-                    "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium",
+                    "inline-flex items-center rounded-md border px-1.5 py-px text-[10px] font-medium",
                     CLASSIFICATION_BADGE[deal.classification] ??
                       "border-border text-muted-foreground",
                   )}
@@ -183,103 +364,159 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
                   {deal.classification}
                 </span>
                 {deal.product_tier && (
-                  <span className="inline-flex items-center rounded-md border border-plan-legacy/30 bg-plan-legacy/10 px-2 py-0.5 text-xs font-medium text-plan-legacy">
+                  <span className="inline-flex items-center rounded-md border border-plan-legacy/30 bg-plan-legacy/10 px-1.5 py-px text-[10px] font-medium text-plan-legacy">
                     {deal.product_tier}
                   </span>
                 )}
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <span
-                    className={cn("h-1.5 w-1.5 rounded-full", stageCfg.dotColor)}
-                  />
+                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-1.5 py-px text-[10px] font-medium text-foreground">
+                  <span className={cn("h-1.5 w-1.5 rounded-full", stageCfg.dotColor)} />
                   {stageCfg.label}
                 </span>
-                <span>·</span>
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {diasEtapa}d na etapa
-                </span>
-                <span>·</span>
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
                 <span>{fmtBRL(deal.deal_value_brl)}</span>
+                <span>·</span>
+                <span>{diasEtapa}d na etapa</span>
+                <span>·</span>
+                <span>{diasNoPipeline}d no pipeline</span>
                 {deal.lead_score != null && (
                   <>
                     <span>·</span>
-                    <span className="flex items-center gap-1">
-                      <Award className="h-3 w-3" />
-                      Score {deal.lead_score}/100
-                    </span>
+                    <span>Score {deal.lead_score}/100</span>
+                  </>
+                )}
+                {deal.investment_range && (
+                  <>
+                    <span>·</span>
+                    <span>{deal.investment_range}</span>
                   </>
                 )}
               </div>
             </div>
-            <button
-              onClick={() => setShowLateralEditor(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
-              title="Abrir editor comercial completo"
-            >
-              <PenSquare className="h-3.5 w-3.5" />
-              Editor completo
-            </button>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              aria-label="Fechar"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border bg-card/40 px-3 py-2">
-            {TABS.map((t) => {
-              const Icon = t.icon;
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                    active
-                      ? "bg-primary/15 text-primary"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                  )}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {deal.whatsapp && (
+                <a
+                  href={`https://wa.me/${deal.whatsapp.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-sys-green/30 bg-sys-green/10 px-2.5 text-[11px] font-medium text-sys-green transition-colors hover:bg-sys-green/20"
+                  title="WhatsApp"
                 >
-                  <Icon className="h-3.5 w-3.5" />
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  WhatsApp
+                </a>
+              )}
+              {(deal.guardian_email || deal.email) && (
+                <a
+                  href={`mailto:${deal.guardian_email ?? deal.email}`}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-sys-blue/30 bg-sys-blue/10 px-2.5 text-[11px] font-medium text-sys-blue transition-colors hover:bg-sys-blue/20"
+                  title="E-mail"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  E-mail
+                </a>
+              )}
+              <button
+                onClick={() => setShowLateralEditor(true)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
+                title="Abrir editor lateral (campos editáveis)"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Editar
+              </button>
+              <button
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </header>
 
-          {/* Body */}
-          <div className="flex-1 overflow-y-auto px-6 py-5">
-            {tab === "executiva" && <VisaoExecutivaPanel deal={deal} />}
-
-            {tab === "acompanhamento" && (
-              <AcompanhamentoHeadPanel atletaId={deal.atleta_id} />
-            )}
-
-            {tab === "atleta" && <AtletaTab deal={deal} />}
-            {tab === "familia" && <FamiliaTab deal={deal} />}
-            {tab === "comercial" && <ComercialTab deal={deal} />}
-            {tab === "reuniao" && <ReuniaoTab deal={deal} />}
-            {tab === "comunicacoes" && <ComunicacoesTab deal={deal} />}
-
-            {tab === "financeiro" && (
-              <DealContratoTab dealId={deal.id} atletaId={deal.atleta_id} />
-            )}
-            {tab === "documentos" &&
-              (deal.atleta_id ? (
-                <DealDocumentsTab atletaId={deal.atleta_id} />
-              ) : (
-                <p className="py-12 text-center text-sm text-muted-foreground">
-                  Atleta ainda não vinculado ao deal.
-                </p>
+          {/* ── Body: sidebar + content ── */}
+          <div className="flex min-h-0 flex-1">
+            {/* Sidebar — estilo macOS Settings */}
+            <aside className="hidden w-[220px] shrink-0 overflow-y-auto border-r border-border bg-card/40 px-2 py-3 md:block">
+              {(Object.keys(groupedNav) as Array<NavItem["group"]>).map((g) => (
+                <div key={g} className="mb-3 last:mb-0">
+                  <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                    {GROUP_LABEL[g]}
+                  </p>
+                  {groupedNav[g].map((it) => {
+                    const Icon = it.icon;
+                    const active = section === it.id;
+                    return (
+                      <button
+                        key={it.id}
+                        onClick={() => setSection(it.id)}
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors",
+                          active
+                            ? "bg-primary/15 text-primary"
+                            : "text-foreground/80 hover:bg-secondary/70 hover:text-foreground",
+                        )}
+                      >
+                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{it.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               ))}
+            </aside>
 
-            {tab === "historico" && <HistoricoTab deal={deal} />}
+            {/* Mobile tabs */}
+            <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border bg-card/40 px-2 py-2 md:hidden">
+              {NAV_ITEMS.map((it) => {
+                const Icon = it.icon;
+                const active = section === it.id;
+                return (
+                  <button
+                    key={it.id}
+                    onClick={() => setSection(it.id)}
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                      active
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="h-3 w-3" />
+                    {it.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Content */}
+            <main className="min-w-0 flex-1 overflow-y-auto px-5 py-4">
+              {section === "executiva" && <VisaoExecutivaPanel deal={deal} />}
+              {section === "acompanhamento" && (
+                <AcompanhamentoHeadPanel atletaId={deal.atleta_id} />
+              )}
+              {section === "atleta" && <AtletaSection deal={deal} />}
+              {section === "academico" && <AcademicoSection deal={deal} />}
+              {section === "esporte" && <EsporteSection deal={deal} />}
+              {section === "familia" && <FamiliaSection deal={deal} />}
+              {section === "comercial" && <ComercialSection deal={deal} />}
+              {section === "reuniao" && <ReuniaoSection deal={deal} />}
+              {section === "comunicacoes" && <ComunicacoesSection deal={deal} />}
+              {section === "atribuicao" && <AtribuicaoSection deal={deal} />}
+              {section === "financeiro" && (
+                <DealContratoTab dealId={deal.id} atletaId={deal.atleta_id} />
+              )}
+              {section === "documentos" &&
+                (deal.atleta_id ? (
+                  <DealDocumentsTab atletaId={deal.atleta_id} />
+                ) : (
+                  <EmptyState text="Atleta ainda não vinculado ao deal." />
+                ))}
+              {section === "notas" && <NotasSection dealId={deal.id} />}
+              {section === "auditoria" && (
+                <AuditoriaSection dealId={deal.id} atletaId={deal.atleta_id} />
+              )}
+            </main>
           </div>
         </div>
       </div>
@@ -287,526 +524,558 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
   );
 }
 
-// ─── Tabs ───────────────────────────────────────────────────────
+// ─── Sections ───────────────────────────────────────────────────
 
-function AtletaTab({ deal }: { deal: Deal }) {
+function EmptyState({ text }: { text: string }) {
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Perfil do atleta
-        </h3>
-        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-          <InfoRow icon={User} label="Nome" value={deal.athlete_name} />
-          <InfoRow
-            icon={Calendar}
-            label="Data de nascimento"
-            value={
-              deal.data_nascimento
-                ? new Date(deal.data_nascimento).toLocaleDateString("pt-BR")
-                : null
-            }
-          />
-          <InfoRow icon={Phone} label="WhatsApp" value={deal.whatsapp} />
-          <InfoRow icon={Mail} label="E-mail" value={deal.email} />
-          <InfoRow icon={MapPin} label="Cidade/Estado" value={deal.cidade_estado} />
-          <InfoRow
-            icon={Globe}
-            label="Endereço (estado)"
-            value={deal.address_state}
-          />
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">Esporte</h3>
-        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-          <InfoRow icon={Trophy} label="Esporte" value={deal.esporte} />
-          <InfoRow icon={Target} label="Posição" value={deal.athlete_position} />
-          <InfoRow
-            icon={Award}
-            label="Nível competitivo"
-            value={deal.nivel_competitivo}
-          />
-          <InfoRow
-            icon={Instagram}
-            label="Instagram"
-            value={deal.instagram ? `@${deal.instagram.replace(/^@/, "")}` : null}
-            href={
-              deal.instagram
-                ? `https://instagram.com/${deal.instagram.replace(/^@/, "")}`
-                : undefined
-            }
-          />
-          <InfoRow
-            icon={Video}
-            label="Vídeo highlights"
-            value={deal.video_highlights_url ? "Ver vídeo" : null}
-            href={deal.video_highlights_url}
-          />
-        </div>
-        {deal.historico_clubes && (
-          <div className="mt-3 border-t border-border pt-3">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Histórico de clubes
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-              {deal.historico_clubes}
-            </p>
-          </div>
-        )}
-        {deal.conquistas && (
-          <div className="mt-3 border-t border-border pt-3">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Conquistas
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-              {deal.conquistas}
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">Acadêmico</h3>
-        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-          <InfoRow
-            icon={GraduationCap}
-            label="Escola atual"
-            value={deal.escola_atual}
-          />
-          <InfoRow
-            icon={GraduationCap}
-            label="Série"
-            value={deal.serie_escolar}
-          />
-          <InfoRow
-            icon={Globe}
-            label="Inglês"
-            value={deal.nivel_ingles}
-          />
-          <InfoRow
-            icon={Award}
-            label="Desempenho acadêmico"
-            value={deal.desempenho_academico}
-          />
-          <InfoRow
-            icon={CheckCircle2}
-            label="Modelo educacional"
-            value={deal.modelo_educacional}
-          />
-          <InfoRow
-            icon={Clock}
-            label="Momento de início"
-            value={deal.momento_inicio}
-          />
-        </div>
-      </div>
+    <div className="flex h-full items-center justify-center py-16 text-sm text-muted-foreground">
+      {text}
     </div>
   );
 }
 
-function FamiliaTab({ deal }: { deal: Deal }) {
+function AtletaSection({ deal }: { deal: Deal }) {
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Responsável financeiro
-        </h3>
-        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-          <InfoRow icon={User} label="Nome" value={deal.guardian_name} />
-          <InfoRow
-            icon={Briefcase}
-            label="Profissão"
-            value={deal.guardian_profession}
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <Card title="Identidade" icon={User} iconColor="text-sys-blue">
+        <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          <Field label="Nome completo" value={deal.athlete_name} copyable />
+          <Field
+            label="Data de nascimento"
+            value={fmtDate(deal.data_nascimento)}
           />
-          <InfoRow
-            icon={Mail}
+          <Field
             label="E-mail"
-            value={deal.guardian_email}
-            href={deal.guardian_email ? `mailto:${deal.guardian_email}` : undefined}
+            value={deal.email}
+            href={deal.email ? `mailto:${deal.email}` : undefined}
+            copyable
           />
-          <InfoRow icon={Phone} label="WhatsApp" value={deal.whatsapp} />
-        </div>
+          <Field
+            label="WhatsApp atleta"
+            value={deal.whatsapp}
+            href={
+              deal.whatsapp
+                ? `https://wa.me/${deal.whatsapp.replace(/\D/g, "")}`
+                : undefined
+            }
+            copyable
+          />
+          <Field label="Instagram" value={deal.instagram} />
+        </dl>
+      </Card>
+
+      <Card title="Localização" icon={MapPin} iconColor="text-sys-green">
+        <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          <Field label="Cidade/Estado" value={deal.cidade_estado} />
+          <Field label="Estado (endereço)" value={deal.address_state} />
+        </dl>
+      </Card>
+
+      <Card title="LGPD" icon={Shield} iconColor="text-sys-purple">
+        <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          <Field
+            label="Consentimento LGPD"
+            value={deal.consentimento_lgpd ? "Aceito" : "Pendente"}
+          />
+          <Field
+            label="Aceite WhatsApp"
+            value={deal.aceite_whatsapp ? "Sim" : "Não"}
+          />
+          <Field
+            label="Aceite e-mail"
+            value={deal.aceite_email ? "Sim" : "Não"}
+          />
+          <Field
+            label="Consentido em"
+            value={fmtDateTime(deal.consentimento_at)}
+          />
+        </dl>
+      </Card>
+
+      <Card title="Identificadores internos" icon={Hash}>
+        <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          <Field label="Deal ID" value={deal.id} mono copyable />
+          <Field label="Atleta ID" value={deal.atleta_id} mono copyable />
+          <Field label="Lead ID" value={deal.lead_id} mono copyable />
+          <Field
+            label="Responsável (user)"
+            value={deal.responsavel_id}
+            mono
+            copyable
+          />
+        </dl>
+      </Card>
+    </div>
+  );
+}
+
+function AcademicoSection({ deal }: { deal: Deal }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <Card title="Escola atual" icon={GraduationCap} iconColor="text-sys-blue">
+        <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          <Field label="Escola" value={deal.escola_atual} />
+          <Field label="Série / Ano" value={deal.serie_escolar} />
+          <Field label="Modelo educacional" value={deal.modelo_educacional} />
+        </dl>
+      </Card>
+
+      <Card title="Desempenho" icon={Award} iconColor="text-sys-orange">
+        <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          <Field label="Inglês" value={deal.nivel_ingles} />
+          <Field label="Desempenho acadêmico" value={deal.desempenho_academico} />
+          <Field label="Momento de início" value={deal.momento_inicio} />
+        </dl>
+      </Card>
+    </div>
+  );
+}
+
+function EsporteSection({ deal }: { deal: Deal }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Card title="Modalidade & nível" icon={Trophy} iconColor="text-sys-orange">
+          <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+            <Field label="Esporte" value={deal.esporte} />
+            <Field label="Posição" value={deal.athlete_position} />
+            <Field label="Nível competitivo" value={deal.nivel_competitivo} />
+            <Field
+              label="Vídeo highlights"
+              value={deal.video_highlights_url ? "Acessar" : null}
+              href={deal.video_highlights_url}
+            />
+            <Field
+              label="Instagram"
+              value={deal.instagram}
+              href={
+                deal.instagram
+                  ? `https://instagram.com/${deal.instagram.replace(/^@/, "")}`
+                  : undefined
+              }
+            />
+          </dl>
+        </Card>
+        <Card title="Comprometimento & decisão" icon={CheckCircle2}>
+          <dl className="grid grid-cols-1 gap-x-4">
+            <Field label="Comprometimento" value={deal.comprometimento} />
+            <Field label="Decisão familiar" value={deal.decisao_familiar} />
+          </dl>
+        </Card>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Investimento e decisão
-        </h3>
-        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-          <InfoRow
-            icon={Target}
-            label="Faixa de investimento"
-            value={deal.investment_range}
-          />
-          <InfoRow
-            icon={Users}
-            label="Decisão familiar"
-            value={deal.decisao_familiar}
-          />
-          <InfoRow
-            icon={CheckCircle2}
-            label="Comprometimento"
-            value={deal.comprometimento}
-          />
-          <InfoRow
-            icon={Award}
-            label="Plano"
-            value={deal.product_tier ?? "—"}
-          />
-        </div>
+      {(deal.historico_clubes || deal.conquistas) && (
+        <Card title="Trajetória esportiva" icon={History}>
+          <div className="space-y-3">
+            {deal.historico_clubes && (
+              <div>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Histórico de clubes
+                </p>
+                <p className="whitespace-pre-wrap text-sm text-foreground/90">
+                  {deal.historico_clubes}
+                </p>
+              </div>
+            )}
+            {deal.conquistas && (
+              <div className="border-t border-border pt-3">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Conquistas
+                </p>
+                <p className="whitespace-pre-wrap text-sm text-foreground/90">
+                  {deal.conquistas}
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function FamiliaSection({ deal }: { deal: Deal }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Card title="Responsável financeiro" icon={User} iconColor="text-sys-blue">
+          <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+            <Field label="Nome" value={deal.guardian_name} copyable />
+            <Field label="Profissão" value={deal.guardian_profession} />
+            <Field
+              label="E-mail"
+              value={deal.guardian_email}
+              href={deal.guardian_email ? `mailto:${deal.guardian_email}` : undefined}
+              copyable
+            />
+            <Field
+              label="WhatsApp"
+              value={deal.whatsapp}
+              href={
+                deal.whatsapp
+                  ? `https://wa.me/${deal.whatsapp.replace(/\D/g, "")}`
+                  : undefined
+              }
+              copyable
+            />
+          </dl>
+        </Card>
+
+        <Card title="Investimento" icon={Target} iconColor="text-sys-purple">
+          <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+            <Field
+              label="Faixa investimento"
+              value={deal.investment_range}
+            />
+            <Field label="Plano" value={deal.product_tier} />
+            <Field
+              label="Tem desconto?"
+              value={deal.has_discount ? `${deal.discount_pct ?? 0}%` : "Não"}
+            />
+          </dl>
+        </Card>
       </div>
 
       {deal.siblings && deal.siblings.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="mb-3 text-sm font-semibold text-foreground">
-            Irmãos no programa
-          </h3>
-          <ul className="space-y-2">
+        <Card title={`Irmãos no programa (${deal.siblings.length})`} icon={Users}>
+          <ul className="space-y-1.5">
             {deal.siblings.map((s) => (
               <li
                 key={s.id}
-                className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground"
+                className="flex items-center gap-2 rounded-md border border-border bg-background/50 px-3 py-1.5 text-sm"
               >
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span>{s.nome}</span>
+                <User className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-foreground">{s.nome}</span>
                 {s.esporte && (
-                  <span className="text-xs text-muted-foreground">
-                    · {s.esporte}
-                  </span>
+                  <span className="text-xs text-muted-foreground">· {s.esporte}</span>
                 )}
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {(deal.consentimento_lgpd != null ||
-        deal.aceite_whatsapp != null ||
-        deal.aceite_email != null) && (
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="mb-3 text-sm font-semibold text-foreground">
-            Consentimentos (LGPD)
-          </h3>
-          <ul className="space-y-1 text-sm">
-            <li className="flex items-center gap-2 text-foreground">
-              <CheckCircle2
-                className={cn(
-                  "h-4 w-4",
-                  deal.consentimento_lgpd
-                    ? "text-sys-green"
-                    : "text-muted-foreground/40",
-                )}
-              />
-              Consentimento LGPD
-            </li>
-            <li className="flex items-center gap-2 text-foreground">
-              <CheckCircle2
-                className={cn(
-                  "h-4 w-4",
-                  deal.aceite_whatsapp
-                    ? "text-sys-green"
-                    : "text-muted-foreground/40",
-                )}
-              />
-              Aceite WhatsApp
-            </li>
-            <li className="flex items-center gap-2 text-foreground">
-              <CheckCircle2
-                className={cn(
-                  "h-4 w-4",
-                  deal.aceite_email
-                    ? "text-sys-green"
-                    : "text-muted-foreground/40",
-                )}
-              />
-              Aceite e-mail
-            </li>
-          </ul>
-        </div>
+        </Card>
       )}
     </div>
   );
 }
 
-function ComercialTab({ deal }: { deal: Deal }) {
+function ComercialSection({ deal }: { deal: Deal }) {
   const stageCfg = DEAL_STAGE_CONFIG[deal.stage];
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Posicionamento
-        </h3>
-        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-          <InfoRow
-            icon={Briefcase}
-            label="Etapa atual"
-            value={stageCfg.label}
-          />
-          <InfoRow
-            icon={Award}
-            label="Plano"
-            value={deal.product_tier ?? "—"}
-          />
-          <InfoRow
-            icon={Target}
-            label="Valor BRL"
-            value={fmtBRL(deal.deal_value_brl)}
-          />
-          <InfoRow
-            icon={Target}
-            label="Sinal BRL"
-            value={fmtBRL(deal.signal_value_brl)}
-          />
-          <InfoRow
-            icon={Target}
-            label="Saldo BRL"
-            value={fmtBRL(deal.remaining_value_brl)}
-          />
-          <InfoRow
-            icon={Sparkles}
-            label="Desconto?"
-            value={
-              deal.has_discount
-                ? `${deal.discount_pct ?? 0}%`
-                : "Sem desconto"
-            }
-          />
-        </div>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatPill
+          label="Valor BRL"
+          value={fmtBRL(deal.deal_value_brl)}
+        />
+        <StatPill
+          label="Sinal BRL"
+          value={fmtBRL(deal.signal_value_brl)}
+          tone="green"
+        />
+        <StatPill
+          label="Saldo BRL"
+          value={fmtBRL(deal.remaining_value_brl)}
+          tone="blue"
+        />
+        <StatPill
+          label="Desconto"
+          value={
+            deal.has_discount && deal.discount_pct
+              ? `${deal.discount_pct}%`
+              : "—"
+          }
+          tone={deal.has_discount ? "orange" : "default"}
+        />
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Próxima ação
-        </h3>
-        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-          <InfoRow
-            icon={CheckCircle2}
-            label="Ação"
-            value={deal.next_action}
-          />
-          <InfoRow
-            icon={Calendar}
-            label="Quando"
-            value={
-              deal.next_action_date
-                ? new Date(deal.next_action_date).toLocaleDateString("pt-BR")
-                : null
-            }
-          />
-          <InfoRow
-            icon={User}
-            label="Responsável"
-            value={deal.consultant}
-          />
-        </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Card title="Pipeline" icon={Layers} iconColor="text-sys-blue">
+          <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+            <Field label="Etapa atual" value={stageCfg.label} />
+            <Field
+              label="Última movimentação"
+              value={fmtDateTime(deal.stage_updated_at)}
+            />
+            <Field
+              label="Lead score"
+              value={deal.lead_score != null ? `${deal.lead_score}/100` : "—"}
+            />
+            <Field
+              label="Classificação"
+              value={deal.classification}
+            />
+            <Field
+              label="Qualificado Gemini"
+              value={
+                deal.qualificado_gemini == null
+                  ? "—"
+                  : deal.qualificado_gemini
+                    ? `Sim · ${deal.classificacao_gemini ?? ""}`
+                    : "Não"
+              }
+            />
+            <Field
+              label="Confiança Gemini"
+              value={deal.confianca_gemini}
+            />
+            <Field
+              label="Qualificado em"
+              value={fmtDateTime(deal.qualificado_gemini_at)}
+            />
+            <Field
+              label="Criado em"
+              value={fmtDateTime(deal.created_at)}
+            />
+            <Field
+              label="Fechado em"
+              value={fmtDateTime(deal.closed_at)}
+            />
+            <Field
+              label="Valores customizados?"
+              value={deal.flag_valores_customizados ? "Sim" : "Não"}
+            />
+          </dl>
+        </Card>
+
+        <Card title="Próxima ação" icon={ListChecks} iconColor="text-sys-green">
+          <dl className="grid grid-cols-1 gap-x-4">
+            <Field label="Ação" value={deal.next_action} />
+            <Field label="Quando" value={fmtDate(deal.next_action_date)} />
+            <Field label="Responsável" value={deal.consultant} />
+          </dl>
+        </Card>
       </div>
 
-      {(deal.flag_retrocedido || deal.lost_reason) && (
-        <div className="rounded-xl border border-sys-orange/30 bg-sys-orange/5 p-5">
-          <h3 className="mb-2 text-sm font-semibold text-foreground">
-            Sinais de atenção
-          </h3>
-          <ul className="space-y-1 text-sm text-foreground/90">
-            {deal.flag_retrocedido && (
-              <li>
-                · Retrocesso registrado
-                {deal.motivo_retrocesso && `: ${deal.motivo_retrocesso}`}
-              </li>
-            )}
-            {deal.lost_reason && (
-              <li>
-                · Motivo de perda: {deal.lost_reason_category}{" "}
-                {deal.lost_detail && `(${deal.lost_detail})`}
-              </li>
-            )}
-            {deal.can_reactivate && (
-              <li>
-                · Pode ser reativado
-                {deal.reactivation_date &&
-                  ` em ${new Date(deal.reactivation_date).toLocaleDateString("pt-BR")}`}
-              </li>
-            )}
-          </ul>
-        </div>
+      {deal.motivo_gemini && (
+        <Card
+          title="Justificativa Gemini"
+          icon={Sparkles}
+          iconColor="text-primary"
+        >
+          <p className="text-sm leading-relaxed text-foreground/90">
+            {deal.motivo_gemini}
+          </p>
+        </Card>
+      )}
+
+      {(deal.flag_retrocedido ||
+        deal.lost_reason ||
+        deal.lost_reason_category) && (
+        <Card
+          title="Sinais de atenção"
+          icon={AlertTriangle}
+          iconColor="text-sys-orange"
+        >
+          <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+            <Field
+              label="Retrocedido?"
+              value={deal.flag_retrocedido ? "Sim" : "Não"}
+            />
+            <Field
+              label="Motivo retrocesso"
+              value={deal.motivo_retrocesso}
+            />
+            <Field
+              label="Motivo de perda"
+              value={deal.lost_reason}
+            />
+            <Field
+              label="Categoria da perda"
+              value={deal.lost_reason_category}
+            />
+            <Field label="Detalhe" value={deal.lost_detail} />
+            <Field
+              label="Reativável?"
+              value={deal.can_reactivate ? "Sim" : "Não"}
+            />
+            <Field
+              label="Reativar em"
+              value={fmtDate(deal.reactivation_date)}
+            />
+          </dl>
+        </Card>
       )}
 
       {deal.is_future_lead && (
-        <div className="rounded-xl border border-plan-legacy/30 bg-plan-legacy/5 p-5">
-          <h3 className="mb-2 text-sm font-semibold text-foreground">
-            Lead futuro
-          </h3>
-          <p className="text-sm text-foreground/90">
-            Projeto previsto para {deal.future_project_year ?? "—"}.
-            {deal.future_reactivation_date &&
-              ` Reativar em ${new Date(deal.future_reactivation_date).toLocaleDateString("pt-BR")}.`}
-          </p>
-        </div>
+        <Card title="Lead futuro" icon={Calendar} iconColor="text-plan-legacy">
+          <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+            <Field
+              label="Ano do projeto"
+              value={deal.future_project_year?.toString()}
+            />
+            <Field
+              label="Reativar em"
+              value={fmtDate(deal.future_reactivation_date)}
+            />
+          </dl>
+        </Card>
       )}
+
+      <Card title="Financeiro pós-contrato" icon={CircleDollarSign}>
+        <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-3">
+          <Field
+            label="Contrato assinado em"
+            value={fmtDateTime(deal.contract_signed_at)}
+          />
+          <Field
+            label="Sinal pago em"
+            value={fmtDateTime(deal.signal_paid_at)}
+          />
+          <Field
+            label="Matrícula em"
+            value={fmtDateTime(deal.enrollment_confirmed_at)}
+          />
+          <Field
+            label="Saldo pago em"
+            value={fmtDateTime(deal.remaining_paid_at)}
+          />
+        </dl>
+      </Card>
     </div>
   );
 }
 
-function ReuniaoTab({ deal }: { deal: Deal }) {
+function ReuniaoSection({ deal }: { deal: Deal }) {
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Reunião comercial
-        </h3>
-        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-          <InfoRow
-            icon={Calendar}
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <Card title="Reunião comercial" icon={CalendarDays} iconColor="text-sys-blue">
+        <dl className="grid grid-cols-1 gap-x-4">
+          <Field
             label="Data/hora agendada"
-            value={
-              deal.reuniao_agendada_at
-                ? new Date(deal.reuniao_agendada_at).toLocaleString("pt-BR")
-                : null
-            }
+            value={fmtDateTime(deal.reuniao_agendada_at)}
           />
-          <InfoRow
-            icon={Calendar}
+          <Field
             label="Data realizada"
-            value={
-              deal.reuniao_data
-                ? new Date(deal.reuniao_data).toLocaleString("pt-BR")
-                : null
-            }
+            value={fmtDateTime(deal.reuniao_data)}
           />
-          <InfoRow
-            icon={Video}
+          <Field
             label="Link"
             value={deal.reuniao_link ? "Acessar reunião" : null}
             href={deal.reuniao_link}
           />
-        </div>
-      </div>
+        </dl>
+      </Card>
     </div>
   );
 }
 
-function ComunicacoesTab({ deal }: { deal: Deal }) {
+function ComunicacoesSection({ deal }: { deal: Deal }) {
   type Evento = {
     label: string;
     quando?: string;
     descricao?: string;
     ok: boolean;
+    icon: typeof Send;
   };
   const eventos: Evento[] = [
     {
       label: "Formulário enviado",
       quando: deal.submitted_at,
       ok: !!deal.submitted_at,
+      icon: FileText,
     },
     {
       label: "Qualificação Gemini",
       quando: deal.qualificado_gemini_at,
-      descricao: deal.motivo_gemini?.slice(0, 120),
+      descricao:
+        deal.motivo_gemini &&
+        deal.motivo_gemini.slice(0, 140) +
+          (deal.motivo_gemini.length > 140 ? "…" : ""),
       ok: !!deal.qualificado_gemini_at,
+      icon: Sparkles,
     },
     {
       label: "WhatsApp inicial",
       quando: deal.whatsapp_sent_at,
       ok: !!deal.whatsapp_sent_at,
+      icon: Send,
     },
     {
       label: "Follow-up 1 (48h)",
       quando: deal.followup_1_sent_at,
       ok: !!deal.followup_1_sent_at,
+      icon: Send,
     },
     {
       label: "Follow-up 2 (7d)",
       quando: deal.followup_2_sent_at,
       ok: !!deal.followup_2_sent_at,
+      icon: Send,
     },
     {
       label: "Reunião agendada",
       quando: deal.reuniao_agendada_at,
       ok: !!deal.reuniao_agendada_at,
+      icon: CalendarDays,
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Histórico de comunicações
-        </h3>
-        <ul className="space-y-2">
-          {eventos.map((e, idx) => (
-            <li
-              key={`${e.label}-${idx}`}
-              className="flex items-start gap-3 rounded-md border border-border bg-background/60 px-3 py-2.5"
-            >
-              <span
-                className={cn(
-                  "mt-0.5 flex h-6 w-6 items-center justify-center rounded-full",
-                  e.ok
-                    ? "bg-sys-green/15 text-sys-green"
-                    : "bg-secondary text-muted-foreground/50",
-                )}
+    <div className="space-y-3">
+      <Card title="Timeline de comunicações" icon={MessageSquare}>
+        <ol className="space-y-1.5">
+          {eventos.map((e, i) => {
+            const Icon = e.icon;
+            return (
+              <li
+                key={`${e.label}-${i}`}
+                className="flex items-start gap-2.5 rounded-md border border-border bg-background/40 px-3 py-2"
               >
-                {e.ok ? (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                ) : (
-                  <Clock className="h-3.5 w-3.5" />
-                )}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p
-                    className={cn(
-                      "text-sm font-medium",
-                      e.ok ? "text-foreground" : "text-muted-foreground",
-                    )}
-                  >
-                    {e.label}
-                  </p>
-                  {e.quando && (
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(e.quando).toLocaleString("pt-BR", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                <span
+                  className={cn(
+                    "mt-0.5 flex h-6 w-6 items-center justify-center rounded-full",
+                    e.ok
+                      ? "bg-sys-green/15 text-sys-green"
+                      : "bg-secondary text-muted-foreground/50",
+                  )}
+                >
+                  <Icon className="h-3 w-3" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p
+                      className={cn(
+                        "text-sm font-medium",
+                        e.ok ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {e.label}
+                    </p>
+                    <span className="text-[10px] tabular-nums text-muted-foreground">
+                      {e.quando ? fmtDateTime(e.quando) : "pendente"}
                     </span>
+                  </div>
+                  {e.descricao && (
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                      {e.descricao}
+                    </p>
                   )}
                 </div>
-                {e.descricao && (
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                    {e.descricao}
-                  </p>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+              </li>
+            );
+          })}
+        </ol>
+      </Card>
 
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Ações rápidas
-        </h3>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+      <Card title="Ações rápidas" icon={Send} iconColor="text-sys-green">
+        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
           {deal.whatsapp && (
             <a
               href={`https://wa.me/${deal.whatsapp.replace(/\D/g, "")}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-sys-green/30 bg-sys-green/10 px-3 py-2 text-sm font-medium text-sys-green transition-colors hover:bg-sys-green/20"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sys-green/30 bg-sys-green/10 px-3 py-2 text-xs font-medium text-sys-green transition-colors hover:bg-sys-green/20"
             >
-              <Send className="h-4 w-4" />
-              WhatsApp
+              <Send className="h-3.5 w-3.5" />
+              WhatsApp responsável
             </a>
           )}
           {(deal.guardian_email || deal.email) && (
             <a
               href={`mailto:${deal.guardian_email ?? deal.email}`}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-sys-blue/30 bg-sys-blue/10 px-3 py-2 text-sm font-medium text-sys-blue transition-colors hover:bg-sys-blue/20"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sys-blue/30 bg-sys-blue/10 px-3 py-2 text-xs font-medium text-sys-blue transition-colors hover:bg-sys-blue/20"
             >
-              <Mail className="h-4 w-4" />
+              <Mail className="h-3.5 w-3.5" />
               E-mail
             </a>
           )}
@@ -815,108 +1084,241 @@ function ComunicacoesTab({ deal }: { deal: Deal }) {
               href={deal.reuniao_link}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
             >
-              <Video className="h-4 w-4" />
+              <Video className="h-3.5 w-3.5" />
               Entrar na reunião
             </a>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
 
-function HistoricoTab({ deal }: { deal: Deal }) {
-  const eventos: { label: string; quando?: string; tipo: string }[] = [
-    {
-      label: "Lead criado",
-      quando: deal.created_at,
-      tipo: "criacao",
-    },
-    {
-      label: `Mudança para ${DEAL_STAGE_CONFIG[deal.stage].label}`,
-      quando: deal.stage_updated_at,
-      tipo: "etapa",
-    },
-    deal.qualificado_gemini_at && {
-      label: `Qualificação Gemini ${deal.classificacao_gemini ?? ""}`,
-      quando: deal.qualificado_gemini_at,
-      tipo: "ia",
-    },
-    deal.contract_signed_at && {
-      label: "Contrato assinado",
-      quando: deal.contract_signed_at,
-      tipo: "financeiro",
-    },
-    deal.signal_paid_at && {
-      label: "Sinal pago",
-      quando: deal.signal_paid_at,
-      tipo: "financeiro",
-    },
-    deal.enrollment_confirmed_at && {
-      label: "Matrícula confirmada",
-      quando: deal.enrollment_confirmed_at,
-      tipo: "financeiro",
-    },
-    deal.remaining_paid_at && {
-      label: "Saldo pago",
-      quando: deal.remaining_paid_at,
-      tipo: "financeiro",
-    },
-    deal.closed_at && {
-      label: "Deal encerrado",
-      quando: deal.closed_at,
-      tipo: "etapa",
-    },
-  ].filter(Boolean) as { label: string; quando?: string; tipo: string }[];
+function AtribuicaoSection({ deal }: { deal: Deal }) {
+  // Esses campos vêm do form_submissions mas não estão no tipo Deal.
+  // Mostramos um aviso se vier vazio — sinalizando ao CEO que a captura
+  // foi feita no LeadFullDetail.
+  return (
+    <div className="space-y-3">
+      <Card
+        title="Atribuição & UTM"
+        icon={BarChart3}
+        iconColor="text-sys-purple"
+      >
+        <p className="text-xs text-muted-foreground">
+          A atribuição (UTM, referrer, CTA, device, session) é capturada no
+          formulário e fica visível no detalhamento do lead. Aqui mostramos os
+          dados disponíveis no deal.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          <Field label="Responsável" value={deal.consultant} />
+          <Field
+            label="Submissão original em"
+            value={fmtDateTime(deal.submitted_at)}
+          />
+        </div>
+      </Card>
+    </div>
+  );
+}
 
-  // Ordem cronológica
-  eventos.sort((a, b) => {
-    const ta = a.quando ? new Date(a.quando).getTime() : 0;
-    const tb = b.quando ? new Date(b.quando).getTime() : 0;
-    return tb - ta;
-  });
+function NotasSection({ dealId }: { dealId: string }) {
+  const [notes, setNotes] = useState<NotaInterna[] | null>(null);
+  const [newNote, setNewNote] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    let cancelled = false;
+    listarNotas({ deal_id: dealId })
+      .then((d) => {
+        if (!cancelled) setNotes(d as NotaInterna[]);
+      })
+      .catch(() => !cancelled && setNotes([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [dealId]);
+
+  const handleSubmit = () => {
+    if (!newNote.trim()) return;
+    startTransition(async () => {
+      const res = await criarNota({ deal_id: dealId, conteudo: newNote.trim() });
+      if (res?.success) {
+        toast.success("Nota registrada");
+        setNewNote("");
+        const updated = await listarNotas({ deal_id: dealId });
+        setNotes(updated as NotaInterna[]);
+      } else {
+        toast.error(res?.error ?? "Não foi possível salvar a nota");
+      }
+    });
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Linha do tempo
-        </h3>
-        {eventos.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Sem eventos registrados.
+    <div className="space-y-3">
+      <Card title="Nova nota" icon={StickyNote}>
+        <textarea
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
+          placeholder="Registrar contexto, decisão ou alerta para o time…"
+          rows={3}
+          className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary/40"
+        />
+        <div className="mt-2 flex justify-end">
+          <button
+            onClick={handleSubmit}
+            disabled={isPending || !newNote.trim()}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            {isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Send className="h-3 w-3" />
+            )}
+            Adicionar
+          </button>
+        </div>
+      </Card>
+
+      <Card title={`Notas (${notes?.length ?? 0})`} icon={StickyNote}>
+        {notes == null ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : notes.length === 0 ? (
+          <p className="py-3 text-center text-xs text-muted-foreground">
+            Nenhuma nota ainda. Use o campo acima para registrar.
           </p>
         ) : (
           <ul className="space-y-2">
-            {eventos.map((e, i) => (
+            {notes.map((n) => (
               <li
-                key={`${e.label}-${i}`}
-                className="flex items-start gap-3 rounded-md border border-border bg-background/60 px-3 py-2.5"
+                key={n.id}
+                className="rounded-md border border-border bg-background/40 px-3 py-2"
               >
-                <History className="mt-0.5 h-4 w-4 text-sys-blue" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">
-                    {e.label}
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-primary">
+                    {(n.autor as unknown as { nome?: string })?.nome ?? "Usuário"}
                   </p>
-                  {e.quando && (
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(e.quando).toLocaleString("pt-BR")}
-                    </p>
-                  )}
+                  <p className="text-[10px] text-muted-foreground tabular-nums">
+                    {fmtDateTime(n.created_at)}
+                  </p>
                 </div>
+                <p className="whitespace-pre-wrap text-sm text-foreground">
+                  {n.conteudo}
+                </p>
               </li>
             ))}
           </ul>
         )}
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        Para histórico completo de auditoria (com diffs), use o{" "}
-        <span className="font-medium text-primary">Editor completo</span> no
-        canto superior.
-      </p>
+      </Card>
     </div>
+  );
+}
+
+function AuditoriaSection({
+  dealId,
+  atletaId,
+}: {
+  dealId: string;
+  atletaId?: string;
+}) {
+  const [logs, setLogs] = useState<AuditLog[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAuditLogsForDeal(dealId, atletaId)
+      .then((d) => {
+        if (!cancelled) setLogs(d as AuditLog[]);
+      })
+      .catch(() => !cancelled && setLogs([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [dealId, atletaId]);
+
+  if (logs == null) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return <EmptyState text="Sem registros de auditoria ainda." />;
+  }
+
+  return (
+    <Card title={`Auditoria (${logs.length})`} icon={History}>
+      <ol className="space-y-1.5">
+        {logs.slice(0, 50).map((log) => {
+          const old = log.dados_anteriores as Record<string, unknown> | null;
+          const next = log.dados_novos as Record<string, unknown> | null;
+          const allKeys = Array.from(
+            new Set([
+              ...Object.keys(old ?? {}),
+              ...Object.keys(next ?? {}),
+            ]),
+          );
+          const changedKeys = allKeys.filter(
+            (k) =>
+              JSON.stringify(old?.[k] ?? null) !==
+              JSON.stringify(next?.[k] ?? null),
+          );
+
+          const opColor =
+            log.operacao === "INSERT"
+              ? "text-sys-green"
+              : log.operacao === "DELETE"
+                ? "text-sys-red"
+                : "text-sys-blue";
+
+          return (
+            <li
+              key={log.id}
+              className="rounded-md border border-border bg-background/40 px-3 py-2"
+            >
+              <div className="mb-1 flex items-center justify-between">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold">
+                  <span className={cn("uppercase", opColor)}>
+                    {log.operacao}
+                  </span>
+                  <span className="text-muted-foreground">{log.tabela}</span>
+                </p>
+                <p className="text-[10px] tabular-nums text-muted-foreground">
+                  {fmtDateTime(log.created_at)}
+                </p>
+              </div>
+              {log.operacao === "UPDATE" && changedKeys.length > 0 && (
+                <dl className="mt-1 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                  {changedKeys.slice(0, 6).map((k) => (
+                    <div
+                      key={k}
+                      className="rounded border border-border/40 bg-secondary/20 px-2 py-1"
+                    >
+                      <p className="text-[9px] font-semibold uppercase text-muted-foreground">
+                        {k}
+                      </p>
+                      <p className="break-all text-[10px]">
+                        <span className="text-sys-red line-through">
+                          {String(old?.[k] ?? "—").slice(0, 40)}
+                        </span>{" "}
+                        →{" "}
+                        <span className="text-sys-green">
+                          {String(next?.[k] ?? "—").slice(0, 40)}
+                        </span>
+                      </p>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </Card>
   );
 }
