@@ -13,6 +13,8 @@ import {
   BarChart3,
   FileText,
   GraduationCap,
+  Sparkles,
+  Video,
 } from "lucide-react";
 import {
   JOURNEY_STAGE_CONFIG,
@@ -21,6 +23,7 @@ import {
   type Family,
 } from "@/types/family";
 import type { Tarefa } from "@/types/crm";
+import type { OnboardingResumo } from "@/lib/actions/onboarding";
 import { cn } from "@/lib/utils";
 
 // --- Tipos ---
@@ -32,11 +35,23 @@ interface PerformanceMetrics {
   contatosSemana: number;
 }
 
+interface ProximaReuniao {
+  id: string;
+  experiencia_id: string;
+  titulo: string;
+  data_hora: string;
+  link_reuniao: string | null;
+  assuntos: string[];
+  experiencia: { atleta: { nome_completo: string } | null } | null;
+}
+
 interface MinhaAreaClientProps {
   families: Family[];
   tarefas: Tarefa[];
   userName: string;
   performance: PerformanceMetrics;
+  onboardings: OnboardingResumo[];
+  proximasReunioes: ProximaReuniao[];
 }
 
 interface UpcomingContact {
@@ -317,6 +332,207 @@ function MyFamiliesSection({
   );
 }
 
+function OnboardingsSection({
+  onboardings,
+}: {
+  onboardings: OnboardingResumo[];
+}) {
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+          <Sparkles className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">
+            Onboardings Ativos
+          </h2>
+          <p className="text-[11px] text-muted-foreground">
+            {onboardings.length === 0
+              ? "Nenhum onboarding em andamento"
+              : `${onboardings.length} família${onboardings.length === 1 ? "" : "s"} em onboarding`}
+          </p>
+        </div>
+      </div>
+
+      {onboardings.length === 0 ? (
+        <div className="glass-card rounded-xl p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Nenhum onboarding em andamento. Famílias entrarão aqui quando o deal
+            atingir <code>admission_process</code>.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {onboardings.map((o) => {
+            const atrasada = o.atrasadas > 0;
+            const proximaPrazo = o.proxima_prazo
+              ? new Date(o.proxima_prazo).toLocaleDateString("pt-BR", {
+                  day: "2-digit",
+                  month: "short",
+                })
+              : null;
+            return (
+              <a
+                key={o.instancia_id}
+                href={`/familias-crm?familia=${o.experiencia_id}`}
+                className="glass-card rounded-xl p-4 transition-colors hover:bg-accent block"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {o.atleta_nome}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {o.responsavel_nome}
+                    </p>
+                  </div>
+                  {atrasada && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-sys-red/15 text-sys-red shrink-0">
+                      {o.atrasadas} atrasada{o.atrasadas > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 mb-3">
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>Progresso</span>
+                    <span className="font-semibold text-foreground">
+                      {o.concluidas}/{o.total}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-fill-4 overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        o.percent === 100
+                          ? "bg-sys-green"
+                          : atrasada
+                            ? "bg-sys-red"
+                            : "bg-primary",
+                      )}
+                      style={{ width: `${o.percent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {o.proxima_titulo && (
+                  <div className="rounded-md bg-card border border-border px-2.5 py-1.5">
+                    <p className="text-[10px] text-muted-foreground">
+                      Próxima etapa
+                    </p>
+                    <p className="text-xs font-medium text-foreground truncate">
+                      {o.proxima_titulo}
+                    </p>
+                    {proximaPrazo && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Prazo: {proximaPrazo}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ProximasReunioesSection({
+  reunioes,
+}: {
+  reunioes: ProximaReuniao[];
+}) {
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/10">
+          <Video className="h-4 w-4 text-sys-blue" />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">
+            Próximas Reuniões
+          </h2>
+          <p className="text-[11px] text-muted-foreground">
+            {reunioes.length === 0
+              ? "Nenhuma reunião agendada"
+              : `${reunioes.length} reunião${reunioes.length === 1 ? "" : "ões"} agendada${reunioes.length === 1 ? "" : "s"}`}
+          </p>
+        </div>
+      </div>
+
+      {reunioes.length === 0 ? (
+        <div className="glass-card rounded-xl p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Nenhuma reunião agendada nos próximos dias.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {reunioes.map((r) => {
+            const data = new Date(r.data_hora);
+            const isToday = data.toDateString() === new Date().toDateString();
+            const atleta = r.experiencia?.atleta?.nome_completo ?? "Atleta";
+            return (
+              <div
+                key={r.id}
+                className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+              >
+                <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-sys-blue/10 text-sys-blue">
+                  <span className="text-[10px] font-semibold uppercase">
+                    {data.toLocaleDateString("pt-BR", { month: "short" })}
+                  </span>
+                  <span className="text-sm font-bold leading-none">
+                    {data.getDate()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {r.titulo}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {atleta} ·{" "}
+                    {data.toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  {r.assuntos.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                      Assuntos: {r.assuntos.slice(0, 3).join(", ")}
+                      {r.assuntos.length > 3 ? "..." : ""}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {isToday && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-sys-orange/15 text-sys-orange">
+                      Hoje
+                    </span>
+                  )}
+                  {r.link_reuniao && (
+                    <a
+                      href={r.link_reuniao}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[10px] font-semibold text-sys-blue hover:underline"
+                    >
+                      Abrir link
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
   return (
     <section>
@@ -347,9 +563,9 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
             const dateObj = new Date(c.date);
             const isToday =
               dateObj.toDateString() === new Date().toDateString();
-            const isTomorrow =
-              dateObj.toDateString() ===
-              new Date(Date.now() + 86400000).toDateString();
+            // eslint-disable-next-line react-hooks/purity
+            const tomorrowDate = new Date(Date.now() + 86400000).toDateString();
+            const isTomorrow = dateObj.toDateString() === tomorrowDate;
             const dateLabel = isToday
               ? "Hoje"
               : isTomorrow
@@ -623,6 +839,8 @@ export function MinhaAreaClient({
   tarefas,
   userName,
   performance,
+  onboardings,
+  proximasReunioes,
 }: MinhaAreaClientProps) {
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
 
@@ -635,6 +853,7 @@ export function MinhaAreaClient({
   const overdueTasks = tarefas.filter((t) => isOverdue(t.prazo));
 
   // Contatos nos proximos 7 dias
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
   const sevenDaysMs = 7 * 86400000;
   const upcomingContacts: UpcomingContact[] = families
@@ -727,6 +946,12 @@ export function MinhaAreaClient({
         overdueTasks={overdueTasks}
         onFamilyClick={handleFamilyClick}
       />
+
+      {/* NEW: Onboardings ativos */}
+      <OnboardingsSection onboardings={onboardings} />
+
+      {/* NEW: Próximas reuniões */}
+      <ProximasReunioesSection reunioes={proximasReunioes} />
 
       {/* Section 2: Familias que precisam de contato */}
       <NeedContactSection

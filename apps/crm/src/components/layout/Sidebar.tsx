@@ -81,6 +81,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/war-room/risco", label: "Receita em Risco" },
           { href: "/war-room/posicionamento", label: "Posicionamento" },
           { href: "/war-room/familias", label: "Famílias" },
+          { href: "/war-room/familias-onboarding", label: "Onboarding Famílias" },
         ],
       },
       {
