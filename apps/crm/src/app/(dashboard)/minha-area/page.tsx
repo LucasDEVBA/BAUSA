@@ -1,6 +1,8 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getUserProfile } from "@/lib/auth";
 import { isCeoLevel } from "@/lib/papel";
+import { listarOnboardingsAtivos } from "@/lib/actions/onboarding";
+import { listarProximasReunioes } from "@/lib/actions/reunioes";
 import { redirect } from "next/navigation";
 import { MinhaAreaClient } from "./client";
 import type {
@@ -10,6 +12,9 @@ import type {
   FamilyTemperature,
 } from "@/types/family";
 import type { Tarefa } from "@/types/crm";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function mapExperienciaToFamily(row: Record<string, unknown>): Family {
   const atleta = row.atleta as Record<string, unknown> | null;
@@ -157,10 +162,11 @@ export default async function MinhaAreaPage() {
   );
 
   // Buscar tarefas do usuario (atrasadas e proximos 7 dias)
+  // Head só vê tarefas dos módulos pertinentes a ela.
   const now = new Date();
   const sevenDaysFromNow = new Date(now.getTime() + 7 * 86400000);
 
-  const { data: rawTarefas } = await supabase
+  let tarefasQuery = supabase
     .from("tarefas")
     .select("*")
     .eq("responsavel_id", profile.id)
@@ -169,7 +175,18 @@ export default async function MinhaAreaPage() {
     .lte("prazo", sevenDaysFromNow.toISOString())
     .order("prazo", { ascending: true });
 
+  if (profile.papel === "head_sucesso") {
+    tarefasQuery = tarefasQuery.in("modulo_origem", ["experiencia", "admissao"]);
+  }
+
+  const { data: rawTarefas } = await tarefasQuery;
   const tarefas: Tarefa[] = (rawTarefas ?? []) as Tarefa[];
+
+  // Onboardings + próximas reuniões (server actions já filtram por papel)
+  const [onboardings, proximasReunioes] = await Promise.all([
+    listarOnboardingsAtivos(),
+    listarProximasReunioes(10),
+  ]);
 
   // Contatos desta semana
   const startOfWeek = new Date();
@@ -215,6 +232,8 @@ export default async function MinhaAreaPage() {
       tarefas={tarefas}
       userName={profile.nome}
       performance={performance}
+      onboardings={onboardings}
+      proximasReunioes={proximasReunioes}
     />
   );
 }
