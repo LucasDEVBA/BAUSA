@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGrid, List, Search, Users, X } from "lucide-react";
+import { LayoutGrid, List, Search, X } from "lucide-react";
 import type { LeadClassification } from "@/types/lead";
 import type { ProductTier } from "@/types/deal";
 import { cn } from "@/lib/utils";
@@ -28,37 +28,30 @@ interface Props {
 const CLASSIFICATION_OPTIONS: Array<{
   value: PipelineFiltersState["classificacao"];
   label: string;
-  cls: string;
+  activeCls: string;
 }> = [
-  { value: "TODAS", label: "Todas", cls: "" },
+  { value: "TODAS", label: "Todas", activeCls: "bg-secondary text-foreground" },
   {
     value: "QUENTE",
     label: "Quente",
-    cls: "data-[active=true]:bg-sys-green/15 data-[active=true]:text-sys-green data-[active=true]:border-sys-green/30",
+    activeCls: "bg-sys-green/12 text-sys-green",
   },
   {
     value: "MORNO",
     label: "Morno",
-    cls: "data-[active=true]:bg-sys-orange/15 data-[active=true]:text-sys-orange data-[active=true]:border-sys-orange/30",
+    activeCls: "bg-sys-orange/12 text-sys-orange",
   },
-  {
-    value: "FRIO",
-    label: "Frio",
-    cls: "data-[active=true]:bg-sys-blue/15 data-[active=true]:text-sys-blue data-[active=true]:border-sys-blue/30",
-  },
+  { value: "FRIO", label: "Frio", activeCls: "bg-sys-blue/12 text-sys-blue" },
 ];
 
-const PLANO_OPTIONS: Array<{
-  value: PipelineFiltersState["plano"];
-  label: string;
-}> = [
-  { value: "TODOS", label: "Todos" },
+const PLANO_OPTIONS: Array<{ value: PipelineFiltersState["plano"]; label: string }> = [
+  { value: "TODOS", label: "Todos os planos" },
   { value: "Legacy", label: "Legacy" },
   { value: "Journey", label: "Journey" },
   { value: "Start", label: "Start" },
 ];
 
-function emptyFilters(): PipelineFiltersState {
+export function emptyPipelineFilters(): PipelineFiltersState {
   return {
     search: "",
     classificacao: "TODAS",
@@ -66,6 +59,39 @@ function emptyFilters(): PipelineFiltersState {
     comAtraso: false,
     filterMode: "todos",
   };
+}
+
+function SegmentedToggle<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ value: T; label: string; activeCls?: string; icon?: React.ReactNode }>;
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="inline-flex h-7 items-center gap-px rounded-md bg-secondary/40 p-0.5">
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "inline-flex h-6 items-center gap-1 rounded px-2 text-[11px] font-medium transition-colors",
+              active
+                ? opt.activeCls ?? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {opt.icon}
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function PipelineFiltersBar({
@@ -77,7 +103,7 @@ export function PipelineFiltersBar({
   filteredDeals,
   hasCurrentUser,
 }: Props) {
-  const hasActiveFilter =
+  const hasActive =
     filters.search.trim() !== "" ||
     filters.classificacao !== "TODAS" ||
     filters.plano !== "TODOS" ||
@@ -85,24 +111,23 @@ export function PipelineFiltersBar({
     filters.filterMode === "meus";
 
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card/60 px-3 py-2">
+    <div className="mb-3 flex flex-wrap items-center gap-1.5">
       {/* Busca */}
       <div className="relative flex items-center">
-        <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground" />
+        <Search className="absolute left-2 h-3 w-3 text-muted-foreground" />
         <input
           type="text"
           value={filters.search}
           onChange={(e) =>
             onFiltersChange({ ...filters, search: e.target.value })
           }
-          placeholder="Buscar atleta, responsável ou esporte…"
-          className="h-8 w-64 rounded-md border border-border bg-background pl-7 pr-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40"
+          placeholder="Buscar…"
+          className="h-7 w-48 rounded-md border border-border bg-background pl-6 pr-6 text-[11px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/40"
         />
         {filters.search && (
           <button
             onClick={() => onFiltersChange({ ...filters, search: "" })}
             className="absolute right-1 rounded p-0.5 text-muted-foreground hover:bg-secondary"
-            title="Limpar busca"
           >
             <X className="h-3 w-3" />
           </button>
@@ -110,25 +135,13 @@ export function PipelineFiltersBar({
       </div>
 
       {/* Classificação */}
-      <div className="flex items-center gap-0.5 rounded-md border border-border bg-background p-0.5">
-        {CLASSIFICATION_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            data-active={filters.classificacao === opt.value}
-            onClick={() =>
-              onFiltersChange({ ...filters, classificacao: opt.value })
-            }
-            className={cn(
-              "rounded px-2 py-1 text-[11px] font-medium transition-colors data-[active=true]:border data-[active=false]:text-muted-foreground hover:text-foreground",
-              opt.cls || "data-[active=true]:bg-secondary data-[active=true]:text-foreground",
-            )}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedToggle
+        options={CLASSIFICATION_OPTIONS}
+        value={filters.classificacao}
+        onChange={(v) => onFiltersChange({ ...filters, classificacao: v })}
+      />
 
-      {/* Plano */}
+      {/* Plano (select pequeno) */}
       <select
         value={filters.plano}
         onChange={(e) =>
@@ -137,94 +150,74 @@ export function PipelineFiltersBar({
             plano: e.target.value as PipelineFiltersState["plano"],
           })
         }
-        className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary/40"
-        title="Plano"
+        className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none transition-colors focus:border-primary/40"
       >
         {PLANO_OPTIONS.map((p) => (
           <option key={p.value} value={p.value}>
-            Plano: {p.label}
+            {p.label}
           </option>
         ))}
       </select>
 
       {/* Atraso */}
-      <label
+      <button
+        onClick={() =>
+          onFiltersChange({ ...filters, comAtraso: !filters.comAtraso })
+        }
         className={cn(
-          "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-[11px] font-medium transition-colors",
+          "inline-flex h-7 items-center rounded-md border px-2 text-[11px] font-medium transition-colors",
           filters.comAtraso
             ? "border-sys-orange/30 bg-sys-orange/10 text-sys-orange"
             : "border-border bg-background text-muted-foreground hover:text-foreground",
         )}
       >
-        <input
-          type="checkbox"
-          checked={filters.comAtraso}
-          onChange={(e) =>
-            onFiltersChange({ ...filters, comAtraso: e.target.checked })
-          }
-          className="sr-only"
-        />
         Com atraso
-      </label>
+      </button>
 
       {/* Meus/Todos */}
       {hasCurrentUser && (
-        <div className="flex items-center gap-0.5 rounded-md border border-border bg-background p-0.5">
-          {(["todos", "meus"] as const).map((m) => (
-            <button
-              key={m}
-              data-active={filters.filterMode === m}
-              onClick={() => onFiltersChange({ ...filters, filterMode: m })}
-              className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors data-[active=true]:bg-secondary data-[active=true]:text-foreground hover:text-foreground"
-            >
-              {m === "meus" && <Users className="h-3 w-3" />}
-              {m === "todos" ? "Todos" : "Meus"}
-            </button>
-          ))}
-        </div>
+        <SegmentedToggle
+          options={[
+            { value: "todos", label: "Todos" },
+            { value: "meus", label: "Meus" },
+          ]}
+          value={filters.filterMode}
+          onChange={(v) => onFiltersChange({ ...filters, filterMode: v })}
+        />
       )}
 
-      {/* Reset */}
-      {hasActiveFilter && (
+      {hasActive && (
         <button
-          onClick={() => onFiltersChange(emptyFilters())}
-          className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          onClick={() => onFiltersChange(emptyPipelineFilters())}
+          className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <X className="h-3 w-3" />
           Limpar
         </button>
       )}
 
-      {/* Contador */}
       <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
         {filteredDeals === totalDeals
           ? `${totalDeals} deals`
-          : `${filteredDeals} de ${totalDeals}`}
+          : `${filteredDeals} / ${totalDeals}`}
       </span>
 
-      {/* Toggle de view */}
-      <div className="flex items-center gap-0.5 rounded-md border border-border bg-background p-0.5">
-        <button
-          onClick={() => onViewChange("kanban")}
-          data-active={view === "kanban"}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors data-[active=true]:bg-secondary data-[active=true]:text-foreground hover:text-foreground"
-          title="Visualização Kanban"
-        >
-          <LayoutGrid className="h-3 w-3" />
-          Kanban
-        </button>
-        <button
-          onClick={() => onViewChange("tabela")}
-          data-active={view === "tabela"}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors data-[active=true]:bg-secondary data-[active=true]:text-foreground hover:text-foreground"
-          title="Visualização em tabela"
-        >
-          <List className="h-3 w-3" />
-          Tabela
-        </button>
-      </div>
+      <SegmentedToggle
+        options={[
+          {
+            value: "kanban",
+            label: "Kanban",
+            icon: <LayoutGrid className="h-3 w-3" />,
+          },
+          {
+            value: "tabela",
+            label: "Tabela",
+            icon: <List className="h-3 w-3" />,
+          },
+        ]}
+        value={view}
+        onChange={onViewChange}
+      />
     </div>
   );
 }
-
-export { emptyFilters as emptyPipelineFilters };
