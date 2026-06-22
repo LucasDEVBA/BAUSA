@@ -146,9 +146,9 @@ export function AcompanhamentoHeadPanel({ atletaId }: Props) {
         : "text-sys-red";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Cabeçalho de saúde */}
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div
@@ -163,7 +163,7 @@ export function AcompanhamentoHeadPanel({ atletaId }: Props) {
               <p className="text-xs uppercase tracking-wider text-muted-foreground">
                 Saúde do acompanhamento
               </p>
-              <p className={cn("text-2xl font-bold tabular-nums", healthColor)}>
+              <p className={cn("text-xl font-semibold tabular-nums", healthColor)}>
                 {exp.health_score}
                 <span className="text-sm text-muted-foreground">/100</span>
               </p>
@@ -273,7 +273,7 @@ export function AcompanhamentoHeadPanel({ atletaId }: Props) {
 
       {/* Onboarding em curso */}
       {data.onboarding && data.onboarding.instancia && (
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-3">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-foreground">
@@ -290,7 +290,7 @@ export function AcompanhamentoHeadPanel({ atletaId }: Props) {
               </p>
             </div>
             <div className="text-right">
-              <span className="text-lg font-bold tabular-nums text-foreground">
+              <span className="text-base font-semibold tabular-nums text-foreground">
                 {data.onboarding.progresso.percent ?? 0}%
               </span>
             </div>
@@ -357,7 +357,7 @@ export function AcompanhamentoHeadPanel({ atletaId }: Props) {
       )}
 
       {/* Próxima reunião + reuniões recentes */}
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-3">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">Reuniões</h3>
           {data.proxima_reuniao && (
@@ -428,7 +428,7 @@ export function AcompanhamentoHeadPanel({ atletaId }: Props) {
       </div>
 
       {/* Contatos recentes */}
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-3">
         <h3 className="mb-3 text-sm font-semibold text-foreground">
           Últimos contatos da família
         </h3>
