@@ -149,7 +149,7 @@ function UrgentActionsSection({
       </div>
 
       {totalUrgent === 0 && (
-        <div className="glass-card rounded-xl p-6 text-center">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">Tudo em dia! Nenhuma acao urgente.</p>
         </div>
       )}
@@ -235,7 +235,7 @@ function FamilyCard({
   return (
     <button
       onClick={onClick}
-      className="w-full glass-card rounded-xl p-4 text-left transition-colors hover:border-border hover:bg-accent"
+      className="w-full rounded-lg border border-border/70 bg-card/60 p-3 text-left transition-colors hover:border-border hover:bg-accent"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -312,7 +312,7 @@ function MyFamiliesSection({
       </div>
 
       {families.length === 0 ? (
-        <div className="glass-card rounded-xl p-6 text-center">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhuma familia atribuida ainda.
           </p>
@@ -356,7 +356,7 @@ function OnboardingsSection({
       </div>
 
       {onboardings.length === 0 ? (
-        <div className="glass-card rounded-xl p-6 text-center">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhum onboarding em andamento. Famílias entrarão aqui quando o deal
             atingir <code>admission_process</code>.
@@ -376,7 +376,7 @@ function OnboardingsSection({
               <a
                 key={o.instancia_id}
                 href={`/familias-crm?familia=${o.experiencia_id}`}
-                className="glass-card rounded-xl p-4 transition-colors hover:bg-accent block"
+                className="rounded-lg border border-border/70 bg-card/60 p-3 transition-colors hover:bg-accent block"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="min-w-0 flex-1">
@@ -464,7 +464,7 @@ function ProximasReunioesSection({
       </div>
 
       {reunioes.length === 0 ? (
-        <div className="glass-card rounded-xl p-6 text-center">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhuma reunião agendada nos próximos dias.
           </p>
@@ -551,7 +551,7 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
       </div>
 
       {contacts.length === 0 ? (
-        <div className="glass-card rounded-xl p-6 text-center">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhum contato agendado para os proximos 7 dias.
           </p>
@@ -660,7 +660,7 @@ function NeedContactSection({
       </div>
 
       {needContact.length === 0 ? (
-        <div className="glass-card rounded-xl p-6 text-center">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Todas as familias estao dentro do prazo de contato.
           </p>
@@ -738,7 +738,7 @@ function AdmissaoSection({
       </div>
 
       {admissaoFamilies.length === 0 ? (
-        <div className="glass-card rounded-xl p-6 text-center">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhum processo de admissao ativo no momento.
           </p>
@@ -797,30 +797,30 @@ function PerformanceSection({ performance }: { performance: PerformanceMetrics }
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="glass-card rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-foreground">{performance.totalFamilias}</p>
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3 text-center">
+          <p className="text-base font-semibold text-foreground">{performance.totalFamilias}</p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Total familias
           </p>
         </div>
-        <div className="glass-card rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-sys-green">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3 text-center">
+          <p className="text-base font-semibold text-sys-green">
             {performance.mediaSatisfacao}
           </p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Media satisfacao
           </p>
         </div>
-        <div className="glass-card rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-sys-orange">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3 text-center">
+          <p className="text-base font-semibold text-sys-orange">
             {performance.mediaAnsiedade}
           </p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
             Media ansiedade
           </p>
         </div>
-        <div className="glass-card rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-primary">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3 text-center">
+          <p className="text-base font-semibold text-primary">
             {performance.contatosSemana}
           </p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
@@ -908,35 +908,35 @@ export function MinhaAreaClient({
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="glass-card rounded-xl p-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
           <p className="text-[11px] text-muted-foreground uppercase tracking-wider">
             Total
           </p>
-          <p className="text-2xl font-bold text-foreground mt-1">
+          <p className="text-base font-semibold text-foreground mt-1">
             {families.length}
           </p>
         </div>
-        <div className="glass-card rounded-xl p-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
           <p className="text-[11px] text-sys-green uppercase tracking-wider">
             Satisfeitas
           </p>
-          <p className="text-2xl font-bold text-sys-green mt-1">
+          <p className="text-base font-semibold text-sys-green mt-1">
             {satisfeitaCount}
           </p>
         </div>
-        <div className="glass-card rounded-xl p-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
           <p className="text-[11px] text-sys-orange uppercase tracking-wider">
             Atencao
           </p>
-          <p className="text-2xl font-bold text-sys-orange mt-1">
+          <p className="text-base font-semibold text-sys-orange mt-1">
             {atencaoCount}
           </p>
         </div>
-        <div className="glass-card rounded-xl p-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
           <p className="text-[11px] text-sys-red uppercase tracking-wider">
             Crise
           </p>
-          <p className="text-2xl font-bold text-sys-red mt-1">{criseCount}</p>
+          <p className="text-base font-semibold text-sys-red mt-1">{criseCount}</p>
         </div>
       </div>
 

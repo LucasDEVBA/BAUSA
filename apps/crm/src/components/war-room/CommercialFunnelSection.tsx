@@ -28,7 +28,7 @@ export function CommercialFunnelSection({ data }: CommercialFunnelSectionProps) 
   ];
 
   return (
-    <div className="glass-card rounded-xl p-5">
+    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
       <h3 className="text-sm font-semibold text-foreground">Funil Comercial</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Performance por etapa do processo de vendas</p>
 
@@ -36,7 +36,7 @@ export function CommercialFunnelSection({ data }: CommercialFunnelSectionProps) 
         {steps.map((step, idx) => (
           <div key={step.label} className="flex items-center gap-1">
             <div className={`flex flex-col items-center rounded-xl border border-border px-3 py-3 ${step.bg} min-w-[100px]`}>
-              <p className={`text-2xl font-bold tabular-nums ${step.color}`}>{step.value}</p>
+              <p className={`text-base font-semibold tabular-nums ${step.color}`}>{step.value}</p>
               <p className="mt-1 text-center text-[9px] text-muted-foreground leading-tight">{step.label}</p>
               {idx > 0 && (
                 <p className="mt-1 text-[9px] font-semibold text-label-tertiary">

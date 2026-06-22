@@ -238,7 +238,7 @@ export function SchoolDetailSheet({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {/* TAB: INFORMACOES */}
           {activeTab === "info" && (
             <>
@@ -273,7 +273,7 @@ export function SchoolDetailSheet({
               </div>
 
               {/* School Info */}
-              <div className="rounded-lg p-4 space-y-4 glass-card">
+              <div className="rounded-lg p-4 space-y-4 border border-border/70 bg-card/60">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Dados Principais
                 </p>
@@ -340,7 +340,7 @@ export function SchoolDetailSheet({
               </div>
 
               {/* Budget */}
-              <div className="rounded-lg p-4 space-y-4 glass-card">
+              <div className="rounded-lg p-4 space-y-4 border border-border/70 bg-card/60">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Regras Financeiras
                 </p>
@@ -417,7 +417,7 @@ export function SchoolDetailSheet({
               </div>
 
               {/* Academico */}
-              <div className="rounded-lg p-4 space-y-4 glass-card">
+              <div className="rounded-lg p-4 space-y-4 border border-border/70 bg-card/60">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Academico e Prazos
                 </p>
@@ -522,7 +522,7 @@ export function SchoolDetailSheet({
               </div>
 
               {/* Admissions Officer */}
-              <div className="rounded-lg p-4 space-y-4 glass-card">
+              <div className="rounded-lg p-4 space-y-4 border border-border/70 bg-card/60">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Admissions Officer
                 </p>
@@ -576,7 +576,7 @@ export function SchoolDetailSheet({
               </div>
 
               {/* Regra pratica + notas */}
-              <div className="rounded-lg p-4 space-y-4 glass-card">
+              <div className="rounded-lg p-4 space-y-4 border border-border/70 bg-card/60">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
                   Regra BAUSA e Notas
                 </p>
@@ -645,7 +645,7 @@ export function SchoolDetailSheet({
 
               {/* Form */}
               {showForm && (
-                <div className="mb-4 rounded-lg border border-primary/20 p-4 space-y-3 glass-card">
+                <div className="mb-4 rounded-lg border border-primary/20 p-4 space-y-3 border border-border/70 bg-card/60">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelClass}>Data</label>
@@ -708,7 +708,7 @@ export function SchoolDetailSheet({
 
               {/* Timeline */}
               {contatos.length === 0 ? (
-                <div className="rounded-lg px-4 py-8 text-center glass-card">
+                <div className="rounded-lg px-4 py-8 text-center border border-border/70 bg-card/60">
                   <MessageSquare className="mx-auto h-8 w-8 text-label-tertiary mb-2" />
                   <p className="text-xs text-muted-foreground">
                     Nenhum contato registrado com esta escola.

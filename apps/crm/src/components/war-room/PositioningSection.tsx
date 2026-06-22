@@ -63,7 +63,7 @@ export function PositioningSection({ data }: PositioningSectionProps) {
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* Donut de mix de produto */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <h3 className="text-sm font-semibold text-foreground">Mix de Produto</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">Distribuição de contratos por tier</p>
         <div className="mt-4 h-44">
@@ -103,14 +103,14 @@ export function PositioningSection({ data }: PositioningSectionProps) {
       </div>
 
       {/* Tabela ticket + desconto */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <h3 className="text-sm font-semibold text-foreground">Indicadores Comerciais</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">Ticket, desconto e posicionamento</p>
 
         <div className="mt-5 space-y-4">
           <div className="rounded-lg border border-border bg-popover p-4">
             <p className="text-xs text-muted-foreground">Ticket Médio</p>
-            <p className="mt-1 text-3xl font-bold text-foreground">
+            <p className="mt-1 text-lg font-semibold text-foreground">
               R$ {(data.avg_ticket_brl / 1000).toFixed(1)}k
             </p>
             <p className="mt-0.5 text-[10px] text-label-tertiary">Por contrato fechado</p>
@@ -118,7 +118,7 @@ export function PositioningSection({ data }: PositioningSectionProps) {
 
           <div className="rounded-lg border border-sys-orange/20 bg-sys-orange/5 p-4">
             <p className="text-xs text-muted-foreground">Contratos com Desconto</p>
-            <p className="mt-1 text-3xl font-bold text-sys-orange">{data.pct_discounted}%</p>
+            <p className="mt-1 text-lg font-semibold text-sys-orange">{data.pct_discounted}%</p>
             <p className="mt-0.5 text-[10px] text-label-tertiary">
               {data.pct_discounted > 20 ? "Acima do limite recomendado (20%)" : "Dentro do limite recomendado"}
             </p>

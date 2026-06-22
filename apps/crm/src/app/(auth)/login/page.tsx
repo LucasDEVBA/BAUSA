@@ -115,7 +115,7 @@ export default function LoginPage() {
           </div>
 
           {/* Card de login */}
-          <div className="glass-card rounded-2xl p-8">
+          <div className="border border-border/70 bg-card/60 rounded-2xl p-8">
             <h1 className="text-title-2 text-foreground">Acessar painel</h1>
             <p className="mt-1 text-subhead text-muted-foreground">
               Entre com suas credenciais de acesso.

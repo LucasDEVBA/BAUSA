@@ -237,14 +237,14 @@ export function TemplatePickerModal({
                     Preview
                   </p>
                   {previewSubject && (
-                    <div className="rounded-xl px-3 py-2 mb-2 glass-card">
+                    <div className="rounded-xl px-3 py-2 mb-2 border border-border/70 bg-card/60">
                       <p className="text-[10px] text-muted-foreground mb-0.5">Assunto</p>
                       <p className="text-xs font-semibold text-foreground">
                         {previewSubject}
                       </p>
                     </div>
                   )}
-                  <div className="rounded-xl px-3 py-3 glass-card">
+                  <div className="rounded-xl px-3 py-3 border border-border/70 bg-card/60">
                     <textarea
                       value={previewBody}
                       onChange={(e) => setEditedBody(e.target.value)}

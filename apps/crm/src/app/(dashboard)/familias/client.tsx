@@ -110,7 +110,7 @@ export function FamiliasConsolidadasClient({
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -129,33 +129,33 @@ export function FamiliasConsolidadasClient({
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="glass-card rounded-xl p-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
             Famílias
           </p>
-          <p className="mt-1 text-2xl font-bold text-primary">
+          <p className="mt-1 text-base font-semibold text-primary">
             {totalFamilias}
           </p>
         </div>
-        <div className="glass-card rounded-xl p-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
             Atletas
           </p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{totalAtletas}</p>
+          <p className="mt-1 text-base font-semibold text-foreground">{totalAtletas}</p>
         </div>
-        <div className="glass-card rounded-xl p-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
             Valor total
           </p>
-          <p className="mt-1 text-2xl font-bold text-sys-green">
+          <p className="mt-1 text-base font-semibold text-sys-green">
             {formatBRL(totalValor)}
           </p>
         </div>
-        <div className="glass-card rounded-xl p-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
             Em atenção/crise
           </p>
-          <p className="mt-1 text-2xl font-bold text-sys-orange">
+          <p className="mt-1 text-base font-semibold text-sys-orange">
             {familiasComAlerta.length}
           </p>
         </div>
@@ -199,7 +199,7 @@ export function FamiliasConsolidadasClient({
               <div
                 key={familia.responsavel_id}
                 className={cn(
-                  "glass-card rounded-xl p-5 transition-all",
+                  "rounded-lg border border-border/70 bg-card/60 p-3.5 transition-all",
                   hasAlertStatus
                     ? "border-sys-orange/30"
                     : "",

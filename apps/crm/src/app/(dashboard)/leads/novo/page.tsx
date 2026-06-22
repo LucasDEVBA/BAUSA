@@ -287,7 +287,7 @@ export default function NovoLeadPage() {
         </div>
 
         {/* Form card */}
-        <div className="glass-card rounded-xl p-6">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-4">
           {/* Step 1 — Atleta */}
           {step === 1 && (
             <div className="space-y-4">

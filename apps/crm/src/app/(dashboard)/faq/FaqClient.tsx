@@ -252,7 +252,7 @@ export function FaqClient({ artigosIniciais }: FaqClientProps) {
 
       {/* Detail sheet (right sidebar) */}
       {selectedArtigo && (
-        <div className="glass-card ml-4 w-[400px] flex-shrink-0 rounded-xl flex flex-col overflow-hidden">
+        <div className="border border-border/70 bg-card/60 ml-4 w-[400px] flex-shrink-0 rounded-xl flex flex-col overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-foreground line-clamp-1">
               {selectedArtigo.titulo}

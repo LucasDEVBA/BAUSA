@@ -13,7 +13,7 @@ export default async function WarRoomRiscoPage() {
   ]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-title-2 text-foreground">Receita em Risco</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">

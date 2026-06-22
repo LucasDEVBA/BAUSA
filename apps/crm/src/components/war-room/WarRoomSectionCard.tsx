@@ -75,7 +75,7 @@ export function WarRoomSectionCard({
     <Link
       href={href}
       className={cn(
-        "group relative flex flex-col gap-3 rounded-xl glass-card p-4 transition-all hover:shadow-md",
+        "group relative flex flex-col gap-3 rounded-lg border border-border/70 bg-card/60 p-3 transition-all hover:shadow-md",
         styles.card
       )}
     >

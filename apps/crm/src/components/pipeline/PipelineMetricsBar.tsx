@@ -59,7 +59,7 @@ function Chip({
 }) {
   const t = TONE[tone];
   return (
-    <div className="glass-card flex items-center gap-3 rounded-xl border-transparent px-4 py-3">
+    <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl border-transparent px-4 py-3">
       <div className={cn("flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg", t.icon)}>
         <Icon className="h-4 w-4" />
       </div>
@@ -121,7 +121,7 @@ export function PipelineMetricsBar({ metrics }: { metrics: PipelineMetrics }) {
         onClick={toggle}
         aria-expanded={open}
         aria-controls="pipeline-metrics-panel"
-        className="glass-card flex w-full items-center justify-between gap-3 rounded-xl border-transparent px-4 py-2.5 text-left transition-colors hover:shadow-md"
+        className="border border-border/70 bg-card/60 flex w-full items-center justify-between gap-3 rounded-xl border-transparent px-4 py-2.5 text-left transition-colors hover:shadow-md"
       >
         <span className="flex items-center gap-2 text-sm font-medium text-foreground">
           <BarChart3 className="h-4 w-4 text-primary" />

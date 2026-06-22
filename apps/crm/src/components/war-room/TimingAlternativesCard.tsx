@@ -32,7 +32,7 @@ export function TimingAlternativesCard({ data }: TimingAlternativesCardProps) {
               <p className="text-[10px] font-semibold uppercase tracking-wider text-plan-legacy/80">
                 Aguardando Timing
               </p>
-              <p className="mt-1 text-2xl font-bold text-plan-legacy">
+              <p className="mt-1 text-base font-semibold text-plan-legacy">
                 {data.aguardando_timing_count}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -50,7 +50,7 @@ export function TimingAlternativesCard({ data }: TimingAlternativesCardProps) {
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Fora do Timing
               </p>
-              <p className="mt-1 text-2xl font-bold text-foreground">{data.fora_timing_count}</p>
+              <p className="mt-1 text-base font-semibold text-foreground">{data.fora_timing_count}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 graduados há 2+ anos — leads alternativos (não exibidos no Kanban)
               </p>
@@ -65,7 +65,7 @@ export function TimingAlternativesCard({ data }: TimingAlternativesCardProps) {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-primary/80">
               Próximo Retorno
             </p>
-            <p className="mt-1 text-2xl font-bold text-primary">
+            <p className="mt-1 text-base font-semibold text-primary">
               {formatNextDate(data.next_scheduled_followup_at)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">

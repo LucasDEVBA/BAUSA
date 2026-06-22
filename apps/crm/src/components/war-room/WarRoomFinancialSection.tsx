@@ -64,7 +64,7 @@ export function WarRoomFinancialSection({ data }: WarRoomFinancialSectionProps) 
             <div
               key={card.label}
               className={cn(
-                "glass-card rounded-xl p-4 hover:shadow-md",
+                "rounded-lg border border-border/70 bg-card/60 p-3 hover:shadow-md",
                 card.border
               )}
             >

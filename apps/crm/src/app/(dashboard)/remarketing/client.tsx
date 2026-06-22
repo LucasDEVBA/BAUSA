@@ -436,7 +436,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
             <p className="text-[11px] font-semibold uppercase tracking-widest text-sys-green/70">
               Alcance estimado
             </p>
-            <p className="mt-1 flex items-baseline gap-1.5 text-3xl font-bold tabular-nums text-foreground">
+            <p className="mt-1 flex items-baseline gap-1.5 text-lg font-semibold tabular-nums text-foreground">
               {alcance}
               <span className="text-xs font-normal text-muted-foreground">leads nesta audiência</span>
             </p>
