@@ -3,6 +3,11 @@
 import { Sparkles, Video, AlertTriangle, Clock, ExternalLink } from "lucide-react";
 import type { OnboardingResumo } from "@/lib/actions/onboarding";
 import { cn } from "@/lib/utils";
+import {
+  MinimalCard,
+  MinimalHeader,
+  MinimalStat,
+} from "@/components/shared/MinimalUI";
 
 interface ProximaReuniao {
   id: string;
@@ -19,7 +24,10 @@ interface Props {
   proximasReunioes: ProximaReuniao[];
 }
 
-export function FamiliasOnboardingClient({ onboardings, proximasReunioes }: Props) {
+export function FamiliasOnboardingClient({
+  onboardings,
+  proximasReunioes,
+}: Props) {
   const totalAtivos = onboardings.length;
   const totalAtrasos = onboardings.reduce((s, o) => s + o.atrasadas, 0);
   const percentMedio =
@@ -31,109 +39,93 @@ export function FamiliasOnboardingClient({ onboardings, proximasReunioes }: Prop
   const concluidos = onboardings.filter((o) => o.percent === 100).length;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-title-2 text-foreground flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Onboarding de Famílias
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Acompanhamento executivo dos onboardings em andamento e reuniões
-          agendadas pela Head de Sucesso.
-        </p>
-      </div>
+    <div className="flex flex-col gap-3">
+      <MinimalHeader
+        title="Onboarding de Famílias"
+        description="Acompanhamento executivo dos onboardings em andamento e reuniões agendadas pela Head de Sucesso."
+      />
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="glass-card rounded-xl p-4">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Onboardings ativos
-          </p>
-          <p className="mt-1 text-2xl font-bold text-primary">{totalAtivos}</p>
-        </div>
-        <div className="glass-card rounded-xl p-4">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Progresso médio
-          </p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
-            {percentMedio}
-            <span className="text-xs text-muted-foreground">%</span>
-          </p>
-        </div>
-        <div className="glass-card rounded-xl p-4">
-          <p className="text-[10px] uppercase tracking-wider text-sys-red">
-            Etapas atrasadas
-          </p>
-          <p className="mt-1 text-2xl font-bold text-sys-red">{totalAtrasos}</p>
-        </div>
-        <div className="glass-card rounded-xl p-4">
-          <p className="text-[10px] uppercase tracking-wider text-sys-green">
-            Concluídos
-          </p>
-          <p className="mt-1 text-2xl font-bold text-sys-green">{concluidos}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <MinimalStat
+          label="Onboardings ativos"
+          value={totalAtivos}
+          tone="blue"
+        />
+        <MinimalStat
+          label="Progresso médio"
+          value={`${percentMedio}%`}
+        />
+        <MinimalStat
+          label="Etapas atrasadas"
+          value={totalAtrasos}
+          tone={totalAtrasos > 0 ? "red" : "default"}
+        />
+        <MinimalStat
+          label="Concluídos"
+          value={concluidos}
+          tone="green"
+        />
       </div>
 
       {/* Onboardings em andamento */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">
-          Onboardings em andamento
-        </h2>
+      <MinimalCard title="Onboardings em andamento" icon={Sparkles}>
         {onboardings.length === 0 ? (
-          <div className="glass-card rounded-xl p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Nenhum onboarding ativo no momento.
-            </p>
-          </div>
+          <p className="py-2 text-center text-xs text-muted-foreground">
+            Nenhum onboarding ativo no momento.
+          </p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
+          <div className="overflow-hidden rounded-md border border-border/60">
             <table className="w-full text-xs">
-              <thead className="bg-secondary border-b border-border">
-                <tr>
-                  <th className="px-4 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+              <thead>
+                <tr className="border-b border-border bg-secondary/30">
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     Família
                   </th>
-                  <th className="px-4 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     Head
                   </th>
-                  <th className="px-4 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     Progresso
                   </th>
-                  <th className="px-4 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     Próxima etapa
                   </th>
-                  <th className="px-4 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
-                    Iniciado
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Início
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border bg-card">
-                {onboardings.map((o) => {
+              <tbody>
+                {onboardings.map((o, i) => {
                   const atrasada = o.atrasadas > 0;
                   return (
                     <tr
                       key={o.instancia_id}
-                      className="hover:bg-accent transition-colors"
+                      className={cn(
+                        "border-b border-border/50 transition-colors last:border-0 hover:bg-secondary/30",
+                        i % 2 === 1 && "bg-secondary/10",
+                      )}
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <a
                           href={`/familias-crm?familia=${o.experiencia_id}`}
                           className="block"
                         >
-                          <p className="font-semibold text-foreground">
+                          <p className="truncate text-xs font-medium text-foreground">
                             {o.atleta_nome}
                           </p>
-                          <p className="text-[10px] text-muted-foreground">
+                          <p className="truncate text-[10px] text-muted-foreground">
                             {o.responsavel_nome}
                           </p>
                         </a>
                       </td>
-                      <td className="px-4 py-3 text-foreground">
+                      <td className="px-3 py-2 text-xs text-foreground">
                         {o.head_nome ?? "—"}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 h-1.5 rounded-full bg-fill-4 overflow-hidden">
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-1 w-20 overflow-hidden rounded-full bg-secondary">
                             <div
                               className={cn(
                                 "h-full rounded-full",
@@ -146,25 +138,25 @@ export function FamiliasOnboardingClient({ onboardings, proximasReunioes }: Prop
                               style={{ width: `${o.percent}%` }}
                             />
                           </div>
-                          <span className="text-[10px] font-semibold text-foreground">
+                          <span className="text-[10px] tabular-nums text-muted-foreground">
                             {o.concluidas}/{o.total}
                           </span>
                           {atrasada && (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-sys-red/15 text-sys-red">
-                              <AlertTriangle className="h-2.5 w-2.5" />
+                            <span className="inline-flex items-center gap-0.5 rounded bg-sys-red/12 px-1 py-px text-[9px] font-semibold text-sys-red">
+                              <AlertTriangle className="h-2 w-2" />
                               {o.atrasadas}
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         {o.proxima_titulo ? (
                           <div>
-                            <p className="text-foreground truncate max-w-[200px]">
+                            <p className="max-w-[220px] truncate text-xs text-foreground">
                               {o.proxima_titulo}
                             </p>
                             {o.proxima_prazo && (
-                              <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
                                 <Clock className="h-2.5 w-2.5" />
                                 {new Date(o.proxima_prazo).toLocaleDateString(
                                   "pt-BR",
@@ -173,10 +165,12 @@ export function FamiliasOnboardingClient({ onboardings, proximasReunioes }: Prop
                             )}
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-xs text-muted-foreground/60">
+                            —
+                          </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-3 py-2 text-[10px] tabular-nums text-muted-foreground">
                         {new Date(o.iniciado_at).toLocaleDateString("pt-BR")}
                       </td>
                     </tr>
@@ -186,43 +180,41 @@ export function FamiliasOnboardingClient({ onboardings, proximasReunioes }: Prop
             </table>
           </div>
         )}
-      </section>
+      </MinimalCard>
 
       {/* Reuniões agendadas */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-foreground flex items-center gap-2">
-          <Video className="h-4 w-4 text-sys-blue" />
-          Reuniões agendadas
-        </h2>
+      <MinimalCard
+        title="Reuniões agendadas"
+        icon={Video}
+        iconColor="text-sys-blue"
+      >
         {proximasReunioes.length === 0 ? (
-          <div className="glass-card rounded-xl p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Nenhuma reunião agendada.
-            </p>
-          </div>
+          <p className="py-2 text-center text-xs text-muted-foreground">
+            Nenhuma reunião agendada.
+          </p>
         ) : (
-          <div className="space-y-2">
+          <ul className="space-y-1">
             {proximasReunioes.map((r) => {
               const data = new Date(r.data_hora);
               const atleta = r.experiencia?.atleta?.nome_completo ?? "Atleta";
               return (
-                <div
+                <li
                   key={r.id}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                  className="flex items-center gap-2.5 rounded px-1.5 py-1.5 hover:bg-secondary/30"
                 >
-                  <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-sys-blue/10 text-sys-blue shrink-0">
-                    <span className="text-[9px] font-semibold uppercase">
+                  <div className="flex h-8 w-8 shrink-0 flex-col items-center justify-center rounded-md bg-sys-blue/10 text-sys-blue">
+                    <span className="text-[8px] font-semibold uppercase tracking-wider">
                       {data.toLocaleDateString("pt-BR", { month: "short" })}
                     </span>
-                    <span className="text-sm font-bold leading-none">
+                    <span className="text-[11px] font-bold leading-none">
                       {data.getDate()}
                     </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-foreground">
                       {r.titulo}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-[10px] text-muted-foreground">
                       {atleta} ·{" "}
                       {data.toLocaleTimeString("pt-BR", {
                         hour: "2-digit",
@@ -230,9 +222,9 @@ export function FamiliasOnboardingClient({ onboardings, proximasReunioes }: Prop
                       })}
                     </p>
                     {r.assuntos.length > 0 && (
-                      <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground/70">
                         Pauta: {r.assuntos.slice(0, 3).join(" · ")}
-                        {r.assuntos.length > 3 ? "..." : ""}
+                        {r.assuntos.length > 3 ? "…" : ""}
                       </p>
                     )}
                   </div>
@@ -241,18 +233,18 @@ export function FamiliasOnboardingClient({ onboardings, proximasReunioes }: Prop
                       href={r.link_reuniao}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-1 text-[11px] font-semibold text-sys-blue hover:underline shrink-0"
+                      className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-sys-blue hover:underline"
                     >
                       <ExternalLink className="h-3 w-3" />
                       Abrir
                     </a>
                   )}
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
-      </section>
+      </MinimalCard>
     </div>
   );
 }
