@@ -51,13 +51,16 @@ function mapFormSubmissionToLead(
     guardian_email: (row.guardian_email as string) ?? null,
     guardian_whatsapp: (row.guardian_whatsapp as string) ?? null,
     guardian_profession: (row.guardian_profession as string) ?? null,
-    address_cep: null,
-    address_street: null,
-    address_number: null,
-    address_complement: null,
-    address_neighborhood: null,
-    address_city: null,
-    address_state: (row.city_state as string)?.split(" - ").pop()?.trim() ?? null,
+    address_cep: (row.address_cep as string) ?? null,
+    address_street: (row.address_street as string) ?? null,
+    address_number: (row.address_number as string) ?? null,
+    address_complement: (row.address_complement as string) ?? null,
+    address_neighborhood: (row.address_neighborhood as string) ?? null,
+    address_city: (row.address_city as string) ?? null,
+    address_state:
+      (row.address_state as string) ??
+      (row.city_state as string)?.split(" - ").pop()?.trim() ??
+      null,
     status: (row.status as string) ?? "new",
     notes: (row.notes as string) ?? null,
     qualified: (row.qualified as boolean) ?? null,

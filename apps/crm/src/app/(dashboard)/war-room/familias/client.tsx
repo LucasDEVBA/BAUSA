@@ -132,7 +132,7 @@ export function WarRoomFamiliasGerencial({
     kpis.total > 0 ? Math.round((kpis.satisfeitas / kpis.total) * 100) : 0;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -154,7 +154,7 @@ export function WarRoomFamiliasGerencial({
       </div>
 
       {/* KPIs principais */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
         <MetricCard
           title="Total de famílias"
           value={kpis.total}
@@ -198,7 +198,7 @@ export function WarRoomFamiliasGerencial({
       </div>
 
       {/* KPIs secundários */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
         <MetricCard
           title="Em crise"
           value={kpis.em_crise}
@@ -230,9 +230,9 @@ export function WarRoomFamiliasGerencial({
       </div>
 
       {/* Distribuições */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {/* Por fase */}
-        <div className="rounded-xl glass-card border border-border p-5">
+        <div className="rounded-xl glass-card border border-border p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-headline text-foreground">Distribuição por fase</h2>
@@ -274,7 +274,7 @@ export function WarRoomFamiliasGerencial({
         </div>
 
         {/* Por temperatura */}
-        <div className="rounded-xl glass-card border border-border p-5">
+        <div className="rounded-xl glass-card border border-border p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-headline text-foreground">Temperatura</h2>
@@ -311,8 +311,8 @@ export function WarRoomFamiliasGerencial({
       </div>
 
       {/* Top críticas / Top satisfeitas */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl glass-card border border-border p-5">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="rounded-xl glass-card border border-border p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-headline text-foreground">
@@ -341,7 +341,7 @@ export function WarRoomFamiliasGerencial({
           )}
         </div>
 
-        <div className="rounded-xl glass-card border border-border p-5">
+        <div className="rounded-xl glass-card border border-border p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-headline text-foreground">
@@ -373,7 +373,7 @@ export function WarRoomFamiliasGerencial({
 
       {/* Ranking Heads */}
       {data.ranking_heads.length > 0 && (
-        <div className="rounded-xl glass-card border border-border p-5">
+        <div className="rounded-xl glass-card border border-border p-4">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-headline text-foreground">
@@ -445,7 +445,7 @@ export function WarRoomFamiliasGerencial({
 
       {/* Alertas executivos */}
       {data.alertas_executivos.length > 0 && (
-        <div className="rounded-xl glass-card border border-sys-red/30 bg-sys-red/5 p-5">
+        <div className="rounded-xl glass-card border border-sys-red/30 bg-sys-red/5 p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-headline text-foreground">
@@ -481,8 +481,8 @@ export function WarRoomFamiliasGerencial({
       )}
 
       {/* Próximas reuniões + Onboardings ativos */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl glass-card border border-border p-5">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="rounded-xl glass-card border border-border p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-headline text-foreground">
@@ -535,7 +535,7 @@ export function WarRoomFamiliasGerencial({
           )}
         </div>
 
-        <div className="rounded-xl glass-card border border-border p-5">
+        <div className="rounded-xl glass-card border border-border p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-headline text-foreground">
