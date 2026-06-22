@@ -15,7 +15,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, Mes
 import { type Lead, type LeadClassification } from "@/types/lead";
 import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
 import { LeadStatusBadge } from "./LeadStatusBadge";
-import { LeadFullDetail } from "./LeadFullDetail";
+import { LeadOrDealSheet } from "./LeadOrDealSheet";
 import { formatRelativeTime, formatInvestmentRange, formatPhone } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -470,9 +470,9 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         </div>
       </div>
 
-      {/* Full-screen Detail */}
+      {/* Full-screen Detail (mesmo padrão do /pipeline) */}
       {selectedLead && (
-        <LeadFullDetail
+        <LeadOrDealSheet
           key={selectedLead.id}
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
