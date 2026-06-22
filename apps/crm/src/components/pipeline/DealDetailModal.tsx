@@ -180,7 +180,7 @@ function Field({
   const hasValue =
     value !== null && value !== undefined && value !== "" && value !== "—";
   return (
-    <div className="border-b border-border/40 py-2 last:border-0">
+    <div className="border-b border-border/40 py-1.5 last:border-0">
       <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </dt>
@@ -192,19 +192,19 @@ function Field({
         )}
       >
         {!hasValue ? (
-          <span className="text-sm">—</span>
+          <span className="text-xs">—</span>
         ) : href ? (
           <a
             href={href}
             target="_blank"
             rel="noreferrer"
-            className="group inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            className="group inline-flex items-center gap-1 text-xs text-primary hover:underline"
           >
             {value}
             <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
           </a>
         ) : (
-          <span className={cn("text-sm", mono && "break-all")}>{value}</span>
+          <span className={cn("text-xs", mono && "break-all")}>{value}</span>
         )}
         {hasValue && copyable && typeof value === "string" && (
           <button
@@ -235,7 +235,7 @@ function Card({
 }) {
   return (
     <section className="rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-3.5 py-2">
         <div className="flex items-center gap-2">
           {Icon && (
             <Icon
@@ -248,7 +248,7 @@ function Card({
         </div>
         {action}
       </header>
-      <div className="px-4 py-3">{children}</div>
+      <div className="px-3.5 py-2.5">{children}</div>
     </section>
   );
 }
@@ -272,13 +272,13 @@ function StatPill({
     blue: "text-sys-blue",
   };
   return (
-    <div className="rounded-lg border border-border bg-background/50 px-3 py-2">
+    <div className="rounded-lg border border-border bg-background/50 px-2.5 py-1.5">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
       <p
         className={cn(
-          "mt-0.5 text-lg font-bold tabular-nums",
+          "mt-0.5 text-base font-semibold tabular-nums",
           toneClass[tone ?? "default"],
         )}
       >
@@ -340,7 +340,7 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
         <div className="relative flex h-full max-h-[90vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-2xl border border-border liquid-glass shadow-2xl">
           {/* ── Header compact ── */}
-          <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card/70 px-5 py-3">
+          <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card/70 px-4 py-2.5">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-xs font-bold text-primary-foreground">
               {deal.athlete_name
                 .split(" ")
@@ -490,7 +490,7 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
             </div>
 
             {/* Content */}
-            <main className="min-w-0 flex-1 overflow-y-auto px-5 py-4">
+            <main className="min-w-0 flex-1 overflow-y-auto px-4 py-3">
               {section === "executiva" && <VisaoExecutivaPanel deal={deal} />}
               {section === "acompanhamento" && (
                 <AcompanhamentoHeadPanel atletaId={deal.atleta_id} />

@@ -99,15 +99,15 @@ export function VisaoExecutivaPanel({ deal }: Props) {
     positivos.push("Deal já em fase financeira/admissão");
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Hero do deal */}
-      <div className="rounded-xl border border-border bg-gradient-to-br from-card to-card/60 p-5">
+      <div className="rounded-xl border border-border bg-gradient-to-br from-card to-card/60 p-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
               Visão Executiva
             </p>
-            <h2 className="mt-0.5 text-2xl font-bold text-foreground">
+            <h2 className="mt-0.5 text-xl font-semibold text-foreground">
               {deal.athlete_name}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -133,13 +133,13 @@ export function VisaoExecutivaPanel({ deal }: Props) {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
           <div className="rounded-lg border border-border bg-background/60 px-3 py-2">
             <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
               <DollarSign className="h-3 w-3" />
               Valor BRL
             </p>
-            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">
+            <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
               {fmtBRL(deal.deal_value_brl)}
             </p>
           </div>
@@ -150,7 +150,7 @@ export function VisaoExecutivaPanel({ deal }: Props) {
             </p>
             <p
               className={cn(
-                "mt-1 text-lg font-bold tabular-nums",
+                "mt-1 text-base font-semibold tabular-nums",
                 (deal.lead_score ?? 0) >= 75
                   ? "text-sys-green"
                   : (deal.lead_score ?? 0) >= 50
@@ -171,7 +171,7 @@ export function VisaoExecutivaPanel({ deal }: Props) {
             </p>
             <p
               className={cn(
-                "mt-1 text-lg font-bold tabular-nums",
+                "mt-1 text-base font-semibold tabular-nums",
                 diasEtapa > 14
                   ? "text-sys-orange"
                   : diasEtapa > 7
@@ -187,7 +187,7 @@ export function VisaoExecutivaPanel({ deal }: Props) {
               <Calendar className="h-3 w-3" />
               No pipeline
             </p>
-            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">
+            <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
               {diasCriacao}d
             </p>
           </div>
@@ -195,7 +195,7 @@ export function VisaoExecutivaPanel({ deal }: Props) {
       </div>
 
       {/* Pipeline status */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-xl border border-border bg-card p-3.5">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">
             Status do pipeline
@@ -298,7 +298,7 @@ export function VisaoExecutivaPanel({ deal }: Props) {
       )}
 
       {/* Pontos positivos + alertas */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {positivos.length > 0 && (
           <div className="rounded-xl border border-sys-green/20 bg-sys-green/5 p-5">
             <div className="mb-2 flex items-center gap-2">
@@ -342,7 +342,7 @@ export function VisaoExecutivaPanel({ deal }: Props) {
       </div>
 
       {/* Contato rápido */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-xl border border-border bg-card p-3.5">
         <h3 className="mb-3 text-sm font-semibold text-foreground">
           Contato direto
         </h3>

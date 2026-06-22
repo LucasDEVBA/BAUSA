@@ -60,7 +60,8 @@ type TabId =
   | "documentos"
   | "contrato"
   | "historico"
-  | "notas";
+  | "notas"
+  | "sistema";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "resumo", label: "Resumo" },
@@ -70,8 +71,9 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "timing", label: "Timing" },
   { id: "documentos", label: "Documentos" },
   { id: "contrato", label: "Contrato" },
-  { id: "historico", label: "Historico" },
   { id: "notas", label: "Notas" },
+  { id: "historico", label: "Historico" },
+  { id: "sistema", label: "Sistema" },
 ];
 
 const CLASSIFICATION_COLORS = {
@@ -118,7 +120,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
   return (
-    <div className="flex items-start justify-between gap-4 py-2 text-sm">
+    <div className="flex items-start justify-between gap-3 py-1.5 text-xs">
       <span className="flex-shrink-0 text-muted-foreground">{label}</span>
       <span className="text-right text-foreground">{value}</span>
     </div>
@@ -772,12 +774,12 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
         <div className="mx-auto max-w-6xl px-6 py-6">
           {/* ══════ TAB: RESUMO ══════ */}
           {activeTab === "resumo" && (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
               {/* Left column (3/5) */}
-              <div className="space-y-6 lg:col-span-3">
+              <div className="space-y-3.5 lg:col-span-3">
                 {/* Qualificacao IA */}
                 {lead.qualification_reason && (
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5">
                     <div className="flex items-center gap-2 mb-3">
                       <Sparkles className="h-4 w-4 text-primary" />
                       <span className="text-xs font-semibold uppercase tracking-wider text-primary">
@@ -789,7 +791,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-foreground leading-relaxed">
+                    <p className="text-xs text-foreground leading-relaxed">
                       {lead.qualification_reason}
                     </p>
                     {lead.qualified_at && (
@@ -837,7 +839,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {/* Responsavel card */}
-                <div className="rounded-xl p-5 glass-card">
+                <div className="rounded-xl p-3.5 glass-card">
                   <SectionTitle>Responsavel Financeiro</SectionTitle>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
@@ -871,7 +873,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
 
                 {/* Siblings */}
                 {lead.siblings && lead.siblings.length > 0 && (
-                  <div className="rounded-xl p-5 glass-card">
+                  <div className="rounded-xl p-3.5 glass-card">
                     <SectionTitle>
                       Familia ({lead.guardian_name})
                     </SectionTitle>
@@ -915,7 +917,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
               </div>
 
               {/* Right column (2/5) */}
-              <div className="space-y-6 lg:col-span-2">
+              <div className="space-y-3.5 lg:col-span-2">
                 {/* Pipeline status card */}
                 {lead.is_in_pipeline && (
                   <Link
@@ -962,7 +964,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {/* Communication summary */}
-                <div className="rounded-xl p-5 glass-card">
+                <div className="rounded-xl p-3.5 glass-card">
                   <SectionTitle>Comunicacao</SectionTitle>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
@@ -1017,7 +1019,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
 
                 {/* Received date */}
-                <div className="rounded-xl p-5 glass-card">
+                <div className="rounded-xl p-3.5 glass-card">
                   <SectionTitle>Detalhes</SectionTitle>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center justify-between">
@@ -1049,9 +1051,9 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
 
           {/* ══════ TAB: DADOS ══════ */}
           {activeTab === "dados" && (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               <div className="space-y-6">
-                <div className="rounded-xl p-5 glass-card">
+                <div className="rounded-xl p-3.5 glass-card">
                   <SectionTitle>Atleta</SectionTitle>
                   <div className="divide-y divide-border">
                     <DataRow label="Nome" value={lead.athlete_name} />
@@ -1078,7 +1080,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                     <DataRow label="Historico" value={lead.club_history} />
                     <DataRow label="Conquistas" value={lead.achievements} />
                     {lead.instagram && (
-                      <div className="flex items-center justify-between gap-4 py-2 text-sm">
+                      <div className="flex items-center justify-between gap-3 py-1.5 text-xs">
                         <span className="text-muted-foreground">Instagram</span>
                         <a
                           href={`https://instagram.com/${lead.instagram.replace("@", "")}`}
@@ -1092,7 +1094,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                       </div>
                     )}
                     {lead.video_highlights && (
-                      <div className="flex items-center justify-between gap-4 py-2 text-sm">
+                      <div className="flex items-center justify-between gap-3 py-1.5 text-xs">
                         <span className="text-muted-foreground">Video</span>
                         <a
                           href={lead.video_highlights}
@@ -1108,7 +1110,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl p-5 glass-card">
+                <div className="rounded-xl p-3.5 glass-card">
                   <SectionTitle>Educacao</SectionTitle>
                   <div className="divide-y divide-border">
                     <DataRow label="Serie" value={lead.school_year} />
@@ -1126,7 +1128,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl p-5 glass-card">
+                <div className="rounded-xl p-3.5 glass-card">
                   <SectionTitle>Responsavel Financeiro</SectionTitle>
                   <div className="divide-y divide-border">
                     <DataRow label="Nome" value={lead.guardian_name} />
@@ -1148,7 +1150,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
               </div>
 
               <div className="space-y-6">
-                <div className="rounded-xl p-5 glass-card">
+                <div className="rounded-xl p-3.5 glass-card">
                   <SectionTitle>Projeto</SectionTitle>
                   <div className="divide-y divide-border">
                     <DataRow
@@ -1182,46 +1184,31 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                   </div>
                 </div>
 
-                {(lead.address_city || lead.address_state) && (
-                  <div className="rounded-xl p-5 glass-card">
-                    <SectionTitle>Endereco</SectionTitle>
-                    <div className="divide-y divide-border">
-                      <DataRow
-                        label="Logradouro"
-                        value={
-                          lead.address_street
-                            ? `${lead.address_street}, ${lead.address_number}${lead.address_complement ? ` - ${lead.address_complement}` : ""}`
-                            : null
-                        }
-                      />
-                      <DataRow
-                        label="Bairro"
-                        value={lead.address_neighborhood}
-                      />
-                      <DataRow
-                        label="Cidade / UF"
-                        value={
-                          lead.address_city
-                            ? `${lead.address_city} - ${lead.address_state}`
-                            : lead.address_state
-                        }
-                      />
-                      <DataRow label="CEP" value={lead.address_cep} />
-                      <DataRow
-                        label="Pais"
-                        value={
-                          lead.address_country &&
-                          lead.address_country !== "BR"
-                            ? lead.address_country
-                            : null
-                        }
-                      />
-                    </div>
+                <div className="rounded-xl p-3.5 glass-card">
+                  <SectionTitle>Endereco</SectionTitle>
+                  <div className="divide-y divide-border">
+                    <DataRow
+                      label="Pais"
+                      value={lead.address_country ?? "BR"}
+                    />
+                    <DataRow label="CEP" value={lead.address_cep} />
+                    <DataRow label="Rua" value={lead.address_street} />
+                    <DataRow label="Numero" value={lead.address_number} />
+                    <DataRow
+                      label="Complemento"
+                      value={lead.address_complement}
+                    />
+                    <DataRow
+                      label="Bairro"
+                      value={lead.address_neighborhood}
+                    />
+                    <DataRow label="Cidade" value={lead.address_city} />
+                    <DataRow label="UF" value={lead.address_state} />
                   </div>
-                )}
+                </div>
 
                 {(lead.utm_source || lead.referrer_url || lead.cta_source || lead.device_type) && (
-                  <div className="rounded-xl p-5 glass-card">
+                  <div className="rounded-xl p-3.5 glass-card">
                     <SectionTitle>Origem do Lead</SectionTitle>
                     <div className="divide-y divide-border">
                       <DataRow label="UTM Source" value={lead.utm_source} />
@@ -1244,116 +1231,127 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 )}
 
                 {lead.notes && (
-                  <div className="rounded-xl p-5 glass-card">
+                  <div className="rounded-xl p-3.5 glass-card">
                     <SectionTitle>Notas Internas</SectionTitle>
-                    <div className="rounded-lg border border-border bg-background p-3 text-sm text-foreground whitespace-pre-wrap">
+                    <div className="rounded-lg border border-border bg-background p-2.5 text-xs text-foreground whitespace-pre-wrap">
                       {lead.notes}
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
 
-                <div className="rounded-xl p-5 glass-card">
-                  <SectionTitle>Sistema & status</SectionTitle>
-                  <div className="divide-y divide-border">
-                    <DataRow label="Status CRM" value={lead.status} />
-                    <DataRow
-                      label="Recebido em"
-                      value={
-                        lead.submitted_at
-                          ? formatDateTime(lead.submitted_at)
-                          : null
-                      }
-                    />
-                    <DataRow
-                      label="Ultima atualizacao"
-                      value={
-                        lead.updated_at
-                          ? formatDateTime(lead.updated_at)
-                          : null
-                      }
-                    />
-                    <DataRow
-                      label="Qualificado em"
-                      value={
-                        lead.qualified_at
-                          ? formatDateTime(lead.qualified_at)
-                          : null
-                      }
-                    />
-                    <DataRow
-                      label="Confianca Gemini"
-                      value={lead.qualification_confidence}
-                    />
-                    <DataRow
-                      label="Possivel duplicata"
-                      value={
-                        lead.possible_duplicate ? (
-                          <span className="rounded-md border border-sys-orange/30 bg-sys-orange/10 px-2 py-0.5 text-xs font-medium text-sys-orange">
-                            sim — verificar WhatsApp
-                          </span>
-                        ) : (
-                          "Nao"
-                        )
-                      }
-                    />
-                    <DataRow
-                      label="No pipeline?"
-                      value={
-                        lead.is_in_pipeline ? (
-                          <Link
-                            href="/pipeline"
-                            className="text-primary hover:underline"
-                          >
-                            {lead.pipeline_stage
-                              ? DEAL_STAGE_CONFIG[
-                                  lead.pipeline_stage as DealStage
-                                ]?.label ?? lead.pipeline_stage
-                              : "Sim"}
-                          </Link>
-                        ) : (
-                          "Nao"
-                        )
-                      }
-                    />
-                    <DataRow
-                      label="Lead ID"
-                      value={
-                        <span className="font-mono text-[11px] break-all">
-                          {lead.id}
+          {/* ══════ TAB: SISTEMA ══════ */}
+          {activeTab === "sistema" && (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <div className="rounded-xl p-3.5 glass-card">
+                <SectionTitle>Status & datas</SectionTitle>
+                <div className="divide-y divide-border">
+                  <DataRow label="Status CRM" value={lead.status} />
+                  <DataRow
+                    label="Possivel duplicata"
+                    value={
+                      lead.possible_duplicate ? (
+                        <span className="rounded-md border border-sys-orange/30 bg-sys-orange/10 px-1.5 py-0.5 text-[10px] font-medium text-sys-orange">
+                          sim — verificar WhatsApp
                         </span>
-                      }
-                    />
-                    <DataRow
-                      label="Submission ID"
-                      value={
-                        lead.submission_id ? (
-                          <span className="font-mono text-[11px] break-all">
-                            {lead.submission_id}
-                          </span>
-                        ) : null
-                      }
-                    />
-                    {lead.pipeline_deal_id && (
-                      <DataRow
-                        label="Deal ID"
-                        value={
-                          <span className="font-mono text-[11px] break-all">
-                            {lead.pipeline_deal_id}
-                          </span>
-                        }
-                      />
-                    )}
-                    {lead.pipeline_atleta_id && (
-                      <DataRow
-                        label="Atleta ID"
-                        value={
-                          <span className="font-mono text-[11px] break-all">
-                            {lead.pipeline_atleta_id}
-                          </span>
-                        }
-                      />
-                    )}
-                  </div>
+                      ) : (
+                        "Nao"
+                      )
+                    }
+                  />
+                  <DataRow
+                    label="No pipeline?"
+                    value={
+                      lead.is_in_pipeline ? (
+                        <Link
+                          href="/pipeline"
+                          className="text-primary hover:underline"
+                        >
+                          {lead.pipeline_stage
+                            ? DEAL_STAGE_CONFIG[
+                                lead.pipeline_stage as DealStage
+                              ]?.label ?? lead.pipeline_stage
+                            : "Sim"}
+                        </Link>
+                      ) : (
+                        "Nao"
+                      )
+                    }
+                  />
+                  <DataRow
+                    label="Recebido em"
+                    value={
+                      lead.submitted_at
+                        ? formatDateTime(lead.submitted_at)
+                        : null
+                    }
+                  />
+                  <DataRow
+                    label="Ultima atualizacao"
+                    value={
+                      lead.updated_at
+                        ? formatDateTime(lead.updated_at)
+                        : null
+                    }
+                  />
+                  <DataRow
+                    label="Qualificado em"
+                    value={
+                      lead.qualified_at
+                        ? formatDateTime(lead.qualified_at)
+                        : null
+                    }
+                  />
+                  <DataRow
+                    label="Confianca Gemini"
+                    value={lead.qualification_confidence}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl p-3.5 glass-card">
+                <SectionTitle>Identificadores internos</SectionTitle>
+                <div className="divide-y divide-border">
+                  <DataRow
+                    label="Lead ID"
+                    value={
+                      <span className="font-mono text-[10px] break-all">
+                        {lead.id}
+                      </span>
+                    }
+                  />
+                  <DataRow
+                    label="Submission ID"
+                    value={
+                      lead.submission_id ? (
+                        <span className="font-mono text-[10px] break-all">
+                          {lead.submission_id}
+                        </span>
+                      ) : null
+                    }
+                  />
+                  <DataRow
+                    label="Deal ID"
+                    value={
+                      lead.pipeline_deal_id ? (
+                        <span className="font-mono text-[10px] break-all">
+                          {lead.pipeline_deal_id}
+                        </span>
+                      ) : null
+                    }
+                  />
+                  <DataRow
+                    label="Atleta ID"
+                    value={
+                      lead.pipeline_atleta_id ? (
+                        <span className="font-mono text-[10px] break-all">
+                          {lead.pipeline_atleta_id}
+                        </span>
+                      ) : null
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -1458,7 +1456,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
           {/* ══════ TAB: ATRIBUICAO & UTM ══════ */}
           {activeTab === "atribuicao" && (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="rounded-xl p-5 glass-card">
+              <div className="rounded-xl p-3.5 glass-card">
                 <SectionTitle>Campanha</SectionTitle>
                 <div className="divide-y divide-border">
                   <DataRow label="UTM Source" value={lead.utm_source} />
@@ -1469,7 +1467,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
               </div>
 
-              <div className="rounded-xl p-5 glass-card">
+              <div className="rounded-xl p-3.5 glass-card">
                 <SectionTitle>Jornada na landing</SectionTitle>
                 <div className="divide-y divide-border">
                   <DataRow
@@ -1507,7 +1505,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
               </div>
 
-              <div className="rounded-xl p-5 glass-card lg:col-span-2">
+              <div className="rounded-xl p-3.5 glass-card lg:col-span-2">
                 <SectionTitle>Sessao</SectionTitle>
                 <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
                   <div className="divide-y divide-border">
@@ -1563,7 +1561,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
           {/* ══════ TAB: TIMING ══════ */}
           {activeTab === "timing" && (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="rounded-xl p-5 glass-card">
+              <div className="rounded-xl p-3.5 glass-card">
                 <SectionTitle>Classificacao por timing</SectionTitle>
                 <div className="divide-y divide-border">
                   <DataRow
@@ -1599,7 +1597,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
                 </div>
               </div>
 
-              <div className="rounded-xl p-5 glass-card">
+              <div className="rounded-xl p-3.5 glass-card">
                 <SectionTitle>Retomada agendada</SectionTitle>
                 <div className="divide-y divide-border">
                   <DataRow
