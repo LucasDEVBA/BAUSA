@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -28,6 +28,13 @@ import { NovaFamiliaModal } from "@/components/familias-shared/NovaFamiliaModal"
 import { HealthBadge } from "@/components/familias-shared/HealthBadge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  FamiliasPipelineFilters,
+  emptyFamiliasFilters,
+  type FamiliasFiltersState,
+  type FamiliasView,
+} from "./FamiliasPipelineFilters";
+import { FamiliasPipelineTable } from "./FamiliasPipelineTable";
 
 export interface FamiliaPipelineCard {
   id: string;
@@ -247,10 +254,29 @@ export function FamiliasPipelineClient({
   );
   const [showNovaModal, setShowNovaModal] = useState(false);
   const [didDrag, setDidDrag] = useState(false);
+  const [view, setView] = useState<FamiliasView>("kanban");
+  const [filters, setFilters] = useState<FamiliasFiltersState>(
+    emptyFamiliasFilters(),
+  );
 
   useEffect(() => {
     setCards(initialCards);
   }, [initialCards]);
+
+  const filteredCards = useMemo(() => {
+    const search = filters.search.trim().toLowerCase();
+    return cards.filter((c) => {
+      if (filters.status !== "TODOS" && c.status !== filters.status) return false;
+      if (filters.temperatura !== "TODAS" && c.temperatura !== filters.temperatura)
+        return false;
+      if (filters.semContato && (c.dias_sem_contato ?? 0) <= 15) return false;
+      if (search) {
+        const hay = `${c.athlete_name} ${c.guardian_name} ${c.plano} ${c.esporte ?? ""}`.toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    });
+  }, [cards, filters]);
 
   const handleDrop = (fase: FamilyJourneyStage) => {
     const id = dragId;
@@ -295,7 +321,7 @@ export function FamiliasPipelineClient({
 
   const byFase = FAMILY_JOURNEY_STAGES.reduce(
     (acc, fase) => {
-      acc[fase] = cards.filter((c) => c.fase === fase);
+      acc[fase] = filteredCards.filter((c) => c.fase === fase);
       return acc;
     },
     {} as Record<FamilyJourneyStage, FamiliaPipelineCard[]>,
@@ -336,6 +362,24 @@ export function FamiliasPipelineClient({
         </div>
       )}
 
+      <FamiliasPipelineFilters
+        view={view}
+        onViewChange={setView}
+        filters={filters}
+        onFiltersChange={setFilters}
+        total={cards.length}
+        filtered={filteredCards.length}
+      />
+
+      {view === "tabela" ? (
+        <FamiliasPipelineTable
+          cards={filteredCards}
+          onCardClick={(c) => {
+            const full = cards.find((x) => x.id === c.id);
+            if (full) setSelectedCard(full);
+          }}
+        />
+      ) : (
       <div className="grid grid-flow-col auto-cols-[260px] gap-3 overflow-x-auto pb-3">
         {FAMILY_JOURNEY_STAGES.map((fase) => {
           const cfg = JOURNEY_STAGE_CONFIG[fase];
@@ -392,6 +436,7 @@ export function FamiliasPipelineClient({
           );
         })}
       </div>
+      )}
 
       {selectedCard && (
         <FamilyDetailModal

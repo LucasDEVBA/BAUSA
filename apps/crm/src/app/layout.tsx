@@ -11,8 +11,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | BAUSA Engine",
-    default: "BAUSA Engine — Bolsa Atleta USA",
+    template: "%s | BAU Global",
+    default: "BAU Global — Bolsa Atleta USA",
   },
   description: "Sistema de gestão de leads para o programa Bolsa Atleta USA.",
   robots: { index: false, follow: false },
