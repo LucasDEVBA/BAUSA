@@ -27,9 +27,9 @@ type SortKey =
 type SortDir = "asc" | "desc";
 
 const CLASS_BADGE: Record<string, string> = {
-  QUENTE: "bg-sys-green/15 text-sys-green border-sys-green/30",
-  MORNO: "bg-sys-orange/15 text-sys-orange border-sys-orange/30",
-  FRIO: "bg-sys-blue/15 text-sys-blue border-sys-blue/30",
+  QUENTE: "bg-sys-green/12 text-sys-green",
+  MORNO: "bg-sys-orange/12 text-sys-orange",
+  FRIO: "bg-sys-blue/12 text-sys-blue",
 };
 
 function fmtBRL(v: number): string {
@@ -46,19 +46,12 @@ function diasAtras(iso?: string): number | null {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 }
 
-function SortIcon({
-  active,
-  dir,
-}: {
-  active: boolean;
-  dir: SortDir;
-}) {
-  if (!active)
-    return <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />;
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active) return <ArrowUpDown className="h-2.5 w-2.5 opacity-40" />;
   return dir === "asc" ? (
-    <ArrowUp className="h-3 w-3 text-primary" />
+    <ArrowUp className="h-2.5 w-2.5 text-primary" />
   ) : (
-    <ArrowDown className="h-3 w-3 text-primary" />
+    <ArrowDown className="h-2.5 w-2.5 text-primary" />
   );
 }
 
@@ -73,8 +66,8 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
       let bv: number | string = "";
       switch (sortKey) {
         case "athlete_name":
-          av = a.athlete_name;
-          bv = b.athlete_name;
+          av = a.athlete_name.toLowerCase();
+          bv = b.athlete_name.toLowerCase();
           break;
         case "stage":
           av = DEAL_STAGE_CONFIG[a.stage].order;
@@ -109,9 +102,8 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
   }, [deals, sortKey, sortDir]);
 
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
       setSortKey(key);
       setSortDir("desc");
     }
@@ -119,90 +111,62 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
 
   if (deals.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-xl border border-border bg-card py-16 text-sm text-muted-foreground">
+      <div className="flex items-center justify-center rounded-lg border border-border bg-card py-12 text-xs text-muted-foreground">
         Nenhum deal corresponde aos filtros.
       </div>
     );
   }
 
-  const columns: Array<{
-    key: SortKey | "actions";
-    label: string;
-    width: number;
-    align?: "left" | "right" | "center";
-    sortable?: boolean;
-  }> = [
-    { key: "athlete_name", label: "Atleta", width: 220, sortable: true },
-    { key: "stage", label: "Etapa", width: 160, sortable: true },
-    {
-      key: "deal_value_brl",
-      label: "Valor BRL",
-      width: 120,
-      align: "right",
-      sortable: true,
-    },
-    {
-      key: "lead_score",
-      label: "Score",
-      width: 80,
-      align: "right",
-      sortable: true,
-    },
-    {
-      key: "stage_updated_at",
-      label: "Mov.",
-      width: 90,
-      align: "right",
-      sortable: true,
-    },
-    {
-      key: "next_action_date",
-      label: "Próx. ação",
-      width: 220,
-      sortable: true,
-    },
-    { key: "actions", label: "Sinais", width: 90, align: "center" },
-  ];
+  const headerCell = (
+    label: string,
+    key: SortKey | null,
+    align?: "left" | "right" | "center",
+  ) => (
+    <th
+      key={label}
+      onClick={key ? () => toggleSort(key) : undefined}
+      className={cn(
+        "select-none px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground",
+        align === "right" && "text-right",
+        align === "center" && "text-center",
+        key && "cursor-pointer hover:text-foreground",
+      )}
+    >
+      <span
+        className={cn(
+          "inline-flex items-center gap-1",
+          align === "right" && "justify-end",
+          align === "center" && "justify-center",
+        )}
+      >
+        {label}
+        {key && <SortIcon active={sortKey === key} dir={sortDir} />}
+      </span>
+    </th>
+  );
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="overflow-x-auto">
-        <table className="w-full table-fixed">
-          <thead>
-            <tr className="border-b border-border bg-card/80">
-              {columns.map((c) => (
-                <th
-                  key={c.key}
-                  style={{ width: c.width, maxWidth: c.width }}
-                  onClick={() =>
-                    c.sortable && c.key !== "actions"
-                      ? toggleSort(c.key as SortKey)
-                      : undefined
-                  }
-                  className={cn(
-                    "px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground",
-                    c.align === "right" && "text-right",
-                    c.align === "center" && "text-center",
-                    c.sortable && c.key !== "actions" && "cursor-pointer hover:text-foreground",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1",
-                      c.align === "right" && "justify-end",
-                      c.align === "center" && "justify-center",
-                    )}
-                  >
-                    {c.label}
-                    {c.sortable && c.key !== "actions" && (
-                      <SortIcon
-                        active={sortKey === c.key}
-                        dir={sortDir}
-                      />
-                    )}
-                  </span>
-                </th>
-              ))}
+        <table className="w-full">
+          <colgroup>
+            <col style={{ width: "30%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "6%" }} />
+          </colgroup>
+          <thead className="border-b border-border bg-secondary/30">
+            <tr>
+              {headerCell("Atleta", "athlete_name")}
+              {headerCell("Etapa", "stage")}
+              {headerCell("Valor", "deal_value_brl", "right")}
+              {headerCell("Score", "lead_score", "right")}
+              {headerCell("Etapa há", "stage_updated_at", "right")}
+              {headerCell("Próxima ação", "next_action_date")}
+              {headerCell("", null, "center")}
             </tr>
           </thead>
           <tbody>
@@ -219,59 +183,56 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
                   key={d.id}
                   onClick={() => onDealClick(d)}
                   className={cn(
-                    "cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-accent",
-                    i % 2 === 1 && "bg-fill-4",
+                    "cursor-pointer border-b border-border/50 transition-colors last:border-0 hover:bg-secondary/30",
+                    i % 2 === 1 && "bg-secondary/10",
                   )}
                 >
-                  <td
-                    style={{ width: 220, maxWidth: 220 }}
-                    className="overflow-hidden px-3 py-2"
-                  >
-                    <div className="flex items-center gap-2">
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span
                         className={cn(
-                          "inline-flex items-center rounded-md border px-1.5 py-px text-[9px] font-medium shrink-0",
+                          "inline-flex shrink-0 items-center rounded px-1.5 py-px text-[9px] font-semibold tracking-wide",
                           CLASS_BADGE[d.classification] ??
-                            "border-border text-muted-foreground",
+                            "bg-secondary text-muted-foreground",
                         )}
                       >
                         {d.classification}
                       </span>
-                      <span
-                        className="truncate text-xs font-medium text-foreground"
-                        title={d.athlete_name}
-                      >
-                        {d.athlete_name}
-                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="truncate text-xs font-medium text-foreground"
+                          title={d.athlete_name}
+                        >
+                          {d.athlete_name}
+                        </p>
+                        <p
+                          className="truncate text-[10px] text-muted-foreground"
+                          title={d.guardian_name}
+                        >
+                          {d.guardian_name}
+                          {d.product_tier && ` · ${d.product_tier}`}
+                        </p>
+                      </div>
                     </div>
                   </td>
-                  <td
-                    style={{ width: 160, maxWidth: 160 }}
-                    className="overflow-hidden px-3 py-2"
-                  >
+                  <td className="px-3 py-2">
                     <span
                       className="inline-flex items-center gap-1.5 text-xs text-foreground"
                       title={stageCfg.label}
                     >
                       <span
                         className={cn(
-                          "h-1.5 w-1.5 rounded-full shrink-0",
+                          "h-1.5 w-1.5 shrink-0 rounded-full",
                           stageCfg.dotColor,
                         )}
                       />
                       <span className="truncate">{stageCfg.shortLabel}</span>
                     </span>
                   </td>
-                  <td
-                    style={{ width: 120, maxWidth: 120 }}
-                    className="overflow-hidden px-3 py-2 text-right text-xs tabular-nums text-foreground"
-                  >
+                  <td className="px-3 py-2 text-right text-xs tabular-nums text-foreground">
                     {fmtBRL(d.deal_value_brl)}
                   </td>
-                  <td
-                    style={{ width: 80, maxWidth: 80 }}
-                    className="overflow-hidden px-3 py-2 text-right text-xs tabular-nums"
-                  >
+                  <td className="px-3 py-2 text-right text-xs tabular-nums">
                     {d.lead_score != null ? (
                       <span
                         className={cn(
@@ -289,8 +250,7 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
                     )}
                   </td>
                   <td
-                    style={{ width: 90, maxWidth: 90 }}
-                    className="overflow-hidden px-3 py-2 text-right text-xs tabular-nums"
+                    className="px-3 py-2 text-right text-xs tabular-nums"
                     title={new Date(d.stage_updated_at).toLocaleString("pt-BR")}
                   >
                     <span
@@ -305,59 +265,51 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
                       {dEtapa}d
                     </span>
                   </td>
-                  <td
-                    style={{ width: 220, maxWidth: 220 }}
-                    className="overflow-hidden px-3 py-2"
-                    title={d.next_action ?? ""}
-                  >
-                    <p className="truncate text-xs text-foreground">
-                      {d.next_action ?? (
-                        <span className="text-muted-foreground/60">—</span>
-                      )}
-                    </p>
-                    {d.next_action_date && (
-                      <p
-                        className={cn(
-                          "text-[10px] tabular-nums",
-                          atraso != null && atraso > 0
-                            ? "text-sys-red"
-                            : "text-muted-foreground",
+                  <td className="px-3 py-2" title={d.next_action ?? ""}>
+                    {d.next_action ? (
+                      <>
+                        <p className="truncate text-xs text-foreground">
+                          {d.next_action}
+                        </p>
+                        {d.next_action_date && (
+                          <p
+                            className={cn(
+                              "text-[10px] tabular-nums",
+                              atraso != null && atraso > 0
+                                ? "text-sys-red"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {new Date(d.next_action_date).toLocaleDateString(
+                              "pt-BR",
+                            )}
+                            {atraso != null && atraso > 0 &&
+                              ` · ${atraso}d atraso`}
+                          </p>
                         )}
-                      >
-                        {new Date(d.next_action_date).toLocaleDateString(
-                          "pt-BR",
-                        )}
-                        {atraso != null && atraso > 0 && ` · ${atraso}d atraso`}
-                      </p>
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/60">
+                        —
+                      </span>
                     )}
                   </td>
-                  <td
-                    style={{ width: 90, maxWidth: 90 }}
-                    className="overflow-hidden px-3 py-2"
-                  >
+                  <td className="px-3 py-2">
                     <div className="flex items-center justify-center gap-1">
                       {semAcao && (
                         <span
                           title="Sem próxima ação definida"
                           className="text-sys-red"
                         >
-                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <AlertTriangle className="h-3 w-3" />
                         </span>
                       )}
-                      {semContato && (
+                      {semContato && !semAcao && (
                         <span
                           title={`${dEtapa}d parado nesta etapa`}
                           className="text-sys-orange"
                         >
-                          <Clock className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                      {d.flag_retrocedido && (
-                        <span
-                          title="Deal retrocedeu"
-                          className="text-sys-orange"
-                        >
-                          <ArrowDown className="h-3.5 w-3.5" />
+                          <Clock className="h-3 w-3" />
                         </span>
                       )}
                     </div>
