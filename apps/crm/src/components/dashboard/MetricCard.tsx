@@ -61,7 +61,7 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl glass-card p-5 transition-all hover:shadow-md",
+        "relative overflow-hidden rounded-lg border border-border/70 bg-card/60 p-3.5 transition-all hover:shadow-md",
         styles.border,
         className
       )}
@@ -69,7 +69,7 @@ export function MetricCard({
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className={cn("mt-1.5 text-3xl font-bold tabular-nums", styles.value)}>
+          <p className={cn("mt-1.5 text-lg font-semibold tabular-nums", styles.value)}>
             {value}
           </p>
           {subtitle && (

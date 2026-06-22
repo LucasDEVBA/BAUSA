@@ -126,7 +126,7 @@ function FamilyCard({
   return (
     <div
       className={cn(
-        "glass-card rounded-xl p-5 cursor-pointer transition-all hover:shadow-md hover:border-primary/30",
+        "rounded-lg border border-border/70 bg-card/60 p-3.5 cursor-pointer transition-all hover:shadow-md hover:border-primary/30",
         family.family_status === "crise"
           ? "border-sys-red/40"
           : family.family_status === "atencao"
@@ -1364,7 +1364,7 @@ export function FamiliasCrmClient({
   const alertasByExperiencia = new Map(alertas.map((a) => [a.experiencia_id, a]));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-title-2 text-foreground">
@@ -1399,7 +1399,7 @@ export function FamiliasCrmClient({
 
       {/* Banner de alertas */}
       {alertas.length > 0 && (
-        <div className="glass-card rounded-xl border-sys-orange/30 p-4">
+        <div className="border border-border/70 bg-card/60 rounded-xl border-sys-orange/30 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Bell className="h-4 w-4 text-sys-orange" />
             <p className="text-xs font-semibold text-sys-orange">
@@ -1472,7 +1472,7 @@ export function FamiliasCrmClient({
               !kpi.bg.includes("border-") && "border-border"
             )}
           >
-            <p className={cn("text-2xl font-bold", kpi.color)}>{kpi.value}</p>
+            <p className={cn("text-base font-semibold", kpi.color)}>{kpi.value}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
           </div>
         ))}

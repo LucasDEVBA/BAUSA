@@ -37,7 +37,7 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
           onSelect(school);
         }
       }}
-      className="glass-card cursor-pointer rounded-xl p-5 transition-all hover:border-primary/30 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+      className="border border-border/70 bg-card/60 cursor-pointer rounded-xl p-5 transition-all hover:border-primary/30 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
       {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">

@@ -151,7 +151,7 @@ export function CacClient({
   const trendData = metrics.porMes.map((m) => ({ mes: m.mes, gasto: m.gasto }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header + período */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -222,7 +222,7 @@ export function CacClient({
       </div>
 
       {/* ROI por canal */}
-      <section className="glass-card rounded-xl p-5">
+      <section className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">ROI por canal</h2>
           <span className="flex items-center gap-1 rounded-full border border-sys-orange/30 bg-sys-orange/10 px-2 py-0.5 text-[10px] font-medium text-sys-orange">
@@ -279,7 +279,7 @@ export function CacClient({
       </section>
 
       {/* Tendência de gasto */}
-      <section className="glass-card rounded-xl p-5">
+      <section className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <h2 className="mb-4 text-sm font-semibold text-foreground">
           Tendência de gasto mensal
         </h2>
@@ -311,7 +311,7 @@ export function CacClient({
       </section>
 
       {/* Registrar gasto manual */}
-      <section className="glass-card rounded-xl p-5">
+      <section className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
           <Plus className="h-4 w-4" />
           Registrar gasto manual

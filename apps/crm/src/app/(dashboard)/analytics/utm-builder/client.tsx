@@ -174,7 +174,7 @@ export function UtmBuilderClient() {
   const hasParams = source || medium || campaign;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-title-2 text-foreground">Gerador de Links UTM</h1>
@@ -185,7 +185,7 @@ export function UtmBuilderClient() {
       </div>
 
       {/* Presets */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Templates Rápidos
         </p>
@@ -215,8 +215,8 @@ export function UtmBuilderClient() {
       </div>
 
       {/* Form Fields */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="glass-card rounded-xl p-5 space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 space-y-4">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Parâmetros UTM
           </p>
@@ -297,7 +297,7 @@ export function UtmBuilderClient() {
         {/* Preview */}
         <div className="space-y-4">
           {/* Landing URL */}
-          <div className="glass-card rounded-xl p-5">
+          <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Link da Landing Page
@@ -333,7 +333,7 @@ export function UtmBuilderClient() {
           </div>
 
           {/* Forms URL */}
-          <div className="glass-card rounded-xl p-5">
+          <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Link Direto do Formulário
             </p>

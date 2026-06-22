@@ -10,7 +10,7 @@ export function RecentLeads({ leads }: RecentLeadsProps) {
   const recent = leads.slice(0, 5);
 
   return (
-    <div className="rounded-xl glass-card p-5">
+    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Últimos Leads</h3>

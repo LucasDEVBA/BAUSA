@@ -101,11 +101,11 @@ function MetricBox({
   color?: string;
 }) {
   return (
-    <div className="glass-card rounded-lg p-4">
+    <div className="border border-border/70 bg-card/60 rounded-lg p-4">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
         {label}
       </p>
-      <p className={cn("mt-1 text-2xl font-bold", color)}>{value}</p>
+      <p className={cn("mt-1 text-base font-semibold", color)}>{value}</p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
@@ -123,7 +123,7 @@ export function RelatoriosClient({ data }: RelatoriosClientProps) {
   const [safra2, setSafra2] = useState(data.safras.list[1] ?? data.safras.list[0] ?? "");
 
   return (
-    <div className="space-y-6" data-printable>
+    <div className="space-y-4" data-printable>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -205,7 +205,7 @@ function ComercialTab({ data }: { data: ReportData["comercial"] }) {
       : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <MetricBox
@@ -236,17 +236,17 @@ function ComercialTab({ data }: { data: ReportData["comercial"] }) {
       </div>
 
       {/* Month comparison */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <h3 className="text-sm font-semibold text-foreground mb-3">
           Comparativo Mensal
         </h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg bg-background p-4 text-center">
-            <p className="text-2xl font-bold text-foreground">{data.dealsThisMonth}</p>
+            <p className="text-base font-semibold text-foreground">{data.dealsThisMonth}</p>
             <p className="text-xs text-muted-foreground">Este mes</p>
           </div>
           <div className="rounded-lg bg-background p-4 text-center">
-            <p className="text-2xl font-bold text-foreground">{data.dealsLastMonth}</p>
+            <p className="text-base font-semibold text-foreground">{data.dealsLastMonth}</p>
             <p className="text-xs text-muted-foreground">Mes anterior</p>
           </div>
           <div className="rounded-lg bg-background p-4 text-center">
@@ -258,7 +258,7 @@ function ComercialTab({ data }: { data: ReportData["comercial"] }) {
               )}
               <p
                 className={cn(
-                  "text-2xl font-bold",
+                  "text-base font-semibold",
                   monthDiff >= 0 ? "text-sys-green" : "text-sys-red"
                 )}
               >
@@ -272,28 +272,28 @@ function ComercialTab({ data }: { data: ReportData["comercial"] }) {
       </div>
 
       {/* Classification */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <h3 className="text-sm font-semibold text-foreground mb-3">
           Por Classificacao
         </h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg bg-background p-4 text-center">
-            <p className="text-2xl font-bold text-lead-hot">{data.dealsByClassificacao.hot}</p>
+            <p className="text-base font-semibold text-lead-hot">{data.dealsByClassificacao.hot}</p>
             <p className="text-xs text-muted-foreground">Quente</p>
           </div>
           <div className="rounded-lg bg-background p-4 text-center">
-            <p className="text-2xl font-bold text-lead-warm">{data.dealsByClassificacao.warm}</p>
+            <p className="text-base font-semibold text-lead-warm">{data.dealsByClassificacao.warm}</p>
             <p className="text-xs text-muted-foreground">Morno</p>
           </div>
           <div className="rounded-lg bg-background p-4 text-center">
-            <p className="text-2xl font-bold text-muted-foreground">{data.dealsByClassificacao.cold}</p>
+            <p className="text-base font-semibold text-muted-foreground">{data.dealsByClassificacao.cold}</p>
             <p className="text-xs text-muted-foreground">Frio</p>
           </div>
         </div>
       </div>
 
       {/* Deals by stage table */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-foreground">
             Deals por Etapa
@@ -338,7 +338,7 @@ function FinanceiroTab({ data }: { data: ReportData["financeiro"] }) {
     .map(([month, v]) => [month, formatBRL(v.recebido), formatBRL(v.previsto), formatBRL(v.atrasado)]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricBox
@@ -352,7 +352,7 @@ function FinanceiroTab({ data }: { data: ReportData["financeiro"] }) {
       </div>
 
       {/* Parcelas by month table */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-foreground">
             Parcelas por Mes
@@ -396,7 +396,7 @@ function FinanceiroTab({ data }: { data: ReportData["financeiro"] }) {
       </div>
 
       {/* Top 5 contracts */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <h3 className="text-sm font-semibold text-foreground mb-3">
           Top 5 Contratos por Valor
         </h3>
@@ -433,7 +433,7 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
   const faseRows = Object.entries(data.expByFase).map(([fase, count]) => [fase, count.toString()]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricBox
@@ -465,28 +465,28 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
       </div>
 
       {/* By temperatura */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <h3 className="text-sm font-semibold text-foreground mb-3">
           Por Temperatura
         </h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg bg-sys-green/5 border border-sys-green/20 p-4 text-center">
-            <p className="text-2xl font-bold text-sys-green">{data.expByTemperatura.verde}</p>
+            <p className="text-base font-semibold text-sys-green">{data.expByTemperatura.verde}</p>
             <p className="text-xs text-muted-foreground">Verde</p>
           </div>
           <div className="rounded-lg bg-sys-orange/5 border border-sys-orange/20 p-4 text-center">
-            <p className="text-2xl font-bold text-sys-orange">{data.expByTemperatura.amarelo}</p>
+            <p className="text-base font-semibold text-sys-orange">{data.expByTemperatura.amarelo}</p>
             <p className="text-xs text-muted-foreground">Amarelo</p>
           </div>
           <div className="rounded-lg bg-sys-red/5 border border-sys-red/20 p-4 text-center">
-            <p className="text-2xl font-bold text-sys-red">{data.expByTemperatura.vermelho}</p>
+            <p className="text-base font-semibold text-sys-red">{data.expByTemperatura.vermelho}</p>
             <p className="text-xs text-muted-foreground">Vermelho</p>
           </div>
         </div>
       </div>
 
       {/* By fase */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-foreground">Por Fase</h3>
           <ExportCSVButton
@@ -577,7 +577,7 @@ function SafraTab({
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Safra selectors */}
       <div className="flex items-center gap-4">
         <div>
@@ -683,7 +683,7 @@ function SafraTab({
           )}
         </>
       ) : (
-        <div className="glass-card rounded-xl p-8 text-center">
+        <div className="border border-border/70 bg-card/60 rounded-xl p-8 text-center">
           <Layers className="mx-auto h-8 w-8 text-label-tertiary mb-2" />
           <p className="text-sm text-muted-foreground">
             {data.list.length === 0
@@ -695,7 +695,7 @@ function SafraTab({
 
       {/* Full table */}
       {data.list.length > 0 && (
-        <div className="glass-card rounded-xl p-5">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
           <h3 className="text-sm font-semibold text-foreground mb-3">Todas as Safras</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -743,7 +743,7 @@ function SafraCard({
   const conv = data.deals > 0 ? Math.round((data.contratos / data.deals) * 100) : 0;
 
   return (
-    <div className="glass-card rounded-xl p-5">
+    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
       <h3 className="text-sm font-semibold text-primary mb-4">Safra {safra}</h3>
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-background p-3 text-center">
@@ -778,7 +778,7 @@ function SemanalTab({ data }: { data: ReportData["semanal"] }) {
   const periodEnd = new Date(data.periodEnd).toLocaleDateString("pt-BR");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="rounded-xl border border-primary/20 bg-card p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -795,27 +795,27 @@ function SemanalTab({ data }: { data: ReportData["semanal"] }) {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <div className="rounded-lg border border-border bg-background p-4 text-center">
             <Users className="mx-auto h-5 w-5 text-primary mb-2" />
-            <p className="text-2xl font-bold text-foreground">{data.leadsThisWeek}</p>
+            <p className="text-base font-semibold text-foreground">{data.leadsThisWeek}</p>
             <p className="text-[10px] text-muted-foreground">Novos leads</p>
           </div>
           <div className="rounded-lg border border-border bg-background p-4 text-center">
             <TrendingUp className="mx-auto h-5 w-5 text-sys-green mb-2" />
-            <p className="text-2xl font-bold text-foreground">{data.dealsAdvanced}</p>
+            <p className="text-base font-semibold text-foreground">{data.dealsAdvanced}</p>
             <p className="text-[10px] text-muted-foreground">Deals avancados</p>
           </div>
           <div className="rounded-lg border border-border bg-background p-4 text-center">
             <Heart className="mx-auto h-5 w-5 text-plan-legacy mb-2" />
-            <p className="text-2xl font-bold text-foreground">{data.familiasContatadas}</p>
+            <p className="text-base font-semibold text-foreground">{data.familiasContatadas}</p>
             <p className="text-[10px] text-muted-foreground">Familias contatadas</p>
           </div>
           <div className="rounded-lg border border-border bg-background p-4 text-center">
             <AlertTriangle className="mx-auto h-5 w-5 text-sys-red mb-2" />
-            <p className="text-2xl font-bold text-foreground">{data.familiasEmRisco}</p>
+            <p className="text-base font-semibold text-foreground">{data.familiasEmRisco}</p>
             <p className="text-[10px] text-muted-foreground">Em risco</p>
           </div>
           <div className="rounded-lg border border-border bg-background p-4 text-center">
             <CheckCircle className="mx-auto h-5 w-5 text-sys-orange mb-2" />
-            <p className="text-2xl font-bold text-foreground">{data.tarefasAbertas}</p>
+            <p className="text-base font-semibold text-foreground">{data.tarefasAbertas}</p>
             <p className="text-[10px] text-muted-foreground">Tarefas abertas</p>
           </div>
         </div>

@@ -99,7 +99,7 @@ export default async function EscolasPage() {
     : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-title-2 text-foreground">Banco de Escolas</h1>
@@ -118,11 +118,11 @@ export default async function EscolasPage() {
         ].map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <div key={kpi.label} className="glass-card rounded-xl p-4">
+            <div key={kpi.label} className="rounded-lg border border-border/70 bg-card/60 p-3">
               <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", kpi.bg)}>
                 <Icon className={cn("h-4 w-4", kpi.color)} />
               </div>
-              <p className="text-2xl font-bold text-foreground">{kpi.value}</p>
+              <p className="text-base font-semibold text-foreground">{kpi.value}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
             </div>
           );

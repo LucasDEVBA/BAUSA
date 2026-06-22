@@ -499,7 +499,7 @@ function TabGeral({ family }: { family: FamilyModalData }) {
               <div className="mt-1 flex items-baseline gap-1">
                 <span
                   className={cn(
-                    "text-2xl font-bold",
+                    "text-base font-semibold",
                     ind.color === "emerald" && "text-sys-green",
                     ind.color === "amber" && "text-sys-orange",
                     ind.color === "red" && "text-sys-red",
@@ -543,7 +543,7 @@ function TabGeral({ family }: { family: FamilyModalData }) {
           {infoCards.map((it) => (
             <div
               key={it.label}
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:shadow-md transition-all glass-card"
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:shadow-md transition-all border border-border/70 bg-card/60"
             >
               <span className="text-lg">{it.icon}</span>
               <div className="min-w-0 flex-1">

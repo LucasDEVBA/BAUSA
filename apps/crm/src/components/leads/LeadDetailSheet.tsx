@@ -169,7 +169,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
 
           {/* ══════ TAB RESUMO ══════ */}
           {activeTab === "resumo" && (
@@ -218,25 +218,25 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
 
               {/* Info rápida */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg p-3 glass-card">
+                <div className="rounded-lg p-3 border border-border/70 bg-card/60">
                   <p className="text-xs text-muted-foreground">Investimento</p>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.investment_range ? formatInvestmentRange(lead.investment_range) : "—"}
                   </p>
                 </div>
-                <div className="rounded-lg p-3 glass-card">
+                <div className="rounded-lg p-3 border border-border/70 bg-card/60">
                   <p className="text-xs text-muted-foreground">Local</p>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.school_city_state || lead.address_state || "—"}
                   </p>
                 </div>
-                <div className="rounded-lg p-3 glass-card">
+                <div className="rounded-lg p-3 border border-border/70 bg-card/60">
                   <p className="text-xs text-muted-foreground">Responsável</p>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.guardian_name || "—"}
                   </p>
                 </div>
-                <div className="rounded-lg p-3 glass-card">
+                <div className="rounded-lg p-3 border border-border/70 bg-card/60">
                   <p className="text-xs text-muted-foreground">Profissão</p>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {lead.guardian_profession || "—"}
@@ -388,7 +388,7 @@ export function LeadDetailSheet({ lead, onClose }: LeadDetailSheetProps) {
               {lead.notes && (
                 <div>
                   <SectionTitle>Notas Internas</SectionTitle>
-                  <div className="rounded-lg p-3 text-sm text-foreground whitespace-pre-wrap glass-card">
+                  <div className="rounded-lg p-3 text-sm text-foreground whitespace-pre-wrap border border-border/70 bg-card/60">
                     {lead.notes}
                   </div>
                 </div>

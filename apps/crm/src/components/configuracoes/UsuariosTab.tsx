@@ -122,7 +122,7 @@ export function UsuariosTab() {
 
       {/* Formulário de criação */}
       {showCreate && (
-        <div className="glass-card space-y-3 rounded-xl p-5">
+        <div className="border border-border/70 bg-card/60 space-y-3 rounded-xl p-5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Criar usuário
           </p>
@@ -168,17 +168,17 @@ export function UsuariosTab() {
 
       {/* Lista */}
       {loading ? (
-        <div className="glass-card rounded-xl p-8 text-center text-sm text-muted-foreground">
+        <div className="border border-border/70 bg-card/60 rounded-xl p-8 text-center text-sm text-muted-foreground">
           <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
           Carregando usuários…
         </div>
       ) : usuarios.length === 0 ? (
-        <div className="glass-card rounded-xl p-8 text-center">
+        <div className="border border-border/70 bg-card/60 rounded-xl p-8 text-center">
           <UsersIcon className="mx-auto mb-2 h-8 w-8 text-label-tertiary" />
           <p className="text-sm text-muted-foreground">Nenhum usuário cadastrado ainda.</p>
         </div>
       ) : (
-        <div className="glass-card divide-y divide-border overflow-hidden rounded-xl">
+        <div className="border border-border/70 bg-card/60 divide-y divide-border overflow-hidden rounded-xl">
           {usuarios.map((u) => {
             const papelVal = edits[u.id]?.papel ?? u.papel;
             const ativoVal = edits[u.id]?.ativo ?? u.ativo;
