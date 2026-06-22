@@ -232,10 +232,10 @@ export function WarRoomFamiliasGerencial({
       {/* Distribuições */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {/* Por fase */}
-        <div className="rounded-xl glass-card border border-border p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h2 className="text-headline text-foreground">Distribuição por fase</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">Distribuição por fase</h2>
               <p className="text-xs text-muted-foreground">
                 Composição da carteira ativa
               </p>
@@ -274,10 +274,10 @@ export function WarRoomFamiliasGerencial({
         </div>
 
         {/* Por temperatura */}
-        <div className="rounded-xl glass-card border border-border p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h2 className="text-headline text-foreground">Temperatura</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">Temperatura</h2>
               <p className="text-xs text-muted-foreground">
                 Risco percebido pela equipe
               </p>
@@ -291,12 +291,12 @@ export function WarRoomFamiliasGerencial({
               return (
                 <div
                   key={temp}
-                  className="flex flex-col items-center gap-1 rounded-lg border border-border bg-background/60 p-4"
+                  className="flex flex-col items-center gap-1 rounded-md bg-secondary/40 p-2.5"
                 >
                   <span
-                    className={cn("h-3 w-3 rounded-full", TEMP_DOT[temp])}
+                    className={cn("h-2 w-2 rounded-full", TEMP_DOT[temp])}
                   />
-                  <p className="text-2xl font-bold tabular-nums text-foreground">
+                  <p className="text-base font-semibold tabular-nums text-foreground">
                     {count}
                   </p>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -312,10 +312,10 @@ export function WarRoomFamiliasGerencial({
 
       {/* Top críticas / Top satisfeitas */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="rounded-xl glass-card border border-border p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h2 className="text-headline text-foreground">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">
                 Famílias críticas
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -341,10 +341,10 @@ export function WarRoomFamiliasGerencial({
           )}
         </div>
 
-        <div className="rounded-xl glass-card border border-border p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h2 className="text-headline text-foreground">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">
                 Candidatas a indicação
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -373,10 +373,10 @@ export function WarRoomFamiliasGerencial({
 
       {/* Ranking Heads */}
       {data.ranking_heads.length > 0 && (
-        <div className="rounded-xl glass-card border border-border p-4">
-          <div className="mb-4 flex items-center justify-between">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h2 className="text-headline text-foreground">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">
                 Performance por Head
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -445,10 +445,10 @@ export function WarRoomFamiliasGerencial({
 
       {/* Alertas executivos */}
       {data.alertas_executivos.length > 0 && (
-        <div className="rounded-xl glass-card border border-sys-red/30 bg-sys-red/5 p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-lg border border-sys-red/30 bg-sys-red/5 p-3">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h2 className="text-headline text-foreground">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">
                 Alertas executivos
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -482,10 +482,10 @@ export function WarRoomFamiliasGerencial({
 
       {/* Próximas reuniões + Onboardings ativos */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="rounded-xl glass-card border border-border p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h2 className="text-headline text-foreground">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">
                 Próximas reuniões
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -535,10 +535,10 @@ export function WarRoomFamiliasGerencial({
           )}
         </div>
 
-        <div className="rounded-xl glass-card border border-border p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h2 className="text-headline text-foreground">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">
                 Onboardings em curso
               </h2>
               <p className="text-xs text-muted-foreground">
