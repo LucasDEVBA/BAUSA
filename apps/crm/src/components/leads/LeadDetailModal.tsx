@@ -245,7 +245,7 @@ function ResumoTab({ lead }: { lead: Lead }) {
         <p className="text-xs uppercase tracking-wider text-muted-foreground">
           Visão Executiva
         </p>
-        <h2 className="mt-0.5 text-2xl font-bold text-foreground">
+        <h2 className="mt-0.5 text-base font-semibold text-foreground">
           {lead.athlete_name}
         </h2>
         <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">

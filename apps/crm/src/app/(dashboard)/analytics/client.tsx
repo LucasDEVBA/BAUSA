@@ -64,7 +64,7 @@ function KpiCard({ title, value, subtitle, delta, compareEnabled, icon: Icon, ac
   const showDelta = compareEnabled && delta !== null && delta !== undefined;
 
   return (
-    <div className="glass-card flex flex-col gap-3 rounded-xl p-4">
+    <div className="border border-border/70 bg-card/60 flex flex-col gap-3 rounded-xl p-4">
       <div className="flex items-center justify-between">
         <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", accent)}>
           <Icon className="h-4 w-4" />
@@ -92,7 +92,7 @@ function KpiCard({ title, value, subtitle, delta, compareEnabled, icon: Icon, ac
         )}
       </div>
       <div>
-        <p className="text-2xl font-bold text-foreground">{value}</p>
+        <p className="text-base font-semibold text-foreground">{value}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{subtitle ?? title}</p>
       </div>
     </div>
@@ -233,7 +233,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
 
   if (allMonths.length === 0) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-title-2 text-foreground">Analytics</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">Sem dados financeiros registrados.</p>
@@ -247,7 +247,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -334,7 +334,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
       </div>
 
       {/* Bar chart */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <p className="mb-4 text-sm font-semibold text-foreground">Contratado vs Recebido por mes</p>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={barData} barSize={compareEnabled ? 8 : 14} barCategoryGap="30%">
@@ -361,7 +361,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
       </div>
 
       {/* Line chart */}
-      <div className="glass-card rounded-xl p-5">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
         <p className="mb-4 text-sm font-semibold text-foreground">Receita Acumulada no periodo</p>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={lineData}>
@@ -399,7 +399,7 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
 
       {/* Table + highlights */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="glass-card col-span-2 rounded-xl">
+        <div className="border border-border/70 bg-card/60 col-span-2 rounded-xl">
           <div className="border-b border-border px-5 py-3">
             <p className="text-sm font-semibold text-foreground">Detalhamento mensal</p>
           </div>
@@ -446,28 +446,28 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
         </div>
 
         <div className="flex flex-col gap-3">
-          <div className="glass-card rounded-xl border-sys-green/20 p-4">
+          <div className="border border-border/70 bg-card/60 rounded-xl border-sys-green/20 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-sys-green">
               Melhor mes
             </p>
             <p className="mt-1 text-lg font-bold text-sys-green">{bestMonth.label}</p>
             <p className="text-xs text-muted-foreground">{formatBrl(bestMonth.received)} recebido</p>
           </div>
-          <div className="glass-card rounded-xl border-sys-red/20 p-4">
+          <div className="border border-border/70 bg-card/60 rounded-xl border-sys-red/20 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-sys-red">
               Pior mes
             </p>
             <p className="mt-1 text-lg font-bold text-sys-red">{worstMonth.label}</p>
             <p className="text-xs text-muted-foreground">{formatBrl(worstMonth.received)} recebido</p>
           </div>
-          <div className="glass-card rounded-xl p-4">
+          <div className="rounded-lg border border-border/70 bg-card/60 p-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-label-tertiary">
               Taxa de recebimento
             </p>
             <p className="mt-1 text-lg font-bold text-foreground">{overallRecvRate}%</p>
             <p className="text-xs text-muted-foreground">Recebido / contratado no periodo</p>
           </div>
-          <div className="glass-card rounded-xl p-4">
+          <div className="rounded-lg border border-border/70 bg-card/60 p-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-label-tertiary">
               Media mensal
             </p>

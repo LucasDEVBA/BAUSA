@@ -66,19 +66,19 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Indicadores rápidos */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl p-3 text-center glass-card">
+            <div className="rounded-xl p-3 text-center border border-border/70 bg-card/60">
               <p className="text-[10px] text-muted-foreground">Risco</p>
               <div className="mt-1 flex justify-center">
                 <RiskBadge level={family.risk_level ?? "baixo"} />
               </div>
             </div>
-            <div className="rounded-xl p-3 text-center glass-card">
+            <div className="rounded-xl p-3 text-center border border-border/70 bg-card/60">
               <p className="text-[10px] text-muted-foreground">Temperatura</p>
               <div className="mt-1 flex justify-center">
                 <EmotionalTempBadge temperature={family.emotional_temperature ?? "bem"} />
               </div>
             </div>
-            <div className="rounded-xl p-3 text-center glass-card">
+            <div className="rounded-xl p-3 text-center border border-border/70 bg-card/60">
               <p className="text-[10px] text-muted-foreground">NPS</p>
               <p
                 className={`mt-1 text-xl font-bold ${
@@ -97,7 +97,7 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
           </div>
 
           {/* Jornada */}
-          <div className="rounded-xl p-4 glass-card">
+          <div className="rounded-lg p-3 border border-border/70 bg-card/60">
             <p className="mb-3 text-xs font-semibold text-foreground/80">Progresso da Jornada</p>
             <JourneyProgress currentStage={family.journey_stage} />
 
@@ -155,7 +155,7 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
           </div>
 
           {/* Contrato */}
-          <div className="rounded-xl p-4 glass-card">
+          <div className="rounded-lg p-3 border border-border/70 bg-card/60">
             <p className="mb-2 text-xs font-semibold text-foreground/80">Informações do Contrato</p>
             <div className="space-y-1.5">
               {family.target_university && (
@@ -183,7 +183,7 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
 
           {/* Notas do consultor */}
           {family.consultant_notes && (
-            <div className="rounded-xl p-4 glass-card">
+            <div className="rounded-lg p-3 border border-border/70 bg-card/60">
               <p className="mb-2 text-xs font-semibold text-foreground/80">
                 Notas — {family.consultant ?? "Consultora"}
               </p>

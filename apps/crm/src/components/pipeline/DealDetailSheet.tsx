@@ -703,7 +703,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
   const selectClass =
     "w-full rounded-md border border-border bg-card py-2.5 px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 appearance-none";
   const labelClass = "text-xs font-medium text-muted-foreground";
-  const cardClass = "rounded-xl glass-card p-4";
+  const cardClass = "rounded-lg border border-border/70 bg-card/60 p-3";
 
   return (
     <>

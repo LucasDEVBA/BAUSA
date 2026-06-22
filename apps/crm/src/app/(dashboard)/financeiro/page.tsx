@@ -274,7 +274,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   const cancellations = activeTab === "cancelamentos" ? await fetchCancellations() : [];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -304,7 +304,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          <div className="glass-card rounded-xl overflow-hidden">
+          <div className="border border-border/70 bg-card/60 rounded-xl overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-popover">
@@ -364,7 +364,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          <div className="glass-card rounded-xl overflow-hidden">
+          <div className="border border-border/70 bg-card/60 rounded-xl overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-popover">
@@ -481,7 +481,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             ].map((kpi) => {
               const Icon = kpi.icon;
               return (
-                <div key={kpi.label} className="glass-card rounded-xl p-4">
+                <div key={kpi.label} className="rounded-lg border border-border/70 bg-card/60 p-3">
                   <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", kpi.bg)}>
                     <Icon className={cn("h-4 w-4", kpi.color)} />
                   </div>
@@ -493,9 +493,9 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             })}
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-3">
             {/* Planos contratados */}
-            <div className="glass-card rounded-xl p-5">
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
               <h2 className="mb-4 text-sm font-semibold text-foreground">Planos Ativos</h2>
               <div className="space-y-3">
                 {(["Legacy", "Journey", "Start"] as const).map((plan) => {
@@ -525,7 +525,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             </div>
 
             {/* Custos fixos */}
-            <div className="glass-card rounded-xl p-5">
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground">Custos Fixos Mensais</h2>
                 <span className="text-sm font-bold text-sys-red">{formatBRL(totalFixedCosts)}</span>
@@ -555,7 +555,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             </div>
 
             {/* Alertas de recebiveis */}
-            <div className="glass-card rounded-xl p-5">
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
               <h2 className="mb-4 text-sm font-semibold text-foreground">Alertas de Recebimento</h2>
 
               {overdueReceivables.length > 0 && (
@@ -598,7 +598,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
           </div>
 
           {/* Contratos com NF Status + Lucro */}
-          <div className="glass-card rounded-xl overflow-hidden">
+          <div className="border border-border/70 bg-card/60 rounded-xl overflow-hidden">
             <div className="border-b border-border px-5 py-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -719,7 +719,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
           </div>
 
           {/* Agenda de recebiveis completa */}
-          <div className="glass-card rounded-xl overflow-hidden">
+          <div className="border border-border/70 bg-card/60 rounded-xl overflow-hidden">
             <div className="border-b border-border px-5 py-4">
               <div className="flex items-center justify-between">
                 <div>

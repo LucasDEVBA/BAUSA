@@ -247,7 +247,7 @@ export function SchoolFormSheet({ open, onClose }: SchoolFormSheetProps) {
               <GraduationCap className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-headline text-foreground">Nova escola</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">Nova escola</h2>
               <p className="text-xs text-muted-foreground">Cadastro manual no banco institucional</p>
             </div>
           </div>

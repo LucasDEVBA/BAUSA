@@ -31,7 +31,7 @@ interface ConversionFunnelProps {
 
 export function ConversionFunnel({ data }: ConversionFunnelProps) {
   return (
-    <div className="glass-card rounded-xl p-5">
+    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
       <h3 className="text-sm font-semibold text-foreground">Funil de Conversão</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Leads → Contratos</p>
 

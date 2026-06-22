@@ -107,7 +107,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       <TimingAlternativesCard data={timingAlternatives} />
 
       {/* Metas BAUSA strip */}
-      <div className="glass-card rounded-xl border-primary/20 px-5 py-4">
+      <div className="border border-border/70 bg-card/60 rounded-xl border-primary/20 px-5 py-4">
         <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-primary">Metas Estrategicas 2026</p>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
@@ -160,7 +160,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="glass-card flex items-center gap-3 rounded-xl px-4 py-3">
+        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-green/10">
             <DollarSign className="h-4 w-4 text-sys-green" />
           </div>
@@ -171,7 +171,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             </p>
           </div>
         </div>
-        <div className="glass-card flex items-center gap-3 rounded-xl px-4 py-3">
+        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/10">
             <Layers className="h-4 w-4 text-sys-blue" />
           </div>
@@ -183,7 +183,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             <p className="text-[10px] text-label-tertiary">{pipelineRatio}x meta (ideal 3-5x)</p>
           </div>
         </div>
-        <div className="glass-card flex items-center gap-3 rounded-xl px-4 py-3">
+        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
             <BarChart2 className="h-4 w-4 text-primary" />
           </div>
@@ -192,7 +192,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             <p className="text-sm font-bold text-foreground">{m.conversion_rate}%</p>
           </div>
         </div>
-        <div className="glass-card flex items-center gap-3 rounded-xl px-4 py-3">
+        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-plan-legacy/10">
             <Users className="h-4 w-4 text-plan-legacy" />
           </div>
@@ -298,7 +298,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       {/* Alertas + acoes */}
       <div className="grid gap-3 lg:grid-cols-2">
         {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (
-          <div className="glass-card rounded-xl border-sys-red/20 px-4 py-3">
+          <div className="border border-border/70 bg-card/60 rounded-xl border-sys-red/20 px-4 py-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-sys-red" />
@@ -325,7 +325,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
         )}
 
         {dealsWithoutNextAction.length > 0 ? (
-          <div className="glass-card rounded-xl border-sys-orange/20 px-4 py-3">
+          <div className="border border-border/70 bg-card/60 rounded-xl border-sys-orange/20 px-4 py-3">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="h-4 w-4 text-sys-orange" />
               <p className="text-xs font-semibold text-sys-orange">
@@ -337,7 +337,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             ))}
           </div>
         ) : (
-          <div className="glass-card rounded-xl border-sys-green/20 px-4 py-3">
+          <div className="border border-border/70 bg-card/60 rounded-xl border-sys-green/20 px-4 py-3">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-sys-green" />
               <p className="text-xs font-semibold text-sys-green">Todos os deals tem proxima acao definida</p>

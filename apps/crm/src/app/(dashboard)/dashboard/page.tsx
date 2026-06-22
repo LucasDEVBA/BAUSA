@@ -140,7 +140,7 @@ export default async function DashboardPage() {
   const safeTotal = metrics.total || 1;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Page header */}
       <div>
         <h1 className="text-title-2 text-foreground">Dashboard</h1>

@@ -90,7 +90,7 @@ export function PerfilClient({ profile }: { profile: UserProfile }) {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-4">
       <div>
         <h1 className="text-title-2 text-foreground">Meu Perfil</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
@@ -99,7 +99,7 @@ export function PerfilClient({ profile }: { profile: UserProfile }) {
       </div>
 
       {/* Identidade + foto */}
-      <div className="glass-card rounded-xl p-6">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-4">
         <div className="flex items-center gap-5">
           <div className="relative flex-shrink-0">
             {avatarUrl ? (
@@ -112,7 +112,7 @@ export function PerfilClient({ profile }: { profile: UserProfile }) {
                 className="h-20 w-20 rounded-full object-cover ring-1 ring-border"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-2xl font-bold text-primary-foreground">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-base font-semibold text-primary-foreground">
                 {getInitials(profile.nome)}
               </div>
             )}
@@ -134,7 +134,7 @@ export function PerfilClient({ profile }: { profile: UserProfile }) {
             />
           </div>
           <div className="min-w-0">
-            <p className="text-headline text-foreground">{profile.nome}</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-foreground">{profile.nome}</p>
             <p className="truncate text-sm text-muted-foreground">{profile.email}</p>
             <span className="mt-1.5 inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
               {PAPEL_LABEL[profile.papel]}
@@ -144,7 +144,7 @@ export function PerfilClient({ profile }: { profile: UserProfile }) {
       </div>
 
       {/* Dados pessoais */}
-      <div className="glass-card rounded-xl p-6">
+      <div className="rounded-lg border border-border/70 bg-card/60 p-4">
         <div className="mb-4 flex items-center gap-2">
           <User className="h-4 w-4 text-primary" />
           <h2 className="text-sm font-semibold text-foreground">Dados pessoais</h2>
@@ -173,7 +173,7 @@ export function PerfilClient({ profile }: { profile: UserProfile }) {
       </div>
 
       {/* Trocar senha */}
-      <form onSubmit={trocarSenha} className="glass-card rounded-xl p-6">
+      <form onSubmit={trocarSenha} className="rounded-lg border border-border/70 bg-card/60 p-4">
         <div className="mb-4 flex items-center gap-2">
           <Lock className="h-4 w-4 text-primary" />
           <h2 className="text-sm font-semibold text-foreground">Trocar senha</h2>

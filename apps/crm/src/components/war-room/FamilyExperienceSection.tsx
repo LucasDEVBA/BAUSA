@@ -20,12 +20,12 @@ const VARIANT_STYLES = {
 function ExperienceChip({ icon: Icon, label, value, sublabel, variant }: ExperienceChipProps) {
   const styles = VARIANT_STYLES[variant];
   return (
-    <div className={`glass-card flex flex-col gap-2.5 rounded-xl p-4 ${styles.card}`}>
+    <div className={`border border-border/70 bg-card/60 flex flex-col gap-2.5 rounded-xl p-4 ${styles.card}`}>
       <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${styles.icon}`}>
         <Icon className="h-4.5 w-4.5" />
       </div>
       <div>
-        <p className={`text-2xl font-bold tabular-nums ${styles.value}`}>{value}</p>
+        <p className={`text-base font-semibold tabular-nums ${styles.value}`}>{value}</p>
         <p className="text-xs text-muted-foreground leading-tight">{label}</p>
         {sublabel && <p className="mt-0.5 text-[10px] text-label-tertiary">{sublabel}</p>}
       </div>

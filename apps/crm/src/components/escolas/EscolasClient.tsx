@@ -101,7 +101,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative flex-1 lg:max-w-sm">
@@ -170,7 +170,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
 
       {/* Resultados */}
       {filtered.length === 0 ? (
-        <div className="glass-card rounded-xl py-12 text-center">
+        <div className="border border-border/70 bg-card/60 rounded-xl py-12 text-center">
           <GraduationCap className="mx-auto mb-3 h-10 w-10 text-label-tertiary" />
           <p className="text-sm text-muted-foreground">
             {schools.length === 0
@@ -197,7 +197,7 @@ export function EscolasClient({ schools }: EscolasClientProps) {
           )}
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <p className="text-xs text-label-tertiary">
             {filtered.length} {filtered.length === 1 ? "escola" : "escolas"}
             {hasFilters ? ` de ${schools.length}` : ""}

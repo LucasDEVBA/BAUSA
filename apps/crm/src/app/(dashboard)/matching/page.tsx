@@ -178,7 +178,7 @@ export default async function MatchingPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -202,11 +202,11 @@ export default async function MatchingPage() {
         ].map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <div key={kpi.label} className="glass-card rounded-xl p-4">
+            <div key={kpi.label} className="rounded-lg border border-border/70 bg-card/60 p-3">
               <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", kpi.bg)}>
                 <Icon className={cn("h-4 w-4", kpi.color)} />
               </div>
-              <p className="text-2xl font-bold text-foreground">{kpi.value}</p>
+              <p className="text-base font-semibold text-foreground">{kpi.value}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
             </div>
           );
@@ -236,7 +236,7 @@ export default async function MatchingPage() {
             const forte = athleteMatches.filter((m) => m.classification === "forte").length;
 
             return (
-              <div key={atletaId} className="glass-card rounded-xl overflow-hidden">
+              <div key={atletaId} className="border border-border/70 bg-card/60 rounded-xl overflow-hidden">
                 <div className="border-b border-border bg-popover px-5 py-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -318,9 +318,9 @@ export default async function MatchingPage() {
         </div>
       ) : (
         /* Atletas disponiveis sem match */
-        <div className="space-y-6">
+        <div className="space-y-4">
           {totalAtletas > 0 && (
-            <div className="glass-card rounded-xl p-5">
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
               <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-4">
                 Atletas disponiveis para match ({totalAtletas})
               </p>
@@ -367,7 +367,7 @@ export default async function MatchingPage() {
       )}
 
       {/* CTA inteligencia futura */}
-      <div className="glass-card rounded-xl border-primary/20 p-5">
+      <div className="border border-border/70 bg-card/60 rounded-xl border-primary/20 p-5">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/20">
             <TrendingUp className="h-4 w-4 text-primary" />

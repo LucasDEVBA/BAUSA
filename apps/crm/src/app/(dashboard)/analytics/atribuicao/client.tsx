@@ -121,12 +121,12 @@ function MetricCard({
   sub?: string;
 }) {
   return (
-    <div className="glass-card rounded-xl p-4">
+    <div className="rounded-lg border border-border/70 bg-card/60 p-3">
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <p className="text-2xl font-bold text-foreground">{value}</p>
+      <p className="text-base font-semibold text-foreground">{value}</p>
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
@@ -142,7 +142,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="glass-card rounded-xl p-5">
+    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
       <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         {title}
       </p>
@@ -179,7 +179,7 @@ export function AtribuicaoClient({ leads }: Props) {
   }, [bySource]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-title-2 text-foreground">Atribuição de Leads</h1>
@@ -206,7 +206,7 @@ export function AtribuicaoClient({ leads }: Props) {
       </div>
 
       {/* Row 1: Source + Device */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Leads por Fonte (UTM Source) */}
         <Section title="Leads por Fonte (UTM Source)">
           {bySource.length > 0 ? (
@@ -242,7 +242,7 @@ export function AtribuicaoClient({ leads }: Props) {
         {/* Dispositivos */}
         <Section title="Dispositivos">
           {byDevice.length > 0 ? (
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4">
               <ResponsiveContainer width="50%" height={250}>
                 <PieChart>
                   <Pie
@@ -307,7 +307,7 @@ export function AtribuicaoClient({ leads }: Props) {
       </div>
 
       {/* Row 2: Medium + CTA */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Leads por Meio (UTM Medium) */}
         <Section title="Leads por Meio (UTM Medium)">
           {byMedium.length > 0 ? (
@@ -377,7 +377,7 @@ export function AtribuicaoClient({ leads }: Props) {
       </div>
 
       {/* Row 3: Campanhas + Taxa de conversão por fonte */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Campanhas */}
         <Section title="Leads por Campanha (UTM Campaign)">
           {byCampaign.filter((c) => c.name !== "Direto").length > 0 ? (

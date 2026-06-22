@@ -57,7 +57,7 @@ export function CashFlowSection({ data }: CashFlowSectionProps) {
                 <Icon className={`h-4 w-4 ${item.color}`} />
               </div>
             </div>
-            <p className={`mt-3 text-2xl font-bold tabular-nums ${item.color}`}>
+            <p className={`mt-3 text-base font-semibold tabular-nums ${item.color}`}>
               R$ {(item.value / 1000).toFixed(0)}k
             </p>
           </div>

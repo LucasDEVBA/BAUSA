@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "crm",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@bolsa-atleta/engine", "dev"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}
