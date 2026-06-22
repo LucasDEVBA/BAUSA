@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -16,7 +16,13 @@ import { type Deal, type DealStage, PIPELINE_STAGE_ORDER } from "@/types/deal";
 import { PipelineColumn } from "./PipelineColumn";
 import { DealCard } from "./DealCard";
 import { DealDetailModal } from "./DealDetailModal";
-import { PipelineFilterToggle } from "./PipelineFilterToggle";
+import {
+  PipelineFiltersBar,
+  emptyPipelineFilters,
+  type PipelineFiltersState,
+  type PipelineView,
+} from "./PipelineFiltersBar";
+import { PipelineTableView } from "./PipelineTableView";
 import { RetrocessoModal } from "./RetrocessoModal";
 import { LossModal, type LossPayload } from "./LossModal";
 import { moverDeal, type StructuredLossData } from "@/lib/actions/deals";
@@ -45,6 +51,39 @@ type PendingMove = {
   kind: "retrocesso" | "perdido";
 };
 
+function applyFilters(
+  deals: Deal[],
+  f: PipelineFiltersState,
+  currentUserId?: string,
+): Deal[] {
+  const search = f.search.trim().toLowerCase();
+  const NOW = Date.now();
+  return deals.filter((d) => {
+    if (f.filterMode === "meus" && currentUserId && d.responsavel_id !== currentUserId)
+      return false;
+    if (f.classificacao !== "TODAS" && d.classification !== f.classificacao)
+      return false;
+    if (f.plano !== "TODOS" && d.product_tier !== f.plano) return false;
+    if (f.comAtraso) {
+      const stageDays = Math.floor(
+        (NOW - new Date(d.stage_updated_at).getTime()) / 86400000,
+      );
+      const acaoAtraso = d.next_action_date
+        ? Math.floor(
+            (NOW - new Date(d.next_action_date).getTime()) / 86400000,
+          )
+        : null;
+      const isAtrasado = stageDays > 14 || (acaoAtraso != null && acaoAtraso > 0) || !d.next_action;
+      if (!isAtrasado) return false;
+    }
+    if (search) {
+      const hay = `${d.athlete_name} ${d.guardian_name ?? ""} ${d.esporte ?? ""}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+}
+
 export function PipelineBoard({
   deals: initialDeals,
   currentUserId,
@@ -55,21 +94,24 @@ export function PipelineBoard({
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [, startTransition] = useTransition();
-  const [filterMode, setFilterMode] = useState<"todos" | "meus">("todos");
+
+  const [view, setView] = useState<PipelineView>("kanban");
+  const [filters, setFilters] = useState<PipelineFiltersState>(
+    emptyPipelineFilters(),
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  const filteredDeals =
-    filterMode === "meus" && currentUserId
-      ? deals.filter((d) => d.responsavel_id === currentUserId)
-      : deals;
+  const filteredDeals = useMemo(
+    () => applyFilters(deals, filters, currentUserId),
+    [deals, filters, currentUserId],
+  );
 
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
   const dealsByStage = getDealsByStage(filteredDeals);
 
-  // Reage a `action` retornado pelo moverDeal
   const handleAction = (action: MoveDealAction, deal: Deal) => {
     switch (action.type) {
       case "open_deal":
@@ -102,7 +144,6 @@ export function PipelineBoard({
     }
   };
 
-  // Executa o moverDeal e trata sucesso/erro com toast rico
   const performMove = (
     dealId: string,
     novaEtapa: StatusDeal,
@@ -112,7 +153,6 @@ export function PipelineBoard({
     const deal = deals.find((d) => d.id === dealId);
     if (!deal) return;
 
-    // Optimistic update
     setDeals((prev) =>
       prev.map((d) =>
         d.id === dealId ? { ...d, stage: novaEtapa as DealStage } : d,
@@ -132,14 +172,12 @@ export function PipelineBoard({
         });
         router.refresh();
       } else {
-        // Rollback visual
         setDeals((prev) =>
           prev.map((d) =>
             d.id === dealId ? { ...d, stage: previousStage } : d,
           ),
         );
 
-        // Erros que abrem modais não devem mostrar toast (UX dupla)
         const opensModal =
           result.action?.type === "open_retrocesso_modal" ||
           result.action?.type === "open_lost_modal";
@@ -147,7 +185,6 @@ export function PipelineBoard({
         if (opensModal) {
           if (result.action) handleAction(result.action, deal);
         } else {
-          // Toast com action (quando aplicável)
           if (result.action && result.action.type !== "reload") {
             const actionLabel =
               result.action.type === "open_deal"
@@ -201,39 +238,44 @@ export function PipelineBoard({
 
   return (
     <>
-      <div className="mb-3">
-        <PipelineFilterToggle
-          filterMode={filterMode}
-          onFilterChange={setFilterMode}
-          totalCount={deals.length}
-          filteredCount={
-            currentUserId
-              ? deals.filter((d) => d.responsavel_id === currentUserId).length
-              : deals.length
-          }
-        />
-      </div>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex gap-3 overflow-x-auto pb-4 h-full">
-          {PIPELINE_STAGE_ORDER.map((stage) => (
-            <PipelineColumn
-              key={stage}
-              stage={stage}
-              deals={dealsByStage[stage] ?? []}
-              onDealClick={(deal) => setSelectedDeal(deal)}
-            />
-          ))}
-        </div>
+      <PipelineFiltersBar
+        view={view}
+        onViewChange={setView}
+        filters={filters}
+        onFiltersChange={setFilters}
+        totalDeals={deals.length}
+        filteredDeals={filteredDeals.length}
+        hasCurrentUser={!!currentUserId}
+      />
 
-        <DragOverlay>
-          {activeDeal ? <DealCard deal={activeDeal} isDragging /> : null}
-        </DragOverlay>
-      </DndContext>
+      {view === "kanban" ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex h-full gap-3 overflow-x-auto pb-4">
+            {PIPELINE_STAGE_ORDER.map((stage) => (
+              <PipelineColumn
+                key={stage}
+                stage={stage}
+                deals={dealsByStage[stage] ?? []}
+                onDealClick={(deal) => setSelectedDeal(deal)}
+              />
+            ))}
+          </div>
+
+          <DragOverlay>
+            {activeDeal ? <DealCard deal={activeDeal} isDragging /> : null}
+          </DragOverlay>
+        </DndContext>
+      ) : (
+        <PipelineTableView
+          deals={filteredDeals}
+          onDealClick={(deal) => setSelectedDeal(deal)}
+        />
+      )}
 
       {/* Modal de retrocesso */}
       <RetrocessoModal

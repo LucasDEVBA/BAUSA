@@ -60,7 +60,7 @@ export function Header({ nome, avatarUrl }: HeaderProps) {
     <header className="flex h-14 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-xl">
       {/* Breadcrumb */}
       <div className="flex flex-1 items-center gap-2 text-sm">
-        <span className="text-muted-foreground">BAUSA Engine</span>
+        <span className="text-muted-foreground">BAU Global</span>
         <span className="text-label-tertiary">/</span>
         {currentPage?.parent && (
           <>
