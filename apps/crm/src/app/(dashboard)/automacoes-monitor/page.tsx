@@ -18,7 +18,7 @@ import type { AutomacaoStatus, FilaItem } from "@/lib/automacoes-queries";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
 export const metadata = {
-  title: "Monitor de Automacoes — BAUSA Engine",
+  title: "Monitor de Automacoes — BAU Global",
 };
 
 // ─── Icones por automacao ────────────────────────────────────────────────────

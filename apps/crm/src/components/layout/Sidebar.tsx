@@ -229,7 +229,7 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
         />
         {!collapsed && (
           <div>
-            <p className="text-sm font-semibold text-sidebar-foreground leading-none">BAUSA Engine</p>
+            <p className="text-sm font-semibold text-sidebar-foreground leading-none">BAU Global</p>
             <p className="text-[10px] text-muted-foreground leading-none mt-0.5">Bolsa Atleta USA</p>
           </div>
         )}

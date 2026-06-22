@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Entrar | BAUSA Engine",
+  title: "Entrar | BAU Global",
 };
 
 export default function AuthLayout({
