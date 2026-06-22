@@ -180,14 +180,14 @@ function Field({
   const hasValue =
     value !== null && value !== undefined && value !== "" && value !== "—";
   return (
-    <div className="border-b border-border/40 py-1.5 last:border-0">
-      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="py-1">
+      <dt className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
         {label}
       </dt>
       <dd
         className={cn(
           "mt-0.5 flex items-center gap-1.5",
-          mono && "font-mono text-xs",
+          mono && "font-mono text-[11px]",
           hasValue ? "text-foreground" : "text-muted-foreground/60",
         )}
       >
@@ -234,21 +234,24 @@ function Card({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-3.5 py-2">
-        <div className="flex items-center gap-2">
+    <section className="rounded-lg border border-border/70 bg-card/60 p-3">
+      <header className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5">
           {Icon && (
             <Icon
-              className={cn("h-3.5 w-3.5", iconColor ?? "text-muted-foreground")}
+              className={cn(
+                "h-3 w-3",
+                iconColor ?? "text-muted-foreground/60",
+              )}
             />
           )}
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
+          <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             {title}
           </h3>
         </div>
         {action}
       </header>
-      <div className="px-3.5 py-2.5">{children}</div>
+      <div>{children}</div>
     </section>
   );
 }
@@ -272,19 +275,21 @@ function StatPill({
     blue: "text-sys-blue",
   };
   return (
-    <div className="rounded-lg border border-border bg-background/50 px-2.5 py-1.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="rounded-md bg-secondary/40 px-2.5 py-1.5">
+      <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
         {label}
       </p>
       <p
         className={cn(
-          "mt-0.5 text-base font-semibold tabular-nums",
+          "mt-0.5 text-sm font-semibold tabular-nums leading-tight",
           toneClass[tone ?? "default"],
         )}
       >
         {value}
       </p>
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+      {hint && (
+        <p className="text-[9px] text-muted-foreground">{hint}</p>
+      )}
     </div>
   );
 }
@@ -334,14 +339,14 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-md"
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-        <div className="relative flex h-full max-h-[90vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-2xl border border-border liquid-glass shadow-2xl">
-          {/* ── Header compact ── */}
-          <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card/70 px-4 py-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-xs font-bold text-primary-foreground">
+        <div className="relative flex h-full max-h-[88vh] w-full max-w-[1080px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+          {/* ── Header minimal ── */}
+          <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground/80">
               {deal.athlete_name
                 .split(" ")
                 .slice(0, 2)
@@ -351,29 +356,34 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
-                <h1 className="truncate text-base font-semibold leading-tight text-foreground">
+                <h1 className="truncate text-[13px] font-semibold leading-tight text-foreground">
                   {deal.athlete_name}
                 </h1>
                 <span
                   className={cn(
-                    "inline-flex items-center rounded-md border px-1.5 py-px text-[10px] font-medium",
+                    "inline-flex items-center rounded px-1.5 py-px text-[9px] font-semibold",
                     CLASSIFICATION_BADGE[deal.classification] ??
-                      "border-border text-muted-foreground",
+                      "bg-secondary text-muted-foreground",
                   )}
                 >
                   {deal.classification}
                 </span>
                 {deal.product_tier && (
-                  <span className="inline-flex items-center rounded-md border border-plan-legacy/30 bg-plan-legacy/10 px-1.5 py-px text-[10px] font-medium text-plan-legacy">
+                  <span className="inline-flex items-center rounded bg-plan-legacy/10 px-1.5 py-px text-[9px] font-semibold text-plan-legacy">
                     {deal.product_tier}
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-1.5 py-px text-[10px] font-medium text-foreground">
-                  <span className={cn("h-1.5 w-1.5 rounded-full", stageCfg.dotColor)} />
+                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      stageCfg.dotColor,
+                    )}
+                  />
                   {stageCfg.label}
                 </span>
               </div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
                 <span>{fmtBRL(deal.deal_value_brl)}</span>
                 <span>·</span>
                 <span>{diasEtapa}d na etapa</span>
@@ -382,54 +392,46 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
                 {deal.lead_score != null && (
                   <>
                     <span>·</span>
-                    <span>Score {deal.lead_score}/100</span>
-                  </>
-                )}
-                {deal.investment_range && (
-                  <>
-                    <span>·</span>
-                    <span>{deal.investment_range}</span>
+                    <span>Score {deal.lead_score}</span>
                   </>
                 )}
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-0.5">
               {deal.whatsapp && (
                 <a
                   href={`https://wa.me/${deal.whatsapp.replace(/\D/g, "")}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-sys-green/30 bg-sys-green/10 px-2.5 text-[11px] font-medium text-sys-green transition-colors hover:bg-sys-green/20"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-sys-green transition-colors hover:bg-sys-green/10"
                   title="WhatsApp"
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
-                  WhatsApp
                 </a>
               )}
               {(deal.guardian_email || deal.email) && (
                 <a
                   href={`mailto:${deal.guardian_email ?? deal.email}`}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-sys-blue/30 bg-sys-blue/10 px-2.5 text-[11px] font-medium text-sys-blue transition-colors hover:bg-sys-blue/20"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-sys-blue transition-colors hover:bg-sys-blue/10"
                   title="E-mail"
                 >
                   <Mail className="h-3.5 w-3.5" />
-                  E-mail
                 </a>
               )}
               <button
                 onClick={() => setShowLateralEditor(true)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
-                title="Abrir editor lateral (campos editáveis)"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-primary transition-colors hover:bg-primary/10"
+                title="Abrir editor lateral"
               >
                 <Pencil className="h-3.5 w-3.5" />
-                Editar
               </button>
+              <span className="mx-1 h-4 w-px bg-border" />
               <button
                 onClick={onClose}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 aria-label="Fechar"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           </header>
@@ -437,10 +439,10 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
           {/* ── Body: sidebar + content ── */}
           <div className="flex min-h-0 flex-1">
             {/* Sidebar — estilo macOS Settings */}
-            <aside className="hidden w-[220px] shrink-0 overflow-y-auto border-r border-border bg-card/40 px-2 py-3 md:block">
+            <aside className="hidden w-[184px] shrink-0 overflow-y-auto border-r border-border bg-secondary/10 px-1.5 py-2 md:block">
               {(Object.keys(groupedNav) as Array<NavItem["group"]>).map((g) => (
-                <div key={g} className="mb-3 last:mb-0">
-                  <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                <div key={g} className="mb-2 last:mb-0">
+                  <p className="px-2 pb-0.5 text-[9px] font-medium uppercase tracking-widest text-muted-foreground/60">
                     {GROUP_LABEL[g]}
                   </p>
                   {groupedNav[g].map((it) => {
@@ -451,13 +453,13 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
                         key={it.id}
                         onClick={() => setSection(it.id)}
                         className={cn(
-                          "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors",
+                          "flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-[11px] transition-colors",
                           active
-                            ? "bg-primary/15 text-primary"
-                            : "text-foreground/80 hover:bg-secondary/70 hover:text-foreground",
+                            ? "bg-primary/10 font-medium text-primary"
+                            : "text-foreground/70 hover:bg-secondary/50 hover:text-foreground",
                         )}
                       >
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <Icon className="h-3 w-3 shrink-0" />
                         <span className="truncate">{it.label}</span>
                       </button>
                     );
@@ -467,7 +469,7 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
             </aside>
 
             {/* Mobile tabs */}
-            <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border bg-card/40 px-2 py-2 md:hidden">
+            <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border px-2 py-1.5 md:hidden">
               {NAV_ITEMS.map((it) => {
                 const Icon = it.icon;
                 const active = section === it.id;
@@ -476,10 +478,10 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
                     key={it.id}
                     onClick={() => setSection(it.id)}
                     className={cn(
-                      "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                      "inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors",
                       active
-                        ? "bg-primary/15 text-primary"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     <Icon className="h-3 w-3" />

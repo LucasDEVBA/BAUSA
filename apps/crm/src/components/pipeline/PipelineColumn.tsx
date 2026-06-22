@@ -11,7 +11,17 @@ interface PipelineColumnProps {
   onDealClick: (deal: Deal) => void;
 }
 
-export function PipelineColumn({ stage, deals, onDealClick }: PipelineColumnProps) {
+function fmtCompact(value: number): string {
+  if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `R$ ${Math.round(value / 1_000)}k`;
+  return `R$ ${value}`;
+}
+
+export function PipelineColumn({
+  stage,
+  deals,
+  onDealClick,
+}: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const config = DEAL_STAGE_CONFIG[stage];
   const totalValue = deals.reduce((sum, d) => sum + d.deal_value_brl, 0);
@@ -20,38 +30,33 @@ export function PipelineColumn({ stage, deals, onDealClick }: PipelineColumnProp
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-[272px] flex-shrink-0 flex-col rounded-xl glass-card",
-        isOver && "ring-2 ring-primary/40 bg-fill-3",
+        "flex w-[252px] shrink-0 flex-col rounded-lg border border-border bg-card/40 transition-colors",
+        isOver && "border-primary/40 bg-primary/5",
       )}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border p-3">
-        <div className="flex items-center gap-2">
-          <span className={cn("h-2 w-2 rounded-full", config.dotColor)} />
-          <span className="text-xs font-semibold text-foreground">{config.shortLabel}</span>
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-fill-4 px-1.5 text-[10px] font-medium text-muted-foreground">
-            {deals.length}
+      <div className="flex items-center justify-between gap-2 border-b border-border px-2.5 py-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span
+            className={cn("h-1.5 w-1.5 shrink-0 rounded-full", config.dotColor)}
+          />
+          <span className="truncate text-[11px] font-semibold text-foreground">
+            {config.shortLabel}
+          </span>
+          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+            · {deals.length}
           </span>
         </div>
+        {totalValue > 0 && (
+          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+            {fmtCompact(totalValue)}
+          </span>
+        )}
       </div>
 
-      {/* Total */}
-      {deals.length > 0 && (
-        <div className="border-b border-border px-3 py-1.5">
-          <p className="text-[10px] text-muted-foreground">
-            Total:{" "}
-            <span className="font-semibold text-foreground">
-              R$ {totalValue.toLocaleString("pt-BR")}
-            </span>
-          </p>
-        </div>
-      )}
-
-      {/* Cards — scroll vertical */}
-      <div className="flex flex-1 flex-col gap-2 p-2 overflow-y-auto max-h-[calc(100vh-280px)]">
+      <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">
         {deals.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center py-8">
-            <p className="text-[11px] text-label-tertiary">Nenhum deal</p>
+          <div className="flex flex-1 items-center justify-center py-6">
+            <p className="text-[10px] text-muted-foreground/60">vazio</p>
           </div>
         ) : (
           deals.map((deal) => (
