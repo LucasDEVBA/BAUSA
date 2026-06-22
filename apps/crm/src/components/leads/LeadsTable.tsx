@@ -78,9 +78,14 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                   .join("")
                   .toUpperCase()}
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-medium text-foreground">{lead.athlete_name}</p>
+                  <p
+                    className="truncate text-sm font-medium text-foreground"
+                    title={lead.athlete_name}
+                  >
+                    {lead.athlete_name}
+                  </p>
                   {lead.possible_duplicate && !dismissedDuplicates.has(lead.id) && !linkedSiblings.has(lead.id) && (
                     <span className="relative">
                       <button
@@ -135,7 +140,12 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">{lead.email}</p>
+                <p
+                  className="truncate text-xs text-muted-foreground"
+                  title={lead.email}
+                >
+                  {lead.email}
+                </p>
               </div>
             </div>
           );
@@ -156,10 +166,14 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         accessorKey: "investment_range",
         header: "Investimento",
         cell: ({ getValue }) => {
-          const v = getValue() as string | null;
+          const raw = getValue() as string | null;
+          const formatted = raw ? formatInvestmentRange(raw) : "—";
           return (
-            <span className="text-sm text-foreground">
-              {v ? formatInvestmentRange(v) : "—"}
+            <span
+              className="block truncate text-sm text-foreground"
+              title={formatted}
+            >
+              {formatted}
             </span>
           );
         },
@@ -168,22 +182,34 @@ export function LeadsTable({ leads }: LeadsTableProps) {
       {
         accessorKey: "position",
         header: "Posição",
-        cell: ({ getValue }) => (
-          <span className="text-sm text-muted-foreground">
-            {(getValue() as string | null) ?? "—"}
-          </span>
-        ),
+        cell: ({ getValue }) => {
+          const v = (getValue() as string | null) ?? "—";
+          return (
+            <span
+              className="block truncate text-sm text-muted-foreground"
+              title={v}
+            >
+              {v}
+            </span>
+          );
+        },
         size: 130,
       },
       {
         id: "location",
         header: "Local",
         accessorFn: (row) => row.address_state ?? row.school_city_state,
-        cell: ({ getValue }) => (
-          <span className="text-sm text-muted-foreground">
-            {(getValue() as string | null) ?? "—"}
-          </span>
-        ),
+        cell: ({ getValue }) => {
+          const v = (getValue() as string | null) ?? "—";
+          return (
+            <span
+              className="block truncate text-sm text-muted-foreground"
+              title={v}
+            >
+              {v}
+            </span>
+          );
+        },
         size: 90,
       },
       {
@@ -358,7 +384,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
       {/* Tabela */}
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="border-b border-border">
                 {table.getHeaderGroups().map((headerGroup) =>
@@ -395,7 +421,14 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3">
+                    <td
+                      key={cell.id}
+                      style={{
+                        width: cell.column.getSize(),
+                        maxWidth: cell.column.getSize(),
+                      }}
+                      className="overflow-hidden px-4 py-3"
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
