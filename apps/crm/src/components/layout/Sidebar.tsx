@@ -126,20 +126,14 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "FAMÍLIAS",
     items: [
-      { href: "/familias", label: "Visao Consolidada", icon: Users, roles: ["ceo", "head_sucesso"] },
       {
+        // F2: 3 visões operacionais (Experiência/Jornada/Lista) unificadas numa
+        // entrada — as abas vivem na FamiliasNav dentro da tela.
         href: "/familias-crm",
-        label: "Experiência",
+        label: "Famílias",
         icon: UserCheck,
         roles: ["ceo", "head_sucesso"],
-        activeRoutes: ["/familias-crm"],
-      },
-      {
-        href: "/familias-pipeline",
-        label: "Pipeline da Família",
-        icon: Kanban,
-        roles: ["ceo", "head_sucesso"],
-        activeRoutes: ["/familias-pipeline"],
+        activeRoutes: ["/familias", "/familias-crm", "/familias-pipeline"],
       },
     ],
   },

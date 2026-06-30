@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
 import { FamiliasPipelineClient, type FamiliaPipelineCard } from "./client";
+import { FamiliasNav } from "@/components/familias/FamiliasNav";
 import type { FamilyJourneyStage, RiskDimension } from "@/types/family";
 
 export const dynamic = "force-dynamic";
@@ -172,5 +173,10 @@ export default async function FamiliasPipelinePage() {
     };
   });
 
-  return <FamiliasPipelineClient cards={cards} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <FamiliasNav />
+      <FamiliasPipelineClient cards={cards} />
+    </div>
+  );
 }

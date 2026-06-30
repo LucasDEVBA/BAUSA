@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
 import { listarAlertasInatividade } from "@/lib/actions/experiencia";
 import { FamiliasCrmClient } from "./client";
+import { FamiliasNav } from "@/components/familias/FamiliasNav";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -335,11 +336,14 @@ export default async function FamiliasCrmPage() {
   };
 
   return (
-    <FamiliasCrmClient
-      families={families}
-      tiposRiscoByFamilia={tiposRiscoByFamilia}
-      metrics={metrics}
-      alertas={alertas}
-    />
+    <div className="flex flex-col gap-4">
+      <FamiliasNav />
+      <FamiliasCrmClient
+        families={families}
+        tiposRiscoByFamilia={tiposRiscoByFamilia}
+        metrics={metrics}
+        alertas={alertas}
+      />
+    </div>
   );
 }
