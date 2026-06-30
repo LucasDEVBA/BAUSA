@@ -68,17 +68,12 @@ const NAV_GROUPS: NavGroup[] = [
     label: "EXECUTIVO",
     items: [
       {
-        // War Room unificado (F1): 7 seções viraram abas in-page (/war-room).
-        // Mantemos só as visões gerenciais de família como sub-itens — F2 as
-        // consolida no módulo Famílias.
+        // War Room unificado (F1/F4): 7 seções por abas in-page (/war-room).
+        // As visões gerenciais de família são acessadas pela aba "Famílias".
         href: "/war-room",
         label: "War Room",
         icon: Target,
         roles: ["ceo"],
-        subItems: [
-          { href: "/war-room/familias", label: "Famílias (gerencial)" },
-          { href: "/war-room/familias-onboarding", label: "Onboarding Famílias" },
-        ],
       },
       {
         // F3: 4 sub-rotas viraram abas in-page (AnalyticsNav via layout).
