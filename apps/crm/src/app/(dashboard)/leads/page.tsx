@@ -5,6 +5,7 @@ import { LeadsExportButton } from "@/components/leads/LeadsExportButton";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { type Lead, type LeadClassification } from "@/types/lead";
 import { PageHero } from "@/components/shared/MinimalUI";
+import { LeadsNav } from "@/components/leads/LeadsNav";
 
 export const metadata: Metadata = {
   title: "Leads",
@@ -200,6 +201,7 @@ export default async function LeadsPage() {
 
   return (
     <div className="space-y-4">
+      <LeadsNav />
       <PageHero
         eyebrow="Comercial"
         title="Leads"

@@ -4,6 +4,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ClassificationChart } from "@/components/dashboard/ClassificationChart";
 import { LeadsOverTimeChart } from "@/components/dashboard/LeadsOverTimeChart";
 import { RecentLeads } from "@/components/dashboard/RecentLeads";
+import { LeadsNav } from "@/components/leads/LeadsNav";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { type Lead, type LeadMetrics, type DailyLeadCount } from "@/types/lead";
 
@@ -141,6 +142,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-4">
+      <LeadsNav />
       {/* Page header */}
       <div>
         <h1 className="text-title-2 text-foreground">Dashboard</h1>
