@@ -439,6 +439,14 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       label: "Familias",
       content: (
         <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-2">
+            <a href="/war-room/familias" className="rounded-lg border border-border bg-card/60 px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              Visão gerencial completa &rarr;
+            </a>
+            <a href="/war-room/familias-onboarding" className="rounded-lg border border-border bg-card/60 px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              Onboarding das famílias &rarr;
+            </a>
+          </div>
           <FamilyExperienceSection data={familyExperience} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <FamilyRiskDonut families={families} />
