@@ -44,11 +44,6 @@ export function PriorityLeadsSection({ leads }: PriorityLeadsSectionProps) {
               key={lead.id}
               className="flex items-center gap-3 rounded-lg border border-border bg-popover px-3 py-2.5 transition-colors hover:bg-accent"
             >
-              {/* Score */}
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <span className="text-xs font-bold text-primary">{lead.lead_score}</span>
-              </div>
-
               {/* Name + action */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{lead.name}</p>

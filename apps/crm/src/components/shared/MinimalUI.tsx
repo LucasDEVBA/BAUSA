@@ -209,3 +209,64 @@ export function MinimalHeader({
     </div>
   );
 }
+
+// ─── PageHero: identidade BAU ───────────────────────────────────
+// Hero pra tela inteira com acento de cor da marca BAU.
+// Usar em landings de seção (War Room, Pipeline, Leads, etc.) onde
+// queremos identidade visual mais marcante do que MinimalHeader.
+
+export function PageHero({
+  eyebrow,
+  title,
+  description,
+  action,
+  accent = "blue",
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  accent?: "blue" | "burgundy" | "gold";
+}) {
+  const accentBar: Record<string, string> = {
+    blue: "bg-bau-blue",
+    burgundy: "bg-bau-burgundy",
+    gold: "bg-bau-gold",
+  };
+  const accentText: Record<string, string> = {
+    blue: "text-bau-blue",
+    burgundy: "text-bau-burgundy",
+    gold: "text-bau-gold",
+  };
+  return (
+    <header className="flex items-start justify-between gap-4 border-b border-border pb-3">
+      <div className="flex items-stretch gap-3 min-w-0">
+        <span
+          aria-hidden
+          className={cn("w-0.5 shrink-0 rounded-full", accentBar[accent])}
+        />
+        <div className="min-w-0">
+          {eyebrow && (
+            <p
+              className={cn(
+                "mb-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]",
+                accentText[accent],
+              )}
+            >
+              {eyebrow}
+            </p>
+          )}
+          <h1 className="text-[17px] font-semibold leading-tight tracking-tight text-foreground">
+            {title}
+          </h1>
+          {description && (
+            <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
+              {description}
+            </p>
+          )}
+        </div>
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </header>
+  );
+}

@@ -67,13 +67,6 @@ export function VisaoExecutivaPanel({ deal }: Props) {
       });
     }
   }
-  if ((deal.lead_score ?? 0) > 0 && (deal.lead_score ?? 0) < 50) {
-    alertas.push({
-      icon: CircleAlert,
-      texto: `Lead Score baixo: ${deal.lead_score}`,
-      tone: "orange",
-    });
-  }
   if (deal.flag_retrocedido) {
     alertas.push({
       icon: AlertTriangle,
@@ -83,18 +76,10 @@ export function VisaoExecutivaPanel({ deal }: Props) {
   }
 
   const positivos: string[] = [];
-  if ((deal.lead_score ?? 0) >= 80) positivos.push("Lead Score top-tier");
   if (deal.classificacao_gemini === "QUENTE")
     positivos.push("Qualificação Gemini QUENTE");
   if (deal.product_tier === "Legacy") positivos.push("Plano Legacy");
   if (stageCfg.isFinancial) positivos.push("Em fase financeira");
-
-  const scoreTone =
-    (deal.lead_score ?? 0) >= 75
-      ? "green"
-      : (deal.lead_score ?? 0) >= 50
-        ? "orange"
-        : "default";
 
   return (
     <div className="flex flex-col gap-3">
@@ -102,9 +87,17 @@ export function VisaoExecutivaPanel({ deal }: Props) {
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <MinimalStat label="Valor BRL" value={fmtBRL(deal.deal_value_brl)} />
         <MinimalStat
-          label="Lead Score"
-          value={deal.lead_score != null ? `${deal.lead_score}/100` : "—"}
-          tone={scoreTone}
+          label="Classificação"
+          value={deal.classification ?? "—"}
+          tone={
+            deal.classification === "QUENTE"
+              ? "green"
+              : deal.classification === "MORNO"
+                ? "orange"
+                : deal.classification === "FRIO"
+                  ? "blue"
+                  : "default"
+          }
         />
         <MinimalStat
           label="Dias na etapa"

@@ -20,7 +20,6 @@ type SortKey =
   | "athlete_name"
   | "stage"
   | "deal_value_brl"
-  | "lead_score"
   | "stage_updated_at"
   | "next_action_date";
 
@@ -76,10 +75,6 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
         case "deal_value_brl":
           av = a.deal_value_brl;
           bv = b.deal_value_brl;
-          break;
-        case "lead_score":
-          av = a.lead_score ?? 0;
-          bv = b.lead_score ?? 0;
           break;
         case "stage_updated_at":
           av = new Date(a.stage_updated_at).getTime();
@@ -147,30 +142,28 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="overflow-x-auto">
+      <div className="max-h-[calc(100vh-220px)] overflow-auto">
         <table className="w-full">
           <colgroup>
-            <col style={{ width: "30%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "8%" }} />
+            <col style={{ width: "32%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "10%" }} />
             <col style={{ width: "20%" }} />
             <col style={{ width: "6%" }} />
           </colgroup>
-          <thead className="border-b border-border bg-secondary/30">
+          <thead className="sticky top-0 z-10 border-b border-border bg-card shadow-[inset_0_-1px_0_var(--border)]">
             <tr>
               {headerCell("Atleta", "athlete_name")}
               {headerCell("Etapa", "stage")}
               {headerCell("Valor", "deal_value_brl", "right")}
-              {headerCell("Score", "lead_score", "right")}
               {headerCell("Etapa há", "stage_updated_at", "right")}
               {headerCell("Próxima ação", "next_action_date")}
               {headerCell("", null, "center")}
             </tr>
           </thead>
           <tbody>
-            {sorted.map((d, i) => {
+            {sorted.map((d) => {
               const stageCfg = DEAL_STAGE_CONFIG[d.stage];
               const dEtapa = diasAtras(d.stage_updated_at) ?? 0;
               const atraso = d.next_action_date
@@ -183,8 +176,7 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
                   key={d.id}
                   onClick={() => onDealClick(d)}
                   className={cn(
-                    "cursor-pointer border-b border-border/50 transition-colors last:border-0 hover:bg-secondary/30",
-                    i % 2 === 1 && "bg-secondary/10",
+                    "group h-11 cursor-pointer border-b border-border/40 transition-colors last:border-0 hover:bg-bau-blue/[0.04]",
                   )}
                 >
                   <td className="px-3 py-2">
@@ -231,23 +223,6 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
                   </td>
                   <td className="px-3 py-2 text-right text-xs tabular-nums text-foreground">
                     {fmtBRL(d.deal_value_brl)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-xs tabular-nums">
-                    {d.lead_score != null ? (
-                      <span
-                        className={cn(
-                          d.lead_score >= 75
-                            ? "text-sys-green"
-                            : d.lead_score >= 50
-                              ? "text-sys-orange"
-                              : "text-muted-foreground",
-                        )}
-                      >
-                        {d.lead_score}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/60">—</span>
-                    )}
                   </td>
                   <td
                     className="px-3 py-2 text-right text-xs tabular-nums"
