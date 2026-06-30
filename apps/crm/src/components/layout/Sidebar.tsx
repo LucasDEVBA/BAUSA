@@ -81,16 +81,12 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       {
+        // F3: 4 sub-rotas viraram abas in-page (AnalyticsNav via layout).
         href: "/analytics",
         label: "Analytics",
         icon: BarChart3,
         roles: ["ceo"],
-        subItems: [
-          { href: "/analytics", label: "Receita" },
-          { href: "/analytics/atribuicao", label: "Atribuição" },
-          { href: "/analytics/cac", label: "CAC/ROI" },
-          { href: "/analytics/utm-builder", label: "Gerador UTM" },
-        ],
+        activeRoutes: ["/analytics", "/analytics/atribuicao", "/analytics/cac", "/analytics/utm-builder"],
       },
       { href: "/relatorios", label: "Relatorios", icon: BarChart3, roles: ["ceo"] },
     ],
@@ -100,17 +96,14 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["ceo"] },
       {
+        // F3: /dashboard virou a aba "Visão Geral" de Leads (LeadsNav).
         href: "/leads",
         label: "Leads",
         icon: Users,
         roles: ["ceo"],
         badge: "8",
-        activeRoutes: ["/dashboard", "/leads"],
-        subItems: [
-          { href: "/dashboard", label: "Dashboard" },
-          { href: "/leads", label: "Lista" },
-          { href: "/leads/novo", label: "+ Novo Lead" },
-        ],
+        activeRoutes: ["/dashboard", "/leads", "/leads/novo"],
+        subItems: [{ href: "/leads/novo", label: "+ Novo Lead" }],
       },
       { href: "/financeiro", label: "Financeiro", icon: DollarSign, roles: ["ceo"] },
       { href: "/remarketing", label: "Re-marketing", icon: Megaphone, roles: ["ceo"] },
