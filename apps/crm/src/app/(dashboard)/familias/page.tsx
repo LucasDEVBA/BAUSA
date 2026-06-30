@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
 import { FamiliasConsolidadasClient } from "./client";
+import { FamiliasNav } from "@/components/familias/FamiliasNav";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -72,7 +73,12 @@ export default async function FamiliasPage() {
   const experiencias = (expData ?? []) as ExperienciaRow[];
 
   if (experiencias.length === 0) {
-    return <FamiliasConsolidadasClient familias={[]} />;
+    return (
+      <div className="flex flex-col gap-4">
+        <FamiliasNav />
+        <FamiliasConsolidadasClient familias={[]} />
+      </div>
+    );
   }
 
   const atletaIdsComExperiencia = experiencias
@@ -80,7 +86,12 @@ export default async function FamiliasPage() {
     .filter((id): id is string => id !== null);
 
   if (atletaIdsComExperiencia.length === 0) {
-    return <FamiliasConsolidadasClient familias={[]} />;
+    return (
+      <div className="flex flex-col gap-4">
+        <FamiliasNav />
+        <FamiliasConsolidadasClient familias={[]} />
+      </div>
+    );
   }
 
   const expByAtleta = new Map<string, ExperienciaRow>();
@@ -107,7 +118,12 @@ export default async function FamiliasPage() {
   const uniqueRespIds = Array.from(new Set(respIds));
 
   if (uniqueRespIds.length === 0) {
-    return <FamiliasConsolidadasClient familias={[]} />;
+    return (
+      <div className="flex flex-col gap-4">
+        <FamiliasNav />
+        <FamiliasConsolidadasClient familias={[]} />
+      </div>
+    );
   }
 
   const { data: respData, error: respErr } = await supabase
@@ -189,5 +205,10 @@ export default async function FamiliasPage() {
     familias: familias.length,
   });
 
-  return <FamiliasConsolidadasClient familias={familias} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <FamiliasNav />
+      <FamiliasConsolidadasClient familias={familias} />
+    </div>
+  );
 }
