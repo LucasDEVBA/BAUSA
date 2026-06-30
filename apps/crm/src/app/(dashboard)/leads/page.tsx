@@ -4,6 +4,7 @@ import { LeadsTable } from "@/components/leads/LeadsTable";
 import { LeadsExportButton } from "@/components/leads/LeadsExportButton";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { type Lead, type LeadClassification } from "@/types/lead";
+import { PageHero } from "@/components/shared/MinimalUI";
 
 export const metadata: Metadata = {
   title: "Leads",
@@ -199,45 +200,47 @@ export default async function LeadsPage() {
 
   return (
     <div className="space-y-4">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-title-2 text-foreground">Leads</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Todos os leads qualificados pelo sistema
-          </p>
-        </div>
-
-        {/* Quick stats + export */}
-        <div className="hidden items-center gap-3 md:flex">
-          <LeadsExportButton leads={leads} />
-          <div className="flex items-center gap-1.5 rounded-lg border border-lead-hot/20 bg-lead-hot/10 px-3 py-1.5">
-            <Flame className="h-3.5 w-3.5 text-lead-hot" />
-            <span className="text-sm font-semibold text-lead-hot">{quente}</span>
-            <span className="text-xs text-lead-hot/70">quentes</span>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-lead-warm/20 bg-lead-warm/10 px-3 py-1.5">
-            <Thermometer className="h-3.5 w-3.5 text-lead-warm" />
-            <span className="text-sm font-semibold text-lead-warm">{morno}</span>
-            <span className="text-xs text-lead-warm/70">mornos</span>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-lead-cold/20 bg-lead-cold/10 px-3 py-1.5">
-            <Snowflake className="h-3.5 w-3.5 text-lead-cold" />
-            <span className="text-sm font-semibold text-lead-cold">{frio}</span>
-            <span className="text-xs text-lead-cold/70">frios</span>
-          </div>
-          {timingAlternativo > 0 && (
-            <div
-              className="flex items-center gap-1.5 rounded-lg border border-plan-legacy/20 bg-plan-legacy/10 px-3 py-1.5"
-              title="Leads em 'muito cedo' ou 'tarde demais' — fora da janela ideal de aplicação"
+      <PageHero
+        eyebrow="Comercial"
+        title="Leads"
+        description={`${leads.length} leads recebidos · ${quente} quentes · ${morno} mornos · ${frio} frios${timingAlternativo > 0 ? ` · ${timingAlternativo} timing alt.` : ""}`}
+        accent="gold"
+        action={
+          <div className="hidden items-center gap-1.5 md:flex">
+            <span
+              className="inline-flex h-7 items-center gap-1 rounded-md bg-lead-hot/10 px-2 text-[11px] font-medium text-lead-hot"
+              title="Leads QUENTE"
             >
-              <Clock className="h-3.5 w-3.5 text-plan-legacy" />
-              <span className="text-sm font-semibold text-plan-legacy">{timingAlternativo}</span>
-              <span className="text-xs text-plan-legacy/70">timing alternativo</span>
-            </div>
-          )}
-        </div>
-      </div>
+              <Flame className="h-3 w-3" />
+              {quente}
+            </span>
+            <span
+              className="inline-flex h-7 items-center gap-1 rounded-md bg-lead-warm/10 px-2 text-[11px] font-medium text-lead-warm"
+              title="Leads MORNO"
+            >
+              <Thermometer className="h-3 w-3" />
+              {morno}
+            </span>
+            <span
+              className="inline-flex h-7 items-center gap-1 rounded-md bg-lead-cold/10 px-2 text-[11px] font-medium text-lead-cold"
+              title="Leads FRIO"
+            >
+              <Snowflake className="h-3 w-3" />
+              {frio}
+            </span>
+            {timingAlternativo > 0 && (
+              <span
+                className="inline-flex h-7 items-center gap-1 rounded-md bg-plan-legacy/10 px-2 text-[11px] font-medium text-plan-legacy"
+                title="Leads fora da janela ideal"
+              >
+                <Clock className="h-3 w-3" />
+                {timingAlternativo}
+              </span>
+            )}
+            <LeadsExportButton leads={leads} />
+          </div>
+        }
+      />
 
       {/* Table */}
       <LeadsTable leads={leads} />

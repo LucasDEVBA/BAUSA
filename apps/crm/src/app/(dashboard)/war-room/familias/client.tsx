@@ -17,6 +17,7 @@ import {
   PieChart as PieChartIcon,
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { PageHero } from "@/components/shared/MinimalUI";
 import { cn } from "@/lib/utils";
 import type {
   WarRoomFamiliasData,
@@ -133,25 +134,21 @@ export function WarRoomFamiliasGerencial({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-title-2 text-foreground">
-            Experiência das Famílias
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Visão gerencial de saúde, satisfação e risco da carteira de famílias
-            sob acompanhamento.
-          </p>
-        </div>
-        <Link
-          href="/war-room/familias-onboarding"
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
-        >
-          <Activity className="h-3.5 w-3.5" />
-          Onboardings ativos
-        </Link>
-      </div>
+      <PageHero
+        eyebrow="War Room"
+        title="Experiência das Famílias"
+        description="Visão gerencial de saúde, satisfação e risco da carteira sob acompanhamento."
+        accent="burgundy"
+        action={
+          <Link
+            href="/war-room/familias-onboarding"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary"
+          >
+            <Activity className="h-3 w-3" />
+            Onboardings ativos
+          </Link>
+        }
+      />
 
       {/* KPIs principais */}
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
