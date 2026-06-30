@@ -10,17 +10,6 @@ import {
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
-function scoreTone(score: number | undefined): {
-  cls: string;
-  label: string;
-} {
-  if (score == null)
-    return { cls: "text-muted-foreground", label: "" };
-  if (score >= 70) return { cls: "text-sys-green", label: "HOT" };
-  if (score >= 40) return { cls: "text-sys-orange", label: "WARM" };
-  return { cls: "text-sys-blue", label: "COLD" };
-}
-
 interface DealCardProps {
   deal: Deal;
   isDragging?: boolean;
@@ -35,7 +24,6 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
     : undefined;
 
-  const score = scoreTone(deal.lead_score);
   const stageConfig = DEAL_STAGE_CONFIG[deal.stage];
   const timeInStage = formatRelativeTime(deal.stage_updated_at);
   const tierStyle = deal.product_tier
@@ -78,21 +66,11 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
         </span>
       )}
 
-      {/* Linha 1: nome + score */}
+      {/* Linha 1: nome */}
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-[12px] font-semibold leading-tight text-foreground">
           {deal.athlete_name}
         </p>
-        {deal.lead_score != null && (
-          <span
-            className={cn(
-              "shrink-0 text-[10px] font-bold tabular-nums",
-              score.cls,
-            )}
-          >
-            {deal.lead_score}
-          </span>
-        )}
       </div>
 
       {/* Linha 2: responsável + plano */}

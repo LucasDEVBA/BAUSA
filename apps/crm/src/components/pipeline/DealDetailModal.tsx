@@ -389,12 +389,6 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
                 <span>{diasEtapa}d na etapa</span>
                 <span>·</span>
                 <span>{diasNoPipeline}d no pipeline</span>
-                {deal.lead_score != null && (
-                  <>
-                    <span>·</span>
-                    <span>Score {deal.lead_score}</span>
-                  </>
-                )}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
@@ -797,10 +791,6 @@ function ComercialSection({ deal }: { deal: Deal }) {
             <Field
               label="Última movimentação"
               value={fmtDateTime(deal.stage_updated_at)}
-            />
-            <Field
-              label="Lead score"
-              value={deal.lead_score != null ? `${deal.lead_score}/100` : "—"}
             />
             <Field
               label="Classificação"
