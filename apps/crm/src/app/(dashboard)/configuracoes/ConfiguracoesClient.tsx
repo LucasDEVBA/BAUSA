@@ -5,6 +5,7 @@ import { Settings, Save, Shield, Bell, List, Database, Clock, AlertTriangle } fr
 import { toast } from "sonner";
 import { atualizarConfiguracao } from "@/lib/actions/configuracoes";
 import { cn } from "@/lib/utils";
+import { BrandTabs } from "@/components/ui";
 import { DOCUMENTO_TIPOS, FAQ_CATEGORIAS } from "@/types/crm";
 import { DEAL_STAGE_CONFIG, PIPELINE_STAGE_ORDER } from "@/types/deal";
 import { UsuariosTab } from "@/components/configuracoes/UsuariosTab";
@@ -164,20 +165,13 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">
-        {TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            className={cn(
-              "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-              activeTab === tab.value ? "bg-primary/15 text-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <BrandTabs
+        items={TABS.map((t) => ({ id: t.value, label: t.label }))}
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as TabValue)}
+        variant="underline"
+        ariaLabel="Seções de configuração"
+      />
 
       {/* LGPD + Soft Delete notices */}
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">

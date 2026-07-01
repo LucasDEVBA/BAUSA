@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { type ConversionFunnelStep } from "@/types/revenue";
+import { ChartCard } from "@/components/ui";
 
 interface TooltipProps {
   active?: boolean;
@@ -18,7 +19,7 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const item = payload[0];
   return (
-    <div className="liquid-glass rounded-lg px-3 py-2 text-sm">
+    <div className="rounded-lg border border-border bg-popover shadow-lg px-3 py-2 text-sm">
       <p className="font-medium text-foreground">{item.name}</p>
       <p className="text-muted-foreground">{item.value} leads</p>
     </div>
@@ -31,18 +32,15 @@ interface ConversionFunnelProps {
 
 export function ConversionFunnel({ data }: ConversionFunnelProps) {
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-      <h3 className="text-sm font-semibold text-foreground">Funil de Conversão</h3>
-      <p className="mt-0.5 text-xs text-muted-foreground">Leads → Contratos</p>
-
-      <div className="mt-4 h-64">
+    <ChartCard title="Funil de Conversão" subtitle="Leads → Contratos">
+      <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <FunnelChart>
             <Tooltip content={<CustomTooltip />} />
             <Funnel dataKey="value" data={data} isAnimationActive>
               <LabelList
                 position="right"
-                fill="var(--chart-grid)"
+                fill="var(--muted-foreground)"
                 stroke="none"
                 dataKey="label"
                 style={{ fontSize: 11 }}
@@ -51,6 +49,6 @@ export function ConversionFunnel({ data }: ConversionFunnelProps) {
           </FunnelChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </ChartCard>
   );
 }

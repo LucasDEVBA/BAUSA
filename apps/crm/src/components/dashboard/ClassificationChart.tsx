@@ -8,6 +8,7 @@ import {
   Tooltip,
   type PieLabelRenderProps,
 } from "recharts";
+import { ChartCard } from "@/components/ui";
 
 interface ClassificationChartProps {
   quente: number;
@@ -74,11 +75,22 @@ export function ClassificationChart({ quente, morno, frio }: ClassificationChart
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-      <h3 className="text-sm font-semibold text-foreground">Distribuição por Classificação</h3>
-      <p className="mt-0.5 text-xs text-muted-foreground">Qualificação via IA (Gemini)</p>
-
-      <div className="mt-4 h-52">
+    <ChartCard
+      title="Distribuição por Classificação"
+      subtitle="Qualificação via IA (Gemini)"
+      legend={
+        <div className="flex justify-center gap-5">
+          {data.map((item) => (
+            <div key={item.name} className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="text-xs text-muted-foreground">{item.name}</span>
+              <span className="text-xs font-semibold text-foreground">{item.value}</span>
+            </div>
+          ))}
+        </div>
+      }
+    >
+      <div className="h-52">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -100,17 +112,6 @@ export function ClassificationChart({ quente, morno, frio }: ClassificationChart
           </PieChart>
         </ResponsiveContainer>
       </div>
-
-      {/* Legenda manual */}
-      <div className="mt-3 flex justify-center gap-5">
-        {data.map((item) => (
-          <div key={item.name} className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-            <span className="text-xs text-muted-foreground">{item.name}</span>
-            <span className="text-xs font-semibold text-foreground">{item.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    </ChartCard>
   );
 }

@@ -16,6 +16,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BrandTabs } from "@/components/ui";
 import { ExportCSVButton } from "@/components/shared/ExportCSVButton";
 import { ExportPDFButton } from "@/components/shared/ExportPDFButton";
 import { ETAPA_LABELS } from "@/types/crm";
@@ -138,26 +139,13 @@ export function RelatoriosClient({ data }: RelatoriosClientProps) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
-                activeTab === tab.id
-                  ? "bg-primary/15 text-foreground"
-                  : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <BrandTabs
+        items={TABS}
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as TabId)}
+        variant="segmented"
+        ariaLabel="Tipos de relatório"
+      />
 
       {/* Tab Content */}
       {activeTab === "comercial" && (

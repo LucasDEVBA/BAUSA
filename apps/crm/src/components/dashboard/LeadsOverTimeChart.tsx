@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { type DailyLeadCount } from "@/types/lead";
 import { formatDate } from "@/lib/utils";
+import { ChartCard } from "@/components/ui";
 
 interface LeadsOverTimeChartProps {
   data: DailyLeadCount[];
@@ -46,12 +47,10 @@ export function LeadsOverTimeChart({ data }: LeadsOverTimeChartProps) {
   const visibleData = data.slice(-14);
 
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">Leads por Dia</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">Últimos 14 dias</p>
-        </div>
+    <ChartCard
+      title="Leads por Dia"
+      subtitle="Últimos 14 dias"
+      action={
         <div className="flex gap-3">
           <div className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-lead-hot" />
@@ -66,9 +65,9 @@ export function LeadsOverTimeChart({ data }: LeadsOverTimeChartProps) {
             <span className="text-xs text-muted-foreground">Frio</span>
           </div>
         </div>
-      </div>
-
-      <div className="mt-4 h-48">
+      }
+    >
+      <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={visibleData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
             <defs>
@@ -130,6 +129,6 @@ export function LeadsOverTimeChart({ data }: LeadsOverTimeChartProps) {
           </AreaChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </ChartCard>
   );
 }

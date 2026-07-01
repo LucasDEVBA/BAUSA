@@ -9,6 +9,7 @@ import {
   type PieLabelRenderProps,
 } from "recharts";
 import { type Family } from "@/types/family";
+import { ChartCard } from "@/components/ui";
 
 const RISK_COLORS: Record<string, string> = {
   Baixo: "var(--sys-green)",
@@ -55,7 +56,7 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const item = payload[0];
   return (
-    <div className="liquid-glass rounded-lg px-3 py-2 text-sm">
+    <div className="rounded-lg border border-border bg-popover shadow-lg px-3 py-2 text-sm">
       <p className="font-medium text-foreground">{item.name}</p>
       <p className="text-muted-foreground">{item.value} {item.value === 1 ? "família" : "famílias"}</p>
     </div>
@@ -83,11 +84,25 @@ export function FamilyRiskDonut({ families }: FamilyRiskDonutProps) {
   const data = Object.entries(grouped).map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-      <h3 className="text-sm font-semibold text-foreground">Distribuição de Risco</h3>
-      <p className="mt-0.5 text-xs text-muted-foreground">Famílias por nível de risco</p>
-
-      <div className="mt-4 h-48">
+    <ChartCard
+      title="Distribuição de Risco"
+      subtitle="Famílias por nível de risco"
+      legend={
+        <div className="flex flex-wrap justify-center gap-4">
+          {data.map((item) => (
+            <div key={item.name} className="flex items-center gap-1.5">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: RISK_COLORS[item.name] }}
+              />
+              <span className="text-xs text-muted-foreground">{item.name}</span>
+              <span className="text-xs font-semibold text-foreground">{item.value}</span>
+            </div>
+          ))}
+        </div>
+      }
+    >
+      <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -109,19 +124,6 @@ export function FamilyRiskDonut({ families }: FamilyRiskDonutProps) {
           </PieChart>
         </ResponsiveContainer>
       </div>
-
-      <div className="mt-3 flex flex-wrap justify-center gap-4">
-        {data.map((item) => (
-          <div key={item.name} className="flex items-center gap-1.5">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: RISK_COLORS[item.name] }}
-            />
-            <span className="text-xs text-muted-foreground">{item.name}</span>
-            <span className="text-xs font-semibold text-foreground">{item.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    </ChartCard>
   );
 }
