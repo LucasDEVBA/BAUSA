@@ -56,27 +56,14 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "MINHA ÁREA",
     items: [
-      {
-        href: "/minha-area",
-        label: "Minha Área",
-        icon: Home,
-        roles: ["head_sucesso"],
-      },
+      { href: "/minha-area", label: "Minha Área", icon: Home, roles: ["head_sucesso"] },
     ],
   },
   {
     label: "EXECUTIVO",
     items: [
+      { href: "/war-room", label: "War Room", icon: Target, roles: ["ceo"] },
       {
-        // War Room unificado (F1/F4): 7 seções por abas in-page (/war-room).
-        // As visões gerenciais de família são acessadas pela aba "Famílias".
-        href: "/war-room",
-        label: "War Room",
-        icon: Target,
-        roles: ["ceo"],
-      },
-      {
-        // F3: 4 sub-rotas viraram abas in-page (AnalyticsNav via layout).
         href: "/analytics",
         label: "Analytics",
         icon: BarChart3,
@@ -91,12 +78,10 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["ceo"] },
       {
-        // F3: /dashboard virou a aba "Visão Geral" de Leads (LeadsNav).
         href: "/leads",
         label: "Leads",
         icon: Users,
         roles: ["ceo"],
-        badge: "8",
         activeRoutes: ["/dashboard", "/leads", "/leads/novo"],
         subItems: [{ href: "/leads/novo", label: "+ Novo Lead" }],
       },
@@ -115,8 +100,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "FAMÍLIAS",
     items: [
       {
-        // F2: 3 visões operacionais (Experiência/Jornada/Lista) unificadas numa
-        // entrada — as abas vivem na FamiliasNav dentro da tela.
         href: "/familias-crm",
         label: "Famílias",
         icon: UserCheck,
@@ -139,11 +122,11 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-// Ponto de cor por seção (estética da referência, cores da marca BAU).
+// Marcador de cor por seção — identidade BAU (sem dourado, fora da marca oficial).
 const GROUP_DOT: Record<string, string> = {
   "MINHA ÁREA": "bg-sys-green",
   EXECUTIVO: "bg-bau-blue",
-  COMERCIAL: "bg-bau-gold",
+  COMERCIAL: "bg-sys-orange",
   INTELIGÊNCIA: "bg-sys-purple",
   FAMÍLIAS: "bg-bau-burgundy",
   SISTEMA: "bg-muted-foreground",
@@ -161,12 +144,10 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  // CTO tem o mesmo acesso do CEO — normaliza p/ o filtro de visibilidade dos itens.
   const papelEfetivo: PapelUsuario = papel === "cto" ? "ceo" : papel;
 
   useEffect(() => {
     try {
-      // Sync inicial a partir do localStorage (evita hydration mismatch via effect).
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
     } catch {
@@ -196,131 +177,115 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-screen flex-col border-r border-sidebar-border bg-sidebar/70 backdrop-blur-xl transition-[width] duration-300",
+        "flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-300",
         collapsed ? "w-16" : "w-60",
       )}
     >
-      {/* Logo */}
+      {/* Workspace header */}
       <div
         className={cn(
-          "flex h-14 items-center border-b border-sidebar-border",
+          "flex h-16 items-center border-b border-sidebar-border",
           collapsed ? "justify-center px-2" : "gap-2.5 px-4",
         )}
       >
-        <Image
-          src="/brand/bausa-bau.png"
-          alt="BAUSA"
-          width={48}
-          height={32}
-          priority
-          className="flex-shrink-0"
-        />
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-brand shadow-sm">
+          <Image src="/brand/bausa-bau.png" alt="BAU" width={26} height={18} priority />
+        </span>
         {!collapsed && (
-          <div>
-            <p className="text-sm font-semibold text-sidebar-foreground leading-none">BAU Global</p>
-            <p className="text-[10px] text-muted-foreground leading-none mt-0.5">Bolsa Atleta USA</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold leading-none tracking-tight text-sidebar-foreground">
+              BAU Engine
+            </p>
+            <p className="mt-1 truncate text-[11px] leading-none text-muted-foreground">
+              Bolsa Atleta USA
+            </p>
           </div>
         )}
       </div>
 
-      {/* Navegação principal */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2">
-        <div className="space-y-4">
+      {/* Navegação */}
+      <nav className="flex-1 overflow-y-auto px-2.5 py-3">
+        <div className="space-y-5">
           {NAV_GROUPS.map((group) => {
             const visibleItems = group.items.filter((item) => item.roles.includes(papelEfetivo));
             if (visibleItems.length === 0) return null;
 
             return (
-            <div key={group.label}>
-              {!collapsed && (
-                <div className="mb-1 flex items-center gap-1.5 px-3">
-                  <span className={cn("h-1.5 w-1.5 rounded-[3px]", GROUP_DOT[group.label] ?? "bg-muted-foreground")} />
-                  <p className="text-[10px] font-semibold tracking-widest text-label-tertiary">
-                    {group.label}
-                  </p>
-                </div>
-              )}
-              <div className="space-y-0.5">
-                {visibleItems.map((item) => {
-                  const isParentActive =
-                    pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`) ||
-                    (item.activeRoutes?.some(
-                      (r) => pathname === r || pathname.startsWith(`${r}/`)
-                    ) ?? false);
+              <div key={group.label}>
+                {!collapsed && (
+                  <div className="mb-1.5 flex items-center gap-1.5 px-2">
+                    <span className={cn("size-1.5 rounded-full", GROUP_DOT[group.label] ?? "bg-muted-foreground")} />
+                    <p className="text-eyebrow text-label-tertiary">{group.label}</p>
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const isParentActive =
+                      pathname === item.href ||
+                      pathname.startsWith(`${item.href}/`) ||
+                      (item.activeRoutes?.some((r) => pathname === r || pathname.startsWith(`${r}/`)) ?? false);
+                    const hasSubItems = item.subItems && item.subItems.length > 0;
+                    const showSubItems = hasSubItems && isParentActive && !collapsed;
+                    const Icon = item.icon;
 
-                  const hasSubItems = item.subItems && item.subItems.length > 0;
-                  const showSubItems = hasSubItems && isParentActive && !collapsed;
-                  const Icon = item.icon;
-
-                  return (
-                    <div key={item.href}>
-                      <Link
-                        href={item.soon ? "#" : item.href}
-                        title={collapsed ? item.label : undefined}
-                        className={cn(
-                          "group relative flex items-center rounded-lg py-2 text-sm transition-all",
-                          collapsed ? "justify-center px-0" : "gap-2.5 px-3",
-                          isParentActive
-                            ? "bg-primary/15 text-foreground"
-                            : item.soon
-                            ? "text-label-tertiary cursor-not-allowed"
-                            : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
-                        )}
-                      >
-                        {isParentActive && (
-                          <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
-                        )}
-                        <Icon
+                    return (
+                      <div key={item.href}>
+                        <Link
+                          href={item.soon ? "#" : item.href}
+                          title={collapsed ? item.label : undefined}
+                          aria-current={isParentActive ? "page" : undefined}
                           className={cn(
-                            "h-4 w-4 flex-shrink-0",
-                            isParentActive ? "text-primary" : ""
+                            "group relative flex items-center rounded-lg py-2 text-sm transition-colors",
+                            collapsed ? "justify-center px-0" : "gap-2.5 px-2.5",
+                            isParentActive
+                              ? "bg-primary/10 font-medium text-primary"
+                              : item.soon
+                                ? "cursor-not-allowed text-label-tertiary"
+                                : "text-muted-foreground hover:bg-accent hover:text-foreground",
                           )}
-                        />
-                        {!collapsed && (
-                          <span className="flex-1 font-medium">{item.label}</span>
-                        )}
-                        {!collapsed && item.badge && !item.soon && (
-                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/20 px-1.5 text-[10px] font-semibold text-primary">
-                            {item.badge}
-                          </span>
-                        )}
-                        {!collapsed && item.soon && (
-                          <span className="text-[9px] font-medium uppercase tracking-wider text-label-tertiary">
-                            em breve
-                          </span>
-                        )}
-                      </Link>
+                        >
+                          {isParentActive && (
+                            <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
+                          )}
+                          <Icon className="size-4 shrink-0" />
+                          {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                          {!collapsed && item.badge && !item.soon && (
+                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold text-primary">
+                              {item.badge}
+                            </span>
+                          )}
+                          {!collapsed && item.soon && (
+                            <span className="text-eyebrow text-label-tertiary">em breve</span>
+                          )}
+                        </Link>
 
-                      {showSubItems && (
-                        <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
-                          {item.subItems!.map((sub) => {
-                            const isSubActive = pathname === sub.href;
-                            return (
-                              <Link
-                                key={sub.href}
-                                href={sub.href}
-                                className={cn(
-                                  "flex items-center rounded-md px-2 py-1.5 text-xs transition-all",
-                                  isSubActive
-                                    ? "bg-primary/12 font-semibold text-primary"
-                                    : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
-                                )}
-                              >
-                                {isSubActive && (
-                                  <span className="mr-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-primary" />
-                                )}
-                                {sub.label}
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {showSubItems && (
+                          <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
+                            {item.subItems!.map((sub) => {
+                              const isSubActive = pathname === sub.href;
+                              return (
+                                <Link
+                                  key={sub.href}
+                                  href={sub.href}
+                                  className={cn(
+                                    "flex items-center rounded-md px-2 py-1.5 text-xs transition-colors",
+                                    isSubActive
+                                      ? "font-semibold text-primary"
+                                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                                  )}
+                                >
+                                  {isSubActive && <span className="mr-1.5 size-1 shrink-0 rounded-full bg-primary" />}
+                                  {sub.label}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
             );
           })}
         </div>
@@ -333,28 +298,28 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
         aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
         aria-pressed={collapsed}
         className={cn(
-          "flex items-center border-t border-sidebar-border text-muted-foreground transition-colors hover:bg-fill-4 hover:text-foreground",
+          "flex items-center border-t border-sidebar-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
           collapsed ? "justify-center py-3" : "gap-2.5 px-4 py-2.5",
         )}
       >
         {collapsed ? (
-          <ChevronsRight className="h-4 w-4" />
+          <ChevronsRight className="size-4" />
         ) : (
           <>
-            <ChevronsLeft className="h-4 w-4" />
+            <ChevronsLeft className="size-4" />
             <span className="text-xs font-medium">Recolher</span>
           </>
         )}
       </button>
 
-      {/* User info → Meu Perfil */}
+      {/* Perfil */}
       <div className={cn("border-t border-sidebar-border", collapsed ? "p-2" : "p-3")}>
         <div className={cn("flex items-center", collapsed ? "flex-col gap-2" : "gap-1")}>
           <Link
             href="/perfil"
             title="Meu perfil"
             className={cn(
-              "flex min-w-0 items-center rounded-lg transition-colors hover:bg-fill-4",
+              "flex min-w-0 items-center rounded-lg transition-colors hover:bg-accent",
               collapsed ? "p-1" : "flex-1 gap-2.5 px-2 py-2 text-left",
             )}
           >
@@ -365,15 +330,15 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
                 width={28}
                 height={28}
                 unoptimized
-                className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
+                className="size-7 shrink-0 rounded-full object-cover"
               />
             ) : (
-              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white">
                 {nome.charAt(0).toUpperCase()}
-              </div>
+              </span>
             )}
             {!collapsed && (
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-foreground">{nome}</p>
                 <p className="truncate text-[10px] text-muted-foreground">{PAPEL_LABEL[papel]}</p>
               </div>
@@ -381,11 +346,11 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
           </Link>
           <button
             onClick={handleLogout}
-            className="flex-shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-fill-4 hover:text-foreground"
+            className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label="Sair"
             title="Sair"
           >
-            <LogOut className="h-3.5 w-3.5" />
+            <LogOut className="size-3.5" />
           </button>
         </div>
       </div>
