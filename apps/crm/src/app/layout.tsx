@@ -24,13 +24,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning className={`${inter.variable} dark`}>
+    <html lang="pt-BR" suppressHydrationWarning className={inter.variable}>
       <body className="antialiased">
-        {/* Anti-FOUC: aplica tema salvo antes da pintura. Dark e o padrao;
-            so remove a classe se o usuario escolheu o tema claro. */}
+        {/* Anti-FOUC: light e o padrao; so adiciona .dark se o usuario escolheu escuro. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem('bausa-theme')==='light'){document.documentElement.classList.remove('dark')}}catch(e){}`,
+            __html: `try{if(localStorage.getItem('bausa-theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}`,
           }}
         />
         {children}

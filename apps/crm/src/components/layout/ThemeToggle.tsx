@@ -6,12 +6,14 @@ import { Moon, Sun } from "lucide-react";
 /**
  * Alterna entre tema escuro e claro adicionando/removendo a classe `dark`
  * no <html>. A preferencia e persistida em localStorage e reaplicada antes
- * da pintura pelo script anti-FOUC em layout.tsx. Dark e o padrao.
+ * da pintura pelo script anti-FOUC em layout.tsx. Light e o padrao.
  */
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
+    // Sincroniza com a classe aplicada pelo anti-FOUC (só disponível no cliente).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDark(document.documentElement.classList.contains("dark"));
   }, []);
 
