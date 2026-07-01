@@ -21,7 +21,7 @@ interface TooltipProps {
 function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="liquid-glass rounded-lg px-3 py-2 text-xs">
+    <div className="rounded-lg border border-border bg-popover shadow-lg px-3 py-2 text-xs">
       <p className="font-medium text-foreground">{label}</p>
       <p className="text-muted-foreground">{payload[0].value} {payload[0].value === 1 ? "família" : "famílias"}</p>
     </div>
@@ -63,7 +63,7 @@ export function FamilyStageChart({ families }: FamilyStageChartProps) {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
             <XAxis
               type="number"
-              tick={{ fill: "var(--chart-grid)", fontSize: 10 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
               axisLine={false}
               tickLine={false}
               allowDecimals={false}
@@ -71,12 +71,12 @@ export function FamilyStageChart({ families }: FamilyStageChartProps) {
             <YAxis
               dataKey="label"
               type="category"
-              tick={{ fill: "var(--chart-grid)", fontSize: 10 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
               axisLine={false}
               tickLine={false}
               width={85}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--fill-4)" }} />
             <Bar dataKey="count" radius={[0, 3, 3, 0]}>
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />

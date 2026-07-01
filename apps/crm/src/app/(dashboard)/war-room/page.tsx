@@ -463,10 +463,6 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
         <SafraFilter safras={safras} />
       </Suspense>
       <WarRoomExportButtons />
-      <div className="flex items-center gap-1.5 rounded-full border border-sys-green/20 bg-sys-green/10 px-3 py-1.5">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sys-green" />
-        <span className="text-[11px] font-medium text-sys-green">Ao vivo</span>
-      </div>
     </div>
   );
 
