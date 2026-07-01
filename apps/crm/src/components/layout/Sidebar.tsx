@@ -139,6 +139,16 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+// Ponto de cor por seção (estética da referência, cores da marca BAU).
+const GROUP_DOT: Record<string, string> = {
+  "MINHA ÁREA": "bg-sys-green",
+  EXECUTIVO: "bg-bau-blue",
+  COMERCIAL: "bg-bau-gold",
+  INTELIGÊNCIA: "bg-sys-purple",
+  FAMÍLIAS: "bg-bau-burgundy",
+  SISTEMA: "bg-muted-foreground",
+};
+
 const STORAGE_KEY = "bausa-sidebar-collapsed";
 
 interface SidebarProps {
@@ -223,9 +233,12 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
             return (
             <div key={group.label}>
               {!collapsed && (
-                <p className="mb-1 px-3 text-[10px] font-semibold tracking-widest text-label-tertiary">
-                  {group.label}
-                </p>
+                <div className="mb-1 flex items-center gap-1.5 px-3">
+                  <span className={cn("h-1.5 w-1.5 rounded-[3px]", GROUP_DOT[group.label] ?? "bg-muted-foreground")} />
+                  <p className="text-[10px] font-semibold tracking-widest text-label-tertiary">
+                    {group.label}
+                  </p>
+                </div>
               )}
               <div className="space-y-0.5">
                 {visibleItems.map((item) => {

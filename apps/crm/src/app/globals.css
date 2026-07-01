@@ -23,7 +23,7 @@
   --card-foreground: #000000;
   --popover: #ffffff;
   --popover-foreground: #000000;
-  --primary: #007aff;                    /* systemBlue (tint) */
+  --primary: #25499f;                    /* BAU blue — azul do wordmark */
   --primary-foreground: #ffffff;
   --secondary: #e5e5ea;                  /* systemGray5 (fill) */
   --secondary-foreground: #000000;
@@ -116,7 +116,7 @@
   --card-foreground: #ffffff;
   --popover: #1c1c1e;
   --popover-foreground: #ffffff;
-  --primary: #0a84ff;                    /* systemBlue (dark) */
+  --primary: #4a6fd0;                    /* BAU blue (dark) */
   --primary-foreground: #ffffff;
   --secondary: #2c2c2e;                  /* fill elevado */
   --secondary-foreground: #ffffff;
