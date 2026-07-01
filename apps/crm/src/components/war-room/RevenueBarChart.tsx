@@ -42,11 +42,11 @@ interface RevenueBarChartProps {
 
 export function RevenueBarChart({ data }: RevenueBarChartProps) {
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <h3 className="text-sm font-semibold text-foreground">Receita por Mês</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Recebido vs Projetado (R$)</p>
 
-      <div className="mt-4 h-64">
+      <div className="mt-4 h-56">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} barSize={18} barGap={2}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />

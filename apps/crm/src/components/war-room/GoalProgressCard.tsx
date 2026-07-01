@@ -13,7 +13,7 @@ export function GoalProgressCard({ data }: GoalProgressCardProps) {
   const isOnTrack = gap_to_target_brl >= 0;
 
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground">Meta do Mês</p>

@@ -28,7 +28,7 @@ export function CommercialFunnelSection({ data }: CommercialFunnelSectionProps) 
   ];
 
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <h3 className="text-sm font-semibold text-foreground">Funil Comercial</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Performance por etapa do processo de vendas</p>
 
