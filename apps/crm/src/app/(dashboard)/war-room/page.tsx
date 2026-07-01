@@ -9,6 +9,7 @@ import {
   Users,
   CheckCircle,
   Ticket,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import { requirePapel } from "@/lib/auth";
@@ -37,6 +38,7 @@ import {
 } from "@/lib/war-room-queries";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/ui";
+import { WarRoomRevenueHero } from "@/components/war-room/WarRoomRevenueHero";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { SafraFilter } from "@/components/war-room/SafraFilter";
 import { WarRoomExportButtons } from "@/components/war-room/WarRoomExportButtons";
@@ -107,13 +109,14 @@ function DrillCard({ target, title, icon: Icon, lines, variant, badge }: DrillCa
       )}
     >
       <span className={cn("absolute left-0 top-4 h-8 w-0.5 rounded-r-full", a.bar)} />
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <div className={cn("flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg", a.icon)}>
-            <Icon className="h-4 w-4" />
+          <div className={cn("flex size-8 flex-shrink-0 items-center justify-center rounded-lg", a.icon)}>
+            <Icon className="size-4" />
           </div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
+          <p className="text-eyebrow text-muted-foreground">{title}</p>
         </div>
+        <ChevronRight className="size-4 text-label-tertiary transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
       </div>
       <div className="space-y-1 pl-0.5">
         {lines.map((line, i) => (
@@ -215,9 +218,39 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       <PendingQualificationsAlert data={pendingQualifications} />
       <TimingAlternativesCard data={timingAlternatives} />
 
-      {/* Metas estrategicas */}
-      <div className="rounded-2xl border border-primary/15 bg-primary/[0.04] px-5 py-4">
-        <p className="mb-3 text-eyebrow text-primary">Metas Estratégicas 2026</p>
+      {/* Hero de receita + faixa de KPIs (foco visual) */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <WarRoomRevenueHero
+            mrrBrl={m.mrr_brl}
+            trendPct={m.mrr_trend_pct}
+            months={revenueMonths}
+            monthlyTargetBrl={meta.monthly_target_brl}
+            netRevenueMonthBrl={meta.net_revenue_month_brl}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+          <StatCard
+            label="Pipeline total"
+            value={k(m.pipeline_total_brl)}
+            icon={Layers}
+            accent={isPipelineHealthy ? "blue" : "orange"}
+            context={`${pipelineRatio}x a meta`}
+          />
+          <StatCard label="Conversão" value={`${m.conversion_rate}%`} icon={BarChart2} accent="brand" />
+          <StatCard
+            label="Famílias ativas"
+            value={familyMetrics.total}
+            icon={Users}
+            accent={familyMetrics.crise > 0 ? "red" : "purple"}
+            context={familyMetrics.crise > 0 ? `${familyMetrics.crise} em crise` : undefined}
+          />
+        </div>
+      </div>
+
+      {/* Metas estratégicas (secundário, chrome neutro) */}
+      <div className="rounded-2xl border border-border bg-card px-5 py-4">
+        <p className="mb-3 text-eyebrow text-muted-foreground">Metas Estratégicas 2026</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
           {metas.map((kpi) => (
             <div key={kpi.label}>
@@ -232,26 +265,6 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Receita mês" value={k(m.mrr_brl)} icon={DollarSign} accent="green" />
-        <StatCard
-          label="Pipeline total"
-          value={k(m.pipeline_total_brl)}
-          icon={Layers}
-          accent={isPipelineHealthy ? "blue" : "orange"}
-          context={`${pipelineRatio}x meta (ideal 3–5x)`}
-        />
-        <StatCard label="Conversão" value={`${m.conversion_rate}%`} icon={BarChart2} accent="brand" />
-        <StatCard
-          label="Famílias ativas"
-          value={familyMetrics.total}
-          icon={Users}
-          accent="purple"
-          context={familyMetrics.crise > 0 ? `${familyMetrics.crise} em crise` : undefined}
-        />
       </div>
 
       {/* Drill cards → abas */}
