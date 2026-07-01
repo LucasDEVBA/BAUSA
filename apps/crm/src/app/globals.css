@@ -35,7 +35,7 @@
   --destructive-foreground: #ffffff;
   --border: #d1d1d6;                     /* systemGray4 / separator opaco */
   --input: #d1d1d6;
-  --ring: #007aff;                       /* foco = tint */
+  --ring: var(--primary);                /* foco = primário BAU (§5.1) */
 
   /* — Apple label hierarchy (use com texto) — */
   --label: #000000;
@@ -74,6 +74,10 @@
   --bau-blue: #25499f;      /* azul royal do wordmark */
   --bau-burgundy: #8e1824;  /* bordô das estrelas / "USA" */
   --bau-gold: #9a7010;      /* dourado de apoio */
+
+  /* — Gradiente de marca (§5.1) — resolve por tema via var() dos bau-* acima.
+     Uso: hero/faixa de destaque e avatar. Nunca atrás de texto de leitura (§3.4). */
+  --gradient-brand: linear-gradient(135deg, var(--bau-blue), var(--bau-burgundy));
 
   /* — Recharts / analytics (War Room) — */
   --chart-1: #007aff;     /* blue   */
@@ -128,7 +132,7 @@
   --destructive-foreground: #ffffff;
   --border: #38383a;                     /* opaqueSeparator dark */
   --input: #38383a;
-  --ring: #0a84ff;
+  --ring: var(--primary);                /* foco = primário BAU (§5.1) */
 
   --label: #ffffff;
   --label-secondary: rgba(235, 235, 245, 0.60);
@@ -443,6 +447,9 @@
     .squircle    { corner-shape: superellipse(2.4); }   /* botões/inputs */
     .squircle-lg { corner-shape: superellipse(3); }     /* cards/modais  */
   }
+
+  /* Faixa/hero/avatar de marca — gradiente azul→bordô BAU (§3.4). */
+  .bg-gradient-brand { background-image: var(--gradient-brand); }
 }
 
 /* ----------------------------------------------------------------------------
