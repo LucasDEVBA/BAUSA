@@ -194,7 +194,7 @@ export function UsuariosTab() {
                     className="h-9 w-9 flex-shrink-0 rounded-full object-cover ring-1 ring-border"
                   />
                 ) : (
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground">
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-primary-foreground">
                     {getInitials(u.nome)}
                   </div>
                 )}
