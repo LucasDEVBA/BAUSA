@@ -13,7 +13,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, TrendingDown, Minus, DollarSign, Users, FileCheck, BarChart2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, DollarSign, Users, BarChart2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RevenueMonth } from "@/types/revenue";
 import { AnalyticsExportButton } from "@/components/analytics/AnalyticsExportButton";
@@ -193,21 +193,24 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
   }));
 
   const lineData = useMemo(() => {
-    let cumCurrent = 0;
-    let cumPrev = 0;
     const maxLen = Math.max(currentSlice.length, compareEnabled ? previousSlice.length : 0);
+
+    // Soma acumulada de received_brl até o índice i, sem mutar variável externa
+    // durante o render (prefix sum imutável — preserva o resultado do loop original).
+    const cumReceived = (slice: RevenueMonth[], i: number) =>
+      slice.slice(0, i + 1).reduce((sum, m) => sum + m.received_brl, 0);
 
     return Array.from({ length: maxLen }, (_, i) => {
       const curMonth = currentSlice[i];
       const prv = previousSlice[i];
-      if (curMonth) cumCurrent += curMonth.received_brl;
-      if (prv && compareEnabled) cumPrev += prv.received_brl;
 
       return {
         idx: i + 1,
         label: curMonth?.month_label ?? `M${i + 1}`,
-        "Acumulado atual": curMonth ? cumCurrent : undefined,
-        ...(compareEnabled && prv ? { "Acumulado anterior": cumPrev } : {}),
+        "Acumulado atual": curMonth ? cumReceived(currentSlice, i) : undefined,
+        ...(compareEnabled && prv
+          ? { "Acumulado anterior": cumReceived(previousSlice, i) }
+          : {}),
       };
     });
   }, [currentSlice, previousSlice, compareEnabled]);
