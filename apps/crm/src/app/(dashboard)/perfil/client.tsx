@@ -112,7 +112,7 @@ export function PerfilClient({ profile }: { profile: UserProfile }) {
                 className="h-20 w-20 rounded-full object-cover ring-1 ring-border"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-base font-semibold text-primary-foreground">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-brand text-base font-semibold text-primary-foreground">
                 {getInitials(profile.nome)}
               </div>
             )}

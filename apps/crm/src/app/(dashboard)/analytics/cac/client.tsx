@@ -81,7 +81,7 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
+    <div className="rounded-lg border border-border bg-popover shadow-lg px-3 py-2 text-xs">
       <p className="mb-1 font-medium text-foreground">{label}</p>
       {payload.map((entry) => (
         <p key={entry.name} style={{ color: entry.color }}>
@@ -238,11 +238,11 @@ export function CacClient({
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={roiData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis dataKey="canal" tick={{ fill: "var(--chart-grid)", fontSize: 12 }} />
-              <YAxis tick={{ fill: "var(--chart-grid)", fontSize: 12 }} />
+              <XAxis dataKey="canal" tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
+              <YAxis tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
               <Tooltip
                 content={<CustomTooltip />}
-                cursor={{ fill: "rgba(255,255,255,0.03)" }}
+                cursor={{ fill: "var(--fill-4)" }}
               />
               <Bar dataKey="gasto" name="Gasto" radius={[4, 4, 0, 0]}>
                 {roiData.map((_, i) => (
@@ -291,8 +291,8 @@ export function CacClient({
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis dataKey="mes" tick={{ fill: "var(--chart-grid)", fontSize: 12 }} />
-              <YAxis tick={{ fill: "var(--chart-grid)", fontSize: 12 }} />
+              <XAxis dataKey="mes" tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
+              <YAxis tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
               <Tooltip
                 content={<CustomTooltip />}
                 cursor={{ stroke: "var(--border)" }}

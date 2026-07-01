@@ -106,7 +106,7 @@ const CustomBarTooltip = ({ active, payload, label }: {
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
+    <div className="rounded-lg border border-border bg-popover shadow-lg px-3 py-2 text-xs">
       <p className="mb-1.5 font-semibold text-foreground">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }} className="flex items-center gap-1.5">
@@ -125,7 +125,7 @@ const CustomLineTooltip = ({ active, payload, label }: {
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
+    <div className="rounded-lg border border-border bg-popover shadow-lg px-3 py-2 text-xs">
       <p className="mb-1.5 font-semibold text-foreground">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }}>
@@ -342,9 +342,9 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={barData} barSize={compareEnabled ? 8 : 14} barCategoryGap="30%">
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-            <XAxis dataKey="month" tick={{ fill: "var(--chart-grid)", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="month" tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
-              tick={{ fill: "var(--chart-grid)", fontSize: 11 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`}
@@ -369,9 +369,9 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={lineData}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-            <XAxis dataKey="label" tick={{ fill: "var(--chart-grid)", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="label" tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
-              tick={{ fill: "var(--chart-grid)", fontSize: 11 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`}

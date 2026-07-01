@@ -207,7 +207,7 @@ export function FamiliasConsolidadasClient({
               >
                 {/* Guardian Header */}
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-sm font-bold text-white">
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-white">
                     {familia.responsavel_nome.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
