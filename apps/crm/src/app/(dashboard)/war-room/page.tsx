@@ -36,6 +36,7 @@ import {
   fetchTimingAlternatives,
 } from "@/lib/war-room-queries";
 import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/ui";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { SafraFilter } from "@/components/war-room/SafraFilter";
 import { WarRoomExportButtons } from "@/components/war-room/WarRoomExportButtons";
@@ -209,19 +210,19 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
 
   // ─── Aba: Visao Geral (command center) ───
   const visaoGeral = (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <CriticalAlertsBanner counts={criticalCounts} />
       <PendingQualificationsAlert data={pendingQualifications} />
       <TimingAlternativesCard data={timingAlternatives} />
 
       {/* Metas estrategicas */}
-      <div className="rounded-xl border border-primary/20 bg-card/60 px-5 py-4">
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-primary">Metas Estrategicas 2026</p>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="rounded-2xl border border-primary/15 bg-primary/[0.04] px-5 py-4">
+        <p className="mb-3 text-eyebrow text-primary">Metas Estratégicas 2026</p>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
           {metas.map((kpi) => (
             <div key={kpi.label}>
-              <p className="text-[10px] text-label-tertiary">{kpi.label}</p>
-              <p className={cn("text-lg font-bold", kpi.color)}>{kpi.value}</p>
+              <p className="text-eyebrow text-label-tertiary">{kpi.label}</p>
+              <p className={cn("mt-0.5 text-xl font-bold tabular-nums", kpi.color)}>{kpi.value}</p>
               <p className="mb-1.5 text-[10px] text-muted-foreground">{kpi.sub}</p>
               {kpi.pct !== null && (
                 <div className="h-1 rounded-full bg-secondary">
@@ -234,45 +235,23 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-green/10">
-            <DollarSign className="h-4 w-4 text-sys-green" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Receita mes</p>
-            <p className="text-sm font-bold text-sys-green">{k(m.mrr_brl)}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/10">
-            <Layers className="h-4 w-4 text-sys-blue" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Pipeline total</p>
-            <p className={cn("text-sm font-bold", isPipelineHealthy ? "text-sys-blue" : "text-sys-orange")}>{k(m.pipeline_total_brl)}</p>
-            <p className="text-[10px] text-label-tertiary">{pipelineRatio}x meta (ideal 3-5x)</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <BarChart2 className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Conversao</p>
-            <p className="text-sm font-bold text-foreground">{m.conversion_rate}%</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-plan-legacy/10">
-            <Users className="h-4 w-4 text-plan-legacy" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Familias</p>
-            <p className="text-sm font-bold text-plan-legacy">{familyMetrics.total} ativas</p>
-            {familyMetrics.crise > 0 && <p className="text-[10px] text-sys-red">{familyMetrics.crise} em crise!</p>}
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Receita mês" value={k(m.mrr_brl)} icon={DollarSign} accent="green" />
+        <StatCard
+          label="Pipeline total"
+          value={k(m.pipeline_total_brl)}
+          icon={Layers}
+          accent={isPipelineHealthy ? "blue" : "orange"}
+          context={`${pipelineRatio}x meta (ideal 3–5x)`}
+        />
+        <StatCard label="Conversão" value={`${m.conversion_rate}%`} icon={BarChart2} accent="brand" />
+        <StatCard
+          label="Famílias ativas"
+          value={familyMetrics.total}
+          icon={Users}
+          accent="purple"
+          context={familyMetrics.crise > 0 ? `${familyMetrics.crise} em crise` : undefined}
+        />
       </div>
 
       {/* Drill cards → abas */}
