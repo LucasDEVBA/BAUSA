@@ -11,7 +11,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { BrandTabs } from "@/components/ui/BrandTabs";
 
 // Ícone por aba (mapeado por id no client — funções não cruzam o boundary server→client).
 const TAB_ICONS: Record<string, LucideIcon> = {
@@ -82,34 +82,18 @@ export function WarRoomTabs({ tabs, header }: WarRoomTabsProps) {
         {header}
       </div>
 
-      {/* Barra de abas */}
-      <div
-        role="tablist"
-        aria-label="Seções do War Room"
-        className="flex gap-1 overflow-x-auto border-b border-border"
-      >
-        {tabs.map((tab) => {
-          const Icon = TAB_ICONS[tab.id] ?? Zap;
-          const isActive = tab.id === active;
-          return (
-            <button
-              key={tab.id}
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => select(tab.id)}
-              className={cn(
-                "-mb-px flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* Barra de abas (identidade BAU) */}
+      <BrandTabs
+        items={tabs.map((tab) => ({
+          id: tab.id,
+          label: tab.label,
+          icon: TAB_ICONS[tab.id] ?? Zap,
+        }))}
+        activeId={active}
+        onSelect={select}
+        variant="underline"
+        ariaLabel="Seções do War Room"
+      />
 
       {/* Conteúdo da aba ativa */}
       <div className="flex-1">{activeTab?.content}</div>
