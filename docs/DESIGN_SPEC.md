@@ -139,8 +139,12 @@ expõe utilitários Tailwind v4). **Toda cor nova entra aqui como token.**
   respeitar `prefers-reduced-motion` (sem animação de layout).
 
 ### 5.4 Regra de migração
-- Qualquer `#hex`, `rgb()`, systemBlue ou cor solta em `.tsx` → **substituir por token**.
-  Auditar com: `grep -rnE "#[0-9a-fA-F]{6}|#007aff|rgb\(" apps/crm/src/components apps/crm/src/app`.
+- Qualquer `#hex`, `rgb()`/`rgba()`, systemBlue ou cor solta em `.tsx` → **substituir por token**.
+  Auditar com (o `rgba?\(` pega **rgb E rgba** — o `rgb\(` original vazava rgba):
+  `grep -rnE "#[0-9a-fA-F]{6}|#007aff|#0a84ff|rgba?\(" apps/crm/src/components apps/crm/src/app`.
+- **A11y de charts:** cor de linha faint (`--chart-grid`) usada como **texto** (tick/label/legenda)
+  é ilegível. Auditar (pega `fill:`/`color:` E `fill="..."` de LabelList):
+  `grep -rnE "(fill\|color)[:=] ?\"var\(--chart-grid\)\"" apps/crm/src` → deve ser vazio.
 
 ---
 
@@ -285,7 +289,10 @@ cd apps/crm
 npx tsc --noEmit          # 0 erros, sem any
 npx next build            # compila (server/client boundary correto)
 npx eslint <arquivos>     # 0 erros (warnings pré-existentes em arquivos não-tocados = ok)
-grep -rnE "#[0-9a-fA-F]{6}|#007aff|rgb\(" src/components src/app   # deve tender a vazio
+# grep de cor solta — rgba? pega rgb E rgba (o rgb\( original vazava rgba):
+grep -rnE "#[0-9a-fA-F]{6}|#007aff|#0a84ff|rgba?\(" src/components src/app   # deve tender a vazio
+# grep de a11y — chart-grid como texto (tick/label/legenda) deve ser vazio:
+grep -rnE "(fill|color)[:=] ?\"var\(--chart-grid\)\"" src   # deve ser vazio
 ```
 **QA visual:** cada tela em **light e dark**, mobile e desktop, zoom 200%.
 **Escopo preservado:** rotas, `requirePapel`, queries, `@dnd-kit`/Radix, dados — intactos.
