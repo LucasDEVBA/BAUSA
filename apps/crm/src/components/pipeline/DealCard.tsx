@@ -51,9 +51,9 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
           : undefined
       }
       className={cn(
-        "group relative cursor-grab rounded-md border border-border bg-card p-2 transition-all hover:border-primary/30 hover:shadow-sm active:cursor-grabbing",
-        isDragging && "rotate-1 scale-105 opacity-60 shadow-lg",
-        isUnconfigured && !isLost && "border-sys-red/30",
+        "group relative cursor-grab rounded-xl border border-border bg-card p-2.5 shadow-xs transition-all hover:-translate-y-px hover:border-primary/40 hover:shadow-md active:cursor-grabbing",
+        isDragging && "rotate-1 scale-105 opacity-70 shadow-lg",
+        isUnconfigured && !isLost && "border-sys-red/40",
       )}
     >
       {/* Sinal de incompleto */}

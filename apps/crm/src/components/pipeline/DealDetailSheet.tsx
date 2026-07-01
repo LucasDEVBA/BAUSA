@@ -718,7 +718,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
         {/* Header */}
         <div className="flex-shrink-0 border-b border-border px-6 py-5">
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-base font-bold text-white">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-brand text-base font-bold text-white">
               {getInitials(deal.athlete_name)}
             </div>
             <div className="flex-1 min-w-0">
