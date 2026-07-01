@@ -67,36 +67,33 @@ export function WarRoomTabs({ tabs, header }: WarRoomTabsProps) {
   const activeTab = tabs.find((t) => t.id === active) ?? tabs[0];
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="mb-0.5 flex items-center gap-2">
-            <Zap className="h-5 w-5 text-primary" />
-            <h1 className="text-title-2 text-foreground">War Room</h1>
+    <div className="flex h-full flex-col overflow-y-auto">
+      {/* Zone STICKY: título compacto + barra de abas sempre visível ao rolar */}
+      <div className="sticky top-0 z-20 -mx-4 -mt-4 border-b border-border bg-background/80 px-4 pt-3 backdrop-blur-xl">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10">
+              <Zap className="size-4 text-primary" />
+            </span>
+            <h1 className="text-title-3 text-foreground">War Room</h1>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Painel central do CEO — uma tela, navegação por seções
-          </p>
+          {header}
         </div>
-        {header}
+        <BrandTabs
+          items={tabs.map((tab) => ({
+            id: tab.id,
+            label: tab.label,
+            icon: TAB_ICONS[tab.id] ?? Zap,
+          }))}
+          activeId={active}
+          onSelect={select}
+          variant="underline"
+          ariaLabel="Seções do War Room"
+        />
       </div>
 
-      {/* Barra de abas (identidade BAU) */}
-      <BrandTabs
-        items={tabs.map((tab) => ({
-          id: tab.id,
-          label: tab.label,
-          icon: TAB_ICONS[tab.id] ?? Zap,
-        }))}
-        activeId={active}
-        onSelect={select}
-        variant="underline"
-        ariaLabel="Seções do War Room"
-      />
-
       {/* Conteúdo da aba ativa */}
-      <div className="flex-1">{activeTab?.content}</div>
+      <div className="flex-1 pt-4">{activeTab?.content}</div>
     </div>
   );
 }
