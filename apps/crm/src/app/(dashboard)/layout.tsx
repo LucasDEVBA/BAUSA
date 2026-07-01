@@ -25,7 +25,7 @@ export default async function DashboardLayout({
       </div>
       {/* Toaster global — sonner. richColors ativa verde/vermelho semântico. */}
       <Toaster
-        theme="dark"
+        theme="light"
         position="top-right"
         richColors
         closeButton

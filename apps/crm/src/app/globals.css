@@ -1,216 +1,203 @@
 /* ============================================================================
-   BAUSA ENGINE — APPLE-GRADE DESIGN SYSTEM
+   BAUSA ENGINE — DESIGN SYSTEM v2 (redesign do zero)
    Tailwind CSS v4 (CSS-first) + shadcn/ui + Radix
 
-   Valores de cor = sistema oficial da Apple (sRGB), tema claro e escuro.
-   class="dark" no <html> mantém o dark como padrão.
-   Doc: apps/crm/docs/design-system/  (rulebook + design doc + brief)
+   Identidade oficial (BAU 2025 Brandbook):
+     BAU Blue 1  #193b8b  · BAU Blue 2  #476bc0
+     BAU Red 1   #8e1824  · BAU Red 2   #c04753
+     BAU White   #f7f7f7
+   Direção: LIGHT-first, minimalismo editorial, liquid glass sóbrio.
+   Tema escuro = navy on-brand (opcional). Nomes de token preservados (contrato).
    ============================================================================ */
 
 @import "tailwindcss";
 
-/* Variante dark do shadcn (classe .dark no html/body) */
 @custom-variant dark (&:is(.dark *));
 
 /* ----------------------------------------------------------------------------
-   1. TEMA CLARO  (:root)  — base = systemGroupedBackground, cards brancos
+   1. TEMA CLARO (:root) — base off-white BAU, tinta azul-escura, acento azul
    ---------------------------------------------------------------------------- */
 :root {
-  /* — shadcn core — */
-  --background: #f2f2f7;                 /* systemGroupedBackground */
-  --foreground: #000000;                 /* label */
-  --card: #ffffff;                       /* secondarySystemGroupedBackground */
-  --card-foreground: #000000;
+  /* — marca BAUSA (oficial) — */
+  --bau-blue: #193b8b;        /* Blue 1 — primário */
+  --bau-blue-2: #476bc0;      /* Blue 2 */
+  --bau-burgundy: #8e1824;    /* Red 1 — acento */
+  --bau-burgundy-2: #c04753;  /* Red 2 */
+  --bau-white: #f7f7f7;
+  --bau-gold: #9a7010;        /* legado — fora da marca oficial; evitar uso */
+
+  /* — core shadcn — */
+  --background: #f4f6fa;
+  --foreground: #0e1726;
+  --card: #ffffff;
+  --card-foreground: #0e1726;
   --popover: #ffffff;
-  --popover-foreground: #000000;
-  --primary: #25499f;                    /* BAU blue — azul do wordmark */
+  --popover-foreground: #0e1726;
+  --primary: #193b8b;
   --primary-foreground: #ffffff;
-  --secondary: #e5e5ea;                  /* systemGray5 (fill) */
-  --secondary-foreground: #000000;
-  --muted: #e9e9ee;
-  --muted-foreground: rgba(60, 60, 67, 0.60);   /* secondaryLabel */
-  --accent: #e5e5ea;                     /* hover fill */
-  --accent-foreground: #000000;
-  --destructive: #ff3b30;                /* systemRed */
+  --secondary: #eef1f7;
+  --secondary-foreground: #14213d;
+  --muted: #eef1f7;
+  --muted-foreground: #5b6b86;
+  --accent: #e8eefb;
+  --accent-foreground: #14213d;
+  --destructive: #e5484d;
   --destructive-foreground: #ffffff;
-  --border: #d1d1d6;                     /* systemGray4 / separator opaco */
-  --input: #d1d1d6;
-  --ring: #007aff;                       /* foco = tint */
+  --border: #e3e7f0;
+  --input: #e3e7f0;
+  --ring: var(--primary);
 
-  /* — Apple label hierarchy (use com texto) — */
-  --label: #000000;
-  --label-secondary: rgba(60, 60, 67, 0.60);
-  --label-tertiary: rgba(60, 60, 67, 0.30);
-  --label-quaternary: rgba(60, 60, 67, 0.18);
-  --placeholder: rgba(60, 60, 67, 0.30);
+  /* — hierarquia de texto — */
+  --label: #0e1726;
+  --label-secondary: #5b6b86;
+  --label-tertiary: #8b98b0;
+  --label-quaternary: #b6c0d2;
+  --placeholder: #9aa6bd;
 
-  /* — Apple fills (preenchimentos translúcidos) — */
-  --fill-1: rgba(120, 120, 128, 0.20);
-  --fill-2: rgba(120, 120, 128, 0.16);
-  --fill-3: rgba(118, 118, 128, 0.12);
-  --fill-4: rgba(116, 116, 128, 0.08);
+  /* — fills translúcidos (azul-tinta) — */
+  --fill-1: rgba(24, 40, 80, 0.10);
+  --fill-2: rgba(24, 40, 80, 0.07);
+  --fill-3: rgba(24, 40, 80, 0.05);
+  --fill-4: rgba(24, 40, 80, 0.035);
 
-  /* — Apple separators — */
-  --separator: rgba(60, 60, 67, 0.29);
-  --separator-opaque: #c6c6c8;
+  /* — separadores — */
+  --separator: rgba(24, 40, 80, 0.12);
+  --separator-opaque: #e3e7f0;
 
-  /* — Apple system colors (paleta completa, light) — */
-  --sys-red: #ff3b30;     --sys-orange: #ff9500;  --sys-yellow: #ffcc00;
-  --sys-green: #34c759;   --sys-mint: #00c7be;    --sys-teal: #30b0c7;
-  --sys-cyan: #32ade6;    --sys-blue: #007aff;    --sys-indigo: #5856d6;
-  --sys-purple: #af52de;  --sys-pink: #ff2d55;    --sys-brown: #a2845e;
+  /* — cores de sistema (status — NÃO são marca) — */
+  --sys-red: #e5484d;     --sys-orange: #f2760a;  --sys-yellow: #e0a80d;
+  --sys-green: #2f9e44;   --sys-mint: #12b886;    --sys-teal: #0ca5b0;
+  --sys-cyan: #1098ad;    --sys-blue: #2563eb;    --sys-indigo: #4f46e5;
+  --sys-purple: #7c3aed;  --sys-pink: #e64980;    --sys-brown: #a16207;
 
-  /* — Domínio BAU: classificação de lead — */
-  --lead-hot: #34c759;    /* systemGreen  (quente) */
-  --lead-warm: #ff9500;   /* systemOrange (morno)  */
-  --lead-cold: #007aff;   /* systemBlue   (frio)   */
+  /* — domínio: classificação de lead — */
+  --lead-hot: #2f9e44;    /* QUENTE */
+  --lead-warm: #f2760a;   /* MORNO  */
+  --lead-cold: #2563eb;   /* FRIO   */
 
-  /* — Domínio BAU: planos (Journey movido p/ indigo p/ não colidir c/ Cold) — */
-  --plan-legacy: #af52de; /* systemPurple */
-  --plan-journey: #5856d6;/* systemIndigo */
-  --plan-start: #8e8e93;  /* systemGray   */
+  /* — domínio: planos — */
+  --plan-legacy: #7c3aed;
+  --plan-journey: #4f46e5;
+  --plan-start: #64748b;
 
-  /* — Identidade de marca BAUSA (do logo) — */
-  --bau-blue: #25499f;      /* azul royal do wordmark */
-  --bau-burgundy: #8e1824;  /* bordô das estrelas / "USA" */
-  --bau-gold: #9a7010;      /* dourado de apoio */
+  /* — charts — convenção de séries BAU (1=azul, 2=bordô, 3=roxo, 4=laranja, 5=teal) — */
+  --chart-1: var(--bau-blue);
+  --chart-2: var(--bau-burgundy);
+  --chart-3: var(--sys-purple);
+  --chart-4: var(--sys-orange);
+  --chart-5: var(--sys-teal);
+  --chart-grid: rgba(24, 40, 80, 0.10);
 
-  /* — Recharts / analytics (War Room) — */
-  --chart-1: #007aff;     /* blue   */
-  --chart-2: #34c759;     /* green  */
-  --chart-3: #ff9500;     /* orange */
-  --chart-4: #af52de;     /* purple */
-  --chart-5: #ff2d55;     /* pink   */
-  --chart-grid: rgba(60, 60, 67, 0.18);
-
-  /* — Sidebar — */
+  /* — sidebar (light, airy) — */
   --sidebar: #ffffff;
-  --sidebar-foreground: #000000;
-  --sidebar-primary: #007aff;
+  --sidebar-foreground: #0e1726;
+  --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e5e5ea;
-  --sidebar-accent-foreground: #000000;
-  --sidebar-border: #d1d1d6;
-  --sidebar-ring: #007aff;
+  --sidebar-accent: #eef1f7;
+  --sidebar-accent-foreground: #14213d;
+  --sidebar-border: #e3e7f0;
+  --sidebar-ring: var(--primary);
 
-  /* — Materiais (Liquid Glass) — */
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.65);
-  --glass-highlight: rgba(255, 255, 255, 0.90);
-  --glass-shadow: rgba(0, 0, 0, 0.10);
+  /* — liquid glass (material assinatura) — */
+  --glass-bg: rgba(255, 255, 255, 0.66);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --glass-highlight: rgba(255, 255, 255, 0.95);
+  --glass-shadow: rgba(16, 24, 48, 0.10);
 
-  /* — Raio base (Apple ~10pt). shadcn deriva sm/md/lg/xl daqui — */
-  --radius: 0.625rem;      /* 10px */
+  /* — gradiente de marca (azul→bordô) — hero/avatar; nunca atrás de texto — */
+  --gradient-brand: linear-gradient(135deg, var(--bau-blue), var(--bau-burgundy));
 
-  /* esquema nativo (form controls, scrollbar) */
+  /* — raio base — */
+  --radius: 0.75rem;
+
   color-scheme: light;
 }
 
 /* ----------------------------------------------------------------------------
-   2. TEMA ESCURO  (.dark)  — Apple neutro fiel (#000 / #1C1C1E / #2C2C2E)
+   2. TEMA ESCURO (.dark) — navy on-brand (opcional)
    ---------------------------------------------------------------------------- */
 .dark {
-  --background: #000000;                 /* systemBackground (dark) */
-  --foreground: #ffffff;                 /* label */
-  --card: #1c1c1e;                       /* secondarySystemBackground */
-  --card-foreground: #ffffff;
-  --popover: #1c1c1e;
-  --popover-foreground: #ffffff;
-  --primary: #4a6fd0;                    /* BAU blue (dark) */
+  --bau-blue: #476bc0;
+  --bau-blue-2: #6f8fd8;
+  --bau-burgundy: #c04753;
+  --bau-burgundy-2: #d7737c;
+
+  --background: #0a0f1e;
+  --foreground: #eef2fb;
+  --card: #111a30;
+  --card-foreground: #eef2fb;
+  --popover: #111a30;
+  --popover-foreground: #eef2fb;
+  --primary: #476bc0;
   --primary-foreground: #ffffff;
-  --secondary: #2c2c2e;                  /* fill elevado */
-  --secondary-foreground: #ffffff;
-  --muted: #2c2c2e;
-  --muted-foreground: rgba(235, 235, 245, 0.60);  /* secondaryLabel dark */
-  --accent: #2c2c2e;
-  --accent-foreground: #ffffff;
-  --destructive: #ff453a;                /* systemRed dark */
+  --secondary: #1a2544;
+  --secondary-foreground: #eef2fb;
+  --muted: #1a2544;
+  --muted-foreground: #97a4c0;
+  --accent: #1e2c4f;
+  --accent-foreground: #eef2fb;
+  --destructive: #ff5a5f;
   --destructive-foreground: #ffffff;
-  --border: #38383a;                     /* opaqueSeparator dark */
-  --input: #38383a;
-  --ring: #0a84ff;
+  --border: #22304f;
+  --input: #22304f;
+  --ring: var(--primary);
 
-  --label: #ffffff;
-  --label-secondary: rgba(235, 235, 245, 0.60);
-  --label-tertiary: rgba(235, 235, 245, 0.30);
-  --label-quaternary: rgba(235, 235, 245, 0.16);
-  --placeholder: rgba(235, 235, 245, 0.30);
+  --label: #eef2fb;
+  --label-secondary: #97a4c0;
+  --label-tertiary: #66759a;
+  --label-quaternary: #46557a;
+  --placeholder: #66759a;
 
-  --fill-1: rgba(120, 120, 128, 0.36);
-  --fill-2: rgba(120, 120, 128, 0.32);
-  --fill-3: rgba(118, 118, 128, 0.24);
-  --fill-4: rgba(118, 118, 128, 0.18);
+  --fill-1: rgba(150, 170, 210, 0.16);
+  --fill-2: rgba(150, 170, 210, 0.12);
+  --fill-3: rgba(150, 170, 210, 0.08);
+  --fill-4: rgba(150, 170, 210, 0.05);
 
-  --separator: rgba(84, 84, 88, 0.60);
-  --separator-opaque: #38383a;
+  --separator: rgba(150, 170, 210, 0.16);
+  --separator-opaque: #22304f;
 
-  --sys-red: #ff453a;     --sys-orange: #ff9f0a;  --sys-yellow: #ffd60a;
-  --sys-green: #30d158;   --sys-mint: #63e6e2;    --sys-teal: #40c8e0;
-  --sys-cyan: #64d2ff;    --sys-blue: #0a84ff;    --sys-indigo: #5e5ce6;
-  --sys-purple: #bf5af2;  --sys-pink: #ff375f;    --sys-brown: #ac8e68;
+  --sys-red: #ff6166;     --sys-orange: #ff9d42;  --sys-yellow: #f5c451;
+  --sys-green: #4ac26b;   --sys-mint: #3ad6a8;    --sys-teal: #3cc6d1;
+  --sys-cyan: #48c4dc;    --sys-blue: #5b8bf5;    --sys-indigo: #7c78f0;
+  --sys-purple: #a97cf5;  --sys-pink: #f56fa1;    --sys-brown: #c99a5b;
 
-  --lead-hot: #30d158;
-  --lead-warm: #ff9f0a;
-  --lead-cold: #0a84ff;
+  --lead-hot: #4ac26b;
+  --lead-warm: #ff9d42;
+  --lead-cold: #5b8bf5;
 
-  --plan-legacy: #bf5af2;
-  --plan-journey: #5e5ce6;
-  --plan-start: #98989f;
+  --plan-legacy: #a97cf5;
+  --plan-journey: #7c78f0;
+  --plan-start: #8695b3;
 
-  /* — Identidade de marca BAUSA (variantes mais claras p/ legibilidade no dark) — */
-  --bau-blue: #4a6fd0;
-  --bau-burgundy: #c0303c;
-  --bau-gold: #c79a3a;
+  --chart-grid: rgba(150, 170, 210, 0.14);
 
-  --chart-1: #0a84ff;
-  --chart-2: #30d158;
-  --chart-3: #ff9f0a;
-  --chart-4: #bf5af2;
-  --chart-5: #ff375f;
-  --chart-grid: rgba(235, 235, 245, 0.16);
-
-  --sidebar: #000000;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #0a84ff;
+  --sidebar: #0b1222;
+  --sidebar-foreground: #eef2fb;
+  --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2c2c2e;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #38383a;
-  --sidebar-ring: #0a84ff;
+  --sidebar-accent: #1a2544;
+  --sidebar-accent-foreground: #eef2fb;
+  --sidebar-border: #22304f;
+  --sidebar-ring: var(--primary);
 
-  --glass-bg: rgba(28, 28, 30, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-highlight: rgba(255, 255, 255, 0.16);
-  --glass-shadow: rgba(0, 0, 0, 0.40);
+  --glass-bg: rgba(17, 26, 48, 0.62);
+  --glass-border: rgba(150, 170, 210, 0.14);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
 
   color-scheme: dark;
 }
 
 /* ----------------------------------------------------------------------------
-   2b. (OPCIONAL) DARK COM IDENTIDADE BAU — descomente p/ reintroduzir o azul.
-       Cola DEPOIS do bloco .dark acima; sobrescreve só as 4 bases neutras.
-   ----------------------------------------------------------------------------
-.dark {
-  --background: #0c0e16;
-  --card: #141720;
-  --popover: #141720;
-  --sidebar: #0f1117;
-  --border: #1e2130;
-  --input: #1e2130;
-  --sidebar-border: #1e2130;
-}
-*/
-
-/* ----------------------------------------------------------------------------
-   3. @theme inline — expõe os tokens como utilitários Tailwind (bg-*, text-*…)
+   3. @theme inline — expõe tokens como utilitários Tailwind
    ---------------------------------------------------------------------------- */
 @theme inline {
-  /* tipografia — stack de sistema (SF Pro nativo) + Inter (carregado via next/font, --font-inter) */
-  --font-sans: -apple-system, "SF Pro Text", "SF Pro Display", var(--font-inter),
-               system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: var(--font-inter), -apple-system, "SF Pro Text", system-ui,
+               "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Display: hoje = Inter (heavy); trocar por "Infra" quando os arquivos existirem. */
+  --font-display: var(--font-inter), -apple-system, system-ui, sans-serif;
   --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
 
-  /* cores core shadcn */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -231,7 +218,6 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* label / fill / separator */
   --color-label: var(--label);
   --color-label-secondary: var(--label-secondary);
   --color-label-tertiary: var(--label-tertiary);
@@ -244,7 +230,6 @@
   --color-separator-opaque: var(--separator-opaque);
   --color-placeholder: var(--placeholder);
 
-  /* system colors */
   --color-sys-red: var(--sys-red);
   --color-sys-orange: var(--sys-orange);
   --color-sys-yellow: var(--sys-yellow);
@@ -258,7 +243,6 @@
   --color-sys-pink: var(--sys-pink);
   --color-sys-brown: var(--sys-brown);
 
-  /* domínio BAU */
   --color-lead-hot: var(--lead-hot);
   --color-lead-warm: var(--lead-warm);
   --color-lead-cold: var(--lead-cold);
@@ -266,20 +250,20 @@
   --color-plan-journey: var(--plan-journey);
   --color-plan-start: var(--plan-start);
 
-  /* marca BAUSA */
   --color-bau-blue: var(--bau-blue);
+  --color-bau-blue-2: var(--bau-blue-2);
   --color-bau-burgundy: var(--bau-burgundy);
+  --color-bau-burgundy-2: var(--bau-burgundy-2);
   --color-bau-gold: var(--bau-gold);
+  --color-bau-white: var(--bau-white);
 
-  /* ALIASES DE COMPAT — nomes de token legados do projeto, mapeados aos
-     valores Apple. Mantidos para não quebrar usos remanescentes. */
+  /* aliases de compat legados */
   --color-surface: var(--card);
   --color-surface-hover: var(--secondary);
   --color-hot: var(--lead-hot);
   --color-warm: var(--lead-warm);
   --color-cold: var(--lead-cold);
 
-  /* charts */
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -287,7 +271,6 @@
   --color-chart-5: var(--chart-5);
   --color-chart-grid: var(--chart-grid);
 
-  /* sidebar */
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -297,23 +280,22 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* raios — escala Apple (contínua); shadcn deriva a partir de --radius */
+  /* raios */
   --radius-xs: 6px;
   --radius-sm: 8px;
-  --radius-md: 10px;     /* default inputs/botões */
-  --radius-lg: 12px;     /* cards */
-  --radius-xl: 16px;     /* cards grandes / sheets */
-  --radius-2xl: 20px;    /* modais */
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
   --radius-3xl: 28px;
 
-  /* sombras — Apple: baixíssima opacidade, difusas */
-  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
-  --shadow-lg: 0 12px 32px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06);
-  --shadow-xl: 0 24px 64px rgba(0,0,0,0.18);
+  /* sombras — suaves, tinta azul */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 48, 0.04);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 48, 0.06), 0 1px 2px rgba(16, 24, 48, 0.04);
+  --shadow-md: 0 6px 16px rgba(16, 24, 48, 0.08), 0 2px 6px rgba(16, 24, 48, 0.04);
+  --shadow-lg: 0 16px 40px rgba(16, 24, 48, 0.12), 0 4px 10px rgba(16, 24, 48, 0.06);
+  --shadow-xl: 0 28px 70px rgba(16, 24, 48, 0.16);
 
-  /* easing/motion — usado por transições e como referência p/ Framer Motion */
   --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1.0);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
@@ -326,9 +308,7 @@
    4. Base layer
    ---------------------------------------------------------------------------- */
 @layer base {
-  * {
-    border-color: var(--border);
-  }
+  * { border-color: var(--border); }
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -336,18 +316,11 @@
   }
   body {
     background-color: var(--background);
-    /* Aurora sutil — dá profundidade para os materiais de vidro refratarem.
-       Usa tokens do tema, então adapta claro/escuro automaticamente. */
-    background-image:
-      radial-gradient(at 0% 0%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 55%),
-      radial-gradient(at 100% 0%, color-mix(in srgb, var(--sys-purple) 9%, transparent), transparent 55%),
-      radial-gradient(at 50% 120%, color-mix(in srgb, var(--sys-indigo) 8%, transparent), transparent 55%);
-    background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "cv01", "ss01";  /* recursos opcionais Inter */
+    font-feature-settings: "cv01", "ss01";
+    letter-spacing: -0.006em;
   }
-  /* anel de foco acessível Apple-like (não use outline: none sozinho) */
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
@@ -357,96 +330,79 @@
 }
 
 /* ----------------------------------------------------------------------------
-   5. TIPOGRAFIA — escala iOS (SF Pro). Tamanhos em rem (base 16px).
-      Densidade desktop do CRM: corpo de leitura 1 passo abaixo do iOS canônico.
+   5. TIPOGRAFIA — escala editorial (display bold apertado)
    ---------------------------------------------------------------------------- */
 @layer components {
-  .text-large-title { font-size: 2.125rem; line-height: 2.5625rem; font-weight: 700; letter-spacing: -0.022em; }
-  .text-title-1     { font-size: 1.75rem;  line-height: 2.125rem;  font-weight: 700; letter-spacing: -0.020em; }
-  .text-title-2     { font-size: 1.375rem; line-height: 1.75rem;   font-weight: 700; letter-spacing: -0.016em; }
-  .text-title-3     { font-size: 1.25rem;  line-height: 1.5625rem; font-weight: 600; letter-spacing: -0.012em; }
-  .text-headline    { font-size: 1.0625rem;line-height: 1.375rem;  font-weight: 600; letter-spacing: -0.024em; }
-  .text-body        { font-size: 1.0625rem;line-height: 1.375rem;  font-weight: 400; letter-spacing: -0.024em; }
-  .text-callout     { font-size: 1rem;     line-height: 1.3125rem; font-weight: 400; letter-spacing: -0.019em; }
-  .text-subhead     { font-size: 0.9375rem;line-height: 1.25rem;   font-weight: 400; letter-spacing: -0.015em; }
-  .text-footnote    { font-size: 0.8125rem;line-height: 1.125rem;  font-weight: 400; letter-spacing: -0.006em; }
+  .text-large-title { font-family: var(--font-display); font-size: 2.25rem;  line-height: 2.5rem;    font-weight: 800; letter-spacing: -0.03em; }
+  .text-title-1     { font-family: var(--font-display); font-size: 1.75rem;  line-height: 2.125rem;  font-weight: 800; letter-spacing: -0.028em; }
+  .text-title-2     { font-family: var(--font-display); font-size: 1.375rem; line-height: 1.75rem;   font-weight: 700; letter-spacing: -0.022em; }
+  .text-title-3     { font-size: 1.1875rem;line-height: 1.5rem;    font-weight: 700; letter-spacing: -0.018em; }
+  .text-headline    { font-size: 1rem;     line-height: 1.375rem;  font-weight: 600; letter-spacing: -0.014em; }
+  .text-body        { font-size: 0.9375rem;line-height: 1.375rem;  font-weight: 400; letter-spacing: -0.011em; }
+  .text-callout     { font-size: 0.9375rem;line-height: 1.25rem;   font-weight: 400; letter-spacing: -0.011em; }
+  .text-subhead     { font-size: 0.875rem; line-height: 1.25rem;   font-weight: 400; letter-spacing: -0.006em; }
+  .text-footnote    { font-size: 0.8125rem;line-height: 1.125rem;  font-weight: 400; letter-spacing: 0; }
   .text-caption-1   { font-size: 0.75rem;  line-height: 1rem;      font-weight: 400; letter-spacing: 0; }
-  .text-caption-2   { font-size: 0.6875rem;line-height: 0.8125rem; font-weight: 500; letter-spacing: 0.006em; }
+  .text-caption-2   { font-size: 0.6875rem;line-height: 0.8125rem; font-weight: 500; letter-spacing: 0.004em; }
+  /* eyebrow — label maiúsculo espaçado, assinatura da tela favorita */
+  .text-eyebrow     { font-size: 0.625rem; line-height: 0.875rem;  font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; }
 }
 
 /* ----------------------------------------------------------------------------
-   6. MATERIAIS / LIQUID GLASS
-      Use em barras, headers fixos, sidebars translúcidas, modais e popovers.
-      Sempre garanta contraste de texto AA sobre o vidro.
+   6. MATERIAIS — LIQUID GLASS
    ---------------------------------------------------------------------------- */
 @layer components {
-  .glass-thin,
-  .glass-regular,
-  .glass-thick {
+  .glass-thin, .glass-regular, .glass-thick {
     background-color: var(--glass-bg);
     border: 1px solid var(--glass-border);
     box-shadow: 0 8px 32px var(--glass-shadow);
   }
-  .glass-thin    { backdrop-filter: blur(12px) saturate(160%); -webkit-backdrop-filter: blur(12px) saturate(160%); }
-  .glass-regular { backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); }
-  .glass-thick   { backdrop-filter: blur(40px) saturate(200%); -webkit-backdrop-filter: blur(40px) saturate(200%); }
+  .glass-thin    { backdrop-filter: blur(12px) saturate(150%); -webkit-backdrop-filter: blur(12px) saturate(150%); }
+  .glass-regular { backdrop-filter: blur(20px) saturate(165%); -webkit-backdrop-filter: blur(20px) saturate(165%); }
+  .glass-thick   { backdrop-filter: blur(34px) saturate(180%); -webkit-backdrop-filter: blur(34px) saturate(180%); }
 
-  /* Liquid Glass: vidro + brilho especular sutil no topo */
   .liquid-glass {
     position: relative;
     background-color: var(--glass-bg);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(22px) saturate(170%);
+    -webkit-backdrop-filter: blur(22px) saturate(170%);
     border: 1px solid var(--glass-border);
-    box-shadow: 0 12px 40px var(--glass-shadow),
-                inset 0 1px 0 var(--glass-highlight);
+    box-shadow: 0 16px 48px var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
     overflow: hidden;
   }
   .liquid-glass::before {
     content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg,
-      var(--glass-highlight) 0%, transparent 35%);
-    opacity: 0.5;
-    pointer-events: none;
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, var(--glass-highlight) 0%, transparent 40%);
+    opacity: 0.45; pointer-events: none;
   }
 
-  /* Card de vidro — material padrão das superfícies de conteúdo do app.
-     Reaproveita os tokens de vidro (claro/escuro). Aplique em containers
-     de card (substitui bg-card + border). Borda de cor (status) sobrescreve
-     via utilitário, pois utilities vencem o @layer components. */
+  /* Card de conteúdo padrão — superfície sólida, sombra sutil */
   .glass-card {
-    background-color: var(--glass-bg);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-sm), inset 0 1px 0 0 var(--glass-highlight);
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
   }
 
-  /* Fallback p/ navegadores sem backdrop-filter → cor sólida do tema */
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass-thin, .glass-regular, .glass-thick, .liquid-glass {
-      background-color: var(--popover);
-    }
-    .glass-card { background-color: var(--card); }
+    .glass-thin, .glass-regular, .glass-thick, .liquid-glass { background-color: var(--popover); }
   }
 }
 
 /* ----------------------------------------------------------------------------
-   7. CANTOS CONTÍNUOS (squircle) — a assinatura visual da Apple.
-      Progressive enhancement: usa corner-shape onde houver suporte.
-      Fallback = border-radius normal (já aplicado pelos tokens de raio).
+   7. UTILITÁRIOS — gradiente de marca, squircle, grid pontilhado
    ---------------------------------------------------------------------------- */
 @layer utilities {
+  .bg-gradient-brand { background-image: var(--gradient-brand); }
+
   @supports (corner-shape: superellipse(2.4)) {
-    .squircle    { corner-shape: superellipse(2.4); }   /* botões/inputs */
-    .squircle-lg { corner-shape: superellipse(3); }     /* cards/modais  */
+    .squircle    { corner-shape: superellipse(2.4); }
+    .squircle-lg { corner-shape: superellipse(3); }
   }
 }
 
 /* ----------------------------------------------------------------------------
-   8. Acessibilidade de movimento e transparência
+   8. Acessibilidade — movimento e transparência
    ---------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -456,18 +412,15 @@
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .glass-thin, .glass-regular, .glass-thick, .liquid-glass, .glass-card {
+  .glass-thin, .glass-regular, .glass-thick, .liquid-glass {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-  }
-  .glass-thin, .glass-regular, .glass-thick, .liquid-glass {
     background-color: var(--popover) !important;
   }
-  .glass-card { background-color: var(--card) !important; }
 }
 
 /* ----------------------------------------------------------------------------
-   9. SCROLLBAR — preservada do projeto, agora tokenizada (estilo macOS).
+   9. SCROLLBAR
    ---------------------------------------------------------------------------- */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
