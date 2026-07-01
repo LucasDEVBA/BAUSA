@@ -2,7 +2,7 @@ import { PipelineBoard } from "@/components/pipeline/PipelineBoard";
 import { PipelineMetricsBar } from "@/components/pipeline/PipelineMetricsBar";
 import { PipelineExportButton } from "@/components/pipeline/PipelineExportButton";
 import { FutureLeadsSection } from "@/components/pipeline/FutureLeadsSection";
-import { PageHero } from "@/components/shared/MinimalUI";
+import { PageHeader } from "@/components/ui";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { type Deal, type DealStage } from "@/types/deal";
 import { type LeadClassification } from "@/types/lead";
@@ -292,12 +292,11 @@ export default async function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <PageHero
+      <PageHeader
         eyebrow="Comercial"
         title="Pipeline de Vendas"
         description={`${activeDeals.length} negócios ativos · ${reunioesMarcadas} reuniões marcadas`}
-        accent="blue"
-        action={<PipelineExportButton deals={deals} />}
+        actions={<PipelineExportButton deals={deals} />}
       />
 
       {/* M\u00e9tricas em dropdown colaps\u00e1vel \u2014 fechado por padr\u00e3o p/ dar altura ao Kanban */}
