@@ -96,7 +96,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Leads",
         icon: Users,
         roles: ["ceo"],
-        badge: "8",
         activeRoutes: ["/dashboard", "/leads", "/leads/novo"],
         subItems: [{ href: "/leads/novo", label: "+ Novo Lead" }],
       },
@@ -368,7 +367,7 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
                 className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
               />
             ) : (
-              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white">
                 {nome.charAt(0).toUpperCase()}
               </div>
             )}

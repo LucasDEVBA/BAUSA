@@ -90,12 +90,12 @@
   /* — Sidebar — */
   --sidebar: #ffffff;
   --sidebar-foreground: #000000;
-  --sidebar-primary: #007aff;
+  --sidebar-primary: var(--primary);     /* ativo/seleção = azul BAU (§6.8) */
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e5e5ea;
   --sidebar-accent-foreground: #000000;
   --sidebar-border: #d1d1d6;
-  --sidebar-ring: #007aff;
+  --sidebar-ring: var(--primary);        /* foco = azul BAU (§6.8) */
 
   /* — Materiais (Liquid Glass) — */
   --glass-bg: rgba(255, 255, 255, 0.72);
@@ -175,12 +175,12 @@
 
   --sidebar: #000000;
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: #0a84ff;
+  --sidebar-primary: var(--primary);     /* ativo/seleção = azul BAU (§6.8) */
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #2c2c2e;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #38383a;
-  --sidebar-ring: #0a84ff;
+  --sidebar-ring: var(--primary);        /* foco = azul BAU (§6.8) */
 
   --glass-bg: rgba(28, 28, 30, 0.72);
   --glass-border: rgba(255, 255, 255, 0.12);

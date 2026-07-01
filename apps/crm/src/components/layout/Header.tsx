@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search } from "lucide-react";
 import { NotificationCenter } from "./NotificationCenter";
 import { ThemeToggle } from "./ThemeToggle";
 import { getInitials } from "@/lib/utils";
@@ -69,24 +68,11 @@ export function Header({ nome, avatarUrl }: HeaderProps) {
 
       {/* Ações */}
       <div className="flex items-center gap-2">
-        {/* Search */}
-        <button className="flex h-8 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-          <Search className="h-3.5 w-3.5" />
-          <span>Buscar...</span>
-          <kbd className="ml-2 rounded border border-border px-1 text-[10px] text-muted-foreground">⌘K</kbd>
-        </button>
-
         {/* Alternar tema claro/escuro */}
         <ThemeToggle />
 
         {/* Notificações */}
         <NotificationCenter />
-
-        {/* Indicador Realtime */}
-        <div className="flex items-center gap-1.5 rounded-full border border-sys-green/20 bg-sys-green/15 px-2.5 py-1">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sys-green" />
-          <span className="text-[10px] font-medium text-sys-green">Ao vivo</span>
-        </div>
 
         {/* Avatar → Meu Perfil */}
         <Link href="/perfil" title="Meu perfil" className="ml-1 flex-shrink-0">
@@ -100,7 +86,7 @@ export function Header({ nome, avatarUrl }: HeaderProps) {
               className="h-8 w-8 rounded-full object-cover ring-1 ring-border transition-opacity hover:opacity-80"
             />
           ) : (
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground transition-opacity hover:opacity-80">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white transition-opacity hover:opacity-80">
               {nome ? getInitials(nome) : "U"}
             </span>
           )}
