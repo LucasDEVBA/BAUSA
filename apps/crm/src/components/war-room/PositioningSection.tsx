@@ -36,7 +36,7 @@ interface TooltipProps {
 function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="liquid-glass rounded-lg px-3 py-2 text-xs">
+    <div className="rounded-lg border border-border bg-popover shadow-lg px-3 py-2 text-xs">
       <p className="font-medium text-foreground">{payload[0].name}</p>
       <p className="text-muted-foreground">{payload[0].value}% do mix</p>
     </div>
