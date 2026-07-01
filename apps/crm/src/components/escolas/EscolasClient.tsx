@@ -12,6 +12,7 @@ import {
   type SchoolType,
   type SchoolStatus,
 } from "@/types/school";
+import { Card, Button, EmptyState } from "@/components/ui";
 import { SchoolCard } from "./SchoolCard";
 import { SchoolDetailSheet } from "./SchoolDetailSheet";
 import { SchoolFormSheet } from "./SchoolFormSheet";
@@ -170,32 +171,28 @@ export function EscolasClient({ schools }: EscolasClientProps) {
 
       {/* Resultados */}
       {filtered.length === 0 ? (
-        <div className="border border-border/70 bg-card/60 rounded-xl py-12 text-center">
-          <GraduationCap className="mx-auto mb-3 h-10 w-10 text-label-tertiary" />
-          <p className="text-sm text-muted-foreground">
-            {schools.length === 0
-              ? "Nenhuma escola cadastrada ainda."
-              : "Nenhuma escola encontrada para os filtros aplicados."}
-          </p>
-          {schools.length === 0 ? (
-            <button
-              type="button"
-              onClick={() => setIsCreating(true)}
-              className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" />
-              Cadastrar primeira escola
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="mt-4 text-xs font-medium text-primary transition-colors hover:text-primary/80"
-            >
-              Limpar filtros
-            </button>
-          )}
-        </div>
+        <Card padding="none">
+          <EmptyState
+            icon={GraduationCap}
+            title={
+              schools.length === 0
+                ? "Nenhuma escola cadastrada ainda."
+                : "Nenhuma escola encontrada para os filtros aplicados."
+            }
+            action={
+              schools.length === 0 ? (
+                <Button onClick={() => setIsCreating(true)}>
+                  <Plus />
+                  Cadastrar primeira escola
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  Limpar filtros
+                </Button>
+              )
+            }
+          />
+        </Card>
       ) : (
         <div className="space-y-4">
           <p className="text-xs text-label-tertiary">
