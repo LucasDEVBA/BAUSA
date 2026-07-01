@@ -3,15 +3,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 /**
- * Card — superfície base do design system v2.
- * `plain`  superfície sólida (bg-card + borda + sombra suave)
- * `glass`  liquid glass (barras/hero) · `ghost` sem borda/sombra
+ * Card — superfície premium do design system v2.
+ * `glass`  liquid glass intenso (padrão premium, refrata a aurora do <main>)
+ * `plain`  superfície sólida · `ghost` sem borda/sombra.
+ * `accent` desenha um traço curto e delicado no canto superior esquerdo
+ *  (detalhe minimalista de cor por significado).
  */
-const cardVariants = cva("rounded-2xl text-card-foreground", {
+const cardVariants = cva("relative rounded-2xl text-card-foreground", {
   variants: {
     variant: {
+      glass: "glass-card",
       plain: "border border-border bg-card shadow-sm",
-      glass: "liquid-glass",
       ghost: "bg-card",
     },
     padding: { none: "", sm: "p-4", md: "p-5", lg: "p-6" },
@@ -20,15 +22,40 @@ const cardVariants = cva("rounded-2xl text-card-foreground", {
       false: "",
     },
   },
-  defaultVariants: { variant: "plain", padding: "md", interactive: false },
+  defaultVariants: { variant: "glass", padding: "md", interactive: false },
 });
+
+export type CardAccent =
+  | "brand"
+  | "burgundy"
+  | "green"
+  | "orange"
+  | "red"
+  | "blue"
+  | "purple"
+  | "teal"
+  | "neutral";
+
+const ACCENT_STUB: Record<CardAccent, string> = {
+  brand: "bg-primary",
+  burgundy: "bg-bau-burgundy",
+  green: "bg-sys-green",
+  orange: "bg-sys-orange",
+  red: "bg-sys-red",
+  blue: "bg-sys-blue",
+  purple: "bg-sys-purple",
+  teal: "bg-sys-teal",
+  neutral: "bg-label-quaternary",
+};
 
 export interface CardProps
   extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof cardVariants> {}
+    VariantProps<typeof cardVariants> {
+  accent?: CardAccent;
+}
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
-  { className, variant, padding, interactive, ...props },
+  { className, variant, padding, interactive, accent, children, ...props },
   ref,
 ) {
   return (
@@ -36,6 +63,17 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
       ref={ref}
       className={cn(cardVariants({ variant, padding, interactive }), className)}
       {...props}
-    />
+    >
+      {accent && (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute left-3 top-4 h-4 w-[3px] rounded-full",
+            ACCENT_STUB[accent],
+          )}
+        />
+      )}
+      {children}
+    </div>
   );
 });

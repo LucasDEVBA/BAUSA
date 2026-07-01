@@ -83,7 +83,7 @@ export function FamilyRiskDonut({ families }: FamilyRiskDonutProps) {
   const data = Object.entries(grouped).map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-2xl glass-card p-4">
       <h3 className="text-sm font-semibold text-foreground">Distribuição de Risco</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Famílias por nível de risco</p>
 

@@ -63,7 +63,7 @@ export function PositioningSection({ data }: PositioningSectionProps) {
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* Donut de mix de produto */}
-      <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="rounded-2xl glass-card p-4">
         <h3 className="text-sm font-semibold text-foreground">Mix de Produto</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">Distribuição de contratos por tier</p>
         <div className="mt-4 h-44">
@@ -103,7 +103,7 @@ export function PositioningSection({ data }: PositioningSectionProps) {
       </div>
 
       {/* Tabela ticket + desconto */}
-      <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="rounded-2xl glass-card p-4">
         <h3 className="text-sm font-semibold text-foreground">Indicadores Comerciais</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">Ticket, desconto e posicionamento</p>
 
