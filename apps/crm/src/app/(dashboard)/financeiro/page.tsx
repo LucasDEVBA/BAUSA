@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { NfBadge } from "@/components/financeiro/NfBadge";
 import { NfEditRow } from "@/components/financeiro/NfEditRow";
 import { FinanceiroTabs } from "@/components/financeiro/FinanceiroTabs";
+import { PageHeader, Button } from "@/components/ui";
 import { CancelamentoActions } from "@/components/financeiro/CancelamentoActions";
 import { PLANO_VALORES } from "@/types/crm";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
@@ -274,23 +275,23 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   const cancellations = activeTab === "cancelamentos" ? await fetchCancellations() : [];
 
   return (
-    <div className="p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-title-2 text-foreground">Gestao Financeira</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Contratos, recebiveis e analise de custos</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Suspense fallback={null}>
-            <FinanceiroTabs />
-          </Suspense>
-          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90">
-            <FileText className="h-4 w-4" />
-            Novo contrato
-          </button>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Comercial"
+        title="Gestão Financeira"
+        description="Contratos, recebíveis e análise de custos"
+        actions={
+          <>
+            <Suspense fallback={null}>
+              <FinanceiroTabs />
+            </Suspense>
+            <Button>
+              <FileText />
+              Novo contrato
+            </Button>
+          </>
+        }
+      />
 
       {/* Tab: NFs Pendentes */}
       {activeTab === "nf_pendentes" && (
