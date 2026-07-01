@@ -11,6 +11,12 @@ import {
   Cell,
 } from "recharts";
 import { type Family, JOURNEY_STAGE_CONFIG } from "@/types/family";
+import {
+  ChartCard,
+  chartAxisTick,
+  CHART_GRID,
+  CHART_CURSOR_FILL,
+} from "@/components/ui";
 
 interface TooltipProps {
   active?: boolean;
@@ -18,11 +24,12 @@ interface TooltipProps {
   label?: string;
 }
 
+// Tooltip local tokenizado (§6.6): conteúdo especial (pluralização de "famílias").
 function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="liquid-glass rounded-lg px-3 py-2 text-xs">
-      <p className="font-medium text-foreground">{label}</p>
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+      <p className="font-semibold text-foreground">{label}</p>
       <p className="text-muted-foreground">{payload[0].value} {payload[0].value === 1 ? "família" : "famílias"}</p>
     </div>
   );
@@ -53,17 +60,17 @@ export function FamilyStageChart({ families }: FamilyStageChartProps) {
   })).filter((d) => d.count > 0);
 
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-      <h3 className="text-sm font-semibold text-foreground">Famílias por Estágio</h3>
-      <p className="mt-0.5 text-xs text-muted-foreground">Distribuição na jornada pós-contrato</p>
-
-      <div className="mt-4 h-48">
+    <ChartCard
+      title="Famílias por Estágio"
+      subtitle="Distribuição na jornada pós-contrato"
+    >
+      <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" barSize={16}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} horizontal={false} />
             <XAxis
               type="number"
-              tick={{ fill: "var(--chart-grid)", fontSize: 10 }}
+              tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
               allowDecimals={false}
@@ -71,12 +78,12 @@ export function FamilyStageChart({ families }: FamilyStageChartProps) {
             <YAxis
               dataKey="label"
               type="category"
-              tick={{ fill: "var(--chart-grid)", fontSize: 10 }}
+              tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
               width={85}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: CHART_CURSOR_FILL }} />
             <Bar dataKey="count" radius={[0, 3, 3, 0]}>
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
@@ -85,6 +92,6 @@ export function FamilyStageChart({ families }: FamilyStageChartProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </ChartCard>
   );
 }

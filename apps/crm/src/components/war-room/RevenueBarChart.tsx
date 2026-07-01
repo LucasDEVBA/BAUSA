@@ -11,60 +11,46 @@ import {
   Legend,
 } from "recharts";
 import { type RevenueMonth } from "@/types/revenue";
-
-interface TooltipProps {
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
-  label?: string;
-}
-
-function CustomTooltip({ active, payload, label }: TooltipProps) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="liquid-glass rounded-lg px-3 py-2.5 text-xs">
-      <p className="mb-1.5 font-semibold text-foreground">{label}</p>
-      {payload.map((item) => (
-        <div key={item.name} className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-          <span className="text-muted-foreground">{item.name}:</span>
-          <span className="font-medium text-foreground">
-            R$ {item.value.toLocaleString("pt-BR")}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
+import {
+  ChartCard,
+  ChartTooltip,
+  chartAxisTick,
+  CHART_GRID,
+  CHART_CURSOR_FILL,
+} from "@/components/ui";
 
 interface RevenueBarChartProps {
   data: RevenueMonth[];
 }
 
+const formatBRL = (v: number | string) =>
+  `R$ ${typeof v === "number" ? v.toLocaleString("pt-BR") : v}`;
+
 export function RevenueBarChart({ data }: RevenueBarChartProps) {
   return (
-    <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-      <h3 className="text-sm font-semibold text-foreground">Receita por Mês</h3>
-      <p className="mt-0.5 text-xs text-muted-foreground">Recebido vs Projetado (R$)</p>
-
-      <div className="mt-4 h-64">
+    <ChartCard title="Receita por Mês" subtitle="Recebido vs Projetado (R$)">
+      <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} barSize={18} barGap={2}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
             <XAxis
               dataKey="month_label"
-              tick={{ fill: "var(--chart-grid)", fontSize: 10 }}
+              tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
-              tick={{ fill: "var(--chart-grid)", fontSize: 10 }}
+              tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+            <Tooltip
+              content={<ChartTooltip valueFormatter={formatBRL} />}
+              cursor={{ fill: CHART_CURSOR_FILL }}
+            />
             <Legend
-              wrapperStyle={{ fontSize: 11, color: "var(--chart-grid)" }}
+              wrapperStyle={{ fontSize: 11, color: "var(--muted-foreground)" }}
               iconType="circle"
               iconSize={8}
             />
@@ -73,6 +59,6 @@ export function RevenueBarChart({ data }: RevenueBarChartProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </ChartCard>
   );
 }
