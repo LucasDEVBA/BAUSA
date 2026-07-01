@@ -99,8 +99,8 @@
   --sidebar-ring: var(--primary);
 
   /* — liquid glass (material assinatura) — */
-  --glass-bg: rgba(255, 255, 255, 0.66);
-  --glass-border: rgba(255, 255, 255, 0.85);
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-border: rgba(255, 255, 255, 0.72);
   --glass-highlight: rgba(255, 255, 255, 0.95);
   --glass-shadow: rgba(16, 24, 48, 0.10);
 
@@ -378,10 +378,19 @@
   }
 
   /* Card de conteúdo padrão — superfície sólida, sombra sutil */
+  /* Card de conteúdo premium — LIQUID GLASS intenso (Apple-like). Sobre a aurora
+     do <main> (.app-aurora) o frost refrata com profundidade. Fallback sólido
+     via @supports abaixo (navegadores sem backdrop-filter). */
   .glass-card {
-    background-color: var(--card);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
+    position: relative;
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(30px) saturate(200%);
+    -webkit-backdrop-filter: blur(30px) saturate(200%);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      0 1px 1px rgba(16, 24, 48, 0.04),
+      0 22px 46px -22px rgba(16, 24, 48, 0.26),
+      inset 0 1px 0 var(--glass-highlight);
   }
 
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -394,6 +403,16 @@
    ---------------------------------------------------------------------------- */
 @layer utilities {
   .bg-gradient-brand { background-image: var(--gradient-brand); }
+
+  /* Aurora BAU sutil — aplicada ao <main> (scroll container). Dá o que os cards
+     de liquid glass refratam, criando profundidade premium. Fixa no viewport. */
+  .app-aurora {
+    background-image:
+      radial-gradient(56% 48% at 2% -10%, color-mix(in srgb, var(--bau-blue) 13%, transparent), transparent 60%),
+      radial-gradient(44% 44% at 104% 1%, color-mix(in srgb, var(--bau-burgundy) 9%, transparent), transparent 58%),
+      radial-gradient(52% 56% at 90% 118%, color-mix(in srgb, var(--bau-blue) 10%, transparent), transparent 62%);
+    background-attachment: fixed;
+  }
 
   @supports (corner-shape: superellipse(2.4)) {
     .squircle    { corner-shape: superellipse(2.4); }

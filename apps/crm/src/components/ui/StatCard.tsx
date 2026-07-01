@@ -40,7 +40,7 @@ export function StatCard({
   className,
 }: StatCardProps) {
   return (
-    <Card padding="md" className={cn("flex flex-col gap-3", className)}>
+    <Card padding="md" accent={accent} className={cn("flex flex-col gap-3", className)}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-eyebrow text-muted-foreground">{label}</p>
         {Icon && (

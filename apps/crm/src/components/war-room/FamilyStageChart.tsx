@@ -53,7 +53,7 @@ export function FamilyStageChart({ families }: FamilyStageChartProps) {
   })).filter((d) => d.count > 0);
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-2xl glass-card p-4">
       <h3 className="text-sm font-semibold text-foreground">Famílias por Estágio</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Distribuição na jornada pós-contrato</p>
 

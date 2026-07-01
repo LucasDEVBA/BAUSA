@@ -15,7 +15,7 @@ interface PriorityLeadsSectionProps {
 export function PriorityLeadsSection({ leads }: PriorityLeadsSectionProps) {
   if (leads.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="rounded-2xl glass-card p-4">
         <h3 className="mb-3 text-sm font-semibold text-foreground">Leads Prioritarios</h3>
         <p className="text-xs text-muted-foreground">Nenhum lead com score calculado.</p>
       </div>
@@ -23,7 +23,7 @@ export function PriorityLeadsSection({ leads }: PriorityLeadsSectionProps) {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-2xl glass-card p-4">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Leads Prioritarios</h3>
         <span className="text-[10px] font-medium text-label-tertiary">Top 10 por Score</span>

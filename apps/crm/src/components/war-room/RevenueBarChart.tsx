@@ -42,7 +42,7 @@ interface RevenueBarChartProps {
 
 export function RevenueBarChart({ data }: RevenueBarChartProps) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-2xl glass-card p-4">
       <h3 className="text-sm font-semibold text-foreground">Receita por Mês</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">Recebido vs Projetado (R$)</p>
 

@@ -46,7 +46,11 @@ export function WarRoomRevenueHero({
   const data = months.slice(-12);
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="glass-card relative rounded-2xl p-5">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute left-3 top-4 h-4 w-[3px] rounded-full bg-primary"
+      />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-eyebrow text-muted-foreground">Receita do mês</p>
