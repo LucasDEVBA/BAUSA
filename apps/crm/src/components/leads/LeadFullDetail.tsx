@@ -678,7 +678,7 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
 
           {/* Avatar + Name + Badge */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-sm font-bold text-primary-foreground">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-primary-foreground">
               {getInitials(lead.athlete_name)}
             </div>
             <div className="min-w-0">

@@ -9,6 +9,7 @@ export { DeltaBadge, type DeltaBadgeProps } from "./DeltaBadge";
 export { Input, type InputProps } from "./Input";
 export { Skeleton, type SkeletonProps } from "./Skeleton";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
+export { PageHeader, type PageHeaderProps } from "./PageHeader";
 export { StatCard, type StatCardProps } from "./StatCard";
 export { ChannelAction, type ChannelActionProps, type Channel } from "./ChannelAction";
 export { InsightCard, type InsightCardProps } from "./InsightCard";

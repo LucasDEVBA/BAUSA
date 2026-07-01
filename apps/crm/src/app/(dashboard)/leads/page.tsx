@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { Flame, Thermometer, Snowflake, Clock } from "lucide-react";
+import { Flame, Thermometer, Snowflake, Clock, Users } from "lucide-react";
 import { LeadsTable } from "@/components/leads/LeadsTable";
 import { LeadsExportButton } from "@/components/leads/LeadsExportButton";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { type Lead, type LeadClassification } from "@/types/lead";
-import { PageHero } from "@/components/shared/MinimalUI";
-import { LeadsNav } from "@/components/leads/LeadsNav";
+import { PageHeader, StatCard } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Leads",
@@ -199,50 +198,48 @@ export default async function LeadsPage() {
     (l) => l.timing_status === "muito_cedo" || l.timing_status === "tarde_demais"
   ).length;
 
+  const totalClass = quente + morno + frio || 1;
+
   return (
-    <div className="space-y-4">
-      <LeadsNav />
-      <PageHero
+    <div className="space-y-5">
+      <PageHeader
         eyebrow="Comercial"
         title="Leads"
-        description={`${leads.length} leads recebidos · ${quente} quentes · ${morno} mornos · ${frio} frios${timingAlternativo > 0 ? ` · ${timingAlternativo} timing alt.` : ""}`}
-        accent="gold"
-        action={
-          <div className="hidden items-center gap-1.5 md:flex">
-            <span
-              className="inline-flex h-7 items-center gap-1 rounded-md bg-lead-hot/10 px-2 text-[11px] font-medium text-lead-hot"
-              title="Leads QUENTE"
-            >
-              <Flame className="h-3 w-3" />
-              {quente}
-            </span>
-            <span
-              className="inline-flex h-7 items-center gap-1 rounded-md bg-lead-warm/10 px-2 text-[11px] font-medium text-lead-warm"
-              title="Leads MORNO"
-            >
-              <Thermometer className="h-3 w-3" />
-              {morno}
-            </span>
-            <span
-              className="inline-flex h-7 items-center gap-1 rounded-md bg-lead-cold/10 px-2 text-[11px] font-medium text-lead-cold"
-              title="Leads FRIO"
-            >
-              <Snowflake className="h-3 w-3" />
-              {frio}
-            </span>
-            {timingAlternativo > 0 && (
-              <span
-                className="inline-flex h-7 items-center gap-1 rounded-md bg-plan-legacy/10 px-2 text-[11px] font-medium text-plan-legacy"
-                title="Leads fora da janela ideal"
-              >
-                <Clock className="h-3 w-3" />
-                {timingAlternativo}
-              </span>
-            )}
-            <LeadsExportButton leads={leads} />
-          </div>
-        }
+        description={`${leads.length} leads recebidos${timingAlternativo > 0 ? ` · ${timingAlternativo} fora da janela ideal` : ""}`}
+        actions={<LeadsExportButton leads={leads} />}
       />
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Total de leads"
+          value={leads.length}
+          context={`${quente + morno + frio} qualificados`}
+          icon={Users}
+          accent="brand"
+        />
+        <StatCard
+          label="Quente"
+          value={quente}
+          context={`${Math.round((quente / totalClass) * 100)}% do qualificado`}
+          icon={Flame}
+          accent="green"
+        />
+        <StatCard
+          label="Morno"
+          value={morno}
+          context={`${Math.round((morno / totalClass) * 100)}% do qualificado`}
+          icon={Thermometer}
+          accent="orange"
+        />
+        <StatCard
+          label="Frio"
+          value={frio}
+          context={timingAlternativo > 0 ? `${timingAlternativo} timing alternativo` : `${Math.round((frio / totalClass) * 100)}% do qualificado`}
+          icon={timingAlternativo > 0 ? Clock : Snowflake}
+          accent="blue"
+        />
+      </div>
 
       {/* Table */}
       <LeadsTable leads={leads} />
