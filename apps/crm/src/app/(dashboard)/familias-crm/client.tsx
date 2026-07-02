@@ -15,7 +15,14 @@ import {
   Pencil,
   Phone,
   X,
+  HeartHandshake,
+  Smile,
+  Activity,
+  Users2,
+  type LucideIcon,
 } from "lucide-react";
+import { Badge, Button, Card, EmptyState, Input, StatCard } from "@/components/ui";
+import type { BadgeTone, StatCardProps } from "@/components/ui";
 import {
   JOURNEY_STAGE_CONFIG,
   FAMILY_STATUS_CONFIG,
@@ -83,6 +90,19 @@ const TIPO_RISCO_OPTIONS: { value: RiskDimension; label: string }[] = [
   { value: "comunicacao", label: "Comunicação" },
 ];
 
+/** Rótulo de seção padrão (eyebrow) — hierarquia consistente com as referências. */
+const SECTION_LABEL = "text-eyebrow text-label-tertiary";
+
+/** Classe base de campo de formulário tokenizada — foco no anel primário BAU. */
+const FIELD_CLASS =
+  "w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40";
+
+const STATUS_TONE: Record<FamilyStatus, BadgeTone> = {
+  satisfeita: "green",
+  atencao: "orange",
+  crise: "red",
+};
+
 function formatRelative(dateStr: string) {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
   if (diff === 0) return "hoje";
@@ -122,18 +142,28 @@ function FamilyCard({
   const statusCfg = FAMILY_STATUS_CONFIG[family.family_status];
   const tempCfg = TEMPERATURE_CONFIG[family.temperature];
   const stageCfg = JOURNEY_STAGE_CONFIG[family.journey_stage];
+  const accent =
+    family.family_status === "crise"
+      ? "red"
+      : family.family_status === "atencao"
+        ? "orange"
+        : undefined;
 
   return (
-    <div
-      className={cn(
-        "rounded-lg border border-border/70 bg-card/60 p-3.5 cursor-pointer transition-all hover:shadow-md hover:border-primary/30",
-        family.family_status === "crise"
-          ? "border-sys-red/40"
-          : family.family_status === "atencao"
-            ? "border-sys-orange/30"
-            : ""
-      )}
+    <Card
+      padding="none"
+      accent={accent}
+      interactive
+      role="button"
+      tabIndex={0}
+      className="cursor-pointer p-3.5"
       onClick={() => onSelect(family)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(family);
+        }
+      }}
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -160,22 +190,16 @@ function FamilyCard({
       </div>
 
       <div className="mb-3 flex items-center gap-2 flex-wrap">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold",
-            statusCfg.bg,
-            statusCfg.color
-          )}
-        >
+        <Badge tone={STATUS_TONE[family.family_status]} size="sm">
           <span className={cn("h-1.5 w-1.5 rounded-full", statusCfg.dot)} />
           {statusCfg.label}
-        </span>
-        <span className="inline-flex rounded-md bg-background border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+        </Badge>
+        <Badge tone="neutral" size="sm">
           {stageCfg.label}
-        </span>
-        <span className="inline-flex rounded-md bg-background border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+        </Badge>
+        <Badge tone="neutral" size="sm">
           {family.plan}
-        </span>
+        </Badge>
       </div>
 
       <div className="mb-3 space-y-2">
@@ -237,7 +261,7 @@ function FamilyCard({
           </p>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -287,13 +311,10 @@ function NotesSection({ experienciaId }: { experienciaId: string }) {
 
   return (
     <div>
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
-        Notas Internas
-      </p>
+      <p className={cn("mb-3", SECTION_LABEL)}>Notas Internas</p>
 
       <div className="flex gap-2 mb-3">
-        <input
-          type="text"
+        <Input
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
           onKeyDown={(e) => {
@@ -303,19 +324,19 @@ function NotesSection({ experienciaId }: { experienciaId: string }) {
             }
           }}
           placeholder="Escrever nota..."
-          className="flex-1 rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40"
+          className="flex-1 text-xs"
         />
-        <button
+        <Button
+          size="sm"
           onClick={handleSubmit}
           disabled={isPending || !newNote.trim()}
-          className="flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
             <Send className="h-3 w-3" />
           )}
-        </button>
+        </Button>
       </div>
 
       {notes.length === 0 ? (
@@ -384,9 +405,7 @@ function ContactsTimeline({ experienciaId }: { experienciaId: string }) {
 
   return (
     <div>
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
-        Timeline de Contatos
-      </p>
+      <p className={cn("mb-3", SECTION_LABEL)}>Timeline de Contatos</p>
       {contatos.length === 0 ? (
         <p className="text-[11px] text-label-tertiary">Nenhum contato registrado.</p>
       ) : (
@@ -397,9 +416,9 @@ function ContactsTimeline({ experienciaId }: { experienciaId: string }) {
               className="rounded-xl border border-border bg-card px-3 py-2"
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="rounded-md bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                <Badge tone="brand" size="sm">
                   {c.tipo}
-                </span>
+                </Badge>
                 <p className="text-[10px] text-label-tertiary">
                   {new Date(c.created_at).toLocaleString("pt-BR", {
                     day: "2-digit",
@@ -515,13 +534,13 @@ function FamilyEditForm({
     <div className="space-y-5">
       {/* Fase */}
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
+        <label className={cn("mb-1.5 block", SECTION_LABEL)}>
           Fase da Jornada
         </label>
         <select
           value={fase}
           onChange={(e) => setFase(e.target.value as FamilyJourneyStage)}
-          className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
+          className={FIELD_CLASS}
         >
           {FAMILY_JOURNEY_STAGES.map((f) => (
             <option key={f} value={f}>
@@ -533,9 +552,7 @@ function FamilyEditForm({
 
       {/* Indicadores */}
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
-          Indicadores (1–5)
-        </p>
+        <p className={cn("mb-2", SECTION_LABEL)}>Indicadores (1–5)</p>
         {[
           {
             label: "Ansiedade",
@@ -576,9 +593,7 @@ function FamilyEditForm({
 
       {/* Tipos de risco */}
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
-          Tipos de Risco
-        </p>
+        <p className={cn("mb-2", SECTION_LABEL)}>Tipos de Risco</p>
         <div className="grid grid-cols-2 gap-1.5">
           {TIPO_RISCO_OPTIONS.map((opt) => {
             const active = tipos.includes(opt.value);
@@ -603,20 +618,20 @@ function FamilyEditForm({
 
       {/* Data prevista de embarque */}
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
+        <label className={cn("mb-1.5 block", SECTION_LABEL)}>
           Data prevista de embarque
         </label>
         <input
           type="date"
           value={embarque}
           onChange={(e) => setEmbarque(e.target.value)}
-          className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
+          className={FIELD_CLASS}
         />
       </div>
 
       {/* Status */}
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
+        <label className={cn("mb-1.5 block", SECTION_LABEL)}>
           Status da Família
         </label>
         <div className="grid grid-cols-3 gap-1.5">
@@ -650,8 +665,17 @@ function FamilyEditForm({
 
       {/* Formulário condicional Atenção/Crise */}
       {requireProblema && (
-        <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-3 space-y-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-sys-orange">
+        <Card
+          padding="sm"
+          accent={status === "crise" ? "red" : "orange"}
+          className="space-y-3"
+        >
+          <p
+            className={cn(
+              "text-eyebrow",
+              status === "crise" ? "text-sys-red" : "text-sys-orange",
+            )}
+          >
             {status === "crise" ? "Protocolo de Crise" : "Registro de Atenção"}
           </p>
           <div>
@@ -662,7 +686,7 @@ function FamilyEditForm({
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
               rows={3}
-              className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
+              className={cn(FIELD_CLASS, "bg-background")}
               placeholder="Descreva o que está acontecendo..."
             />
           </div>
@@ -674,7 +698,7 @@ function FamilyEditForm({
               value={acao}
               onChange={(e) => setAcao(e.target.value)}
               rows={2}
-              className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
+              className={cn(FIELD_CLASS, "bg-background")}
               placeholder="O que está sendo feito agora..."
             />
           </div>
@@ -687,7 +711,7 @@ function FamilyEditForm({
                 type="text"
                 value={proximaAcao}
                 onChange={(e) => setProximaAcao(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-sys-orange/40"
+                className={cn(FIELD_CLASS, "bg-background")}
                 placeholder="O que será feito a seguir..."
               />
             </div>
@@ -703,7 +727,7 @@ function FamilyEditForm({
                   <select
                     value={tipoCrise}
                     onChange={(e) => setTipoCrise(e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
+                    className={cn(FIELD_CLASS, "bg-background")}
                   >
                     <option value="">Selecione</option>
                     {TIPO_CRISE_OPTIONS.map((t) => (
@@ -720,7 +744,7 @@ function FamilyEditForm({
                   <select
                     value={nivelCrise}
                     onChange={(e) => setNivelCrise(e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
+                    className={cn(FIELD_CLASS, "bg-background")}
                   >
                     <option value="">Selecione</option>
                     {NIVEL_CRISE_OPTIONS.map((n) => (
@@ -746,24 +770,21 @@ function FamilyEditForm({
           <p className="text-[10px] text-sys-orange/80">
             Ao salvar, o CEO será notificado automaticamente.
           </p>
-        </div>
+        </Card>
       )}
 
       <div className="flex gap-2 pt-1">
-        <button
+        <Button
           onClick={handleSave}
           disabled={isPending}
-          className="flex-1 flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          className="flex-1"
         >
           {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           Salvar alterações
-        </button>
-        <button
-          onClick={onCancel}
-          className="rounded-md border border-border bg-card px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-        >
+        </Button>
+        <Button variant="secondary" onClick={onCancel}>
           Cancelar
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -829,9 +850,7 @@ function RegistrarContatoModal({
         </div>
 
         <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
-            Canal
-          </label>
+          <label className={cn("mb-1.5 block", SECTION_LABEL)}>Canal</label>
           <div className="grid grid-cols-4 gap-1.5">
             {(["whatsapp", "email", "ligacao", "presencial"] as const).map(
               (t) => (
@@ -854,38 +873,36 @@ function RegistrarContatoModal({
         </div>
 
         <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
-            Resumo *
-          </label>
+          <label className={cn("mb-1.5 block", SECTION_LABEL)}>Resumo *</label>
           <textarea
             value={resumo}
             onChange={(e) => setResumo(e.target.value)}
             rows={3}
-            className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
+            className={FIELD_CLASS}
             placeholder="O que foi discutido..."
           />
         </div>
 
         <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary mb-1.5">
+          <label className={cn("mb-1.5 block", SECTION_LABEL)}>
             Próximo contato *
           </label>
           <input
             type="date"
             value={proximo}
             onChange={(e) => setProximo(e.target.value)}
-            className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
+            className={FIELD_CLASS}
           />
         </div>
 
-        <button
+        <Button
           onClick={handleSubmit}
           disabled={isPending}
-          className="w-full flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          className="w-full"
         >
           {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           Registrar
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -947,18 +964,19 @@ function EscalonarCEOModal({
           value={contexto}
           onChange={(e) => setContexto(e.target.value)}
           rows={4}
-          className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-sys-red/40"
+          className={FIELD_CLASS}
           placeholder="Contexto detalhado do escalonamento..."
         />
 
-        <button
+        <Button
+          variant="destructive"
           onClick={handleSubmit}
           disabled={isPending}
-          className="w-full flex items-center justify-center gap-2 rounded-md bg-destructive px-4 py-2.5 text-xs font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-50"
+          className="w-full"
         >
           {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           Escalonar agora
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -1003,7 +1021,7 @@ function FamilyDetail({
         className="liquid-glass w-full max-w-lg rounded-2xl overflow-y-auto max-h-[90vh] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-border bg-popover px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-[color:var(--glass-border)] bg-[color:var(--glass-bg)] px-5 py-4 backdrop-blur-xl [-webkit-backdrop-filter:blur(20px)]">
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -1013,15 +1031,9 @@ function FamilyDetail({
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold",
-                    statusCfg.bg,
-                    statusCfg.color
-                  )}
-                >
+                <Badge tone={STATUS_TONE[family.family_status]} size="sm">
                   {statusCfg.label}
-                </span>
+                </Badge>
                 <span className="text-xs text-muted-foreground">
                   {stageCfg.label} · Plano {family.plan}
                 </span>
@@ -1107,7 +1119,7 @@ function FamilyDetail({
               </div>
 
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
+                <p className={cn("mb-3", SECTION_LABEL)}>
                   Indicadores de Experiência
                 </p>
                 <div className="space-y-3">
@@ -1159,9 +1171,7 @@ function FamilyDetail({
               </div>
 
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
-                  Perfil de Risco
-                </p>
+                <p className={cn("mb-3", SECTION_LABEL)}>Perfil de Risco</p>
                 <div className="grid grid-cols-2 gap-2">
                   {family.risk_profile.map((r) => (
                     <div
@@ -1205,10 +1215,10 @@ function FamilyDetail({
 
               {family.family_status === "crise" && (
                 <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-sys-red">
+                  <p className="mb-2 text-eyebrow text-sys-red">
                     Detalhes da Crise
                   </p>
-                  <div className="rounded-xl border border-sys-red/30 bg-sys-red/5 p-4 space-y-2">
+                  <Card accent="red" className="space-y-2">
                     <p className="text-xs text-foreground/80">
                       <span className="font-semibold text-sys-red">Tipo: </span>
                       {family.tipo_crise ?? "—"}
@@ -1231,21 +1241,18 @@ function FamilyDetail({
                         </p>
                       </div>
                     ))}
-                  </div>
+                  </Card>
                 </div>
               )}
 
               {family.family_status === "atencao" &&
                 family.attention_records.length > 0 && (
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-sys-orange">
+                    <p className="mb-2 text-eyebrow text-sys-orange">
                       Registro de Atenção
                     </p>
                     {family.attention_records.map((ar) => (
-                      <div
-                        key={ar.id}
-                        className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-3 space-y-2"
-                      >
+                      <Card key={ar.id} accent="orange" padding="sm" className="space-y-2">
                         <p className="text-xs text-foreground/80">
                           <span className="font-semibold text-sys-orange">
                             Problema:{" "}
@@ -1256,14 +1263,14 @@ function FamilyDetail({
                           <span className="font-semibold">Ação: </span>
                           {ar.action_ongoing}
                         </p>
-                      </div>
+                      </Card>
                     ))}
                   </div>
                 )}
 
               {showPostBoarding && (
                 <div>
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-label-tertiary">
+                  <p className={cn("mb-3", SECTION_LABEL)}>
                     Indicadores Pós-Embarque
                   </p>
                   <div className="grid grid-cols-2 gap-3">
@@ -1363,32 +1370,30 @@ export function FamiliasCrmClient({
 
   const alertasByExperiencia = new Map(alertas.map((a) => [a.experiencia_id, a]));
 
+  const STAT_CARDS: {
+    label: string;
+    value: string;
+    icon: LucideIcon;
+    accent: StatCardProps["accent"];
+  }[] = [
+    { label: "Famílias", value: metrics.total.toString(), icon: Users2, accent: "brand" },
+    { label: "Satisfeitas", value: metrics.satisfeita.toString(), icon: Smile, accent: "green" },
+    { label: "Atenção", value: metrics.atencao.toString(), icon: AlertTriangle, accent: "orange" },
+    { label: "Crise", value: metrics.crise.toString(), icon: HeartHandshake, accent: "red" },
+    { label: "Em alerta", value: metrics.em_alerta.toString(), icon: Bell, accent: "orange" },
+    { label: "Satisfação média", value: `${metrics.avg_satisfaction}/5`, icon: Activity, accent: "blue" },
+  ];
+
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-title-2 text-foreground">
-            CRM de Experiência da Família
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Acompanhamento pós-venda e suporte à jornada
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowNovaModal(true)}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors"
-          >
-            <User className="h-4 w-4" />
-            Nova Família
-          </button>
-          <a
-            href="/familias-pipeline"
-            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground hover:border-primary/30 hover:text-primary"
-          >
-            Pipeline da Família
-          </a>
-        </div>
+    <div className="space-y-5">
+      <div className="flex items-center justify-end gap-2 flex-wrap">
+        <Button onClick={() => setShowNovaModal(true)}>
+          <User className="h-4 w-4" />
+          Nova Família
+        </Button>
+        <Button variant="secondary" asChild>
+          <a href="/familias-pipeline">Pipeline da Família</a>
+        </Button>
       </div>
 
       <NovaFamiliaModal
@@ -1396,10 +1401,9 @@ export function FamiliasCrmClient({
         onClose={() => setShowNovaModal(false)}
       />
 
-
       {/* Banner de alertas */}
       {alertas.length > 0 && (
-        <div className="border border-border/70 bg-card/60 rounded-xl border-sys-orange/30 p-4">
+        <Card accent="orange">
           <div className="flex items-center gap-2 mb-2">
             <Bell className="h-4 w-4 text-sys-orange" />
             <p className="text-xs font-semibold text-sys-orange">
@@ -1422,59 +1426,19 @@ export function FamiliasCrmClient({
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        {[
-          {
-            label: "Famílias",
-            value: metrics.total.toString(),
-            color: "text-foreground",
-            bg: "bg-secondary border-border",
-          },
-          {
-            label: "Satisfeitas",
-            value: metrics.satisfeita.toString(),
-            color: "text-sys-green",
-            bg: "bg-sys-green/15 border-sys-green/20",
-          },
-          {
-            label: "Atenção",
-            value: metrics.atencao.toString(),
-            color: "text-sys-orange",
-            bg: "bg-sys-orange/15 border-sys-orange/20",
-          },
-          {
-            label: "Crise",
-            value: metrics.crise.toString(),
-            color: "text-sys-red",
-            bg: "bg-sys-red/15 border-sys-red/20",
-          },
-          {
-            label: "Em alerta",
-            value: metrics.em_alerta.toString(),
-            color: "text-sys-orange",
-            bg: "bg-sys-orange/15 border-sys-orange/20",
-          },
-          {
-            label: "Satisfação média",
-            value: `${metrics.avg_satisfaction}/5`,
-            color: "text-sys-blue",
-            bg: "bg-sys-blue/15 border-sys-blue/20",
-          },
-        ].map((kpi) => (
-          <div
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+        {STAT_CARDS.map((kpi) => (
+          <StatCard
             key={kpi.label}
-            className={cn(
-              "rounded-xl border px-4 py-3 text-center",
-              kpi.bg,
-              !kpi.bg.includes("border-") && "border-border"
-            )}
-          >
-            <p className={cn("text-base font-semibold", kpi.color)}>{kpi.value}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
-          </div>
+            label={kpi.label}
+            value={kpi.value}
+            icon={kpi.icon}
+            accent={kpi.accent}
+          />
         ))}
       </div>
 
@@ -1552,10 +1516,11 @@ export function FamiliasCrmClient({
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-12">
-          <User className="h-10 w-10 mx-auto text-label-tertiary mb-3" />
-          <p className="text-sm text-muted-foreground">Nenhuma família encontrada.</p>
-        </div>
+        <EmptyState
+          icon={User}
+          title="Nenhuma família encontrada"
+          description="Nenhuma família corresponde ao filtro selecionado."
+        />
       )}
 
       {selected && (

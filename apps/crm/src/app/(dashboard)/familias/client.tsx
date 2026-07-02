@@ -9,6 +9,9 @@ import {
   AlertTriangle,
   Target,
   Loader2,
+  UsersRound,
+  Wallet,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ETAPA_LABELS } from "@/types/crm";
@@ -18,6 +21,8 @@ import {
   type FamilyModalData,
 } from "@/components/familias-shared/FamilyDetailModal";
 import { toast } from "sonner";
+import { Card, EmptyState, PageHeader, StatCard, Input } from "@/components/ui";
+import { FamiliasNav } from "@/components/familias/FamiliasNav";
 import type { FamiliaConsolidada } from "./page";
 
 interface FamiliasConsolidadasClientProps {
@@ -110,79 +115,65 @@ export function FamiliasConsolidadasClient({
   };
 
   return (
-    <div className="p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <Users className="h-5 w-5 text-primary" />
-            <h1 className="text-title-2 text-foreground">
-              Visão Consolidada por Família
-            </h1>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Famílias agrupadas por responsável (apenas em Admissão+). Clique
-            num atleta para editar.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Famílias"
+        title="Visão Consolidada por Família"
+        description="Famílias agrupadas por responsável (apenas em Admissão+). Clique num atleta para editar."
+      />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
-            Famílias
-          </p>
-          <p className="mt-1 text-base font-semibold text-primary">
-            {totalFamilias}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
-            Atletas
-          </p>
-          <p className="mt-1 text-base font-semibold text-foreground">{totalAtletas}</p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
-            Valor total
-          </p>
-          <p className="mt-1 text-base font-semibold text-sys-green">
-            {formatBRL(totalValor)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
-            Em atenção/crise
-          </p>
-          <p className="mt-1 text-base font-semibold text-sys-orange">
-            {familiasComAlerta.length}
-          </p>
-        </div>
+      <FamiliasNav />
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Famílias"
+          value={totalFamilias}
+          icon={UsersRound}
+          accent="brand"
+        />
+        <StatCard
+          label="Atletas"
+          value={totalAtletas}
+          icon={Users}
+          accent="blue"
+        />
+        <StatCard
+          label="Valor total"
+          value={formatBRL(totalValor)}
+          icon={Wallet}
+          accent="green"
+        />
+        <StatCard
+          label="Em atenção/crise"
+          value={familiasComAlerta.length}
+          icon={Activity}
+          accent={familiasComAlerta.length > 0 ? "orange" : "brand"}
+        />
       </div>
 
       {/* Search */}
-      <div className="flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 max-w-sm">
-        <Search className="h-3.5 w-3.5 text-muted-foreground" />
-        <input
+      <div className="relative max-w-sm">
+        <Search
+          aria-hidden
+          className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
           type="text"
           placeholder="Buscar por responsavel ou atleta..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="bg-transparent text-sm text-foreground placeholder:text-placeholder outline-none w-full"
+          className="pl-9"
         />
       </div>
 
       {/* Family Cards */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-label-tertiary">
-          <Users className="mb-3 h-10 w-10" />
-          <p className="text-sm">Nenhuma família encontrada</p>
-          <p className="mt-1 text-xs text-label-tertiary">
-            Famílias aparecem aqui quando o deal chega em{" "}
-            <code>admission_process</code>.
-          </p>
-        </div>
+        <EmptyState
+          icon={Users}
+          title="Nenhuma família encontrada"
+          description="Famílias aparecem aqui quando o deal chega em admission_process."
+        />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {filtered.map((familia) => {
@@ -196,14 +187,10 @@ export function FamiliasConsolidadasClient({
               familia.atletas.length > 1 && new Set(fases).size > 1;
 
             return (
-              <div
+              <Card
                 key={familia.responsavel_id}
-                className={cn(
-                  "rounded-lg border border-border/70 bg-card/60 p-3.5 transition-all",
-                  hasAlertStatus
-                    ? "border-sys-orange/30"
-                    : "",
-                )}
+                padding="md"
+                accent={hasAlertStatus ? "orange" : "brand"}
               >
                 {/* Guardian Header */}
                 <div className="flex items-start gap-3 mb-4">
@@ -355,7 +342,7 @@ export function FamiliasConsolidadasClient({
                     );
                   })}
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>

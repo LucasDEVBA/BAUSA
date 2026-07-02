@@ -1,6 +1,7 @@
 "use client";
 
 import { LayoutGrid, List, Search, X } from "lucide-react";
+import { Card } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 export type FamiliasView = "kanban" | "tabela";
@@ -91,7 +92,7 @@ export function FamiliasPipelineFilters({
     filters.semContato;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card/60 px-3 py-2">
+    <Card padding="none" className="flex flex-wrap items-center gap-2 px-3 py-2">
       <div className="relative flex items-center">
         <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground" />
         <input
@@ -202,6 +203,6 @@ export function FamiliasPipelineFilters({
           Tabela
         </button>
       </div>
-    </div>
+    </Card>
   );
 }
