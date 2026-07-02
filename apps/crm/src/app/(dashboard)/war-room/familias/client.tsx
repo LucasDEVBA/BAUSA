@@ -14,10 +14,12 @@ import {
   Clock,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   PieChart as PieChartIcon,
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { PageHero } from "@/components/shared/MinimalUI";
+import { PageHeader } from "@/components/ui";
+import { FamiliasViewSwitcher } from "@/components/familias/FamiliasViewSwitcher";
 import { cn } from "@/lib/utils";
 import type {
   WarRoomFamiliasData,
@@ -134,20 +136,18 @@ export function WarRoomFamiliasGerencial({
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHero
-        eyebrow="War Room"
+      <Link
+        href="/war-room"
+        className="inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ChevronLeft className="size-3.5" />
+        Voltar ao War Room
+      </Link>
+      <PageHeader
+        eyebrow="War Room · Famílias"
         title="Experiência das Famílias"
-        description="Visão gerencial de saúde, satisfação e risco da carteira sob acompanhamento."
-        accent="burgundy"
-        action={
-          <Link
-            href="/war-room/familias-onboarding"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary"
-          >
-            <Activity className="h-3 w-3" />
-            Onboardings ativos
-          </Link>
-        }
+        description="Visão gerencial de saúde, satisfação e risco da carteira."
+        actions={<FamiliasViewSwitcher />}
       />
 
       {/* KPIs principais */}

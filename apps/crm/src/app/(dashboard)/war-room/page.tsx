@@ -10,6 +10,7 @@ import {
   CheckCircle,
   Ticket,
   ChevronRight,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 import { requirePapel } from "@/lib/auth";
@@ -432,12 +433,16 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       label: "Familias",
       content: (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap gap-2">
-            <a href="/war-room/familias" className="rounded-lg border border-border bg-card/60 px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-              Visão gerencial completa &rarr;
-            </a>
-            <a href="/war-room/familias-onboarding" className="rounded-lg border border-border bg-card/60 px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-              Onboarding das famílias &rarr;
+          <div>
+            <a
+              href="/war-room/familias"
+              className="group inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+            >
+              <span className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ClipboardList className="size-3.5" />
+              </span>
+              Visão gerencial completa
+              <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
             </a>
           </div>
           <FamilyExperienceSection data={familyExperience} />
