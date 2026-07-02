@@ -1,94 +1,44 @@
 import { FileX, AlertCircle, Clock, DollarSign } from "lucide-react";
+import { StatCard } from "@/components/ui";
 import { type RevenueAtRiskMetrics } from "@/types/revenue";
-
-interface RiskRevenueCardProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  count?: number;
-  valueUsd: number;
-  severity: "critical" | "warning";
-  description: string;
-}
-
-function RiskRevenueCard({ icon: Icon, label, count, valueUsd, severity, description }: RiskRevenueCardProps) {
-  const styles = {
-    critical: {
-      border: "border-sys-red/20",
-      bg: "bg-sys-red/5",
-      iconBg: "bg-sys-red/10",
-      icon: "text-sys-red",
-      value: "text-sys-red",
-      badge: "bg-sys-red/20 text-sys-red border-sys-red/30",
-    },
-    warning: {
-      border: "border-sys-orange/20",
-      bg: "bg-sys-orange/5",
-      iconBg: "bg-sys-orange/10",
-      icon: "text-sys-orange",
-      value: "text-sys-orange",
-      badge: "bg-sys-orange/20 text-sys-orange border-sys-orange/30",
-    },
-  };
-  const s = styles[severity];
-
-  return (
-    <div className={`rounded-lg border border-border/70 bg-card/60 p-3 ${s.border}`}>
-      <div className="flex items-start justify-between">
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${s.iconBg}`}>
-          <Icon className={`h-4.5 w-4.5 ${s.icon}`} />
-        </div>
-        {count !== undefined && (
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${s.badge}`}>
-            {count} {count === 1 ? "item" : "itens"}
-          </span>
-        )}
-      </div>
-      <p className={`mt-3 text-xl font-bold tabular-nums ${s.value}`}>
-        R$ {(valueUsd / 1000).toFixed(0)}k
-      </p>
-      <p className="mt-0.5 text-xs font-medium text-foreground">{label}</p>
-      <p className="mt-1 text-[10px] text-label-tertiary leading-relaxed">{description}</p>
-    </div>
-  );
-}
 
 interface RiskRevenueSectionProps {
   data: RevenueAtRiskMetrics;
 }
 
+const fmt = (v: number) => `R$ ${(v / 1000).toFixed(0)}k`;
+const nItens = (n: number) => `${n} ${n === 1 ? "item" : "itens"}`;
+
 export function RiskRevenueSection({ data }: RiskRevenueSectionProps) {
   return (
-    <div className="grid grid-cols-4 gap-4">
-      <RiskRevenueCard
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <StatCard
+        label="Contratos sem assinatura"
+        value={fmt(data.contracts_without_signature_brl)}
+        context={`${nItens(data.contracts_without_signature_count)} aguardando`}
         icon={FileX}
-        label="Contratos sem Assinatura"
-        count={data.contracts_without_signature_count}
-        valueUsd={data.contracts_without_signature_brl}
-        severity="warning"
-        description="Negociações concluídas aguardando assinatura formal do contrato."
+        accent="orange"
       />
-      <RiskRevenueCard
+      <StatCard
+        label="Sinais não pagos"
+        value={fmt(data.unpaid_signals_brl)}
+        context={`${nItens(data.unpaid_signals_count)} pendentes`}
         icon={AlertCircle}
-        label="Sinais Não Pagos"
-        count={data.unpaid_signals_count}
-        valueUsd={data.unpaid_signals_brl}
-        severity="critical"
-        description="Contratos assinados onde o sinal inicial ainda não foi recebido."
+        accent="red"
       />
-      <RiskRevenueCard
+      <StatCard
+        label="Remanescentes pendentes"
+        value={fmt(data.pending_remaining_brl)}
+        context={`${nItens(data.pending_remaining_count)} em aberto`}
         icon={Clock}
-        label="Remanescentes Pendentes"
-        count={data.pending_remaining_count}
-        valueUsd={data.pending_remaining_brl}
-        severity="warning"
-        description="Matrículas confirmadas com parcela final ainda em aberto."
+        accent="orange"
       />
-      <RiskRevenueCard
+      <StatCard
+        label="Recebíveis vencidos"
+        value={fmt(data.overdue_receivables_brl)}
+        context="ação de cobrança necessária"
         icon={DollarSign}
-        label="Recebíveis Vencidos"
-        valueUsd={data.overdue_receivables_brl}
-        severity="critical"
-        description="Valores com prazo de pagamento expirado. Ação de cobrança necessária."
+        accent="red"
       />
     </div>
   );
