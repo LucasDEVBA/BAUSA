@@ -216,7 +216,6 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     <div className="flex flex-col gap-4">
       <CriticalAlertsBanner counts={criticalCounts} />
       <PendingQualificationsAlert data={pendingQualifications} />
-      <TimingAlternativesCard data={timingAlternatives} />
 
       {/* Hero de receita + faixa de KPIs (foco visual) */}
       <div className="grid gap-4 lg:grid-cols-3">
@@ -248,8 +247,8 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* Metas estratégicas (secundário, chrome neutro) */}
-      <div className="rounded-2xl border border-border bg-card px-5 py-4">
+      {/* Metas estratégicas (card único, glass) */}
+      <div className="glass-card relative rounded-2xl p-4">
         <p className="mb-3 text-eyebrow text-muted-foreground">Metas Estratégicas 2026</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
           {metas.map((kpi) => (
@@ -316,6 +315,9 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           badge={{ label: familyMetrics.crise > 0 ? `${familyMetrics.crise} em crise!` : `Sat. ${familyMetrics.avg_satisfaction}/5`, variant: familyMetrics.crise > 0 ? "danger" : familyMetrics.avg_satisfaction >= 4 ? "success" : "warning" }}
         />
       </div>
+
+      {/* Timing alternativo (card único) — logo acima das listas operacionais */}
+      <TimingAlternativesCard data={timingAlternatives} />
 
       {/* Operacional */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

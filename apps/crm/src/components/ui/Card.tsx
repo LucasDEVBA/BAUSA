@@ -68,7 +68,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
         <span
           aria-hidden
           className={cn(
-            "pointer-events-none absolute left-3 top-4 h-4 w-[3px] rounded-full",
+            "pointer-events-none absolute left-0 top-4 h-5 w-[3px] rounded-r-full",
             ACCENT_STUB[accent],
           )}
         />

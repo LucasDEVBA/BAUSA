@@ -68,7 +68,7 @@ export function CriticalAlertsBanner({ counts }: CriticalAlertsBannerProps) {
     <div className="glass-card relative overflow-hidden rounded-2xl !border-sys-red/25 p-4">
       <span
         aria-hidden
-        className="pointer-events-none absolute left-3 top-4 h-4 w-[3px] rounded-full bg-sys-red"
+        className="pointer-events-none absolute left-0 top-4 h-5 w-[3px] rounded-r-full bg-sys-red"
       />
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
