@@ -90,11 +90,19 @@ function PipelineCard({
   return (
     <div
       draggable
+      role="button"
+      tabIndex={0}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", card.id);
         onDragStart(card.id);
       }}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
         "group relative rounded-xl border bg-card p-3 cursor-grab active:cursor-grabbing transition-colors hover:border-primary/40",
         card.status === "crise"
