@@ -47,7 +47,7 @@ export function BrandTabs({
       aria-label={ariaLabel}
       className={cn(
         segmented
-          ? "inline-flex items-center gap-1 rounded-xl bg-secondary p-1"
+          ? "inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border border-[color:var(--glass-border)] bg-[color:var(--glass-bg)] p-1 shadow-sm backdrop-blur-xl [-webkit-backdrop-filter:blur(20px)] [scrollbar-width:none]"
           : "flex items-center gap-1 overflow-x-auto border-b border-border",
         className,
       )}
