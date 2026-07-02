@@ -40,7 +40,7 @@ export function StatCard({
   className,
 }: StatCardProps) {
   return (
-    <Card padding="md" accent={accent} className={cn("flex flex-col gap-3", className)}>
+    <Card padding="md" accent={accent} className={cn("flex flex-col gap-2", className)}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-eyebrow text-muted-foreground">{label}</p>
         {Icon && (
@@ -49,13 +49,14 @@ export function StatCard({
           </span>
         )}
       </div>
-      <div className="flex items-end gap-2">
+      {/* número + delta + contexto na MESMA linha (menor altura) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className="text-2xl font-bold leading-none tracking-tight tabular-nums text-foreground">
           {value}
         </span>
-        {delta !== undefined && <DeltaBadge value={delta} invert={deltaInvert} className="mb-0.5" />}
+        {delta !== undefined && <DeltaBadge value={delta} invert={deltaInvert} />}
+        {context && <span className="text-xs text-muted-foreground">{context}</span>}
       </div>
-      {context && <p className="text-xs text-muted-foreground">{context}</p>}
     </Card>
   );
 }
