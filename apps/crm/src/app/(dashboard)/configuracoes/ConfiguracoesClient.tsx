@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition, useCallback } from "react";
-import { Settings, Save, Shield, Bell, List, Database, Clock, AlertTriangle } from "lucide-react";
+import { Save, Shield, Bell, List, Database, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { atualizarConfiguracao } from "@/lib/actions/configuracoes";
 import { cn } from "@/lib/utils";
 import { DOCUMENTO_TIPOS, FAQ_CATEGORIAS } from "@/types/crm";
 import { DEAL_STAGE_CONFIG, PIPELINE_STAGE_ORDER } from "@/types/deal";
 import { UsuariosTab } from "@/components/configuracoes/UsuariosTab";
+import { PageHeader, BrandTabs, Card, Input, Button } from "@/components/ui";
 
 const TABS = [
   { value: "planos", label: "Planos" },
@@ -25,12 +26,9 @@ const TABS = [
 
 type TabValue = (typeof TABS)[number]["value"];
 
-const inputClass =
-  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30";
 const labelClass = "text-xs font-medium text-muted-foreground";
-const cardClass = "rounded-lg border border-border/70 bg-card/60 p-3.5";
 const selectClass =
-  "rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary appearance-none";
+  "h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground transition-colors appearance-none focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25";
 
 interface ConfiguracoesClientProps {
   configsIniciais: Record<string, unknown>;
@@ -38,14 +36,10 @@ interface ConfiguracoesClientProps {
 
 function SaveBtn({ onClick, isPending, label = "Salvar" }: { onClick: () => void; isPending: boolean; label?: string }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={isPending}
-      className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
-    >
+    <Button onClick={onClick} disabled={isPending} size="sm">
       <Save className="h-3.5 w-3.5" />
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -55,7 +49,7 @@ function NumberField({ label, value, onChange, unit, min, max, step }: {
   return (
     <div className="space-y-1.5">
       <label className={labelClass}>{label} {unit && <span className="text-label-tertiary">({unit})</span>}</label>
-      <input type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} min={min} max={max} step={step ?? 1} className={inputClass} />
+      <Input type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} min={min} max={max} step={step ?? 1} />
     </div>
   );
 }
@@ -64,7 +58,10 @@ function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boole
   return (
     <button
       onClick={() => onChange(!value)}
-      className={cn("relative h-6 w-11 rounded-full transition-colors", value ? "bg-primary" : "bg-secondary")}
+      className={cn(
+        "relative h-6 w-11 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        value ? "bg-primary" : "bg-secondary",
+      )}
       role="switch"
       aria-checked={value}
     >
@@ -97,15 +94,15 @@ function WeightedCriteriaSection({
   const isValid = total === 100;
 
   return (
-    <div className="space-y-5">
-      <div className={cardClass}>
+    <div className="space-y-4">
+      <Card>
         <h3 className="text-sm font-semibold text-foreground mb-4">{title}</h3>
         <div className="space-y-3">
           {criteria.map(({ key, label }) => (
             <div key={key} className="flex items-center gap-4">
               <span className="w-32 text-sm text-foreground/80">{label}</span>
               <input type="range" min={0} max={100} value={Number(pesos[key] ?? 0)} onChange={(e) => onPesoChange(key, Number(e.target.value))} className="flex-1 accent-primary" />
-              <input type="number" min={0} max={100} value={Number(pesos[key] ?? 0)} onChange={(e) => onPesoChange(key, Number(e.target.value))} className={cn(inputClass, "w-20 text-center")} />
+              <Input type="number" min={0} max={100} value={Number(pesos[key] ?? 0)} onChange={(e) => onPesoChange(key, Number(e.target.value))} className="w-20 text-center" />
             </div>
           ))}
         </div>
@@ -114,16 +111,16 @@ function WeightedCriteriaSection({
           Total: {total} / 100
           {!isValid && <span className="text-xs font-normal ml-2">A soma deve ser 100</span>}
         </div>
-      </div>
+      </Card>
 
-      <div className={cardClass}>
+      <Card>
         <h3 className="text-sm font-semibold text-foreground mb-4">Faixas de Classificacao</h3>
         <div className={cn("grid gap-4", faixaFields.length <= 2 ? "grid-cols-2" : "grid-cols-3")}>
           {faixaFields.map(({ key, label }) => (
             <NumberField key={key} label={label} value={Number(faixas[key] ?? 0)} onChange={(v) => onFaixaChange(key, v)} min={0} max={100} />
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -154,33 +151,23 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
 
   return (
     <div className="flex h-full flex-col gap-5">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-0.5">
-          <Settings className="h-5 w-5 text-primary" />
-          <h1 className="text-title-2 text-foreground">Configuracoes do Sistema</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">Ajuste parametros do CRM — acesso exclusivo CEO</p>
-      </div>
+      <PageHeader
+        eyebrow="Sistema"
+        title="Configuracoes do Sistema"
+        description="Ajuste parametros do CRM — acesso exclusivo CEO"
+      />
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">
-        {TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            className={cn(
-              "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-              activeTab === tab.value ? "bg-primary/15 text-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <BrandTabs
+        variant="segmented"
+        ariaLabel="Secoes de configuracao"
+        items={TABS.map((tab) => ({ id: tab.value, label: tab.label }))}
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as TabValue)}
+      />
 
       {/* LGPD + Soft Delete notices */}
-      <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+      <Card accent="brand">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/20">
             <Shield className="h-4 w-4 text-primary" />
@@ -193,9 +180,9 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
             </p>
           </div>
         </div>
-      </div>
+      </Card>
 
-      <div className="rounded-xl border border-sys-green/20 bg-sys-green/5 p-5">
+      <Card accent="green">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sys-green/20">
             <Database className="h-4 w-4 text-sys-green" />
@@ -207,7 +194,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
             </p>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Tab content */}
       <div className="flex-1 space-y-5 overflow-y-auto">
@@ -239,7 +226,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
               ].map(({ key, label }) => {
                 const p = planos[key] ?? {};
                 return (
-                  <div key={key} className={cardClass}>
+                  <Card key={key}>
                     <h3 className="text-sm font-semibold text-foreground mb-4">Plano {label}</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <NumberField label="Valor Padrao" value={Number(p.padrao ?? 0)} onChange={(v) => updatePlano(key, "padrao", v)} unit="R$" />
@@ -247,17 +234,17 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                       <NumberField label="Sinal Padrao" value={Number(p.sinal ?? 4500)} onChange={(v) => updatePlano(key, "sinal", v)} unit="R$" />
                       <ToggleField label="Inclui Psicologa" value={Boolean(p.psicologa)} onChange={(v) => updatePlano(key, "psicologa", v)} />
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
 
-              <div className={cardClass}>
+              <Card>
                 <h3 className="text-sm font-semibold text-foreground mb-4">Configuracoes Gerais</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <NumberField label="Entrada Padrao" value={Number(planosConfig.entrada_padrao ?? 4500)} onChange={(v) => updatePConfig("entrada_padrao", v)} unit="R$" />
                   <NumberField label="Custo Psicologa" value={Number(planosConfig.custo_psicologa ?? 2500)} onChange={(v) => updatePConfig("custo_psicologa", v)} unit="R$" />
                 </div>
-              </div>
+              </Card>
 
               <div className="flex justify-end gap-3">
                 <SaveBtn onClick={() => { saveConfig(PLANOS_KEY, configs[PLANOS_KEY]); saveConfig(CONFIG_KEY, configs[CONFIG_KEY]); }} isPending={isPending} />
@@ -345,7 +332,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
 
           return (
             <div className="space-y-5">
-              <div className={cardClass}>
+              <Card>
                 <h3 className="text-sm font-semibold text-foreground mb-4">Metas Comerciais</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <NumberField label="Meta Anual" value={Number(metas.meta_anual ?? 0)} onChange={(v) => update("meta_anual", v)} unit="R$" />
@@ -354,7 +341,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                   <NumberField label="Contratos/Mes Alvo" value={Number(metas.contratos_mes_alvo ?? 0)} onChange={(v) => update("contratos_mes_alvo", v)} />
                   <NumberField label="Pipeline Health Ratio" value={Number(metas.pipeline_health_ratio ?? 3)} onChange={(v) => update("pipeline_health_ratio", v)} step={0.1} />
                 </div>
-              </div>
+              </Card>
               <div className="flex justify-end">
                 <SaveBtn onClick={() => saveConfig(KEY, configs[KEY])} isPending={isPending} />
               </div>
@@ -390,14 +377,14 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
 
           return (
             <div className="space-y-5">
-              <div className={cardClass}>
+              <Card>
                 <h3 className="text-sm font-semibold text-foreground mb-4">Timers de Comunicacao</h3>
                 <div className="grid grid-cols-2 gap-4">
                   {fields.map(({ key, label, unit }) => (
                     <NumberField key={key} label={label} value={Number(timers[key] ?? 0)} onChange={(v) => update(key, v)} unit={unit} min={0} />
                   ))}
                 </div>
-              </div>
+              </Card>
               <div className="flex justify-end">
                 <SaveBtn onClick={() => saveConfig(KEY, configs[KEY])} isPending={isPending} />
               </div>
@@ -423,12 +410,12 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
 
           return (
             <div className="space-y-5">
-              <div className={cardClass}>
+              <Card>
                 <h3 className="text-sm font-semibold text-foreground mb-4">Inatividade por Fase (dias)</h3>
                 <div className="overflow-hidden rounded-lg border border-border">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-border bg-background">
+                      <tr className="border-b border-border bg-secondary/50">
                         <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Fase</th>
                         <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Dias</th>
                       </tr>
@@ -438,22 +425,22 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                         <tr key={key} className="border-b border-border last:border-0">
                           <td className="px-4 py-2.5 text-sm text-foreground/80">{label}</td>
                           <td className="px-4 py-2.5">
-                            <input type="number" min={1} value={Number(expConfig[key] ?? def)} onChange={(e) => updateLocalConfig(EXP_KEY, { ...expConfig, [key]: Number(e.target.value) })} className={cn(inputClass, "w-24")} />
+                            <Input type="number" min={1} value={Number(expConfig[key] ?? def)} onChange={(e) => updateLocalConfig(EXP_KEY, { ...expConfig, [key]: Number(e.target.value) })} className="w-24" />
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
 
-              <div className={cardClass}>
+              <Card>
                 <h3 className="text-sm font-semibold text-foreground mb-4">Thresholds de Temperatura</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <NumberField label="Ansiedade (alerta se >=)" value={Number(tempConfig.ansiedade_threshold ?? 7)} onChange={(v) => updateLocalConfig(TEMP_KEY, { ...tempConfig, ansiedade_threshold: v })} min={1} max={10} />
                   <NumberField label="Satisfacao (alerta se <=)" value={Number(tempConfig.satisfacao_threshold ?? 4)} onChange={(v) => updateLocalConfig(TEMP_KEY, { ...tempConfig, satisfacao_threshold: v })} min={1} max={10} />
                 </div>
-              </div>
+              </Card>
 
               <div className="flex justify-end">
                 <SaveBtn onClick={() => { saveConfig(EXP_KEY, configs[EXP_KEY]); saveConfig(TEMP_KEY, configs[TEMP_KEY]); }} isPending={isPending} />
@@ -495,12 +482,12 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
 
           return (
             <div className="space-y-5">
-              <div className={cardClass}>
+              <Card>
                 <h3 className="text-sm font-semibold text-foreground mb-4">Regras de Cobranca</h3>
                 <div className="overflow-hidden rounded-lg border border-border">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-border bg-background">
+                      <tr className="border-b border-border bg-secondary/50">
                         <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Estagio</th>
                         <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Canal</th>
                         <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Ativo</th>
@@ -526,7 +513,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
               <div className="flex justify-end">
                 <SaveBtn onClick={() => saveConfig(KEY, configs[KEY])} isPending={isPending} />
               </div>
@@ -540,7 +527,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
         {/* ===== PIPELINE ===== */}
         {activeTab === "pipeline" && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-4">
+            <Card accent="orange" padding="sm">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-sys-orange" />
                 <p className="text-sm font-semibold text-sys-orange">Somente leitura</p>
@@ -548,9 +535,9 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
               <p className="mt-1 text-xs text-muted-foreground">
                 Estagios do pipeline sao definidos no codigo. Para alterar, contate o desenvolvedor.
               </p>
-            </div>
+            </Card>
 
-            <div className={cardClass}>
+            <Card>
               <h3 className="text-sm font-semibold text-foreground mb-4">
                 Estagios do Pipeline ({PIPELINE_STAGE_ORDER.length})
               </h3>
@@ -560,7 +547,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                   return (
                     <div
                       key={stageId}
-                      className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-2.5"
+                      className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-4 py-2.5"
                     >
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">
                         {idx + 1}
@@ -581,14 +568,14 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                   );
                 })}
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
         {/* ===== NOTIFICACOES ===== */}
         {activeTab === "notificacoes" && (
           <div className="space-y-4">
-            <div className={cardClass + " space-y-4"}>
+            <Card className="space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <Bell className="h-4 w-4 text-primary" />
                 <p className="text-sm font-semibold text-foreground">Configuracoes de Notificacao</p>
@@ -620,11 +607,11 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                 <p className="text-[10px] text-label-tertiary">Chave: digest_horario</p>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <input
+                  <Input
                     type="time"
                     value={String(configs["digest_horario"] ?? "09:00")}
                     onChange={(e) => updateLocalConfig("digest_horario", e.target.value)}
-                    className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+                    className="w-auto"
                   />
                   <SaveBtn onClick={() => saveConfig("digest_horario", configs["digest_horario"])} isPending={isPending} />
                 </div>
@@ -658,20 +645,20 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                   );
                 })}
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
         {/* ===== LISTAS ===== */}
         {activeTab === "listas" && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-4">
+            <Card accent="orange" padding="sm">
               <div className="flex items-center gap-2">
                 <List className="h-4 w-4 text-sys-orange" />
                 <p className="text-sm font-semibold text-sys-orange">Listas somente leitura</p>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">Para alterar estas listas, contate o desenvolvedor.</p>
-            </div>
+            </Card>
 
             {[
               { title: "Esportes (posicoes)", items: ["Goleiro", "Zagueiro", "Lateral Direito", "Lateral Esquerdo", "Volante", "Meio-campo", "Meia Atacante", "Ponta Direita", "Ponta Esquerda", "Atacante Centro"] },
@@ -681,14 +668,14 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
               { title: "Tipos de documento", items: DOCUMENTO_TIPOS.map((d) => d.label) },
               { title: "Categorias FAQ", items: FAQ_CATEGORIAS.map((c) => c.label) },
             ].map((lista) => (
-              <div key={lista.title} className={cardClass}>
+              <Card key={lista.title}>
                 <p className="text-sm font-semibold text-foreground mb-2">{lista.title}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {lista.items.map((item) => (
-                    <span key={item} className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground">{item}</span>
+                    <span key={item} className="rounded-md border border-border bg-secondary/40 px-2 py-1 text-xs text-muted-foreground">{item}</span>
                   ))}
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
