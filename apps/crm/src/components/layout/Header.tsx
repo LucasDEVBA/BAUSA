@@ -40,6 +40,15 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/automacoes-monitor": { label: "Automacoes", parent: "Sistema" },
 };
 
+// Crumbs que mapeiam para uma rota real (viram links). Grupos (Sistema, Executivo…)
+// não têm rota própria e ficam como texto.
+const CRUMB_HREF: Record<string, string> = {
+  "BAU Engine": "/war-room",
+  Leads: "/leads",
+  "War Room": "/war-room",
+  Analytics: "/analytics",
+};
+
 interface HeaderProps {
   nome?: string;
   avatarUrl?: string | null;
@@ -51,20 +60,34 @@ export function Header({ nome, avatarUrl }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/70 px-5 backdrop-blur-xl">
-      {/* Breadcrumb + título da rota */}
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <span className="hidden text-xs text-muted-foreground sm:inline">BAU Engine</span>
+      {/* Breadcrumb navegável */}
+      <nav aria-label="Trilha de navegação" className="flex min-w-0 flex-1 items-center gap-1.5">
+        <Link
+          href="/war-room"
+          className="hidden text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline"
+        >
+          BAU Engine
+        </Link>
         <ChevronRight aria-hidden className="hidden size-3 text-label-tertiary sm:inline" />
         {currentPage?.parent && (
           <>
-            <span className="hidden text-xs text-muted-foreground md:inline">{currentPage.parent}</span>
+            {CRUMB_HREF[currentPage.parent] ? (
+              <Link
+                href={CRUMB_HREF[currentPage.parent]}
+                className="hidden text-xs text-muted-foreground transition-colors hover:text-foreground md:inline"
+              >
+                {currentPage.parent}
+              </Link>
+            ) : (
+              <span className="hidden text-xs text-muted-foreground md:inline">{currentPage.parent}</span>
+            )}
             <ChevronRight aria-hidden className="hidden size-3 text-label-tertiary md:inline" />
           </>
         )}
-        <span className="truncate text-base font-semibold tracking-tight text-foreground">
+        <span aria-current="page" className="truncate text-base font-semibold tracking-tight text-foreground">
           {currentPage?.label ?? "Página"}
         </span>
-      </div>
+      </nav>
 
       {/* Ações */}
       <div className="flex items-center gap-2">

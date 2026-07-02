@@ -68,17 +68,8 @@ export function WarRoomTabs({ tabs, header }: WarRoomTabsProps) {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      {/* Zone STICKY: título compacto + barra de abas sempre visível ao rolar */}
-      <div className="sticky top-0 z-20 -mx-4 -mt-4 border-b border-border bg-background/80 px-4 pt-3 backdrop-blur-xl">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10">
-              <Zap className="size-4 text-primary" />
-            </span>
-            <h1 className="text-title-3 text-foreground">War Room</h1>
-          </div>
-          {header}
-        </div>
+      {/* Zone STICKY: abas + ações (sem título — o breadcrumb do Header já nomeia a tela) */}
+      <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-xl">
         <BrandTabs
           items={tabs.map((tab) => ({
             id: tab.id,
@@ -90,6 +81,7 @@ export function WarRoomTabs({ tabs, header }: WarRoomTabsProps) {
           variant="segmented"
           ariaLabel="Seções do War Room"
         />
+        {header && <div className="shrink-0">{header}</div>}
       </div>
 
       {/* Conteúdo da aba ativa */}
