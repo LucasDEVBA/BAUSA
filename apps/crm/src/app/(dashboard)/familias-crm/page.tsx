@@ -3,6 +3,7 @@ import { requirePapel } from "@/lib/auth";
 import { listarAlertasInatividade } from "@/lib/actions/experiencia";
 import { FamiliasCrmClient } from "./client";
 import { FamiliasNav } from "@/components/familias/FamiliasNav";
+import { FamiliasViewSwitcher } from "@/components/familias/FamiliasViewSwitcher";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -162,7 +163,9 @@ function mapExperienciaToFamily(row: Record<string, unknown>): Family {
 }
 
 export default async function FamiliasCrmPage() {
-  await requirePapel(["ceo", "head_sucesso"]);
+  // requirePapel retorna o papel efetivo (cto→ceo); "ceo" = nível CEO/CTO.
+  const papelEfetivo = await requirePapel(["ceo", "head_sucesso"]);
+  const canManage = papelEfetivo === "ceo";
 
   const supabase = await createServerSupabaseClient();
 
@@ -337,6 +340,12 @@ export default async function FamiliasCrmPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* CEO/CTO alterna entre a área do Head e a visão Gerencial; o Head só vê a própria área. */}
+      {canManage && (
+        <div className="flex justify-end">
+          <FamiliasViewSwitcher />
+        </div>
+      )}
       <FamiliasNav />
       <FamiliasCrmClient
         families={families}
