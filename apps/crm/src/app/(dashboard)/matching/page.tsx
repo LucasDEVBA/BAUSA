@@ -18,6 +18,7 @@ import {
   MATCH_CLASSIFICATION_CONFIG,
 } from "@/types/matching";
 import { EditableStrategyRow } from "@/components/matching/EditableStrategyRow";
+import { ScrollList } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 interface StrategyWithEditable extends SchoolMatch {
@@ -236,8 +237,8 @@ export default async function MatchingPage() {
             const forte = athleteMatches.filter((m) => m.classification === "forte").length;
 
             return (
-              <div key={atletaId} className="border border-border/70 bg-card/60 rounded-xl overflow-hidden">
-                <div className="border-b border-border bg-popover px-5 py-4">
+              <div key={atletaId} className="border border-border/70 bg-card/60 rounded-xl overflow-hidden flex flex-col h-[24rem]">
+                <div className="border-b border-border bg-popover px-5 py-4 shrink-0">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-white">
@@ -280,33 +281,35 @@ export default async function MatchingPage() {
                   </div>
                 </div>
 
-                <div className="p-5 space-y-2.5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3">
+                <div className="p-5 flex flex-col min-h-0 flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3 shrink-0">
                     Ranking de compatibilidade — {athleteMatches.length} escolas analisadas
                   </p>
-                  {athleteMatches.slice(0, 6).map((match) => (
-                    <EditableStrategyRow
-                      key={match.estrategia_id}
-                      strategy={{
-                        id: match.estrategia_id,
-                        school_name: match.school_name,
-                        school_type: match.school_type,
-                        school_state: match.school_state,
-                        score: match.score,
-                        classification: match.classification,
-                        estimated_scholarship_pct: match.estimated_scholarship_pct,
-                        compatibility_notes: match.compatibility_notes,
-                        blockers: match.blockers,
-                        bolsa_obtida_pct: match.bolsa_obtida_pct,
-                        bolsa_obtida_valor: match.bolsa_obtida_valor,
-                        data_aplicacao: match.data_aplicacao,
-                        data_resposta: match.data_resposta,
-                        resultado: match.resultado,
-                      }}
-                    />
-                  ))}
+                  <ScrollList className="space-y-2.5">
+                    {athleteMatches.slice(0, 6).map((match) => (
+                      <EditableStrategyRow
+                        key={match.estrategia_id}
+                        strategy={{
+                          id: match.estrategia_id,
+                          school_name: match.school_name,
+                          school_type: match.school_type,
+                          school_state: match.school_state,
+                          score: match.score,
+                          classification: match.classification,
+                          estimated_scholarship_pct: match.estimated_scholarship_pct,
+                          compatibility_notes: match.compatibility_notes,
+                          blockers: match.blockers,
+                          bolsa_obtida_pct: match.bolsa_obtida_pct,
+                          bolsa_obtida_valor: match.bolsa_obtida_valor,
+                          data_aplicacao: match.data_aplicacao,
+                          data_resposta: match.data_resposta,
+                          resultado: match.resultado,
+                        }}
+                      />
+                    ))}
+                  </ScrollList>
                   {athleteMatches.length > 6 && (
-                    <button className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                    <button className="mt-2.5 flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                       Ver mais {athleteMatches.length - 6} escolas
                       <ChevronRight className="h-3.5 w-3.5" />
                     </button>

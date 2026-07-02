@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { NfBadge } from "@/components/financeiro/NfBadge";
 import { NfEditRow } from "@/components/financeiro/NfEditRow";
 import { FinanceiroTabs } from "@/components/financeiro/FinanceiroTabs";
-import { PageHeader, Button } from "@/components/ui";
+import { PageHeader, Button, ScrollList } from "@/components/ui";
 import { CancelamentoActions } from "@/components/financeiro/CancelamentoActions";
 import { PLANO_VALORES } from "@/types/crm";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
@@ -496,9 +496,9 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
 
           <div className="grid gap-4 lg:grid-cols-3">
             {/* Planos contratados */}
-            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-              <h2 className="mb-4 text-sm font-semibold text-foreground">Planos Ativos</h2>
-              <div className="space-y-3">
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[18rem]">
+              <h2 className="mb-4 text-sm font-semibold text-foreground shrink-0">Planos Ativos</h2>
+              <ScrollList className="space-y-3">
                 {(["Legacy", "Journey", "Start"] as const).map((plan) => {
                   const cfg = PLAN_CONFIG[plan];
                   const count = contractsByPlan[plan];
@@ -522,79 +522,83 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                     </div>
                   );
                 })}
-              </div>
+              </ScrollList>
             </div>
 
             {/* Custos fixos */}
-            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-              <div className="mb-4 flex items-center justify-between">
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[20rem]">
+              <div className="mb-4 flex items-center justify-between shrink-0">
                 <h2 className="text-sm font-semibold text-foreground">Custos Fixos Mensais</h2>
                 <span className="text-sm font-bold text-sys-red">{formatBRL(totalFixedCosts)}</span>
               </div>
-              <div className="space-y-2">
-                {FIXED_COSTS.filter((c) => c.active).map((cost) => (
-                  <div key={cost.id} className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-muted-foreground flex-1 min-w-0 truncate">{cost.name}</p>
-                    <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(cost.amount_monthly)}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 border-t border-border pt-3">
-                <h3 className="mb-2 text-xs font-semibold text-muted-foreground">Custos Variaveis (por contrato)</h3>
-                {VARIABLE_COSTS.map((vc) => (
-                  <div key={vc.id} className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className={cn("rounded-md border px-1.5 py-0.5 text-[9px] font-bold", PLAN_CONFIG[vc.plan].bg, PLAN_CONFIG[vc.plan].color)}>
-                        {vc.plan}
-                      </span>
-                      <p className="text-xs text-muted-foreground truncate">{vc.name}</p>
+              <ScrollList>
+                <div className="space-y-2">
+                  {FIXED_COSTS.filter((c) => c.active).map((cost) => (
+                    <div key={cost.id} className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground flex-1 min-w-0 truncate">{cost.name}</p>
+                      <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(cost.amount_monthly)}</p>
                     </div>
-                    <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(vc.amount)}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+                <div className="mt-4 border-t border-border pt-3">
+                  <h3 className="mb-2 text-xs font-semibold text-muted-foreground">Custos Variaveis (por contrato)</h3>
+                  {VARIABLE_COSTS.map((vc) => (
+                    <div key={vc.id} className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className={cn("rounded-md border px-1.5 py-0.5 text-[9px] font-bold", PLAN_CONFIG[vc.plan].bg, PLAN_CONFIG[vc.plan].color)}>
+                          {vc.plan}
+                        </span>
+                        <p className="text-xs text-muted-foreground truncate">{vc.name}</p>
+                      </div>
+                      <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(vc.amount)}</p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollList>
             </div>
 
             {/* Alertas de recebiveis */}
-            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-              <h2 className="mb-4 text-sm font-semibold text-foreground">Alertas de Recebimento</h2>
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[24rem]">
+              <h2 className="mb-4 text-sm font-semibold text-foreground shrink-0">Alertas de Recebimento</h2>
 
-              {overdueReceivables.length > 0 && (
-                <div className="mb-4">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-sys-red">
-                    Em Atraso ({overdueReceivables.length})
+              <ScrollList>
+                {overdueReceivables.length > 0 && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-sys-red">
+                      Em Atraso ({overdueReceivables.length})
+                    </p>
+                    <div className="space-y-2">
+                      {overdueReceivables.map((r) => (
+                        <div key={r.id} className="rounded-lg border border-sys-red/20 bg-sys-red/5 p-2.5">
+                          <p className="text-xs font-medium text-foreground">{r.client_name}</p>
+                          <p className="text-[10px] text-muted-foreground">{r.description}</p>
+                          <p className="mt-1 text-xs font-semibold text-sys-red">{formatBRL(r.amount)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
+                    Proximos vencimentos
                   </p>
                   <div className="space-y-2">
-                    {overdueReceivables.map((r) => (
-                      <div key={r.id} className="rounded-lg border border-sys-red/20 bg-sys-red/5 p-2.5">
-                        <p className="text-xs font-medium text-foreground">{r.client_name}</p>
-                        <p className="text-[10px] text-muted-foreground">{r.description}</p>
-                        <p className="mt-1 text-xs font-semibold text-sys-red">{formatBRL(r.amount)}</p>
+                    {upcomingReceivables.slice(0, 5).map((r) => (
+                      <div key={r.id} className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">{r.client_name}</p>
+                          <p className="text-[10px] text-label-tertiary">{new Date(r.due_date).toLocaleDateString("pt-BR")}</p>
+                        </div>
+                        <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(r.amount)}</p>
                       </div>
                     ))}
+                    {upcomingReceivables.length === 0 && (
+                      <p className="text-xs text-label-tertiary">Nenhum vencimento proximo.</p>
+                    )}
                   </div>
                 </div>
-              )}
-
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
-                  Proximos vencimentos
-                </p>
-                <div className="space-y-2">
-                  {upcomingReceivables.slice(0, 5).map((r) => (
-                    <div key={r.id} className="flex items-center justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">{r.client_name}</p>
-                        <p className="text-[10px] text-label-tertiary">{new Date(r.due_date).toLocaleDateString("pt-BR")}</p>
-                      </div>
-                      <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(r.amount)}</p>
-                    </div>
-                  ))}
-                  {upcomingReceivables.length === 0 && (
-                    <p className="text-xs text-label-tertiary">Nenhum vencimento proximo.</p>
-                  )}
-                </div>
-              </div>
+              </ScrollList>
             </div>
           </div>
 

@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils";
 import { Flame, Thermometer, Snowflake } from "lucide-react";
+import { ScrollList } from "@/components/ui";
 import type { PriorityLead } from "@/lib/war-room-queries";
+
+const CARD_HEIGHT = "flex h-[24rem] flex-col";
 
 const CLASSIFICATION_CONFIG = {
   hot: { label: "Quente", color: "text-lead-hot", bg: "bg-lead-hot/10 border-lead-hot/20", icon: Flame },
@@ -15,20 +18,22 @@ interface PriorityLeadsSectionProps {
 export function PriorityLeadsSection({ leads }: PriorityLeadsSectionProps) {
   if (leads.length === 0) {
     return (
-      <div className="rounded-2xl glass-card p-4">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">Leads Prioritarios</h3>
-        <p className="text-xs text-muted-foreground">Nenhum lead com score calculado.</p>
+      <div className={cn("rounded-2xl glass-card p-4", CARD_HEIGHT)}>
+        <h3 className="mb-3 shrink-0 text-sm font-semibold text-foreground">Leads Prioritarios</h3>
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-xs text-muted-foreground">Nenhum lead com score calculado.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl glass-card p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <div className={cn("rounded-2xl glass-card p-4", CARD_HEIGHT)}>
+      <div className="mb-4 flex shrink-0 items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Leads Prioritarios</h3>
         <span className="text-[10px] font-medium text-label-tertiary">Top 10 por Score</span>
       </div>
-      <div className="space-y-2">
+      <ScrollList className="space-y-2">
         {leads.map((lead) => {
           const cfg = lead.classification ? CLASSIFICATION_CONFIG[lead.classification] : null;
           const Icon = cfg?.icon;
@@ -67,7 +72,7 @@ export function PriorityLeadsSection({ leads }: PriorityLeadsSectionProps) {
             </div>
           );
         })}
-      </div>
+      </ScrollList>
     </div>
   );
 }

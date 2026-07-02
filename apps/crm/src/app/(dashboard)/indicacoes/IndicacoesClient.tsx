@@ -9,6 +9,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ScrollList } from "@/components/ui";
 import { marcarRecompensaEntregue } from "@/lib/actions/indicacoes";
 import { cn } from "@/lib/utils";
 
@@ -293,12 +294,12 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
 
       {/* Top Indicadores */}
       {topIndicadores.length > 0 && (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[18rem]">
+          <div className="flex items-center gap-2 mb-4 shrink-0">
             <Users className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-semibold text-foreground">Top Indicadores</h3>
           </div>
-          <div className="overflow-x-auto">
+          <ScrollList className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
@@ -326,18 +327,18 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollList>
         </div>
       )}
 
       {/* Origem dos Leads (CAC proxy) */}
       {origemLeads.length > 0 && (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[16rem]">
+          <div className="flex items-center gap-2 mb-4 shrink-0">
             <TrendingUp className="h-4 w-4 text-sys-green" />
             <h3 className="text-sm font-semibold text-foreground">Origem dos Leads</h3>
           </div>
-          <div className="space-y-2">
+          <ScrollList className="space-y-2">
             {origemLeads.map((ch) => (
               <div key={ch.canal} className="flex items-center gap-3">
                 <span className="w-32 text-sm text-foreground">{ch.label}</span>
@@ -351,7 +352,7 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
                 <span className="w-12 text-right text-xs text-muted-foreground">{ch.pct}%</span>
               </div>
             ))}
-          </div>
+          </ScrollList>
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@
 > Contexto do projeto para Claude Code. Complementa o CLAUDE.md global (~/.claude/CLAUDE.md).
 > Regras do CLAUDE.md global continuam valendo — este arquivo só sobrescreve/acrescenta o que é específico deste projeto.
 > Para regras de negócio detalhadas, ver `docs/regras-de-negocio.md`. Para mapa de módulos, ver `docs/modulos.md`.
-> **Design System v2 (2026-07, redesign do zero):** LIGHT-first, identidade OFICIAL do brandbook BAU 2025 (`docs/DESIGN_SPEC.md` = contrato). Tokens em `src/app/globals.css` vencem em conflito. Primitivos reusáveis em `src/components/ui/` (Card, Button, Badge, DeltaBadge, StatCard, ChannelAction, InsightCard, PageHeader, ChartCard/ChartTooltip/PeriodSelector, BrandTabs). Docs antigos em `docs/design-system/` (Apple-grade) estão SUPERADOS.
+> **Design System v2 (2026-07, redesign do zero):** LIGHT-first, identidade OFICIAL do brandbook BAU 2025 (`docs/DESIGN_SPEC.md` = contrato). Tokens em `src/app/globals.css` vencem em conflito. Primitivos reusáveis em `src/components/ui/` (Card, Button, Badge, DeltaBadge, StatCard, ChannelAction, InsightCard, PageHeader, ChartCard/ChartTooltip/PeriodSelector, BrandTabs, ScrollList). Docs antigos em `docs/design-system/` (Apple-grade) estão SUPERADOS.
 
 ---
 
@@ -66,7 +66,15 @@ sonner — toasts
 - **Primitivos** (`src/components/ui/`, import via `@/components/ui`): `Card`, `Button`, `Badge`,
   `DeltaBadge`, `Input`, `Skeleton`, `EmptyState`, `PageHeader`, `StatCard` (KPI eyebrow+delta),
   `ChannelAction` (WhatsApp verde/E-mail azul), `InsightCard` (Gemini), `ChartCard`/`ChartTooltip`/
-  `PeriodSelector`, `BrandTabs`. **Reusar sempre; não criar markup ad-hoc.**
+  `PeriodSelector`, `BrandTabs`, `ScrollList` (lista rolável em card de altura fixa — ver abaixo).
+  **Reusar sempre; não criar markup ad-hoc.**
+- **Listas em card com altura fixa** (`ScrollList`): quando um card de dashboard/painel contém uma
+  lista que pode crescer, o card deve ter **altura fixa** e a lista **rolar por dentro**. Padrão:
+  card `flex flex-col h-[Nrem]`, cabeçalho `shrink-0`, e o wrapper da lista vira
+  `<ScrollList className="space-y-*">` (já é `min-h-0 flex-1 overflow-y-auto` + scrollbar fino
+  `.crm-scroll` + calha; use `gutter={false}` em listas edge-to-edge com `divide-y`). Cards irmãos
+  no mesmo grid usam a **mesma** altura. NÃO aplicar em tabela/lista primária de página inteira
+  (que já rola no nível do `<main>`).
 - **Liquid glass**: `.liquid-glass` (sidebar/header/modais/sheets/tooltips escuros). Gradiente de
   marca (`bg-gradient-brand`, azul→bordô) em avatar/hero — nunca atrás de texto.
 - **A11y**: `:focus-visible` global (anel `--ring` = azul BAU), `prefers-reduced-motion`/`-transparency`.

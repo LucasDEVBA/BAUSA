@@ -18,7 +18,7 @@ import {
   PieChart as PieChartIcon,
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, ScrollList } from "@/components/ui";
 import { FamiliasViewSwitcher } from "@/components/familias/FamiliasViewSwitcher";
 import { cn } from "@/lib/utils";
 import type {
@@ -309,8 +309,8 @@ export function WarRoomFamiliasGerencial({
 
       {/* Top críticas / Top satisfeitas */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <div className="mb-2 flex items-center justify-between">
+        <div className="flex flex-col h-[24rem] rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="mb-2 flex shrink-0 items-center justify-between">
             <div>
               <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">
                 Famílias críticas
@@ -322,11 +322,13 @@ export function WarRoomFamiliasGerencial({
             <AlertTriangle className="h-4 w-4 text-sys-red" />
           </div>
           {data.top_criticas.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Nenhuma família crítica no momento 🎉
-            </p>
+            <div className="flex flex-1 items-center justify-center">
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Nenhuma família crítica no momento 🎉
+              </p>
+            </div>
           ) : (
-            <div className="flex flex-col gap-2">
+            <ScrollList className="flex flex-col gap-2">
               {data.top_criticas.map((f) => (
                 <FamiliaRow
                   key={f.experiencia_id}
@@ -334,12 +336,12 @@ export function WarRoomFamiliasGerencial({
                   variant="critica"
                 />
               ))}
-            </div>
+            </ScrollList>
           )}
         </div>
 
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <div className="mb-2 flex items-center justify-between">
+        <div className="flex flex-col h-[24rem] rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="mb-2 flex shrink-0 items-center justify-between">
             <div>
               <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">
                 Candidatas a indicação
@@ -351,11 +353,13 @@ export function WarRoomFamiliasGerencial({
             <Sparkles className="h-4 w-4 text-sys-green" />
           </div>
           {data.top_satisfeitas.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Nenhuma família elegível ainda
-            </p>
+            <div className="flex flex-1 items-center justify-center">
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Nenhuma família elegível ainda
+              </p>
+            </div>
           ) : (
-            <div className="flex flex-col gap-2">
+            <ScrollList className="flex flex-col gap-2">
               {data.top_satisfeitas.map((f) => (
                 <FamiliaRow
                   key={f.experiencia_id}
@@ -363,7 +367,7 @@ export function WarRoomFamiliasGerencial({
                   variant="satisfeita"
                 />
               ))}
-            </div>
+            </ScrollList>
           )}
         </div>
       </div>
