@@ -12,6 +12,7 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
+import { ScrollList } from "@/components/ui";
 import { requirePapel } from "@/lib/auth";
 import { fetchMonitorData, tempoDesde } from "@/lib/automacoes-queries";
 import type { AutomacaoStatus, FilaItem } from "@/lib/automacoes-queries";
@@ -436,9 +437,9 @@ function FilaSection({
   color: string;
 }) {
   return (
-    <div className="border border-border/70 bg-card/60 rounded-xl overflow-hidden">
+    <div className="border border-border/70 bg-card/60 rounded-xl overflow-hidden flex flex-col h-[20rem]">
       {/* Header */}
-      <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+      <div className="flex items-center gap-2.5 border-b border-border px-4 py-3 shrink-0">
         <Icon className={cn("h-4 w-4", COLOR_TEXT[color])} />
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-foreground">{titulo}</p>
@@ -455,9 +456,9 @@ function FilaSection({
       </div>
 
       {/* Lista */}
-      <div className="max-h-64 overflow-y-auto">
+      <ScrollList gutter={false}>
         {items.length === 0 ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex flex-1 items-center justify-center py-8">
             <p className="text-xs text-label-tertiary">Fila vazia</p>
           </div>
         ) : (
@@ -490,7 +491,7 @@ function FilaSection({
             )}
           </div>
         )}
-      </div>
+      </ScrollList>
     </div>
   );
 }

@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils";
 import { CalendarClock, AlertTriangle } from "lucide-react";
+import { ScrollList } from "@/components/ui";
 import type { UpcomingAction } from "@/lib/war-room-queries";
+
+const CARD_HEIGHT = "flex h-[24rem] flex-col";
 
 interface UpcomingActionsSectionProps {
   actions: UpcomingAction[];
@@ -9,9 +12,11 @@ interface UpcomingActionsSectionProps {
 export function UpcomingActionsSection({ actions }: UpcomingActionsSectionProps) {
   if (actions.length === 0) {
     return (
-      <div className="rounded-2xl glass-card p-4">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">Proximas Acoes</h3>
-        <p className="text-xs text-muted-foreground">Nenhuma acao programada para os proximos 3 dias.</p>
+      <div className={cn("rounded-2xl glass-card p-4", CARD_HEIGHT)}>
+        <h3 className="mb-3 shrink-0 text-sm font-semibold text-foreground">Proximas Acoes</h3>
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-xs text-muted-foreground">Nenhuma acao programada para os proximos 3 dias.</p>
+        </div>
       </div>
     );
   }
@@ -19,8 +24,8 @@ export function UpcomingActionsSection({ actions }: UpcomingActionsSectionProps)
   const overdueCount = actions.filter((a) => a.is_overdue).length;
 
   return (
-    <div className="rounded-2xl glass-card p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <div className={cn("rounded-2xl glass-card p-4", CARD_HEIGHT)}>
+      <div className="mb-4 flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold text-foreground">Proximas Acoes</h3>
@@ -32,7 +37,7 @@ export function UpcomingActionsSection({ actions }: UpcomingActionsSectionProps)
           </span>
         )}
       </div>
-      <div className="space-y-2">
+      <ScrollList className="space-y-2">
         {actions.map((action) => {
           const dateObj = new Date(action.date + "T00:00:00");
           const formattedDate = dateObj.toLocaleDateString("pt-BR", {
@@ -75,7 +80,7 @@ export function UpcomingActionsSection({ actions }: UpcomingActionsSectionProps)
             </div>
           );
         })}
-      </div>
+      </ScrollList>
     </div>
   );
 }

@@ -23,3 +23,4 @@ export {
 export { ChartTooltip, type ChartTooltipProps, type ChartTooltipItem } from "./ChartTooltip";
 export { PeriodSelector, type PeriodSelectorProps, type PeriodOption } from "./PeriodSelector";
 export { BrandTabs, type BrandTab } from "./BrandTabs";
+export { ScrollList, type ScrollListProps } from "./ScrollList";

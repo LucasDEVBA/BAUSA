@@ -16,6 +16,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ScrollList } from "@/components/ui";
 import { ExportCSVButton } from "@/components/shared/ExportCSVButton";
 import { ExportPDFButton } from "@/components/shared/ExportPDFButton";
 import { ETAPA_LABELS } from "@/types/crm";
@@ -511,14 +512,14 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
 
       {/* Families at risk */}
       {data.familiasEmRisco.length > 0 && (
-        <div className="rounded-xl border border-sys-red/20 bg-card p-5">
-          <div className="flex items-center gap-2 mb-3">
+        <div className="flex flex-col h-[22rem] rounded-xl border border-sys-red/20 bg-card p-5">
+          <div className="flex items-center gap-2 mb-3 shrink-0">
             <AlertTriangle className="h-4 w-4 text-sys-red" />
             <h3 className="text-sm font-semibold text-sys-red">
               Familias em Risco
             </h3>
           </div>
-          <div className="space-y-2">
+          <ScrollList className="space-y-2">
             {data.familiasEmRisco.map((f) => (
               <div
                 key={f.id}
@@ -546,7 +547,7 @@ function ExperienciaTab({ data }: { data: ReportData["experiencia"] }) {
                 </span>
               </div>
             ))}
-          </div>
+          </ScrollList>
         </div>
       )}
     </div>

@@ -32,6 +32,7 @@ import {
 } from "@/lib/actions/remarketing-campanha";
 import { uploadRemarketingImage } from "@/lib/actions/remarketing-media";
 import { RemarketingLeadSheet } from "@/components/remarketing/RemarketingLeadSheet";
+import { ScrollList } from "@/components/ui";
 import type { MensagemConfig, MensagemTipo, MensagemCanal } from "@/lib/remarketing-types";
 import type {
   RemarketingData,
@@ -372,8 +373,8 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
           </section>
 
           {/* Lista de leads (clique → detalhe) */}
-          <section className="rounded-xl border border-border bg-card p-5">
-            <div className="mb-3 flex items-center justify-between">
+          <section className="flex h-[24rem] flex-col rounded-xl border border-border bg-card p-5">
+            <div className="mb-3 flex shrink-0 items-center justify-between">
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                   <Users className="h-4 w-4 text-primary" /> Leads desta audiência
@@ -384,11 +385,13 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
             </div>
 
             {alcance === 0 ? (
-              <p className="py-6 text-center text-xs text-label-tertiary">
-                Nenhum lead com os filtros atuais.
-              </p>
+              <div className="flex flex-1 items-center justify-center">
+                <p className="py-6 text-center text-xs text-label-tertiary">
+                  Nenhum lead com os filtros atuais.
+                </p>
+              </div>
             ) : (
-              <div className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
+              <ScrollList className="space-y-1">
                 {visiveis.map((l) => (
                   <button
                     key={l.dealId}
@@ -424,7 +427,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                     Mostrando {LIST_CAP} de {filtrados.length}. Refine os filtros para ver os demais.
                   </p>
                 )}
-              </div>
+              </ScrollList>
             )}
           </section>
         </div>

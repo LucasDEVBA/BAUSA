@@ -19,6 +19,7 @@ import {
   type ReuniaoFamilia,
 } from "@/lib/actions/reunioes";
 import { cn } from "@/lib/utils";
+import { ScrollList } from "@/components/ui";
 import { toast } from "sonner";
 
 interface ReunioesTabProps {
@@ -92,7 +93,7 @@ export function ReunioesTab({ experienciaId, athleteName }: ReunioesTabProps) {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <ScrollList className="h-[18rem] space-y-2">
           {reunioes.map((r) => (
             <ReuniaoCard
               key={r.id}
@@ -104,7 +105,7 @@ export function ReunioesTab({ experienciaId, athleteName }: ReunioesTabProps) {
               }}
             />
           ))}
-        </div>
+        </ScrollList>
       )}
     </div>
   );

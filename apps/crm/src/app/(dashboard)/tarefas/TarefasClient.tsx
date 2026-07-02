@@ -20,6 +20,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ScrollList } from "@/components/ui";
 import { criarTarefa, marcarTarefaConcluida } from "@/lib/actions/automacoes";
 import { atualizarTarefa } from "@/lib/actions/tarefas";
 import { cn } from "@/lib/utils";
@@ -483,7 +484,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
       </div>
 
       {/* Tarefa list */}
-      <div className="flex-1 space-y-2 overflow-y-auto">
+      <ScrollList className="space-y-2">
         {tarefasFiltradas.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-label-tertiary">
             <CheckSquare className="mb-3 h-10 w-10" />
@@ -679,7 +680,7 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
             </div>
           );
         })}
-      </div>
+      </ScrollList>
 
       {/* Modal de criacao/edicao */}
       {showModal && (

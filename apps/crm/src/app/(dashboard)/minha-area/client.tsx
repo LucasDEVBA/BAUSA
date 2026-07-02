@@ -24,6 +24,7 @@ import {
 } from "@/types/family";
 import type { Tarefa } from "@/types/crm";
 import type { OnboardingResumo } from "@/lib/actions/onboarding";
+import { ScrollList } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 // --- Tipos ---
@@ -133,8 +134,8 @@ function UrgentActionsSection({
   const totalUrgent = urgentFamilies.length + overdueTasks.length;
 
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[24rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-red/10">
           <Flame className="h-4 w-4 text-sys-red" />
         </div>
@@ -149,12 +150,12 @@ function UrgentActionsSection({
       </div>
 
       {totalUrgent === 0 && (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">Tudo em dia! Nenhuma acao urgente.</p>
         </div>
       )}
 
-      <div className="space-y-2">
+      <ScrollList className="space-y-2">
         {urgentFamilies.map((f) => {
           const statusCfg = FAMILY_STATUS_CONFIG[f.family_status];
           return (
@@ -216,7 +217,7 @@ function UrgentActionsSection({
             </span>
           </div>
         ))}
-      </div>
+      </ScrollList>
     </section>
   );
 }
@@ -446,8 +447,8 @@ function ProximasReunioesSection({
   reunioes: ProximaReuniao[];
 }) {
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[20rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/10">
           <Video className="h-4 w-4 text-sys-blue" />
         </div>
@@ -464,13 +465,13 @@ function ProximasReunioesSection({
       </div>
 
       {reunioes.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhuma reunião agendada nos próximos dias.
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <ScrollList className="space-y-2">
           {reunioes.map((r) => {
             const data = new Date(r.data_hora);
             const isToday = data.toDateString() === new Date().toDateString();
@@ -527,7 +528,7 @@ function ProximasReunioesSection({
               </div>
             );
           })}
-        </div>
+        </ScrollList>
       )}
     </section>
   );
@@ -535,8 +536,8 @@ function ProximasReunioesSection({
 
 function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[20rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-plan-legacy/10">
           <Calendar className="h-4 w-4 text-plan-legacy" />
         </div>
@@ -551,13 +552,13 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
       </div>
 
       {contacts.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhum contato agendado para os proximos 7 dias.
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <ScrollList className="space-y-2">
           {contacts.map((c, i) => {
             const statusCfg = FAMILY_STATUS_CONFIG[c.status];
             const dateObj = new Date(c.date);
@@ -610,7 +611,7 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
               </div>
             );
           })}
-        </div>
+        </ScrollList>
       )}
     </section>
   );
@@ -642,8 +643,8 @@ function NeedContactSection({
     .sort((a, b) => b.days_without_contact - a.days_without_contact);
 
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[24rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-orange/10">
           <Phone className="h-4 w-4 text-sys-orange" />
         </div>
@@ -660,13 +661,13 @@ function NeedContactSection({
       </div>
 
       {needContact.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Todas as familias estao dentro do prazo de contato.
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <ScrollList className="space-y-2">
           {needContact.map((f) => {
             const threshold = INACTIVITY_THRESHOLD[f.journey_stage] ?? 7;
             const isOverThreshold = f.days_without_contact >= threshold;
@@ -702,7 +703,7 @@ function NeedContactSection({
               </button>
             );
           })}
-        </div>
+        </ScrollList>
       )}
     </section>
   );
@@ -720,8 +721,8 @@ function AdmissaoSection({
   );
 
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[20rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/15">
           <GraduationCap className="h-4 w-4 text-sys-blue" />
         </div>
@@ -738,13 +739,13 @@ function AdmissaoSection({
       </div>
 
       {admissaoFamilies.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-border/70 bg-card/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Nenhum processo de admissao ativo no momento.
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <ScrollList className="space-y-2">
           {admissaoFamilies.map((f) => {
             const stageCfg = JOURNEY_STAGE_CONFIG[f.journey_stage];
             const hasSchool = Boolean(f.escola_confirmada_id);
@@ -777,7 +778,7 @@ function AdmissaoSection({
               </button>
             );
           })}
-        </div>
+        </ScrollList>
       )}
     </section>
   );

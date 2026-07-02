@@ -24,6 +24,7 @@ import {
   atualizarArquivoDocumento,
 } from "@/lib/actions/documentos";
 import { uploadDocumento } from "@/lib/upload";
+import { ScrollList } from "@/components/ui";
 import { DOCUMENTO_TIPOS, type DocumentoAtleta } from "@/types/crm";
 
 interface AtletaResumo {
@@ -250,8 +251,8 @@ export function DocumentosClient({
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         {/* Sidebar: lista de atletas */}
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <div className="relative mb-3">
+        <div className="flex flex-col h-[24rem] rounded-lg border border-border/70 bg-card/60 p-3">
+          <div className="relative mb-3 shrink-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
@@ -262,7 +263,7 @@ export function DocumentosClient({
             />
           </div>
 
-          <div className="space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto">
+          <ScrollList className="space-y-1">
             {filteredAtletas.length === 0 && (
               <p className="py-4 text-center text-xs text-label-tertiary">
                 Nenhum atleta encontrado
@@ -299,7 +300,7 @@ export function DocumentosClient({
                 </button>
               );
             })}
-          </div>
+          </ScrollList>
         </div>
 
         {/* Main: checklist do atleta selecionado */}
