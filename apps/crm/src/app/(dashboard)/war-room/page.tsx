@@ -39,7 +39,6 @@ import {
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/ui";
 import { WarRoomRevenueHero } from "@/components/war-room/WarRoomRevenueHero";
-import { MetricCard } from "@/components/dashboard/MetricCard";
 import { SafraFilter } from "@/components/war-room/SafraFilter";
 import { WarRoomExportButtons } from "@/components/war-room/WarRoomExportButtons";
 import { CriticalAlertsBanner } from "@/components/war-room/CriticalAlertsBanner";
@@ -386,11 +385,11 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             <GoalProgressCard data={meta} />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <MetricCard title="MRR" value={`R$ ${(m.mrr_brl / 1000).toFixed(1)}k`} subtitle="Receita mensal recorrente" icon={DollarSign} trend={{ value: m.mrr_trend_pct, label: "% vs mes anterior" }} variant="hot" />
-            <MetricCard title="ARR" value={`R$ ${(m.arr_brl / 1000).toFixed(0)}k`} subtitle="Receita anual recorrente" icon={TrendingUp} variant="default" />
+            <StatCard label="MRR" value={`R$ ${(m.mrr_brl / 1000).toFixed(1)}k`} context="receita mensal recorrente" delta={m.mrr_trend_pct} icon={DollarSign} accent="green" />
+            <StatCard label="ARR" value={`R$ ${(m.arr_brl / 1000).toFixed(0)}k`} context="receita anual recorrente" icon={TrendingUp} accent="brand" />
           </div>
-          <MetricCard title="Pipeline Total" value={k(m.pipeline_total_brl)} subtitle="Em negociacao ativa" icon={Layers} variant="cold" />
-          <MetricCard title="Ticket Medio" value={k(m.avg_ticket_brl)} subtitle="Por contrato fechado" icon={Ticket} variant="purple" />
+          <StatCard label="Pipeline total" value={k(m.pipeline_total_brl)} context="em negociação ativa" icon={Layers} accent="blue" />
+          <StatCard label="Ticket médio" value={k(m.avg_ticket_brl)} context="por contrato fechado" icon={Ticket} accent="purple" />
         </div>
       ),
     },
