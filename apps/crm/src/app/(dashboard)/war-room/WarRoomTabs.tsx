@@ -69,7 +69,7 @@ export function WarRoomTabs({ tabs, header }: WarRoomTabsProps) {
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       {/* Zone STICKY: abas + ações (sem título — o breadcrumb do Header já nomeia a tela) */}
-      <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-xl">
+      <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center justify-between gap-3 bg-background/80 px-4 py-3 backdrop-blur-xl">
         <BrandTabs
           items={tabs.map((tab) => ({
             id: tab.id,
