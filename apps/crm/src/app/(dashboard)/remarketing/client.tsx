@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
-  Megaphone,
   Download,
   Copy,
   TrendingUp,
@@ -32,7 +31,7 @@ import {
 } from "@/lib/actions/remarketing-campanha";
 import { uploadRemarketingImage } from "@/lib/actions/remarketing-media";
 import { RemarketingLeadSheet } from "@/components/remarketing/RemarketingLeadSheet";
-import { ScrollList } from "@/components/ui";
+import { Card, Input, PageHeader, ScrollList, StatCard } from "@/components/ui";
 import type { MensagemConfig, MensagemTipo, MensagemCanal } from "@/lib/remarketing-types";
 import type {
   RemarketingData,
@@ -259,17 +258,11 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="flex items-center gap-2 text-title-2 text-foreground">
-          <Megaphone className="h-5 w-5 text-primary" />
-          Re-marketing
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Audiências segmentadas de leads qualificados (QUENTE/MORNO) que ainda não
-          fecharam — para campanhas de reaquecimento via WhatsApp.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Comercial"
+        title="Re-marketing"
+        description="Audiências segmentadas de leads qualificados (QUENTE/MORNO) que ainda não fecharam — para campanhas de reaquecimento via WhatsApp."
+      />
 
       {/* Aviso LGPD + disparo controlado */}
       <div className="flex items-start gap-2.5 rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-3">
@@ -434,37 +427,37 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
 
         {/* Painel direito */}
         <div className="space-y-4">
-          {/* Alcance estimado */}
-          <div className="rounded-xl border border-sys-green/20 bg-gradient-to-br from-sys-green/15 to-sys-green/5 p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-sys-green/70">
-              Alcance estimado
-            </p>
-            <p className="mt-1 flex items-baseline gap-1.5 text-lg font-semibold tabular-nums text-foreground">
-              {alcance}
-              <span className="text-xs font-normal text-muted-foreground">leads nesta audiência</span>
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div>
-                <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <TrendingUp className="h-3 w-3" /> Conversão esperada
-                </p>
-                <p className="text-lg font-bold tabular-nums text-sys-green">{conversao}</p>
-              </div>
-              <div>
-                <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <DollarSign className="h-3 w-3" /> Receita potencial
-                </p>
-                <p className="text-lg font-bold tabular-nums text-sys-green">{brl(receita)}</p>
-              </div>
-            </div>
-            <p className="mt-3 flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Info className="h-3 w-3" /> Estimativa: {Math.round((segment?.taxaEstimada ?? 0) * 100)}% de
-              conversão × ticket médio {brl(ticketMedio)}. {comConsentimento} c/ consentimento LGPD.
-            </p>
+          {/* Alcance estimado — faixa de KPIs */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+            <StatCard
+              label="Alcance estimado"
+              value={alcance}
+              context="leads nesta audiência"
+              icon={Users}
+              accent="green"
+            />
+            <StatCard
+              label="Conversão esperada"
+              value={conversao}
+              context={`~${Math.round((segment?.taxaEstimada ?? 0) * 100)}%`}
+              icon={TrendingUp}
+              accent="green"
+            />
+            <StatCard
+              label="Receita potencial"
+              value={brl(receita)}
+              context={`ticket médio ${brl(ticketMedio)}`}
+              icon={DollarSign}
+              accent="green"
+            />
           </div>
+          <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Info className="h-3 w-3" /> Estimativa: {Math.round((segment?.taxaEstimada ?? 0) * 100)}% de
+            conversão × ticket médio {brl(ticketMedio)}. {comConsentimento} c/ consentimento LGPD.
+          </p>
 
           {/* Editor de mensagem */}
-          <div className="rounded-xl border border-border bg-card p-5">
+          <Card padding="lg">
             <p className="mb-2 text-sm font-semibold text-foreground">Mensagem</p>
 
             {/* Seletor de canal */}
@@ -507,26 +500,23 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
 
                 {tipo === "link" && (
                   <div className="mb-3 space-y-2">
-                    <input
+                    <Input
                       type="url"
                       placeholder="URL do link (https://…)"
                       value={linkUrl}
                       onChange={(e) => setLinkUrl(e.target.value)}
-                      className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
                     />
-                    <input
+                    <Input
                       type="text"
                       placeholder="Título (ex: Agende sua reunião)"
                       value={linkTitulo}
                       onChange={(e) => setLinkTitulo(e.target.value)}
-                      className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
                     />
-                    <input
+                    <Input
                       type="text"
                       placeholder="Descrição curta"
                       value={linkDescricao}
                       onChange={(e) => setLinkDescricao(e.target.value)}
-                      className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
                     />
                     <MediaImageField
                       label="Imagem do card (opcional)"
@@ -543,12 +533,11 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
 
             {canal === "email" && (
               <div className="mb-3 space-y-2">
-                <input
+                <Input
                   type="text"
                   placeholder="Assunto do e-mail"
                   value={assunto}
                   onChange={(e) => setAssunto(e.target.value)}
-                  className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
                 />
                 <MediaImageField
                   label="Imagem do topo (opcional)"
@@ -559,19 +548,19 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
                   uploading={isPending}
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <input
+                  <Input
                     type="url"
                     placeholder="URL do botão (opcional)"
                     value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
-                    className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/50"
+                    className="text-xs"
                   />
-                  <input
+                  <Input
                     type="text"
                     placeholder="Texto do botão"
                     value={linkTitulo}
                     onChange={(e) => setLinkTitulo(e.target.value)}
-                    className="w-full rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/50"
+                    className="text-xs"
                   />
                 </div>
               </div>
@@ -674,7 +663,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
               <Send className="h-4 w-4" />
               {isPending ? "Processando…" : `Disparar campanha (${alcance})`}
             </button>
-          </div>
+          </Card>
         </div>
       </div>
 
