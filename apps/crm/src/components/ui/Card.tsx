@@ -16,7 +16,7 @@ const cardVariants = cva("relative rounded-2xl text-card-foreground", {
       plain: "border border-border bg-card shadow-sm",
       ghost: "bg-card",
     },
-    padding: { none: "", sm: "p-4", md: "p-5", lg: "p-6" },
+    padding: { none: "", sm: "p-3", md: "p-4", lg: "p-5" },
     interactive: {
       true: "transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       false: "",

@@ -46,7 +46,7 @@ export function WarRoomRevenueHero({
   const data = months.slice(-12);
 
   return (
-    <div className="glass-card relative rounded-2xl p-5">
+    <div className="glass-card relative rounded-2xl p-4">
       <span
         aria-hidden
         className="pointer-events-none absolute left-3 top-4 h-4 w-[3px] rounded-full bg-primary"
