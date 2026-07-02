@@ -4,6 +4,7 @@ import { listarAlertasInatividade } from "@/lib/actions/experiencia";
 import { FamiliasCrmClient } from "./client";
 import { FamiliasNav } from "@/components/familias/FamiliasNav";
 import { FamiliasViewSwitcher } from "@/components/familias/FamiliasViewSwitcher";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -339,13 +340,14 @@ export default async function FamiliasCrmPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* CEO/CTO alterna entre a área do Head e a visão Gerencial; o Head só vê a própria área. */}
-      {canManage && (
-        <div className="flex justify-end">
-          <FamiliasViewSwitcher />
-        </div>
-      )}
+    <div className="flex flex-col gap-5">
+      {/* CEO/CTO alterna entre a área do Head e a visão Gerencial (actions); o Head só vê a própria área. */}
+      <PageHeader
+        eyebrow="Famílias · Experiência"
+        title="CRM de Experiência da Família"
+        description="Acompanhamento pós-venda e suporte à jornada das famílias."
+        actions={canManage ? <FamiliasViewSwitcher /> : undefined}
+      />
       <FamiliasNav />
       <FamiliasCrmClient
         families={families}

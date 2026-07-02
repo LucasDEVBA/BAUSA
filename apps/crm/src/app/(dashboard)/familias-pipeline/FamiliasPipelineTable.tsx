@@ -10,11 +10,13 @@ import {
   Sparkles,
   CircleAlert,
   Clock,
+  Inbox,
 } from "lucide-react";
 import {
   JOURNEY_STAGE_CONFIG,
   type FamilyJourneyStage,
 } from "@/types/family";
+import { Card, EmptyState } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 interface Card {
@@ -128,9 +130,13 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
 
   if (cards.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-xl border border-border bg-card py-16 text-sm text-muted-foreground">
-        Nenhuma família corresponde aos filtros.
-      </div>
+      <Card padding="none">
+        <EmptyState
+          icon={Inbox}
+          title="Nenhuma família"
+          description="Nenhuma família corresponde aos filtros."
+        />
+      </Card>
     );
   }
 
@@ -162,7 +168,7 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
   ];
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <Card padding="none" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full table-fixed">
           <thead>
@@ -320,6 +326,6 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   );
 }

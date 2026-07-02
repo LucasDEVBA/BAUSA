@@ -10,6 +10,11 @@ import {
   ArrowLeftRight,
   UserPlus,
   Pencil,
+  Inbox,
+  Users,
+  Flame,
+  CircleAlert,
+  Clock,
 } from "lucide-react";
 import {
   JOURNEY_STAGE_CONFIG,
@@ -26,6 +31,8 @@ import {
 } from "@/components/familias-shared/FamilyDetailModal";
 import { NovaFamiliaModal } from "@/components/familias-shared/NovaFamiliaModal";
 import { HealthBadge } from "@/components/familias-shared/HealthBadge";
+import { FamiliasNav } from "@/components/familias/FamiliasNav";
+import { PageHeader, StatCard, Button, EmptyState } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -278,6 +285,16 @@ export function FamiliasPipelineClient({
     });
   }, [cards, filters]);
 
+  const kpis = useMemo(() => {
+    const total = initialCards.length;
+    const crise = initialCards.filter((c) => c.status === "crise").length;
+    const atencao = initialCards.filter((c) => c.status === "atencao").length;
+    const semContato = initialCards.filter(
+      (c) => (c.dias_sem_contato ?? 0) > 30,
+    ).length;
+    return { total, crise, atencao, semContato };
+  }, [initialCards]);
+
   const handleDrop = (fase: FamilyJourneyStage) => {
     const id = dragId;
     setDragId(null);
@@ -328,31 +345,55 @@ export function FamiliasPipelineClient({
   );
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-title-2 text-foreground">Pipeline da Família</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground flex items-center gap-1.5">
-            <ArrowLeftRight className="h-3.5 w-3.5 text-label-tertiary" />
-            Arraste cards entre fases em qualquer direção. Clique em um card
-            para editar.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowNovaModal(true)}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors"
-          >
-            <UserPlus className="h-4 w-4" />
-            Nova Família
-          </button>
-          <a
-            href="/familias-crm"
-            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground hover:border-primary/30 hover:text-primary"
-          >
-            Voltar à lista
-          </a>
-        </div>
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Famílias"
+        title="Pipeline da Família"
+        description="Arraste cards entre fases em qualquer direção. Clique em um card para editar."
+        actions={
+          <>
+            <Button onClick={() => setShowNovaModal(true)}>
+              <UserPlus className="h-4 w-4" />
+              Nova Família
+            </Button>
+            <Button variant="secondary" asChild>
+              <a href="/familias-crm">
+                <ArrowLeftRight className="h-4 w-4" />
+                Voltar à lista
+              </a>
+            </Button>
+          </>
+        }
+      />
+
+      <FamiliasNav />
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Total de famílias"
+          value={kpis.total}
+          icon={Users}
+          accent="brand"
+        />
+        <StatCard
+          label="Em crise"
+          value={kpis.crise}
+          icon={Flame}
+          accent="red"
+        />
+        <StatCard
+          label="Em atenção"
+          value={kpis.atencao}
+          icon={CircleAlert}
+          accent="orange"
+        />
+        <StatCard
+          label="Sem contato > 30d"
+          value={kpis.semContato}
+          icon={Clock}
+          accent="blue"
+        />
       </div>
 
       {isPending && (
@@ -427,9 +468,11 @@ export function FamiliasPipelineClient({
                   />
                 ))}
                 {list.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-border py-6 text-center text-[10px] text-label-tertiary">
-                    Vazio
-                  </div>
+                  <EmptyState
+                    icon={Inbox}
+                    title="Vazio"
+                    className="rounded-xl border border-dashed border-border px-3 py-6"
+                  />
                 )}
               </div>
             </div>
