@@ -34,6 +34,7 @@ import type { PapelUsuario } from "@/types/crm";
 interface NavSubItem {
   href: string;
   label: string;
+  roles?: PapelUsuario[];
 }
 
 interface NavItem {
@@ -45,6 +46,7 @@ interface NavItem {
   soon?: boolean;
   subItems?: NavSubItem[];
   activeRoutes?: string[];
+  excludeRoutes?: string[];
 }
 
 interface NavGroup {
@@ -62,7 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "EXECUTIVO",
     items: [
-      { href: "/war-room", label: "War Room", icon: Target, roles: ["ceo"] },
+      { href: "/war-room", label: "War Room", icon: Target, roles: ["ceo"], excludeRoutes: ["/war-room/familias"] },
       {
         href: "/analytics",
         label: "Analytics",
@@ -104,7 +106,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Famílias",
         icon: UserCheck,
         roles: ["ceo", "head_sucesso"],
-        activeRoutes: ["/familias", "/familias-crm", "/familias-pipeline"],
+        activeRoutes: ["/familias", "/familias-crm", "/familias-pipeline", "/war-room/familias"],
+        // Sub-itens só p/ CEO/CTO: alternam entre a área do Head e o painel gerencial.
+        subItems: [
+          { href: "/familias-crm", label: "Head", roles: ["ceo"] },
+          { href: "/war-room/familias", label: "Gerencial", roles: ["ceo"] },
+        ],
       },
     ],
   },
@@ -220,11 +227,17 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
                 )}
                 <div className="space-y-0.5">
                   {visibleItems.map((item) => {
+                    const isExcluded =
+                      item.excludeRoutes?.some((r) => pathname === r || pathname.startsWith(`${r}/`)) ?? false;
                     const isParentActive =
-                      pathname === item.href ||
-                      pathname.startsWith(`${item.href}/`) ||
-                      (item.activeRoutes?.some((r) => pathname === r || pathname.startsWith(`${r}/`)) ?? false);
-                    const hasSubItems = item.subItems && item.subItems.length > 0;
+                      !isExcluded &&
+                      (pathname === item.href ||
+                        pathname.startsWith(`${item.href}/`) ||
+                        (item.activeRoutes?.some((r) => pathname === r || pathname.startsWith(`${r}/`)) ?? false));
+                    const visibleSubItems = item.subItems?.filter(
+                      (sub) => !sub.roles || sub.roles.includes(papelEfetivo),
+                    );
+                    const hasSubItems = !!visibleSubItems && visibleSubItems.length > 0;
                     const showSubItems = hasSubItems && isParentActive && !collapsed;
                     const Icon = item.icon;
 
@@ -261,7 +274,7 @@ export function Sidebar({ papel, nome, avatarUrl }: SidebarProps) {
 
                         {showSubItems && (
                           <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
-                            {item.subItems!.map((sub) => {
+                            {visibleSubItems!.map((sub) => {
                               const isSubActive = pathname === sub.href;
                               return (
                                 <Link
