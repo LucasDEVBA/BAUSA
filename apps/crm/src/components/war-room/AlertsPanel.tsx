@@ -1,4 +1,5 @@
 import { AlertCircle, AlertTriangle, Info, Search } from "lucide-react";
+import { Card } from "@/components/ui";
 import { type Alert, type Bottleneck } from "@/types/revenue";
 
 const ALERT_STYLES = {
@@ -73,7 +74,7 @@ interface BottleneckCardProps {
 
 function BottleneckCard({ bottleneck, index }: BottleneckCardProps) {
   return (
-    <div className="border border-border/70 bg-card/60 rounded-lg p-3.5">
+    <Card variant="plain" padding="md">
       <div className="flex items-start gap-3">
         <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
           {index + 1}
@@ -94,7 +95,7 @@ function BottleneckCard({ bottleneck, index }: BottleneckCardProps) {
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
