@@ -87,7 +87,7 @@ export function WarRoomTabs({ tabs, header }: WarRoomTabsProps) {
           }))}
           activeId={active}
           onSelect={select}
-          variant="underline"
+          variant="segmented"
           ariaLabel="Seções do War Room"
         />
       </div>
