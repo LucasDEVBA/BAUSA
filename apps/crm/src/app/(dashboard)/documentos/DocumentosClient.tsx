@@ -15,6 +15,8 @@ import {
   ExternalLink,
   Loader2,
   RefreshCw,
+  Users,
+  Percent,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -24,7 +26,17 @@ import {
   atualizarArquivoDocumento,
 } from "@/lib/actions/documentos";
 import { uploadDocumento } from "@/lib/upload";
-import { ScrollList } from "@/components/ui";
+import {
+  Badge,
+  type BadgeTone,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  PageHeader,
+  ScrollList,
+  StatCard,
+} from "@/components/ui";
 import { DOCUMENTO_TIPOS, type DocumentoAtleta } from "@/types/crm";
 
 interface AtletaResumo {
@@ -40,36 +52,36 @@ interface DocumentosClientProps {
 
 const STATUS_CONFIG: Record<
   DocumentoAtleta["status"],
-  { label: string; color: string; bg: string; icon: React.ComponentType<{ className?: string }> }
+  { label: string; color: string; tone: BadgeTone; icon: React.ComponentType<{ className?: string }> }
 > = {
   pendente: {
     label: "Pendente",
     color: "text-muted-foreground",
-    bg: "bg-secondary border-border",
+    tone: "neutral",
     icon: Clock,
   },
   enviado_atleta: {
     label: "Enviado",
     color: "text-sys-blue",
-    bg: "bg-sys-blue/15 border-sys-blue/20",
+    tone: "blue",
     icon: Send,
   },
   revisado: {
     label: "Revisado",
     color: "text-sys-orange",
-    bg: "bg-sys-orange/15 border-sys-orange/20",
+    tone: "orange",
     icon: Eye,
   },
   enviado_escola: {
     label: "Enviado Escola",
     color: "text-plan-legacy",
-    bg: "bg-plan-legacy/15 border-plan-legacy/20",
+    tone: "purple",
     icon: Send,
   },
   aprovado: {
     label: "Aprovado",
     color: "text-sys-green",
-    bg: "bg-sys-green/15 border-sys-green/20",
+    tone: "green",
     icon: CheckCircle2,
   },
 };
@@ -119,6 +131,11 @@ export function DocumentosClient({
   const aprovados = atletaDocs.filter((d) => d.status === "aprovado").length;
   const total = atletaDocs.length;
   const progressPct = total > 0 ? Math.round((aprovados / total) * 100) : 0;
+
+  const totalDocumentos = documentos.length;
+  const totalAprovados = documentos.filter((d) => d.status === "aprovado").length;
+  const taxaAprovacao =
+    totalDocumentos > 0 ? Math.round((totalAprovados / totalDocumentos) * 100) : 0;
 
   async function handleAdvanceStatus(doc: DocumentoAtleta) {
     const next = getNextStatus(doc.status);
@@ -218,12 +235,32 @@ export function DocumentosClient({
   };
 
   return (
-    <div className="p-6">
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Atletas"
+        title="Documentos"
+        description="Checklist de documentos por atleta — acompanhe status e prazos"
+      />
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Total documentos" value={totalDocumentos} icon={FileText} accent="brand" />
+        <StatCard label="Aprovados" value={totalAprovados} icon={CheckCircle2} accent="green" />
+        <StatCard
+          label="Urgentes"
+          value={docsUrgentes.length}
+          context="prazo < 14 dias"
+          icon={AlertTriangle}
+          accent="orange"
+        />
+        <StatCard label="Taxa de aprovação" value={`${taxaAprovacao}%`} icon={Percent} accent="blue" />
+      </div>
+
       {/* Urgent documents banner */}
       {docsUrgentes.length > 0 && (
         <button
           onClick={handleScrollToUrgent}
-          className="mb-4 flex w-full items-center gap-3 rounded-xl border border-sys-orange/30 bg-sys-orange/10 px-5 py-3 text-left transition-colors hover:bg-sys-orange/15"
+          className="flex w-full items-center gap-3 rounded-xl border border-sys-orange/30 bg-sys-orange/10 px-5 py-3 text-left transition-colors hover:bg-sys-orange/15"
         >
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sys-orange/20">
             <AlertTriangle className="h-4 w-4 text-sys-orange" />
@@ -239,35 +276,22 @@ export function DocumentosClient({
         </button>
       )}
 
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <FileText className="h-5 w-5 text-primary" />
-          <h1 className="text-title-2 text-foreground">Documentos</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Checklist de documentos por atleta — acompanhe status e prazos
-        </p>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         {/* Sidebar: lista de atletas */}
-        <div className="flex flex-col h-[24rem] rounded-lg border border-border/70 bg-card/60 p-3">
+        <Card variant="plain" padding="none" className="flex h-[24rem] flex-col p-3">
           <div className="relative mb-3 shrink-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
+            <Input
               placeholder="Buscar atleta..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-primary/50 focus:outline-none"
+              className="pl-9"
             />
           </div>
 
           <ScrollList className="space-y-1">
             {filteredAtletas.length === 0 && (
-              <p className="py-4 text-center text-xs text-label-tertiary">
-                Nenhum atleta encontrado
-              </p>
+              <EmptyState icon={Users} title="Nenhum atleta encontrado" className="py-8" />
             )}
             {filteredAtletas.map((a) => {
               const aDocs = documentos.filter((d) => d.atleta_id === a.id);
@@ -301,14 +325,16 @@ export function DocumentosClient({
               );
             })}
           </ScrollList>
-        </div>
+        </Card>
 
         {/* Main: checklist do atleta selecionado */}
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4">
+        <Card variant="plain" padding="md">
           {!selectedAtleta ? (
-            <div className="flex h-40 items-center justify-center text-sm text-label-tertiary">
-              Selecione um atleta para ver o checklist
-            </div>
+            <EmptyState
+              icon={FileText}
+              title="Selecione um atleta"
+              description="Escolha um atleta na lista para ver o checklist de documentos."
+            />
           ) : (
             <>
               <div className="mb-6 flex items-center justify-between">
@@ -336,11 +362,13 @@ export function DocumentosClient({
               </div>
 
               {/* Document list */}
-              <div className="space-y-2 mb-6">
+              <div className="mb-4 space-y-2">
                 {atletaDocs.length === 0 && (
-                  <p className="py-8 text-center text-sm text-label-tertiary">
-                    Nenhum documento cadastrado. Adicione abaixo.
-                  </p>
+                  <EmptyState
+                    icon={FileText}
+                    title="Nenhum documento cadastrado"
+                    description="Adicione documentos ao checklist abaixo."
+                  />
                 )}
                 {atletaDocs.map((doc) => {
                   const cfg = STATUS_CONFIG[doc.status];
@@ -365,15 +393,9 @@ export function DocumentosClient({
                           {tipoLabel}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span
-                            className={cn(
-                              "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold",
-                              cfg.bg,
-                              cfg.color
-                            )}
-                          >
+                          <Badge tone={cfg.tone} size="sm">
                             {cfg.label}
-                          </span>
+                          </Badge>
                           {doc.deadline && (
                             <span
                               className={cn(
@@ -452,14 +474,15 @@ export function DocumentosClient({
                       </div>
 
                       {next && (
-                        <button
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => handleAdvanceStatus(doc)}
                           disabled={isPending}
-                          className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/15 hover:text-foreground hover:border-primary/30 disabled:opacity-40"
                         >
                           <ChevronRight className="h-3 w-3" />
                           {STATUS_CONFIG[next].label}
-                        </button>
+                        </Button>
                       )}
                     </div>
                   );
@@ -468,57 +491,55 @@ export function DocumentosClient({
 
               {/* Add document */}
               {missingTypes.length > 0 && (
-                <div className="rounded-xl border border-dashed border-border p-4">
+                <Card variant="plain" padding="md" className="border-dashed">
                   <p className="mb-3 text-xs font-semibold text-muted-foreground">
                     Adicionar documento
                   </p>
-                  <div className="flex flex-wrap gap-2 mb-3">
+                  <div className="mb-3 flex flex-wrap gap-2">
                     {missingTypes.map((t) => (
-                      <button
+                      <Button
                         key={t.value}
+                        variant={addingType === t.value ? "primary" : "secondary"}
+                        size="sm"
                         onClick={() =>
                           setAddingType(addingType === t.value ? null : t.value)
                         }
-                        className={cn(
-                          "rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
-                          addingType === t.value
-                            ? "border-primary/30 bg-primary/15 text-primary"
-                            : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-fill-4"
-                        )}
                       >
-                        <Plus className="mr-1 inline h-3 w-3" />
+                        <Plus className="h-3 w-3" />
                         {t.label}
-                      </button>
+                      </Button>
                     ))}
                   </div>
 
                   {addingType && (
                     <div className="flex items-end gap-3">
                       <div className="flex-1">
-                        <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                        <label
+                          htmlFor="add-deadline"
+                          className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                        >
                           Prazo (opcional)
                         </label>
-                        <input
+                        <Input
+                          id="add-deadline"
                           type="date"
                           value={addDeadline}
                           onChange={(e) => setAddDeadline(e.target.value)}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-primary/50 focus:outline-none"
                         />
                       </div>
-                      <button
+                      <Button
                         onClick={handleAddDocument}
                         disabled={isPending}
-                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-40"
                       >
                         Adicionar
-                      </button>
+                      </Button>
                     </div>
                   )}
-                </div>
+                </Card>
               )}
             </>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );
