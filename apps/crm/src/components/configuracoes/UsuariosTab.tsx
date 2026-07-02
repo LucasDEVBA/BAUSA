@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { listarUsuarios, atualizarUsuario, criarUsuario } from "@/lib/actions/usuarios";
 import { getInitials, cn } from "@/lib/utils";
 import type { UserProfile, PapelUsuario } from "@/types/crm";
+import { Card, Input, Button, EmptyState } from "@/components/ui";
 
 const PAPEL_OPTIONS: { value: PapelUsuario; label: string }[] = [
   { value: "ceo", label: "CEO" },
@@ -16,8 +17,8 @@ const PAPEL_OPTIONS: { value: PapelUsuario; label: string }[] = [
   { value: "comercial", label: "Comercial" },
 ];
 
-const inputClass =
-  "w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
+const selectClass =
+  "h-9 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground appearance-none transition-colors focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25";
 const labelClass = "mb-1 block text-[10px] font-medium text-muted-foreground";
 
 interface RowEdit {
@@ -110,34 +111,30 @@ export function UsuariosTab() {
           <UsersIcon className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold text-foreground">Usuários do sistema</h3>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreate((v) => !v)}
-          className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-        >
+        <Button type="button" onClick={() => setShowCreate((v) => !v)}>
           <UserPlus className="h-4 w-4" />
           Novo usuário
-        </button>
+        </Button>
       </div>
 
       {/* Formulário de criação */}
       {showCreate && (
-        <div className="border border-border/70 bg-card/60 space-y-3 rounded-xl p-5">
+        <Card className="space-y-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Criar usuário
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Nome</label>
-              <input value={nome} onChange={(e) => setNome(e.target.value)} className={inputClass} placeholder="Nome completo" />
+              <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome completo" />
             </div>
             <div>
               <label className={labelClass}>E-mail (login)</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="usuario@bolsaatletausa.com" />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="usuario@bolsaatletausa.com" />
             </div>
             <div>
               <label className={labelClass}>Papel</label>
-              <select value={papel} onChange={(e) => setPapel(e.target.value as PapelUsuario)} className={cn(inputClass, "appearance-none")}>
+              <select value={papel} onChange={(e) => setPapel(e.target.value as PapelUsuario)} className={selectClass}>
                 {PAPEL_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
@@ -145,7 +142,7 @@ export function UsuariosTab() {
             </div>
             <div>
               <label className={labelClass}>Senha inicial</label>
-              <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className={inputClass} placeholder="Mínimo 8 caracteres" autoComplete="new-password" />
+              <Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Mínimo 8 caracteres" autoComplete="new-password" />
             </div>
           </div>
           <div className="flex items-center justify-between gap-3">
@@ -153,37 +150,38 @@ export function UsuariosTab() {
               <ShieldCheck className="h-3 w-3" />
               Requer SUPABASE_SERVICE_KEY no ambiente. CTO usa o papel CEO.
             </p>
-            <button
-              type="button"
-              onClick={criar}
-              disabled={pending}
-              className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-            >
+            <Button type="button" onClick={criar} disabled={pending}>
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
               Criar usuário
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Lista */}
       {loading ? (
-        <div className="border border-border/70 bg-card/60 rounded-xl p-8 text-center text-sm text-muted-foreground">
-          <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
-          Carregando usuários…
-        </div>
+        <Card padding="none">
+          <EmptyState
+            icon={Loader2}
+            title="Carregando usuários…"
+            className="[&_svg]:animate-spin"
+          />
+        </Card>
       ) : usuarios.length === 0 ? (
-        <div className="border border-border/70 bg-card/60 rounded-xl p-8 text-center">
-          <UsersIcon className="mx-auto mb-2 h-8 w-8 text-label-tertiary" />
-          <p className="text-sm text-muted-foreground">Nenhum usuário cadastrado ainda.</p>
-        </div>
+        <Card padding="none">
+          <EmptyState
+            icon={UsersIcon}
+            title="Nenhum usuário cadastrado ainda"
+            description="Crie o primeiro usuário do sistema com o botão “Novo usuário”."
+          />
+        </Card>
       ) : (
-        <div className="border border-border/70 bg-card/60 divide-y divide-border overflow-hidden rounded-xl">
+        <Card padding="none" className="divide-y divide-border overflow-hidden">
           {usuarios.map((u) => {
             const papelVal = edits[u.id]?.papel ?? u.papel;
             const ativoVal = edits[u.id]?.ativo ?? u.ativo;
             return (
-              <div key={u.id} className="flex flex-wrap items-center gap-3 p-4">
+              <div key={u.id} className="flex flex-wrap items-center gap-3 p-4 transition-colors hover:bg-secondary/40">
                 {u.avatar_url ? (
                   <Image
                     src={u.avatar_url}
@@ -206,7 +204,7 @@ export function UsuariosTab() {
                 <select
                   value={papelVal}
                   onChange={(e) => setEdit(u, { papel: e.target.value as PapelUsuario })}
-                  className="appearance-none rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className={cn(selectClass, "h-8 w-auto px-2.5 text-xs")}
                   aria-label={`Papel de ${u.nome}`}
                 >
                   {PAPEL_OPTIONS.map((o) => (
@@ -218,7 +216,7 @@ export function UsuariosTab() {
                   type="button"
                   onClick={() => setEdit(u, { ativo: !ativoVal })}
                   className={cn(
-                    "rounded-md border px-2.5 py-1 text-[10px] font-semibold transition-colors",
+                    "rounded-md border px-2.5 py-1 text-[10px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25",
                     ativoVal
                       ? "border-sys-green/20 bg-sys-green/15 text-sys-green"
                       : "border-border bg-secondary text-muted-foreground",
@@ -228,19 +226,19 @@ export function UsuariosTab() {
                   {ativoVal ? "Ativo" : "Inativo"}
                 </button>
 
-                <button
+                <Button
                   type="button"
+                  size="sm"
                   onClick={() => salvar(u)}
                   disabled={!isDirty(u) || pending}
-                  className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
                 >
                   <Check className="h-3.5 w-3.5" />
                   Salvar
-                </button>
+                </Button>
               </div>
             );
           })}
-        </div>
+        </Card>
       )}
     </div>
   );

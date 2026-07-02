@@ -12,9 +12,7 @@ import { atualizarMeuPerfil } from "@/lib/actions/usuarios";
 import { getInitials } from "@/lib/utils";
 import { PAPEL_LABEL } from "@/lib/papel";
 import type { UserProfile } from "@/types/crm";
-
-const inputClass =
-  "w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-placeholder focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
+import { Card, Button, Input, PageHeader } from "@/components/ui";
 
 export function PerfilClient({ profile }: { profile: UserProfile }) {
   const router = useRouter();
@@ -90,16 +88,15 @@ export function PerfilClient({ profile }: { profile: UserProfile }) {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <div>
-        <h1 className="text-title-2 text-foreground">Meu Perfil</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Gerencie seus dados, foto de perfil e senha.
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Sistema"
+        title="Meu Perfil"
+        description="Gerencie seus dados, foto de perfil e senha"
+      />
 
       {/* Identidade + foto */}
-      <div className="rounded-lg border border-border/70 bg-card/60 p-4">
+      <Card variant="glass" padding="md" accent="brand">
         <div className="flex items-center gap-5">
           <div className="relative flex-shrink-0">
             {avatarUrl ? (
@@ -141,73 +138,97 @@ export function PerfilClient({ profile }: { profile: UserProfile }) {
             </span>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Dados pessoais */}
-      <div className="rounded-lg border border-border/70 bg-card/60 p-4">
+      <Card variant="plain" padding="md" accent="brand">
         <div className="mb-4 flex items-center gap-2">
           <User className="h-4 w-4 text-primary" />
           <h2 className="text-sm font-semibold text-foreground">Dados pessoais</h2>
         </div>
-        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Nome</label>
-        <input value={nome} onChange={(e) => setNome(e.target.value)} className={inputClass} />
-        <label className="mb-1.5 mt-3 block text-xs font-medium text-muted-foreground">E-mail</label>
-        <input
-          value={profile.email}
-          disabled
-          className="w-full rounded-md border border-border bg-secondary px-3 py-2.5 text-sm text-muted-foreground"
-        />
-        <p className="mt-1 text-[10px] text-label-tertiary">
-          O e-mail de login não pode ser alterado por aqui.
-        </p>
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="perfil-nome" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Nome
+            </label>
+            <Input id="perfil-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+          </div>
+          <div>
+            <label htmlFor="perfil-email" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              E-mail
+            </label>
+            <Input id="perfil-email" value={profile.email} disabled className="bg-muted opacity-60" />
+            <p className="mt-1 text-[10px] text-label-tertiary">
+              O e-mail de login não pode ser alterado por aqui.
+            </p>
+          </div>
+        </div>
         <div className="mt-4 flex justify-end">
-          <button
+          <Button
+            variant="primary"
+            size="md"
             onClick={salvarNome}
             disabled={savingNome || nome.trim() === profile.nome}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {savingNome ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Salvar
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
       {/* Trocar senha */}
-      <form onSubmit={trocarSenha} className="rounded-lg border border-border/70 bg-card/60 p-4">
-        <div className="mb-4 flex items-center gap-2">
-          <Lock className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-semibold text-foreground">Trocar senha</h2>
-        </div>
-        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Nova senha</label>
-        <input
-          type="password"
-          value={novaSenha}
-          onChange={(e) => setNovaSenha(e.target.value)}
-          autoComplete="new-password"
-          placeholder="Mínimo 8 caracteres"
-          className={inputClass}
-        />
-        <label className="mb-1.5 mt-3 block text-xs font-medium text-muted-foreground">
-          Confirmar nova senha
-        </label>
-        <input
-          type="password"
-          value={confirmar}
-          onChange={(e) => setConfirmar(e.target.value)}
-          autoComplete="new-password"
-          className={inputClass}
-        />
-        <div className="mt-4 flex justify-end">
-          <button
-            type="submit"
-            disabled={savingSenha || !novaSenha || !confirmar}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            {savingSenha ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-            Alterar senha
-          </button>
-        </div>
-      </form>
+      <Card variant="plain" padding="md" accent="burgundy">
+        <form onSubmit={trocarSenha}>
+          <div className="mb-4 flex items-center gap-2">
+            <Lock className="h-4 w-4 text-destructive" />
+            <h2 className="text-sm font-semibold text-foreground">Trocar senha</h2>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label
+                htmlFor="perfil-nova-senha"
+                className="mb-1.5 block text-xs font-medium text-muted-foreground"
+              >
+                Nova senha
+              </label>
+              <Input
+                id="perfil-nova-senha"
+                type="password"
+                value={novaSenha}
+                onChange={(e) => setNovaSenha(e.target.value)}
+                autoComplete="new-password"
+                placeholder="Mínimo 8 caracteres"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="perfil-confirmar-senha"
+                className="mb-1.5 block text-xs font-medium text-muted-foreground"
+              >
+                Confirmar nova senha
+              </label>
+              <Input
+                id="perfil-confirmar-senha"
+                type="password"
+                value={confirmar}
+                onChange={(e) => setConfirmar(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              disabled={savingSenha || !novaSenha || !confirmar}
+            >
+              {savingSenha ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+              Alterar senha
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   );
 }

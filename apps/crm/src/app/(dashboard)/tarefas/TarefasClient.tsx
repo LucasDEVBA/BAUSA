@@ -20,7 +20,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ScrollList } from "@/components/ui";
+import { ScrollList, PageHeader, Card, Button, Badge, Input, EmptyState } from "@/components/ui";
 import { criarTarefa, marcarTarefaConcluida } from "@/lib/actions/automacoes";
 import { atualizarTarefa } from "@/lib/actions/tarefas";
 import { cn } from "@/lib/utils";
@@ -373,28 +373,20 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
 
   return (
     <div className="flex h-full flex-col gap-5">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <CheckSquare className="h-5 w-5 text-primary" />
-            <h1 className="text-title-2 text-foreground">Tarefas</h1>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Gerencie tarefas manuais e automaticas do CRM
-          </p>
-        </div>
-        <button
-          onClick={openCreateModal}
-          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Nova Tarefa
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Sistema"
+        title="Tarefas"
+        description="Gerencie tarefas manuais e automaticas do CRM"
+        actions={
+          <Button onClick={openCreateModal}>
+            <Plus className="h-4 w-4" />
+            Nova Tarefa
+          </Button>
+        }
+      />
 
-      {/* Status Tabs */}
-      <div className="flex flex-col gap-3">
+      {/* Filtros */}
+      <Card padding="sm" className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1">
             {STATUS_TABS.map((tab) => {
@@ -412,21 +404,23 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                 >
                   {tab.label}
                   {count > 0 && (
-                    <span className="rounded-full bg-secondary px-1.5 text-[10px]">{count}</span>
+                    <Badge tone="neutral" size="sm">
+                      {count}
+                    </Badge>
                   )}
                 </button>
               );
             })}
           </div>
 
-          <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
-            <Search className="h-3.5 w-3.5 text-muted-foreground" />
-            <input
+          <div className="relative sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
               type="text"
               placeholder="Buscar tarefa..."
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="bg-transparent text-sm text-foreground placeholder:text-placeholder outline-none w-48"
+              className="pl-9"
             />
           </div>
         </div>
@@ -450,7 +444,9 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                 >
                   {tab.label}
                   {count > 0 && (
-                    <span className="rounded-full bg-secondary px-1.5 text-[10px]">{count}</span>
+                    <Badge tone="neutral" size="sm">
+                      {count}
+                    </Badge>
                   )}
                 </button>
               );
@@ -474,22 +470,25 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                 >
                   {tab.label}
                   {count > 0 && (
-                    <span className="rounded-full bg-secondary px-1.5 text-[10px]">{count}</span>
+                    <Badge tone="neutral" size="sm">
+                      {count}
+                    </Badge>
                   )}
                 </button>
               );
             })}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Tarefa list */}
       <ScrollList className="space-y-2">
         {tarefasFiltradas.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-label-tertiary">
-            <CheckSquare className="mb-3 h-10 w-10" />
-            <p className="text-sm">Nenhuma tarefa encontrada</p>
-          </div>
+          <EmptyState
+            icon={CheckSquare}
+            title="Nenhuma tarefa encontrada"
+            description="Ajuste os filtros ou crie uma nova tarefa para comecar."
+          />
         )}
 
         {tarefasFiltradas.map((tarefa) => {
@@ -819,24 +818,17 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
 
               {/* Modal footer */}
               <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
-                <button
-                  onClick={closeModal}
-                  className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
+                <Button variant="ghost" onClick={closeModal}>
                   Cancelar
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={isPending}
-                  className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                >
+                </Button>
+                <Button onClick={handleSubmit} disabled={isPending}>
                   {isPending ? (
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
                   {editingTarefa ? "Salvar" : "Criar Tarefa"}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

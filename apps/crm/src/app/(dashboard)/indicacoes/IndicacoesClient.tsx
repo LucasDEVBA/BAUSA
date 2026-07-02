@@ -2,14 +2,20 @@
 
 import { useState, useTransition } from "react";
 import {
-  GitBranch,
   Users,
   TrendingUp,
   Gift,
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ScrollList } from "@/components/ui";
+import {
+  BrandTabs,
+  Card,
+  EmptyState,
+  PageHeader,
+  ScrollList,
+  StatCard,
+} from "@/components/ui";
 import { marcarRecompensaEntregue } from "@/lib/actions/indicacoes";
 import { cn } from "@/lib/utils";
 
@@ -126,74 +132,46 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
 
   return (
     <div className="flex h-full flex-col gap-5">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-0.5">
-          <GitBranch className="h-5 w-5 text-primary" />
-          <h1 className="text-title-2 text-foreground">Indicacoes</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Programa de indicacoes e recompensas
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Comercial"
+        title="Indicações"
+        description="Programa de indicações e recompensas"
+      />
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Users className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Total indicacoes</p>
-            <p className="text-lg font-bold text-foreground">{kpis.total}</p>
-          </div>
-        </div>
-        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-green/10">
-            <TrendingUp className="h-4 w-4 text-sys-green" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Taxa de conversao</p>
-            <p className="text-lg font-bold text-sys-green">{kpis.taxaConversao}%</p>
-            <p className="text-[10px] text-label-tertiary">{kpis.convertidos} convertidos</p>
-          </div>
-        </div>
-        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-orange/10">
-            <Gift className="h-4 w-4 text-sys-orange" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Recompensas pendentes</p>
-            <p className={cn(
-              "text-lg font-bold",
-              kpis.recompensasPendentes > 0 ? "text-sys-orange" : "text-foreground",
-            )}>
-              {kpis.recompensasPendentes}
-            </p>
-          </div>
-        </div>
+      {/* KPI strip */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Total indicações"
+          value={kpis.total}
+          icon={Users}
+          accent="brand"
+        />
+        <StatCard
+          label="Taxa de conversão"
+          value={`${kpis.taxaConversao}%`}
+          context={`${kpis.convertidos} convertidos`}
+          icon={TrendingUp}
+          accent="green"
+        />
+        <StatCard
+          label="Recompensas pendentes"
+          value={kpis.recompensasPendentes}
+          icon={Gift}
+          accent="orange"
+        />
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 rounded-lg border border-border bg-card p-1 w-fit">
-        {STATUS_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => setStatusFiltro(opt.value)}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-              statusFiltro === opt.value
-                ? "bg-primary/15 text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      <BrandTabs
+        items={STATUS_OPTIONS.map((opt) => ({ id: opt.value, label: opt.label }))}
+        activeId={statusFiltro}
+        onSelect={setStatusFiltro}
+        variant="segmented"
+        ariaLabel="Filtrar indicações por status"
+      />
 
       {/* Table */}
-      <div className="border border-border/70 bg-card/60 flex-1 overflow-auto rounded-xl">
+      <Card padding="none" className="flex-1 overflow-auto">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border">
@@ -220,8 +198,12 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
           <tbody>
             {filtradas.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-label-tertiary">
-                  Nenhuma indicacao encontrada
+                <td colSpan={6} className="px-4 py-10">
+                  <EmptyState
+                    icon={Users}
+                    title="Nenhuma indicação encontrada"
+                    description="Ajuste o filtro de status ou aguarde novas indicações."
+                  />
                 </td>
               </tr>
             ) : (
@@ -290,11 +272,11 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
             )}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Top Indicadores */}
       {topIndicadores.length > 0 && (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[18rem]">
+        <Card padding="sm" className="flex h-[18rem] flex-col">
           <div className="flex items-center gap-2 mb-4 shrink-0">
             <Users className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-semibold text-foreground">Top Indicadores</h3>
@@ -322,18 +304,18 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
                     </td>
                     <td className="py-2 text-right text-muted-foreground">{ind.total}</td>
                     <td className="py-2 text-right text-sys-green">{ind.convertidos}</td>
-                    <td className="py-2 text-right text-plan-legacy">{ind.taxa}%</td>
+                    <td className="py-2 text-right text-primary">{ind.taxa}%</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </ScrollList>
-        </div>
+        </Card>
       )}
 
       {/* Origem dos Leads (CAC proxy) */}
       {origemLeads.length > 0 && (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[16rem]">
+        <Card padding="sm" className="flex h-[18rem] flex-col">
           <div className="flex items-center gap-2 mb-4 shrink-0">
             <TrendingUp className="h-4 w-4 text-sys-green" />
             <h3 className="text-sm font-semibold text-foreground">Origem dos Leads</h3>
@@ -353,7 +335,7 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
               </div>
             ))}
           </ScrollList>
-        </div>
+        </Card>
       )}
     </div>
   );
