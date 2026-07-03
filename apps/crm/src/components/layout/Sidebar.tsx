@@ -17,13 +17,7 @@ import {
   GraduationCap,
   Shuffle,
   UserCheck,
-  BookOpen,
   LogOut,
-  CheckSquare,
-  GitBranch,
-  FileText,
-  Shield,
-  Activity,
   Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -118,13 +112,32 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "SISTEMA",
     items: [
-      { href: "/tarefas", label: "Tarefas", icon: CheckSquare, roles: ["ceo", "head_sucesso"] },
-      { href: "/documentos", label: "Documentos", icon: FileText, roles: ["ceo", "head_sucesso"] },
-      { href: "/faq", label: "FAQ", icon: BookOpen, roles: ["ceo", "head_sucesso"] },
-      { href: "/indicacoes", label: "Indicações", icon: GitBranch, roles: ["ceo", "head_sucesso"] },
-      { href: "/automacoes-monitor", label: "Automacoes", icon: Activity, roles: ["ceo"] },
-      { href: "/audit", label: "Audit Trail", icon: Shield, roles: ["ceo"] },
-      { href: "/configuracoes", label: "Configurações", icon: Settings, roles: ["ceo"] },
+      {
+        href: "/sistema",
+        label: "Sistema",
+        icon: Settings,
+        roles: ["ceo", "head_sucesso"],
+        activeRoutes: [
+          "/sistema",
+          "/tarefas",
+          "/documentos",
+          "/faq",
+          "/indicacoes",
+          "/automacoes-monitor",
+          "/audit",
+          "/configuracoes",
+        ],
+        // Hub /sistema + sub-páginas; Automações/Audit/Configurações só CEO/CTO.
+        subItems: [
+          { href: "/tarefas", label: "Tarefas" },
+          { href: "/documentos", label: "Documentos" },
+          { href: "/faq", label: "FAQ" },
+          { href: "/indicacoes", label: "Indicações" },
+          { href: "/automacoes-monitor", label: "Automações", roles: ["ceo"] },
+          { href: "/audit", label: "Audit Trail", roles: ["ceo"] },
+          { href: "/configuracoes", label: "Configurações", roles: ["ceo"] },
+        ],
+      },
     ],
   },
 ];
