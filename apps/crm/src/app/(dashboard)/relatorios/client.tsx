@@ -121,7 +121,7 @@ export function RelatoriosClient({ data }: RelatoriosClientProps) {
 
   return (
     <div className="space-y-5" data-printable>
-      <PageHeader
+      <PageHeader dense
         eyebrow="Executivo"
         title="Relatorios"
         description="Visao consolidada — dados em tempo real do CRM"

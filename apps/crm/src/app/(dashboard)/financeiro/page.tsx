@@ -276,7 +276,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Comercial"
         title="Gestão Financeira"
         description="Contratos, recebíveis e análise de custos"

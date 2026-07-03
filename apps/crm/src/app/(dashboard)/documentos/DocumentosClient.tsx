@@ -236,7 +236,7 @@ export function DocumentosClient({
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Atletas"
         title="Documentos"
         description="Checklist de documentos por atleta — acompanhe status e prazos"

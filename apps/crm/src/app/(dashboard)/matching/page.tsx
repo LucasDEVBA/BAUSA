@@ -194,7 +194,7 @@ export default async function MatchingPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Inteligência"
         title="Motor de Match Atleta-Escola"
         description={`Cruzamento automático de perfil do atleta com regras institucionais — ${totalSchools} escolas na base`}

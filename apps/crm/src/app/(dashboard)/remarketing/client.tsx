@@ -258,7 +258,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Comercial"
         title="Re-marketing"
         description="Audiências segmentadas de leads qualificados (QUENTE/MORNO) que ainda não fecharam — para campanhas de reaquecimento via WhatsApp."

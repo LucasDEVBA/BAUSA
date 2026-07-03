@@ -354,7 +354,7 @@ export function FamiliasPipelineClient({
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Famílias"
         title="Pipeline da Família"
         description="Arraste cards entre fases em qualquer direção. Clique em um card para editar."

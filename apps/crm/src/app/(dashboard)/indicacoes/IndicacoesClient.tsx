@@ -132,7 +132,7 @@ export function IndicacoesClient({ indicacoesIniciais, kpis, topIndicadores, ori
 
   return (
     <div className="flex h-full flex-col gap-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Comercial"
         title="Indicações"
         description="Programa de indicações e recompensas"
