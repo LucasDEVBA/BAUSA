@@ -37,16 +37,18 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/financeiro": { label: "Financeiro", parent: "Comercial" },
   "/remarketing": { label: "Re-marketing", parent: "Comercial" },
   "/documentos": { label: "Documentos", parent: "Sistema" },
-  "/automacoes-monitor": { label: "Automacoes", parent: "Sistema" },
+  "/automacoes-monitor": { label: "Automações", parent: "Sistema" },
+  "/sistema": { label: "Sistema" },
 };
 
-// Crumbs que mapeiam para uma rota real (viram links). Grupos (Sistema, Executivo…)
-// não têm rota própria e ficam como texto.
+// Crumbs que mapeiam para uma rota real (viram links). Grupos sem rota própria
+// (Executivo, Comercial, Inteligência…) ficam como texto.
 const CRUMB_HREF: Record<string, string> = {
   "BAU Engine": "/war-room",
   Leads: "/leads",
   "War Room": "/war-room",
   Analytics: "/analytics",
+  Sistema: "/sistema",
 };
 
 interface HeaderProps {
