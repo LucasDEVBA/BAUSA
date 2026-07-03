@@ -123,17 +123,19 @@ const NAV_GROUPS: NavGroup[] = [
           "/documentos",
           "/faq",
           "/indicacoes",
+          "/automacoes",
           "/automacoes-monitor",
           "/audit",
           "/configuracoes",
         ],
-        // Hub /sistema + sub-páginas; Automações/Audit/Configurações só CEO/CTO.
+        // Hub /sistema + sub-páginas; Automações/Monitor/Audit/Configurações só CEO/CTO.
         subItems: [
           { href: "/tarefas", label: "Tarefas" },
           { href: "/documentos", label: "Documentos" },
           { href: "/faq", label: "FAQ" },
           { href: "/indicacoes", label: "Indicações" },
-          { href: "/automacoes-monitor", label: "Automações", roles: ["ceo"] },
+          { href: "/automacoes", label: "Automações", roles: ["ceo"] },
+          { href: "/automacoes-monitor", label: "Monitor de filas", roles: ["ceo"] },
           { href: "/audit", label: "Audit Trail", roles: ["ceo"] },
           { href: "/configuracoes", label: "Configurações", roles: ["ceo"] },
         ],

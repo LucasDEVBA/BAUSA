@@ -8,6 +8,7 @@ import {
   GitBranch,
   Settings,
   Shield,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { requirePapel } from "@/lib/auth";
@@ -55,9 +56,16 @@ const MODULES: SistemaModule[] = [
     roles: ["ceo", "head_sucesso"],
   },
   {
-    href: "/automacoes-monitor",
+    href: "/automacoes",
     label: "Automações",
-    description: "Monitor das automações — filas de WhatsApp, follow-ups e saúde.",
+    description: "Crie fluxos gatilho → condições → ações e acompanhe cada execução.",
+    icon: Workflow,
+    roles: ["ceo"],
+  },
+  {
+    href: "/automacoes-monitor",
+    label: "Monitor de filas",
+    description: "Saúde das automações de sistema — filas de WhatsApp e follow-ups.",
     icon: Activity,
     roles: ["ceo"],
   },
