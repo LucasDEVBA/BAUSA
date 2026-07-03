@@ -148,7 +148,7 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
-                <h1 className="truncate text-[13px] font-semibold leading-tight text-foreground">
+                <h1 className="truncate text-[11px] font-semibold leading-tight text-foreground">
                   {lead.athlete_name}
                 </h1>
                 {lead.qualification_classification && (

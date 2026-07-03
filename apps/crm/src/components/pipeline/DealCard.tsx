@@ -68,7 +68,7 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
 
       {/* Linha 1: nome */}
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-[12px] font-semibold leading-tight text-foreground">
+        <p className="truncate text-[10px] font-semibold leading-tight text-foreground">
           {deal.athlete_name}
         </p>
       </div>
