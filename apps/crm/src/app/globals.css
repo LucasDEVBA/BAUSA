@@ -327,8 +327,8 @@
   --text-4xl--line-height: 2.375rem;  /* 38px */
   --text-5xl: 2.875rem;  /* 46px (era 48) */
 
-  /* Espaçamento base -8% (paddings/gaps/margens mais enxutos, minimalista premium). */
-  --spacing: 0.23rem;
+  /* Espaçamento base -12% (paddings/gaps/margens ainda mais enxutos, minimalista premium). */
+  --spacing: 0.22rem;
 }
 
 /* ----------------------------------------------------------------------------
