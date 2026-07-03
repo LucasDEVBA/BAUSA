@@ -14,6 +14,98 @@
 --   enviar_whatsapp · mover_deal
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- ───────── 0. FIX compensatório: audit.log_change em tabelas sem `id` ─────────
+-- Bug latente desde 20260401000800: a função lia NEW.id/OLD.id direto e
+-- ABORTAVA qualquer INSERT/UPDATE/DELETE em tabela auditada sem coluna `id`
+-- (caso real: configuracoes_sistema, PK = chave — a tela de Configurações
+-- falhava ao salvar). Detectado quando o seed desta migration falhou no
+-- deploy UAT. Extração defensiva: usa `id` quando existe; senão gera UUID
+-- determinístico md5(tabela:chave) — registro_id continua NOT NULL.
+CREATE OR REPLACE FUNCTION audit.log_change()
+RETURNS TRIGGER AS $$
+DECLARE
+  _user_id UUID;
+  _user_papel TEXT;
+  _registro_id UUID;
+  _dados_anteriores JSONB;
+  _dados_novos JSONB;
+  _campos_alterados TEXT[];
+  _key TEXT;
+  _rec JSONB;
+BEGIN
+  -- Captura user_id do contexto da aplicação
+  BEGIN
+    _user_id := current_setting('audit.user_id', true)::UUID;
+  EXCEPTION WHEN OTHERS THEN
+    _user_id := NULL;
+  END;
+
+  -- Captura papel do user
+  BEGIN
+    _user_papel := current_setting('audit.user_papel', true);
+  EXCEPTION WHEN OTHERS THEN
+    _user_papel := NULL;
+  END;
+
+  IF TG_OP = 'DELETE' THEN
+    _rec := to_jsonb(OLD);
+    _dados_anteriores := _rec;
+    _dados_novos := NULL;
+  ELSIF TG_OP = 'INSERT' THEN
+    _rec := to_jsonb(NEW);
+    _dados_anteriores := NULL;
+    _dados_novos := _rec;
+  ELSIF TG_OP = 'UPDATE' THEN
+    _rec := to_jsonb(NEW);
+    _dados_anteriores := to_jsonb(OLD);
+    _dados_novos := _rec;
+
+    -- Detecta quais campos mudaram
+    _campos_alterados := ARRAY[]::TEXT[];
+    FOR _key IN SELECT jsonb_object_keys(to_jsonb(NEW))
+    LOOP
+      IF to_jsonb(OLD) ->> _key IS DISTINCT FROM to_jsonb(NEW) ->> _key THEN
+        -- Ignora campos de timestamp automáticos
+        IF _key NOT IN ('updated_at') THEN
+          _campos_alterados := _campos_alterados || _key;
+        END IF;
+      END IF;
+    END LOOP;
+
+    -- Se nada relevante mudou (apenas updated_at), não loga
+    IF array_length(_campos_alterados, 1) IS NULL THEN
+      RETURN NEW;
+    END IF;
+  END IF;
+
+  -- Tabelas sem `id` (ex.: configuracoes_sistema): UUID determinístico da PK
+  IF _rec ? 'id' THEN
+    _registro_id := (_rec ->> 'id')::UUID;
+  ELSE
+    _registro_id := md5(TG_TABLE_NAME || ':' || COALESCE(_rec ->> 'chave', md5(_rec::text)))::UUID;
+  END IF;
+
+  -- Insere o log (usa SECURITY DEFINER para bypass RLS)
+  INSERT INTO public.audit_logs (
+    tabela, registro_id, operacao,
+    dados_anteriores, dados_novos, campos_alterados,
+    user_id, user_papel, ip_address, created_at
+  ) VALUES (
+    TG_TABLE_NAME, _registro_id, TG_OP,
+    _dados_anteriores, _dados_novos, _campos_alterados,
+    _user_id, _user_papel,
+    current_setting('audit.ip_address', true),
+    NOW()
+  );
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  ELSE
+    RETURN NEW;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ─────────────────────────── PUBLIC (PRD) ───────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.automacoes (
