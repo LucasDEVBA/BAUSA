@@ -305,6 +305,33 @@
 }
 
 /* ----------------------------------------------------------------------------
+   3b. Ajuste global (2026-07): escala tipográfica −2px (≥12px) + espaçamento enxuto
+   ---------------------------------------------------------------------------- */
+@theme {
+  /* Escala Tailwind: cada tamanho >= 12px reduzido 2px; < 12px permanece via text-[Npx]. */
+  --text-xs: 0.625rem;   /* 10px (era 12) */
+  --text-xs--line-height: 0.875rem;   /* 14px */
+  --text-sm: 0.75rem;    /* 12px (era 14) */
+  --text-sm--line-height: 1.125rem;   /* 18px */
+  --text-base: 0.875rem; /* 14px (era 16) */
+  --text-base--line-height: 1.375rem; /* 22px */
+  --text-lg: 1rem;       /* 16px (era 18) */
+  --text-lg--line-height: 1.625rem;   /* 26px */
+  --text-xl: 1.125rem;   /* 18px (era 20) */
+  --text-xl--line-height: 1.625rem;   /* 26px */
+  --text-2xl: 1.375rem;  /* 22px (era 24) */
+  --text-2xl--line-height: 1.875rem;  /* 30px */
+  --text-3xl: 1.75rem;   /* 28px (era 30) */
+  --text-3xl--line-height: 2.125rem;  /* 34px */
+  --text-4xl: 2.125rem;  /* 34px (era 36) */
+  --text-4xl--line-height: 2.375rem;  /* 38px */
+  --text-5xl: 2.875rem;  /* 46px (era 48) */
+
+  /* Espaçamento base -8% (paddings/gaps/margens mais enxutos, minimalista premium). */
+  --spacing: 0.23rem;
+}
+
+/* ----------------------------------------------------------------------------
    4. Base layer
    ---------------------------------------------------------------------------- */
 @layer base {
@@ -333,16 +360,16 @@
    5. TIPOGRAFIA — escala editorial (display bold apertado)
    ---------------------------------------------------------------------------- */
 @layer components {
-  .text-large-title { font-family: var(--font-display); font-size: 2.25rem;  line-height: 2.5rem;    font-weight: 800; letter-spacing: -0.03em; }
-  .text-title-1     { font-family: var(--font-display); font-size: 1.75rem;  line-height: 2.125rem;  font-weight: 800; letter-spacing: -0.028em; }
-  .text-title-2     { font-family: var(--font-display); font-size: 1.375rem; line-height: 1.75rem;   font-weight: 700; letter-spacing: -0.022em; }
-  .text-title-3     { font-size: 1.1875rem;line-height: 1.5rem;    font-weight: 700; letter-spacing: -0.018em; }
-  .text-headline    { font-size: 1rem;     line-height: 1.375rem;  font-weight: 600; letter-spacing: -0.014em; }
-  .text-body        { font-size: 0.9375rem;line-height: 1.375rem;  font-weight: 400; letter-spacing: -0.011em; }
-  .text-callout     { font-size: 0.9375rem;line-height: 1.25rem;   font-weight: 400; letter-spacing: -0.011em; }
-  .text-subhead     { font-size: 0.875rem; line-height: 1.25rem;   font-weight: 400; letter-spacing: -0.006em; }
-  .text-footnote    { font-size: 0.8125rem;line-height: 1.125rem;  font-weight: 400; letter-spacing: 0; }
-  .text-caption-1   { font-size: 0.75rem;  line-height: 1rem;      font-weight: 400; letter-spacing: 0; }
+  .text-large-title { font-family: var(--font-display); font-size: 2.125rem; line-height: 2.375rem;  font-weight: 800; letter-spacing: -0.03em; }
+  .text-title-1     { font-family: var(--font-display); font-size: 1.625rem; line-height: 2rem;      font-weight: 800; letter-spacing: -0.028em; }
+  .text-title-2     { font-family: var(--font-display); font-size: 1.25rem;  line-height: 1.625rem;  font-weight: 700; letter-spacing: -0.022em; }
+  .text-title-3     { font-size: 1.0625rem;line-height: 1.375rem;  font-weight: 700; letter-spacing: -0.018em; }
+  .text-headline    { font-size: 0.875rem; line-height: 1.25rem;   font-weight: 600; letter-spacing: -0.014em; }
+  .text-body        { font-size: 0.8125rem;line-height: 1.25rem;   font-weight: 400; letter-spacing: -0.011em; }
+  .text-callout     { font-size: 0.8125rem;line-height: 1.125rem;  font-weight: 400; letter-spacing: -0.011em; }
+  .text-subhead     { font-size: 0.75rem;  line-height: 1.125rem;  font-weight: 400; letter-spacing: -0.006em; }
+  .text-footnote    { font-size: 0.6875rem;line-height: 1rem;      font-weight: 400; letter-spacing: 0; }
+  .text-caption-1   { font-size: 0.625rem; line-height: 0.875rem;  font-weight: 400; letter-spacing: 0; }
   .text-caption-2   { font-size: 0.6875rem;line-height: 0.8125rem; font-weight: 500; letter-spacing: 0.004em; }
   /* eyebrow — label maiúsculo espaçado, assinatura da tela favorita */
   .text-eyebrow     { font-size: 0.625rem; line-height: 0.875rem;  font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; }
