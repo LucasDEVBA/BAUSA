@@ -881,7 +881,7 @@ export function MinhaAreaClient({
   return (
     <div className="space-y-5">
       {/* Header */}
-      <PageHeader
+      <PageHeader dense
         eyebrow={`${greeting}, ${userName.split(" ")[0]}`}
         title="Sua Area"
         description={`Voce tem ${families.length} ${

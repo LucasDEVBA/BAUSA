@@ -202,7 +202,7 @@ export default async function LeadsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Comercial"
         title="Leads"
         description={`${leads.length} leads recebidos${timingAlternativo > 0 ? ` · ${timingAlternativo} fora da janela ideal` : ""}`}

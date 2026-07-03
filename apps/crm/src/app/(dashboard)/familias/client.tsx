@@ -116,7 +116,7 @@ export function FamiliasConsolidadasClient({
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Famílias"
         title="Visão Consolidada por Família"
         description="Famílias agrupadas por responsável (apenas em Admissão+). Clique num atleta para editar."

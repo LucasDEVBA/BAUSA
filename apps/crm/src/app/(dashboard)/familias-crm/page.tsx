@@ -342,7 +342,7 @@ export default async function FamiliasCrmPage() {
   return (
     <div className="flex flex-col gap-5">
       {/* CEO/CTO alterna entre a área do Head e a visão Gerencial (actions); o Head só vê a própria área. */}
-      <PageHeader
+      <PageHeader dense
         eyebrow="Famílias · Experiência"
         title="CRM de Experiência da Família"
         description="Acompanhamento pós-venda e suporte à jornada das famílias."

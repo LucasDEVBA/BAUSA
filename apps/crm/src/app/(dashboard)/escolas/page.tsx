@@ -100,7 +100,7 @@ export default async function EscolasPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Inteligência"
         title="Banco de Escolas"
         description={`Inteligência institucional acumulada — ${schools.length} instituições cadastradas`}

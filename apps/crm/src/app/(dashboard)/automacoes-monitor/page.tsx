@@ -78,7 +78,7 @@ export default async function AutomacoesMonitorPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader dense
         eyebrow="Operacoes"
         title="Monitor de Automacoes"
         description="Acompanhe a saude das filas de qualificacao, envio de WhatsApp e deteccao de reunioes"
