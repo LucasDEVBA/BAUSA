@@ -137,7 +137,9 @@ export interface AcaoCriarNotificacao {
 }
 
 /** Templates = messageType do contrato da CF send-whatsapp. A engine reaplica a
- *  elegibilidade (QUENTE/MORNO, anti-ban) — a ação nunca burla os invariantes. */
+ *  elegibilidade (QUENTE/MORNO, timing, colunas *_sent_at com CAS) — a ação
+ *  nunca burla os invariantes. meeting_confirmed não é suportado (exige
+ *  customMessage/phone no send-whatsapp; sem eles cairia no template errado). */
 export interface AcaoEnviarWhatsapp {
   tipo: "enviar_whatsapp";
   parametros: {
@@ -147,8 +149,7 @@ export interface AcaoEnviarWhatsapp {
       | "followup_2"
       | "early_potential"
       | "late_timing"
-      | "scheduled_return"
-      | "meeting_confirmed";
+      | "scheduled_return";
   };
 }
 

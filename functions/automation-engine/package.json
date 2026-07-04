@@ -1,0 +1,12 @@
+{
+  "name": "automation-engine",
+  "version": "1.0.0",
+  "description": "Cloud Function - Engine das automações do BAU Engine: materializa gatilhos de tempo e executa runs (tarefas, notificações, WhatsApp, deals) com CAS e retry",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  }
+}
