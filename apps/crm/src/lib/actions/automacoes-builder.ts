@@ -64,7 +64,7 @@ const acaoSchema = z.discriminatedUnion("tipo", [
         .min(CUSTOM_MENSAGEM_MIN, `Mensagem muito curta (mínimo ${CUSTOM_MENSAGEM_MIN} caracteres)`)
         .max(CUSTOM_MENSAGEM_MAX, `Mensagem muito longa (máximo ${CUSTOM_MENSAGEM_MAX} caracteres)`)
         .superRefine((texto, ctx) => {
-          const tokens = texto.match(/\{[a-z0-9_]+\}/g) ?? [];
+          const tokens = texto.match(/\{[a-zA-Z0-9_]+\}/g) ?? [];
           for (const token of tokens) {
             if (!CUSTOM_PLACEHOLDERS.has(token.slice(1, -1))) {
               ctx.addIssue({
@@ -383,7 +383,7 @@ const mensagensSchema = z
       const validos =
         template === "meeting_confirmed" ? PLACEHOLDERS_MEETING : PLACEHOLDERS_PADRAO;
       for (const [destinatario, texto] of Object.entries(par)) {
-        const tokens = texto.match(/\{[a-z0-9_]+\}/g) ?? [];
+        const tokens = texto.match(/\{[a-zA-Z0-9_]+\}/g) ?? [];
         for (const token of tokens) {
           if (!validos.has(token.slice(1, -1))) {
             ctx.addIssue({
