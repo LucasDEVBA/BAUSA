@@ -53,6 +53,20 @@ export default async function AutomacoesPage() {
       .limit(200),
   ]);
 
+  // Intervalos das automações nativas (seção "Automações do sistema")
+  const { data: intervalosRow } = await supabase
+    .from("configuracoes_sistema")
+    .select("valor")
+    .eq("chave", "scheduler_intervalos")
+    .maybeSingle();
+  const intervalos = {
+    whatsapp_inicial_horas: 22,
+    whatsapp_timing_alt_horas: 48,
+    followup_1_horas: 48,
+    followup_2_horas: 168,
+    ...((intervalosRow?.valor as Record<string, number>) ?? {}),
+  };
+
   if (autoErr) console.error({ level: "error", action: "listar_automacoes", error: autoErr.message });
   if (runsErr) console.error({ level: "error", action: "listar_automacao_runs", error: runsErr.message });
   if (recErr) console.error({ level: "error", action: "listar_runs_recentes", error: recErr.message });
@@ -75,6 +89,7 @@ export default async function AutomacoesPage() {
       automacoes={withStats}
       usuarios={(usuarios ?? []) as UsuarioRow[]}
       runsRecentes={(runsRecentes ?? []) as AutomacaoRunDetalhado[]}
+      intervalos={intervalos}
       // Server Component dinâmico (force-dynamic): timestamp de request-time é
       // intencional — âncora da janela "últimos 7 dias" dos KPIs de execução.
       // eslint-disable-next-line react-hooks/purity

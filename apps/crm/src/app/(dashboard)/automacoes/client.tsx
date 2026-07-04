@@ -51,7 +51,9 @@ import {
   alternarAtivoAutomacao,
   excluirAutomacao,
   reprocessarRun,
+  atualizarIntervalosScheduler,
   type AutomacaoInput,
+  type SchedulerIntervalos,
 } from "@/lib/actions/automacoes-builder";
 import { cn } from "@/lib/utils";
 
@@ -228,11 +230,13 @@ export function AutomacoesClient({
   automacoes,
   usuarios,
   runsRecentes,
+  intervalos,
   agora,
 }: {
   automacoes: AutomacaoComStats[];
   usuarios: UsuarioRow[];
   runsRecentes: AutomacaoRunDetalhado[];
+  intervalos: SchedulerIntervalos;
   agora: number;
 }) {
   const router = useRouter();
@@ -329,6 +333,14 @@ export function AutomacoesClient({
 
       {activeTab === "execucoes" && (
         <ExecucoesView runs={runsRecentes} agora={agora} isPending={isPending} onReplay={replay} />
+      )}
+
+      {activeTab === "automacoes" && (
+        <SistemaAutomacoesSection intervalos={intervalos} isPending={isPending} />
+      )}
+
+      {activeTab === "automacoes" && (
+        <p className="text-eyebrow text-label-tertiary">Suas automações</p>
       )}
 
       {activeTab === "automacoes" && (automacoes.length === 0 ? (
@@ -438,6 +450,141 @@ export function AutomacoesClient({
         />
       )}
     </div>
+  );
+}
+
+// ─── Automações do sistema (nativas — schedulers e webhooks) ────────────────
+
+/** As 4 nativas com intervalo editável (persistem em scheduler_intervalos;
+ *  as CFs leem no próximo tick, com clamp 1h–720h próprio). */
+const SISTEMA_EDITAVEIS: {
+  chave: keyof SchedulerIntervalos;
+  nome: string;
+  descricao: string;
+  unidade: "h";
+}[] = [
+  {
+    chave: "whatsapp_inicial_horas",
+    nome: "WhatsApp inicial (timing ideal)",
+    descricao: "Convite de agendamento após a qualificação Gemini (QUENTE/MORNO).",
+    unidade: "h",
+  },
+  {
+    chave: "whatsapp_timing_alt_horas",
+    nome: "WhatsApp timing alternativo",
+    descricao: "Mensagem early_potential/late_timing p/ leads muito cedo ou tarde demais.",
+    unidade: "h",
+  },
+  {
+    chave: "followup_1_horas",
+    nome: "Follow-up 1",
+    descricao: "Primeiro follow-up após o WhatsApp inicial, se não agendou reunião.",
+    unidade: "h",
+  },
+  {
+    chave: "followup_2_horas",
+    nome: "Follow-up 2",
+    descricao: "Segundo follow-up (após o FU1), se ainda não agendou reunião.",
+    unidade: "h",
+  },
+];
+
+const SISTEMA_INFORMATIVAS: { nome: string; descricao: string }[] = [
+  { nome: "Retomada de novembro", descricao: "Leads muito cedo recebem scheduled_return em 1º/nov (automático)." },
+  { nome: "Confirmação de reunião", descricao: "Agendou no Calendar → WhatsApp instantâneo p/ lead e CEO (webhook)." },
+  { nome: "Qualificação Gemini", descricao: "Todo lead novo é classificado (QUENTE/MORNO/FRIO) na entrada." },
+  { nome: "E-mails de confirmação", descricao: "Envio automático no cadastro do formulário (Resend/Brevo)." },
+  { nome: "Sync Google Sheets", descricao: "Todo lead e atualização espelhados na planilha (cols A–BG)." },
+];
+
+function SistemaAutomacoesSection({
+  intervalos,
+  isPending,
+}: {
+  intervalos: SchedulerIntervalos;
+  isPending: boolean;
+}) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [draft, setDraft] = useState<SchedulerIntervalos>(intervalos);
+  const alterado = SISTEMA_EDITAVEIS.some((e) => draft[e.chave] !== intervalos[e.chave]);
+
+  const salvar = () => {
+    startTransition(async () => {
+      const result = await atualizarIntervalosScheduler(draft);
+      if (!result.success) {
+        toast.error(result.error ?? "Erro ao salvar intervalos");
+        return;
+      }
+      toast.success("Intervalos salvos — valem a partir do próximo tick dos schedulers");
+      router.refresh();
+    });
+  };
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-eyebrow text-label-tertiary">Automações do sistema</p>
+        {alterado && (
+          <Button size="sm" onClick={salvar} disabled={isPending}>
+            Salvar intervalos
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {SISTEMA_EDITAVEIS.map((item) => (
+          <Card key={item.chave} variant="plain" padding="sm" accent="brand">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                  <Zap className="h-3 w-3 text-primary" />
+                  {item.nome}
+                  <Badge tone="green" size="sm">Ativa</Badge>
+                </p>
+                <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+                  {item.descricao}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="text-[10px] text-label-tertiary">dispara após</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={720}
+                  aria-label={`Intervalo de ${item.nome} em horas`}
+                  className="w-16 text-center tabular-nums"
+                  value={String(draft[item.chave])}
+                  onChange={(e) =>
+                    setDraft({ ...draft, [item.chave]: Number(e.target.value) })
+                  }
+                />
+                <span className="text-[10px] font-medium text-muted-foreground">{item.unidade}</span>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {SISTEMA_INFORMATIVAS.map((item) => (
+          <Card key={item.nome} variant="ghost" padding="sm">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+              <Clock className="h-3 w-3 text-label-tertiary" />
+              {item.nome}
+              <Badge tone="neutral" size="sm">Automática</Badge>
+            </p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{item.descricao}</p>
+          </Card>
+        ))}
+        <Card variant="ghost" padding="sm" className="border border-dashed border-border">
+          <p className="text-[11px] font-semibold text-foreground">Régua de cobrança</p>
+          <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+            Monte pela aba builder: gatilho <em>Parcela vencendo/atrasada</em> (D−3, D+1, D+7, D+15) + ações.
+          </p>
+        </Card>
+      </div>
+    </section>
   );
 }
 
