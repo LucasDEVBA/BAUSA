@@ -702,6 +702,9 @@ function SistemaAutomacoesSection({
         const result = await atualizarMensagensScheduler(completo);
         if (!result.success) {
           toast.error(result.error ?? "Erro ao salvar mensagens");
+          // Falha PARCIAL: o intervalo pode já ter sido salvo acima — refresh
+          // para o card refletir o estado real do banco (evita "Cancelar" enganoso)
+          router.refresh();
           return;
         }
       }
