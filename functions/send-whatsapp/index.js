@@ -37,9 +37,10 @@ const httpRequest = (url, options, postData) => {
     });
 
     req.on('error', (e) => reject(e));
-    req.setTimeout(15000, () => {
+    const timeoutMs = options.timeoutMs || 15000;
+    req.setTimeout(timeoutMs, () => {
       req.destroy();
-      reject(new Error('Request timeout (15s)'));
+      reject(new Error(`Request timeout (${timeoutMs / 1000}s)`));
     });
 
     if (postData) req.write(postData);
@@ -464,6 +465,9 @@ const fetchMensagensCustom = async () => {
       '?chave=eq.scheduler_mensagens&select=valor&limit=1';
     const result = await httpRequest(url, {
       method: 'GET',
+      // 5s (nao os 15s default): o caller followup-scheduler tem timeout de
+      // 30s - Supabase degradado nao pode consumir metade do budget dele.
+      timeoutMs: 5000,
       headers: {
         apikey: SUPABASE_SERVICE_KEY,
         Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,

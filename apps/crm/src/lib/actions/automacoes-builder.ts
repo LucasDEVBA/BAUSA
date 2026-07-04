@@ -256,14 +256,47 @@ const mensagemParSchema = z.object({
   responsavel: mensagemTextoSchema,
 });
 
-const mensagensSchema = z.object({
-  initial: mensagemParSchema,
-  followup_1: mensagemParSchema,
-  followup_2: mensagemParSchema,
-  early_potential: mensagemParSchema,
-  late_timing: mensagemParSchema,
-  scheduled_return: mensagemParSchema,
-});
+// Guarda de placeholders: typo ({foo}) chegaria LITERAL na mensagem do lead,
+// e remover {agenda_url} do texto do responsável quebraria o link de
+// agendamento (a conversão do funil) em silêncio.
+const PLACEHOLDERS_VALIDOS = new Set([
+  "atleta_nome",
+  "responsavel_nome",
+  "agenda_url",
+  "proximo_ano",
+]);
+const TEMPLATES_COM_AGENDA = ["initial", "followup_1", "followup_2", "scheduled_return"];
+
+const mensagensSchema = z
+  .object({
+    initial: mensagemParSchema,
+    followup_1: mensagemParSchema,
+    followup_2: mensagemParSchema,
+    early_potential: mensagemParSchema,
+    late_timing: mensagemParSchema,
+    scheduled_return: mensagemParSchema,
+  })
+  .superRefine((valor, ctx) => {
+    for (const [template, par] of Object.entries(valor)) {
+      for (const [destinatario, texto] of Object.entries(par)) {
+        const tokens = texto.match(/\{[a-z0-9_]+\}/g) ?? [];
+        for (const token of tokens) {
+          if (!PLACEHOLDERS_VALIDOS.has(token.slice(1, -1))) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Variável desconhecida ${token} em ${template} (${destinatario}) — válidas: {atleta_nome}, {responsavel_nome}, {agenda_url}, {proximo_ano}`,
+            });
+          }
+        }
+      }
+      if (TEMPLATES_COM_AGENDA.includes(template) && !par.responsavel.includes("{agenda_url}")) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `O texto do responsável em ${template} precisa conter {agenda_url} — é o link de agendamento da reunião`,
+        });
+      }
+    }
+  });
 
 export type SchedulerMensagens = z.infer<typeof mensagensSchema>;
 
