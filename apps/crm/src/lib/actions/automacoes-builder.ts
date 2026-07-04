@@ -256,14 +256,34 @@ const mensagemParSchema = z.object({
   responsavel: mensagemTextoSchema,
 });
 
+// meeting_confirmed (calendar-webhook) tem shape { lead, ceo } — DIFERENTE
+// dos demais templates { atleta, responsavel }: lead = confirmação enviada
+// à família; ceo = notificação interna ao CEO.
+const mensagemParReuniaoSchema = z.object({
+  lead: mensagemTextoSchema,
+  ceo: mensagemTextoSchema,
+});
+
 // Guarda de placeholders: typo ({foo}) chegaria LITERAL na mensagem do lead,
 // e remover {agenda_url} do texto do responsável quebraria o link de
 // agendamento (a conversão do funil) em silêncio.
-const PLACEHOLDERS_VALIDOS = new Set([
+const PLACEHOLDERS_PADRAO = new Set([
   "atleta_nome",
   "responsavel_nome",
   "agenda_url",
   "proximo_ano",
+]);
+// meeting_confirmed (calendar-webhook, buildMeetingVars): variáveis próprias.
+// {meet_link} é opcional nos textos — o link do Meet SEMPRE vai anexado como
+// preview do WhatsApp (sendLinkMessage), independente do texto.
+const PLACEHOLDERS_MEETING = new Set([
+  "atleta_nome",
+  "responsavel_nome",
+  "telefone",
+  "email",
+  "meet_link",
+  "data_reuniao",
+  "hora_reuniao",
 ]);
 const TEMPLATES_COM_AGENDA = ["initial", "followup_1", "followup_2", "scheduled_return"];
 
@@ -275,21 +295,33 @@ const mensagensSchema = z
     early_potential: mensagemParSchema,
     late_timing: mensagemParSchema,
     scheduled_return: mensagemParSchema,
+    // Opcional: ambientes sem a migration meeting_confirmed continuam
+    // salvando os demais templates (o calendar-webhook tem fallback próprio).
+    meeting_confirmed: mensagemParReuniaoSchema.optional(),
   })
   .superRefine((valor, ctx) => {
     for (const [template, par] of Object.entries(valor)) {
+      if (!par) continue; // meeting_confirmed ausente (migration pendente)
+      const validos =
+        template === "meeting_confirmed" ? PLACEHOLDERS_MEETING : PLACEHOLDERS_PADRAO;
       for (const [destinatario, texto] of Object.entries(par)) {
         const tokens = texto.match(/\{[a-z0-9_]+\}/g) ?? [];
         for (const token of tokens) {
-          if (!PLACEHOLDERS_VALIDOS.has(token.slice(1, -1))) {
+          if (!validos.has(token.slice(1, -1))) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: `Variável desconhecida ${token} em ${template} (${destinatario}) — válidas: {atleta_nome}, {responsavel_nome}, {agenda_url}, {proximo_ano}`,
+              message:
+                `Variável desconhecida ${token} em ${template} (${destinatario}) — ` +
+                `válidas: ${[...validos].map((p) => `{${p}}`).join(", ")}`,
             });
           }
         }
       }
-      if (TEMPLATES_COM_AGENDA.includes(template) && !par.responsavel.includes("{agenda_url}")) {
+      if (
+        TEMPLATES_COM_AGENDA.includes(template) &&
+        "responsavel" in par &&
+        !par.responsavel.includes("{agenda_url}")
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `O texto do responsável em ${template} precisa conter {agenda_url} — é o link de agendamento da reunião`,
@@ -300,8 +332,9 @@ const mensagensSchema = z
 
 export type SchedulerMensagens = z.infer<typeof mensagensSchema>;
 
-/** Atualiza os textos das mensagens automáticas (todos os 12 obrigatórios —
- *  o objeto inteiro é reescrito). Vale a partir do próximo envio das CFs. */
+/** Atualiza os textos das mensagens automáticas (os 12 pares atleta/
+ *  responsável obrigatórios + meeting_confirmed {lead, ceo} opcional — o
+ *  objeto inteiro é reescrito). Vale a partir do próximo envio das CFs. */
 export async function atualizarMensagensScheduler(
   input: SchedulerMensagens,
 ): Promise<ActionResult> {
