@@ -211,6 +211,8 @@ Leads QUENTES e MORNOS entram **automaticamente** no pipeline:
 | `/familias-crm` | CEO + Head | crm_experiencia + atletas + deals |
 | `/analytics` | CEO | parcelas + contratos (receita 24 meses) |
 | `/configuracoes` | CEO | Configurações (8 abas) + aba **Usuários** (listar/editar papel·ativo / criar usuário) |
+| `/sistema` | CEO + Head | **Hub Sistema**: grid de módulos (Tarefas/Documentos/FAQ/Indicações p/ todos; Automações/Monitor/Audit/Config só CEO); item único no sidebar com sub-itens |
+| `/automacoes` | CEO | **Builder de automações** (gatilho→condições→ações; nasce pausada) + aba **Execuções** (KPIs 7d, runs com status/tentativas/resultado, Reprocessar). Engine: CF `automation-engine` (1x/h min 30). Tabelas `automacoes`/`automacao_runs`; actions em `src/lib/actions/automacoes-builder.ts`; types `src/types/automacao.ts` |
 | `/perfil` | Autenticado (todos) | **Meu Perfil**: nome, **trocar senha** (Supabase Auth), **foto** (bucket `avatars`). Abre pelo nome no footer do sidebar |
 | `/minha-area` | Head | Área do Head (dashboard) — **distinto** de `/perfil` |
 
