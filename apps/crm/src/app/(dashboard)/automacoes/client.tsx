@@ -230,12 +230,14 @@ export function AutomacoesClient({
   automacoes,
   usuarios,
   runsRecentes,
+  leadNomes,
   intervalos,
   agora,
 }: {
   automacoes: AutomacaoComStats[];
   usuarios: UsuarioRow[];
   runsRecentes: AutomacaoRunDetalhado[];
+  leadNomes: Record<string, string>;
   intervalos: SchedulerIntervalos;
   agora: number;
 }) {
@@ -243,6 +245,13 @@ export function AutomacoesClient({
   const [isPending, startTransition] = useTransition();
   const [builder, setBuilder] = useState<BuilderState | null>(null);
   const [activeTab, setActiveTab] = useState<"automacoes" | "execucoes">("automacoes");
+  // Filtro da aba Execuções — setado ao clicar "Ver execuções" numa automação
+  const [filtroAutomacaoId, setFiltroAutomacaoId] = useState<string | null>(null);
+
+  const verExecucoes = (automacaoId: string | null) => {
+    setFiltroAutomacaoId(automacaoId);
+    setActiveTab("execucoes");
+  };
 
   const salvar = () => {
     if (!builder) return;
@@ -332,7 +341,16 @@ export function AutomacoesClient({
       />
 
       {activeTab === "execucoes" && (
-        <ExecucoesView runs={runsRecentes} agora={agora} isPending={isPending} onReplay={replay} />
+        <ExecucoesView
+          runs={runsRecentes}
+          leadNomes={leadNomes}
+          automacoes={automacoes}
+          filtroAutomacaoId={filtroAutomacaoId}
+          onFiltroChange={setFiltroAutomacaoId}
+          agora={agora}
+          isPending={isPending}
+          onReplay={replay}
+        />
       )}
 
       {activeTab === "automacoes" && (
@@ -425,6 +443,15 @@ export function AutomacoesClient({
                         )}
                       />
                     </button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Ver execuções de ${a.nome}`}
+                      title="Ver execuções (quem recebeu)"
+                      onClick={() => verExecucoes(a.id)}
+                    >
+                      <History className="h-3.5 w-3.5" />
+                    </Button>
                     <Button variant="ghost" size="sm" aria-label={`Editar ${a.nome}`} onClick={() => setBuilder(builderFromAutomacao(a))}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -606,17 +633,28 @@ function resumoResultado(run: AutomacaoRunDetalhado): string {
 
 function ExecucoesView({
   runs,
+  leadNomes,
+  automacoes,
+  filtroAutomacaoId,
+  onFiltroChange,
   agora,
   isPending,
   onReplay,
 }: {
   runs: AutomacaoRunDetalhado[];
+  leadNomes: Record<string, string>;
+  automacoes: AutomacaoComStats[];
+  filtroAutomacaoId: string | null;
+  onFiltroChange: (id: string | null) => void;
   agora: number;
   isPending: boolean;
   onReplay: (runId: string) => void;
 }) {
+  const visiveis = filtroAutomacaoId
+    ? runs.filter((r) => r.automacao_id === filtroAutomacaoId)
+    : runs;
   const seteDiasAtras = agora - 7 * 86400000;
-  const recentes = runs.filter((r) => new Date(r.created_at).getTime() >= seteDiasAtras);
+  const recentes = visiveis.filter((r) => new Date(r.created_at).getTime() >= seteDiasAtras);
   const kpi = {
     total: recentes.length,
     sucesso: recentes.filter((r) => r.status === "sucesso").length,
@@ -639,7 +677,25 @@ function ExecucoesView({
         <StatCard label="Na fila" value={kpi.fila} icon={Clock} accent="blue" />
       </div>
 
-      {runs.length === 0 ? (
+      {/* Filtro por automação (setado também pelo "Ver execuções" do card) */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-label-tertiary">Automação:</span>
+        <select
+          aria-label="Filtrar por automação"
+          className={cn(FIELD_CLASS, "max-w-xs")}
+          value={filtroAutomacaoId ?? ""}
+          onChange={(e) => onFiltroChange(e.target.value || null)}
+        >
+          <option value="">Todas</option>
+          {automacoes.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {visiveis.length === 0 ? (
         <Card variant="plain" padding="none">
           <EmptyState
             icon={History}
@@ -663,8 +719,10 @@ function ExecucoesView({
                 </tr>
               </thead>
               <tbody>
-                {runs.map((run) => {
+                {visiveis.map((run) => {
                   const gatilho = run.automacoes ? GATILHO_CATALOG[run.automacoes.gatilho] : null;
+                  const atletaId = (run.contexto as { atleta_id?: string })?.atleta_id;
+                  const leadNome = atletaId ? leadNomes[atletaId] : undefined;
                   return (
                     <tr key={run.id} className="border-b border-border transition-colors hover:bg-accent">
                       <td className="py-2.5 pl-4 pr-3 text-xs text-muted-foreground whitespace-nowrap">
@@ -680,9 +738,18 @@ function ExecucoesView({
                           <p className="text-[10px] text-label-tertiary">{gatilho.label}</p>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground font-mono whitespace-nowrap">
-                        {run.gatilho_origem_tabela ?? "—"}
-                        {run.gatilho_origem_id ? ` · ${run.gatilho_origem_id.slice(0, 8)}` : ""}
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {leadNome ? (
+                          <p className="text-xs font-medium text-foreground">{leadNome}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {run.gatilho_origem_tabela ?? "—"}
+                            {run.gatilho_origem_id ? ` · ${run.gatilho_origem_id.slice(0, 8)}` : ""}
+                          </p>
+                        )}
+                        {leadNome && (
+                          <p className="text-[10px] text-label-tertiary">{run.gatilho_origem_tabela}</p>
+                        )}
                       </td>
                       <td className="px-3 py-2.5">
                         <Badge tone={RUN_STATUS_TONE[run.status]} size="sm">

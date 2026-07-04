@@ -53,6 +53,25 @@ export default async function AutomacoesPage() {
       .limit(200),
   ]);
 
+  // Resolve nomes dos leads/atletas referenciados pelos runs (aba Execuções)
+  const atletaIds = Array.from(
+    new Set(
+      ((runsRecentes ?? []) as AutomacaoRunDetalhado[])
+        .map((r) => (r.contexto as { atleta_id?: string })?.atleta_id)
+        .filter((id): id is string => typeof id === "string"),
+    ),
+  );
+  const leadNomes: Record<string, string> = {};
+  if (atletaIds.length > 0) {
+    const { data: atletas } = await supabase
+      .from("atletas")
+      .select("id, nome_completo")
+      .in("id", atletaIds);
+    for (const a of (atletas ?? []) as { id: string; nome_completo: string }[]) {
+      leadNomes[a.id] = a.nome_completo;
+    }
+  }
+
   // Intervalos das automações nativas (seção "Automações do sistema")
   const { data: intervalosRow } = await supabase
     .from("configuracoes_sistema")
@@ -89,6 +108,7 @@ export default async function AutomacoesPage() {
       automacoes={withStats}
       usuarios={(usuarios ?? []) as UsuarioRow[]}
       runsRecentes={(runsRecentes ?? []) as AutomacaoRunDetalhado[]}
+      leadNomes={leadNomes}
       intervalos={intervalos}
       // Server Component dinâmico (force-dynamic): timestamp de request-time é
       // intencional — âncora da janela "últimos 7 dias" dos KPIs de execução.
