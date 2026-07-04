@@ -227,3 +227,8 @@ export interface AutomacaoComStats extends Automacao {
   runs_pendente: number;
   ultimo_run_at: string | null;
 }
+
+/** Run enriquecido p/ a aba Execuções (embed do nome/gatilho da automação). */
+export interface AutomacaoRunDetalhado extends AutomacaoRun {
+  automacoes: { nome: string; gatilho: AutomacaoGatilho } | null;
+}

@@ -14,10 +14,22 @@ import {
   CheckCircle2,
   AlertTriangle,
   ListChecks,
+  History,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { PageHeader, Card, Button, Badge, Input, EmptyState } from "@/components/ui";
+import {
+  PageHeader,
+  Card,
+  Button,
+  Badge,
+  Input,
+  EmptyState,
+  BrandTabs,
+  StatCard,
+  type BadgeTone,
+} from "@/components/ui";
 import {
   GATILHO_CATALOG,
   ACAO_CATALOG,
@@ -28,6 +40,8 @@ import {
   type AutomacaoCondicao,
   type AutomacaoAcao,
   type AutomacaoAcaoTipo,
+  type AutomacaoRunDetalhado,
+  type AutomacaoRunStatus,
   type CondicaoOperador,
 } from "@/types/automacao";
 import { ETAPA_LABELS } from "@/types/crm";
@@ -36,6 +50,7 @@ import {
   atualizarAutomacao,
   alternarAtivoAutomacao,
   excluirAutomacao,
+  reprocessarRun,
   type AutomacaoInput,
 } from "@/lib/actions/automacoes-builder";
 import { cn } from "@/lib/utils";
@@ -193,16 +208,37 @@ function defaultAcao(tipo: AutomacaoAcaoTipo, usuarios: UsuarioRow[]): Automacao
 
 // ─── Componente principal ────────────────────────────────────────────────────
 
+const RUN_STATUS_TONE: Record<AutomacaoRunStatus, BadgeTone> = {
+  pendente: "blue",
+  executando: "blue",
+  sucesso: "green",
+  erro: "red",
+  ignorado: "neutral",
+};
+
+const RUN_STATUS_LABEL: Record<AutomacaoRunStatus, string> = {
+  pendente: "Na fila",
+  executando: "Executando",
+  sucesso: "Sucesso",
+  erro: "Erro",
+  ignorado: "Ignorado",
+};
+
 export function AutomacoesClient({
   automacoes,
   usuarios,
+  runsRecentes,
+  agora,
 }: {
   automacoes: AutomacaoComStats[];
   usuarios: UsuarioRow[];
+  runsRecentes: AutomacaoRunDetalhado[];
+  agora: number;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [builder, setBuilder] = useState<BuilderState | null>(null);
+  const [activeTab, setActiveTab] = useState<"automacoes" | "execucoes">("automacoes");
 
   const salvar = () => {
     if (!builder) return;
@@ -254,6 +290,18 @@ export function AutomacoesClient({
     });
   };
 
+  const replay = (runId: string) => {
+    startTransition(async () => {
+      const result = await reprocessarRun(runId);
+      if (!result.success) {
+        toast.error(result.error ?? "Erro ao reprocessar");
+        return;
+      }
+      toast.success("Run reenfileirado — a engine reprocessa no próximo tick");
+      router.refresh();
+    });
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -268,7 +316,22 @@ export function AutomacoesClient({
         }
       />
 
-      {automacoes.length === 0 ? (
+      <BrandTabs
+        variant="segmented"
+        items={[
+          { id: "automacoes", label: "Automações", icon: Workflow },
+          { id: "execucoes", label: "Execuções", icon: History },
+        ]}
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as "automacoes" | "execucoes")}
+        ariaLabel="Visões de automações"
+      />
+
+      {activeTab === "execucoes" && (
+        <ExecucoesView runs={runsRecentes} agora={agora} isPending={isPending} onReplay={replay} />
+      )}
+
+      {activeTab === "automacoes" && (automacoes.length === 0 ? (
         <Card variant="plain" padding="none">
           <EmptyState
             icon={Workflow}
@@ -362,7 +425,7 @@ export function AutomacoesClient({
             );
           })}
         </div>
-      )}
+      ))}
 
       {builder && (
         <BuilderModal
@@ -373,6 +436,137 @@ export function AutomacoesClient({
           onClose={() => setBuilder(null)}
           onSave={salvar}
         />
+      )}
+    </div>
+  );
+}
+
+// ─── Execuções (acompanhamento real por run) ────────────────────────────────
+
+function resumoResultado(run: AutomacaoRunDetalhado): string {
+  const r = run.resultado as {
+    motivo?: string;
+    acoes?: { tipo: string; status: string; detalhe?: string }[];
+  };
+  if (r?.motivo) return r.motivo;
+  if (Array.isArray(r?.acoes) && r.acoes.length > 0) {
+    return r.acoes
+      .map((a) => `${ACAO_CATALOG[a.tipo as AutomacaoAcaoTipo]?.label ?? a.tipo}: ${a.status}`)
+      .join(" · ");
+  }
+  return "—";
+}
+
+function ExecucoesView({
+  runs,
+  agora,
+  isPending,
+  onReplay,
+}: {
+  runs: AutomacaoRunDetalhado[];
+  agora: number;
+  isPending: boolean;
+  onReplay: (runId: string) => void;
+}) {
+  const seteDiasAtras = agora - 7 * 86400000;
+  const recentes = runs.filter((r) => new Date(r.created_at).getTime() >= seteDiasAtras);
+  const kpi = {
+    total: recentes.length,
+    sucesso: recentes.filter((r) => r.status === "sucesso").length,
+    erro: recentes.filter((r) => r.status === "erro").length,
+    fila: recentes.filter((r) => r.status === "pendente" || r.status === "executando").length,
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* KPI strip — últimos 7 dias */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Execuções (7d)" value={kpi.total} icon={History} accent="brand" />
+        <StatCard label="Sucesso" value={kpi.sucesso} icon={CheckCircle2} accent="green" />
+        <StatCard
+          label="Erro"
+          value={kpi.erro}
+          icon={AlertTriangle}
+          accent={kpi.erro > 0 ? "red" : "green"}
+        />
+        <StatCard label="Na fila" value={kpi.fila} icon={Clock} accent="blue" />
+      </div>
+
+      {runs.length === 0 ? (
+        <Card variant="plain" padding="none">
+          <EmptyState
+            icon={History}
+            title="Nenhuma execução ainda"
+            description="Ative uma automação — os disparos aparecem aqui com status, tentativas e resultado."
+          />
+        </Card>
+      ) : (
+        <Card variant="plain" padding="none" className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border bg-secondary/50">
+                  <th className="py-2.5 pl-4 pr-3 text-left text-eyebrow text-muted-foreground">Quando</th>
+                  <th className="px-3 py-2.5 text-left text-eyebrow text-muted-foreground">Automação</th>
+                  <th className="px-3 py-2.5 text-left text-eyebrow text-muted-foreground">Origem</th>
+                  <th className="px-3 py-2.5 text-left text-eyebrow text-muted-foreground">Status</th>
+                  <th className="px-3 py-2.5 text-left text-eyebrow text-muted-foreground">Tent.</th>
+                  <th className="px-3 py-2.5 text-left text-eyebrow text-muted-foreground">Resultado</th>
+                  <th className="px-3 py-2.5 text-right text-eyebrow text-muted-foreground">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((run) => {
+                  const gatilho = run.automacoes ? GATILHO_CATALOG[run.automacoes.gatilho] : null;
+                  return (
+                    <tr key={run.id} className="border-b border-border transition-colors hover:bg-accent">
+                      <td className="py-2.5 pl-4 pr-3 text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(run.created_at).toLocaleString("pt-BR", {
+                          day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <p className="text-xs font-medium text-foreground">
+                          {run.automacoes?.nome ?? "(removida)"}
+                        </p>
+                        {gatilho && (
+                          <p className="text-[10px] text-label-tertiary">{gatilho.label}</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground font-mono whitespace-nowrap">
+                        {run.gatilho_origem_tabela ?? "—"}
+                        {run.gatilho_origem_id ? ` · ${run.gatilho_origem_id.slice(0, 8)}` : ""}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <Badge tone={RUN_STATUS_TONE[run.status]} size="sm">
+                          {RUN_STATUS_LABEL[run.status]}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground">{run.tentativas}</td>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[320px] truncate">
+                        {resumoResultado(run)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        {run.status === "erro" && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={isPending}
+                            aria-label="Reprocessar run"
+                            onClick={() => onReplay(run.id)}
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Reprocessar
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
     </div>
   );
