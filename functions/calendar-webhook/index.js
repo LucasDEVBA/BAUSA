@@ -35,7 +35,7 @@ const httpRequest = (url, options, postData) => {
       path: parsedUrl.pathname + parsedUrl.search,
       method: options.method || 'GET',
       headers: options.headers || {},
-      timeout: 30000,
+      timeout: options.timeoutMs || 30000,
     };
     const req = https.request(reqOptions, (res) => {
       let body = '';
@@ -291,14 +291,10 @@ const sendLinkMessage = async (phone, message, linkUrl, title, description) => {
   }
 };
 
-// ─── Enviar WhatsApp de confirmação para o lead ───────────────
-const sendConfirmationWhatsApp = async (phone, name, event) => {
-  if (!phone) return;
-
-  const meetLink = event.hangoutLink || event.htmlLink || '';
-  const { eventDate, eventTime } = formatEventDateTime(event);
-
-  const message = `✅ *Reunião Estratégica Individual confirmada!*
+// ─── Builders hardcoded das mensagens de confirmação ──────────
+// FALLBACK PERMANENTE dos textos custom (scheduler_mensagens.meeting_confirmed)
+// — NUNCA remover (guard de CI: tests/calendar-webhook-mensagens.test.js).
+const buildLeadMeetingMessage = (name, eventDate, eventTime) => `✅ *Reunião Estratégica Individual confirmada!*
 
 Olá, *${name}*!
 
@@ -312,6 +308,96 @@ _Recomendamos acessar 5 minutos antes do horário marcado._
 Nos vemos em breve!
 *Bolsa Atleta USA*`;
 
+const buildCeoMeetingMessage = (athleteName, guardianName, phone, email, eventDate, eventTime) => `🔔 *Nova Reunião Agendada*
+
+*Atleta:* ${athleteName}
+*Responsável:* ${guardianName || athleteName}
+*Telefone:* ${phone || 'N/A'}
+${email ? `*Email:* ${email}` : ''}
+
+📅 *${eventDate}*
+🕐 *${eventTime}h*`;
+
+// ─── Textos custom (configuracoes_sistema.scheduler_mensagens) ─
+// O CEO edita em /automacoes (chave meeting_confirmed: { lead, ceo }).
+// Mesmo padrão da CF send-whatsapp (Fase E): qualquer falha/ausência →
+// null e os builders hardcoded acima assumem (fallback permanente).
+const fetchMensagensCustom = async () => {
+  // Sem credenciais Supabase → fallback total nos builders.
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
+
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema` +
+      '?chave=eq.scheduler_mensagens&select=valor&limit=1';
+    const result = await httpRequest(url, {
+      method: 'GET',
+      // 5s (não os 30s default): config degradada não pode atrasar a
+      // confirmação instantânea de reunião.
+      timeoutMs: 5000,
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+      },
+    });
+
+    if (result.statusCode >= 400) {
+      throw new Error(`Supabase HTTP ${result.statusCode}`);
+    }
+
+    const rows = JSON.parse(result.body);
+    const valor = Array.isArray(rows) ? rows[0]?.valor : null;
+    // Seed ausente ou formato inesperado → builders assumem (sem erro)
+    if (!valor || typeof valor !== 'object') return null;
+    return valor;
+  } catch (error) {
+    log('WARN', 'mensagens_fallback', { error: error.message });
+    return null;
+  }
+};
+
+// Renderiza um texto custom substituindo todos os placeholders (split/join —
+// nunca String.replace, que interpreta padrões com $). Retorna null (→ builder
+// hardcoded assume) se o texto não existir, não for string ou renderizar
+// vazio/whitespace.
+const renderTemplate = (texto, vars) => {
+  if (!texto || typeof texto !== 'string') return null;
+
+  let rendered = texto;
+  for (const [placeholder, valor] of Object.entries(vars)) {
+    rendered = rendered.split(placeholder).join(valor);
+  }
+
+  if (!rendered.trim()) return null;
+  return rendered;
+};
+
+// Variáveis suportadas nos textos custom — espelham as interpolações dos
+// builders hardcoded. {meet_link} fica disponível, mas o link do Meet SEMPRE
+// vai anexado como preview (sendLinkMessage), independente do texto.
+const buildMeetingVars = (lead, recipientName, phone, event) => {
+  const { eventDate, eventTime } = formatEventDateTime(event);
+  return {
+    '{atleta_nome}': lead.athlete_name || 'Atleta',
+    '{responsavel_nome}': recipientName || 'Responsável',
+    '{telefone}': phone || 'N/A',
+    '{email}': lead.email || 'N/A',
+    '{meet_link}': event.hangoutLink || event.htmlLink || '',
+    '{data_reuniao}': eventDate,
+    '{hora_reuniao}': eventTime,
+  };
+};
+
+// ─── Enviar WhatsApp de confirmação para o lead ───────────────
+// customMessage: texto custom já renderizado (null → builder hardcoded).
+const sendConfirmationWhatsApp = async (phone, name, event, customMessage) => {
+  if (!phone) return;
+
+  const meetLink = event.hangoutLink || event.htmlLink || '';
+  const { eventDate, eventTime } = formatEventDateTime(event);
+
+  const message = customMessage || buildLeadMeetingMessage(name, eventDate, eventTime);
+
   const linkTitle = 'Reunião Estratégica Individual — Bolsa Atleta USA';
   const linkDesc = `${eventDate} às ${eventTime}h — com Leandro Ribeiro`;
 
@@ -322,21 +408,14 @@ Nos vemos em breve!
 };
 
 // ─── Notificar CEO ────────────────────────────────────────────
-const notifyCeo = async (athleteName, guardianName, phone, email, event) => {
+// customMessage: texto custom já renderizado (null → builder hardcoded).
+const notifyCeo = async (athleteName, guardianName, phone, email, event, customMessage) => {
   if (!CEO_WHATSAPP) return;
 
   const meetLink = event.hangoutLink || event.htmlLink || '';
   const { eventDate, eventTime } = formatEventDateTime(event);
 
-  const message = `🔔 *Nova Reunião Agendada*
-
-*Atleta:* ${athleteName}
-*Responsável:* ${guardianName || athleteName}
-*Telefone:* ${phone || 'N/A'}
-${email ? `*Email:* ${email}` : ''}
-
-📅 *${eventDate}*
-🕐 *${eventTime}h*`;
+  const message = customMessage || buildCeoMeetingMessage(athleteName, guardianName, phone, email, eventDate, eventTime);
 
   const linkTitle = `Nova reunião — ${athleteName}`;
   const linkDesc = `${eventDate} às ${eventTime}h`;
@@ -482,8 +561,16 @@ functions.http('calendarWebhook', async (req, res) => {
       // 3. Enviar WhatsApp de confirmação para o lead
       const confirmPhone = phone || lead.guardian_whatsapp || lead.athlete_whatsapp;
       const confirmName = lead.guardian_name || lead.athlete_name;
+
+      // Textos custom editáveis (meeting_confirmed) — buscados só quando um
+      // lead vai de fato receber a confirmação. Falha/ausência → builders.
+      const mensagensCustom = await fetchMensagensCustom();
+      const meetingVars = buildMeetingVars(lead, confirmName, confirmPhone, event);
+      const leadCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.lead, meetingVars);
+      const ceoCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.ceo, meetingVars);
+
       if (confirmPhone) {
-        await sendConfirmationWhatsApp(confirmPhone, confirmName, event);
+        await sendConfirmationWhatsApp(confirmPhone, confirmName, event, leadCustomMsg);
       }
 
       // 4. Notificar CEO
@@ -493,6 +580,7 @@ functions.http('calendarWebhook', async (req, res) => {
         confirmPhone || 'N/A',
         lead.email,
         event,
+        ceoCustomMsg,
       );
 
       // 5. Sync Sheets

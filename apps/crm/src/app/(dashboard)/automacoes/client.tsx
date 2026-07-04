@@ -16,7 +16,7 @@ import {
   ListChecks,
   History,
   RotateCcw,
-  MessageSquareText,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -491,7 +491,11 @@ export function AutomacoesClient({
 
 // ─── Automações do sistema (nativas — schedulers e webhooks) ────────────────
 
-type MensagemTemplate = keyof SchedulerMensagens;
+/** Templates de mensagem com par {atleta, responsavel} (CF send-whatsapp).
+ *  meeting_confirmed fica de fora — o par dele é {lead, ceo} (calendar-webhook). */
+type MensagemTemplate = Exclude<keyof SchedulerMensagens, "meeting_confirmed">;
+type MensagemPar = { atleta: string; responsavel: string };
+type MensagemParReuniao = { lead: string; ceo: string };
 
 /** Variáveis suportadas pela CF send-whatsapp em cada template (legenda do
  *  modal). Espelham buildTemplateVars de functions/send-whatsapp/index.js. */
@@ -504,106 +508,152 @@ const TEMPLATE_VARIAVEIS: Record<MensagemTemplate, string[]> = {
   scheduled_return: ["{atleta_nome}", "{responsavel_nome}", "{agenda_url}"],
 };
 
-/** Rótulo do botão de edição — cards com 2 templates precisam distinguir. */
-const TEMPLATE_BTN_LABEL: Record<MensagemTemplate, string> = {
-  initial: "Editar mensagens",
-  followup_1: "Editar mensagens",
-  followup_2: "Editar mensagens",
-  early_potential: "Mensagens · Timing cedo",
-  late_timing: "Mensagens · Timing tarde",
-  scheduled_return: "Editar mensagens",
+/** Variáveis do par meeting_confirmed — espelham buildMeetingVars de
+ *  functions/calendar-webhook/index.js. {meet_link} é opcional: o link do
+ *  Meet sempre vai anexado como preview do WhatsApp, independente do texto. */
+const MEETING_VARIAVEIS = [
+  "{atleta_nome}",
+  "{responsavel_nome}",
+  "{telefone}",
+  "{email}",
+  "{meet_link}",
+  "{data_reuniao}",
+  "{hora_reuniao}",
+];
+
+const TEMPLATE_TITULO: Record<MensagemTemplate, string> = {
+  initial: "Mensagem inicial (agendamento)",
+  followup_1: "Follow-up 1",
+  followup_2: "Follow-up 2",
+  early_potential: "Timing cedo (early_potential)",
+  late_timing: "Timing tarde (late_timing)",
+  scheduled_return: "Retomada agendada (scheduled_return)",
 };
+
+/** Card de automação nativa. `intervaloChave`/`templates`/`editaReuniao`
+ *  definem o que o modal permite editar — cards sem nada disso abrem um
+ *  modal "Detalhes" só de leitura (sem UI falsa). */
+interface SistemaCard {
+  id: string;
+  nome: string;
+  descricao: string;
+  /** Descrição do fluxo exibida no modal (uma linha por parágrafo). */
+  fluxo: string[];
+  intervaloChave?: keyof SchedulerIntervalos;
+  templates?: MensagemTemplate[];
+  editaReuniao?: boolean;
+}
 
 /** As 4 nativas com intervalo editável (persistem em scheduler_intervalos;
  *  as CFs leem no próximo tick, com clamp 1h–720h próprio). `templates` são
  *  os textos de mensagem editáveis (scheduler_mensagens) de cada scheduler. */
-const SISTEMA_EDITAVEIS: {
-  chave: keyof SchedulerIntervalos;
-  nome: string;
-  descricao: string;
-  unidade: "h";
-  templates: MensagemTemplate[];
-}[] = [
+const SISTEMA_EDITAVEIS: SistemaCard[] = [
   {
-    chave: "whatsapp_inicial_horas",
+    id: "whatsapp_inicial",
     nome: "WhatsApp inicial (timing ideal)",
     descricao: "Convite de agendamento após a qualificação Gemini (QUENTE/MORNO).",
-    unidade: "h",
+    fluxo: [
+      "O scheduler roda 1x/hora e envia o convite de agendamento (template initial) para leads QUENTE/MORNO com timing ideal, N horas após a qualificação Gemini.",
+      "Atleta e responsável recebem textos próprios — o responsável recebe o link de agendamento. O envio é único por lead.",
+    ],
+    intervaloChave: "whatsapp_inicial_horas",
     templates: ["initial"],
   },
   {
-    chave: "whatsapp_timing_alt_horas",
+    id: "whatsapp_timing_alt",
     nome: "WhatsApp timing alternativo",
     descricao: "Mensagem early_potential/late_timing p/ leads muito cedo ou tarde demais.",
-    unidade: "h",
+    fluxo: [
+      "Mesmo scheduler: N horas após a qualificação, leads QUENTE/MORNO fora do timing ideal recebem a mensagem de timing (FRIO nunca recebe).",
+      "Muito cedo (antes do 8º ano) → template early_potential e o deal vai para Aguardando timing, com retomada em novembro. Tarde demais (2+ anos formado) → template late_timing e o deal vai para Perdido (motivo: timing).",
+    ],
+    intervaloChave: "whatsapp_timing_alt_horas",
     templates: ["early_potential", "late_timing"],
   },
   {
-    chave: "followup_1_horas",
+    id: "followup_1",
     nome: "Follow-up 1",
     descricao: "Primeiro follow-up após o WhatsApp inicial, se não agendou reunião.",
-    unidade: "h",
+    fluxo: [
+      "O scheduler de follow-up roda 1x/hora: N horas após o WhatsApp inicial sem reunião marcada, envia o follow-up 1 (só timing ideal).",
+      "Quem já agendou reunião nunca recebe.",
+    ],
+    intervaloChave: "followup_1_horas",
     templates: ["followup_1"],
   },
   {
-    chave: "followup_2_horas",
+    id: "followup_2",
     nome: "Follow-up 2",
     descricao: "Segundo follow-up (após o FU1), se ainda não agendou reunião.",
-    unidade: "h",
+    fluxo: [
+      "N horas após o WhatsApp inicial — e somente depois do Follow-up 1 — envia o último lembrete do ciclo, se a reunião segue sem agendamento.",
+      "O intervalo precisa ser maior que o do Follow-up 1 (os dois contam a partir do WhatsApp inicial).",
+    ],
+    intervaloChave: "followup_2_horas",
     templates: ["followup_2"],
   },
 ];
 
-const SISTEMA_INFORMATIVAS: {
-  nome: string;
-  descricao: string;
-  templates?: MensagemTemplate[];
-}[] = [
+const SISTEMA_INFORMATIVAS: SistemaCard[] = [
   {
+    id: "retomada_novembro",
     nome: "Retomada de novembro",
     descricao: "Leads muito cedo recebem scheduled_return em 1º/nov (automático).",
+    fluxo: [
+      "Roda diariamente (08:00 BRT): leads muito cedo têm a retomada materializada para 1º de novembro do ano civil seguinte ao cadastro.",
+      "Na data, atleta e responsável recebem o template scheduled_return — envio único por lead. A data da retomada não é configurável.",
+    ],
     templates: ["scheduled_return"],
   },
-  { nome: "Confirmação de reunião", descricao: "Agendou no Calendar → WhatsApp instantâneo p/ lead e CEO (webhook)." },
-  { nome: "Qualificação Gemini", descricao: "Todo lead novo é classificado (QUENTE/MORNO/FRIO) na entrada." },
-  { nome: "E-mails de confirmação", descricao: "Envio automático no cadastro do formulário (Resend/Brevo)." },
-  { nome: "Sync Google Sheets", descricao: "Todo lead e atualização espelhados na planilha (cols A–BG)." },
+  {
+    id: "confirmacao_reuniao",
+    nome: "Confirmação de reunião",
+    descricao: "Agendou no Calendar → WhatsApp instantâneo p/ lead e CEO (webhook).",
+    fluxo: [
+      "O webhook do Google Calendar avisa na hora em que uma reunião é criada. O lead é localizado por e-mail ou telefone (últimos dígitos, qualquer DDI).",
+      "Envia a confirmação à família e a notificação ao CEO, marca a reunião no lead, move o deal para Reunião marcada e sincroniza o Google Sheets.",
+      "O link do Meet é anexado automaticamente como preview do WhatsApp — não precisa constar no texto.",
+    ],
+    editaReuniao: true,
+  },
+  {
+    id: "qualificacao_gemini",
+    nome: "Qualificação Gemini",
+    descricao: "Todo lead novo é classificado (QUENTE/MORNO/FRIO) na entrada.",
+    fluxo: [
+      "Dispara no cadastro de cada formulário (webhook Supabase) e classifica o lead como QUENTE, MORNO ou FRIO via Google Gemini.",
+      "QUENTE/MORNO entram automaticamente no pipeline (atleta + deal na etapa Lead) e seguem para o WhatsApp inicial.",
+      "Falhas de qualificação são reprocessadas automaticamente 1x/dia. Critérios do prompt: docs/BUSINESS_RULES.md (ajuste via código).",
+    ],
+  },
+  {
+    id: "emails_confirmacao",
+    nome: "E-mails de confirmação",
+    descricao: "Envio automático no cadastro do formulário (Resend/Brevo).",
+    fluxo: [
+      "Dispara no cadastro do formulário e envia os e-mails de confirmação (família + cópia interna).",
+      "Resend é o provedor primário, com fallback automático para Brevo em caso de falha.",
+      "Remetente e destinatário interno são configurados nas variáveis da função no GCP (FROM_EMAIL, INTERNAL_EMAIL).",
+    ],
+  },
+  {
+    id: "sync_sheets",
+    nome: "Sync Google Sheets",
+    descricao: "Todo lead e atualização espelhados na planilha (cols A–BG).",
+    fluxo: [
+      "Espelha todo lead novo — e cada atualização de status — na planilha do Google Sheets (colunas A–BG, incluindo tracking UTM).",
+      "É reacionada pela qualificação, pelos schedulers de WhatsApp e pela confirmação de reunião a cada mudança relevante.",
+      "Planilha e credenciais são configuradas nas variáveis da função no GCP (SPREADSHEET_ID, SERVICE_ACCOUNT_*).",
+    ],
+  },
 ];
 
-/** Botões "Editar mensagens" de um card do sistema. Desabilitados quando o
- *  seed scheduler_mensagens ainda não foi aplicado no ambiente (sem UI falsa). */
-function MensagensBotoes({
-  templates,
-  habilitado,
-  ocupado,
-  onEditar,
-}: {
-  templates: MensagemTemplate[];
-  habilitado: boolean;
-  ocupado: boolean;
-  onEditar: (t: MensagemTemplate) => void;
-}) {
-  return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {templates.map((t) => (
-        <Button
-          key={t}
-          variant="secondary"
-          size="sm"
-          disabled={!habilitado || ocupado}
-          title={
-            habilitado
-              ? "Editar os textos enviados (atleta e responsável)"
-              : "Indisponível — seed scheduler_mensagens pendente neste ambiente"
-          }
-          onClick={() => onEditar(t)}
-        >
-          <MessageSquareText className="h-3 w-3" />
-          {TEMPLATE_BTN_LABEL[t]}
-        </Button>
-      ))}
-    </div>
-  );
+/** Payload do modal de edição — sempre convertido em objetos COMPLETOS antes
+ *  de chamar as actions (que reescrevem cada config inteira). */
+interface SistemaSavePayload {
+  intervalo?: { chave: keyof SchedulerIntervalos; valor: number };
+  textos?: Partial<Record<MensagemTemplate, MensagemPar>>;
+  reuniao?: MensagemParReuniao;
 }
 
 function SistemaAutomacoesSection({
@@ -617,51 +667,56 @@ function SistemaAutomacoesSection({
 }) {
   const router = useRouter();
   const [salvando, startTransition] = useTransition();
-  const [draft, setDraft] = useState<SchedulerIntervalos>(intervalos);
-  const [mensagemModal, setMensagemModal] = useState<MensagemTemplate | null>(null);
-  const alterado = SISTEMA_EDITAVEIS.some((e) => draft[e.chave] !== intervalos[e.chave]);
+  const [cardAberto, setCardAberto] = useState<SistemaCard | null>(null);
   const ocupado = isPending || salvando;
 
-  const salvar = () => {
-    startTransition(async () => {
-      const result = await atualizarIntervalosScheduler(draft);
-      if (!result.success) {
-        toast.error(result.error ?? "Erro ao salvar intervalos");
-        return;
-      }
-      toast.success("Intervalos salvos — valem a partir do próximo tick dos schedulers");
-      router.refresh();
-    });
-  };
+  /** Algo do card é editável neste ambiente? Sem seed → só "Detalhes". */
+  const cardEditavel = (card: SistemaCard): boolean =>
+    Boolean(card.intervaloChave) ||
+    Boolean(card.templates?.length && mensagens) ||
+    Boolean(card.editaReuniao && mensagens?.meeting_confirmed);
 
-  const salvarMensagens = (
-    template: MensagemTemplate,
-    textos: { atleta: string; responsavel: string },
-  ) => {
-    if (!mensagens) return;
+  const salvar = (payload: SistemaSavePayload) => {
     startTransition(async () => {
-      // A chave inteira é reescrita — os demais templates seguem inalterados
-      const result = await atualizarMensagensScheduler({ ...mensagens, [template]: textos });
-      if (!result.success) {
-        toast.error(result.error ?? "Erro ao salvar mensagens");
-        return;
+      if (payload.intervalo) {
+        // Objeto completo com o campo alterado — a action reescreve a config
+        const completo = { ...intervalos, [payload.intervalo.chave]: payload.intervalo.valor };
+        // Pré-validação do refine do servidor (erro claro antes do round-trip)
+        if (completo.followup_2_horas <= completo.followup_1_horas) {
+          toast.error("Follow-up 2 deve ter intervalo maior que o Follow-up 1");
+          return;
+        }
+        const result = await atualizarIntervalosScheduler(completo);
+        if (!result.success) {
+          toast.error(result.error ?? "Erro ao salvar intervalo");
+          return;
+        }
       }
-      toast.success("Mensagens salvas — valem a partir do próximo envio");
-      setMensagemModal(null);
+      if ((payload.textos || payload.reuniao) && mensagens) {
+        // O objeto inteiro é reescrito — os demais templates seguem inalterados
+        const completo: SchedulerMensagens = {
+          ...mensagens,
+          ...(payload.textos ?? {}),
+          ...(payload.reuniao ? { meeting_confirmed: payload.reuniao } : {}),
+        };
+        const result = await atualizarMensagensScheduler(completo);
+        if (!result.success) {
+          toast.error(result.error ?? "Erro ao salvar mensagens");
+          // Falha PARCIAL: o intervalo pode já ter sido salvo acima — refresh
+          // para o card refletir o estado real do banco (evita "Cancelar" enganoso)
+          router.refresh();
+          return;
+        }
+      }
+      toast.success("Automação atualizada — vale a partir do próximo tick/envio");
+      setCardAberto(null);
       router.refresh();
     });
   };
 
   return (
     <section className="space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="text-eyebrow text-label-tertiary">Automações do sistema</p>
-        {alterado && (
-          <Button size="sm" onClick={salvar} disabled={ocupado}>
-            Salvar intervalos
-          </Button>
-        )}
-      </div>
+      <p className="text-eyebrow text-label-tertiary">Automações do sistema</p>
 
       {!mensagens && (
         <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
@@ -672,39 +727,38 @@ function SistemaAutomacoesSection({
       )}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {SISTEMA_EDITAVEIS.map((item) => (
-          <Card key={item.chave} variant="plain" padding="sm" accent="brand">
+        {SISTEMA_EDITAVEIS.map((card) => (
+          <Card key={card.id} variant="plain" padding="sm" accent="brand">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                   <Zap className="h-3 w-3 text-primary" />
-                  {item.nome}
+                  {card.nome}
                   <Badge tone="green" size="sm">Ativa</Badge>
                 </p>
                 <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
-                  {item.descricao}
+                  {card.descricao}
                 </p>
-                <MensagensBotoes
-                  templates={item.templates}
-                  habilitado={mensagens !== null}
-                  ocupado={ocupado}
-                  onEditar={setMensagemModal}
-                />
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <span className="text-[10px] text-label-tertiary">dispara após</span>
-                <Input
-                  type="number"
-                  min={1}
-                  max={720}
-                  aria-label={`Intervalo de ${item.nome} em horas`}
-                  className="w-16 text-center tabular-nums"
-                  value={String(draft[item.chave])}
-                  onChange={(e) =>
-                    setDraft({ ...draft, [item.chave]: Number(e.target.value) })
-                  }
-                />
-                <span className="text-[10px] font-medium text-muted-foreground">{item.unidade}</span>
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
+                {card.intervaloChave && (
+                  <span className="text-[10px] text-label-tertiary">
+                    dispara após{" "}
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {intervalos[card.intervaloChave]}h
+                    </span>
+                  </span>
+                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={ocupado}
+                  aria-label={`Editar ${card.nome}`}
+                  onClick={() => setCardAberto(card)}
+                >
+                  <Pencil className="h-3 w-3" />
+                  Editar
+                </Button>
               </div>
             </div>
           </Card>
@@ -712,24 +766,31 @@ function SistemaAutomacoesSection({
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {SISTEMA_INFORMATIVAS.map((item) => (
-          <Card key={item.nome} variant="ghost" padding="sm">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
-              <Clock className="h-3 w-3 text-label-tertiary" />
-              {item.nome}
-              <Badge tone="neutral" size="sm">Automática</Badge>
-            </p>
-            <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{item.descricao}</p>
-            {item.templates && (
-              <MensagensBotoes
-                templates={item.templates}
-                habilitado={mensagens !== null}
-                ocupado={ocupado}
-                onEditar={setMensagemModal}
-              />
-            )}
-          </Card>
-        ))}
+        {SISTEMA_INFORMATIVAS.map((card) => {
+          const editavel = cardEditavel(card);
+          return (
+            <Card key={card.id} variant="ghost" padding="sm">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+                <Clock className="h-3 w-3 text-label-tertiary" />
+                {card.nome}
+                <Badge tone="neutral" size="sm">Automática</Badge>
+              </p>
+              <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{card.descricao}</p>
+              <div className="mt-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={ocupado}
+                  aria-label={editavel ? `Editar ${card.nome}` : `Detalhes de ${card.nome}`}
+                  onClick={() => setCardAberto(card)}
+                >
+                  {editavel ? <Pencil className="h-3 w-3" /> : <Info className="h-3 w-3" />}
+                  {editavel ? "Editar" : "Detalhes"}
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
         <Card variant="ghost" padding="sm" className="border border-dashed border-border">
           <p className="text-[11px] font-semibold text-foreground">Régua de cobrança</p>
           <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
@@ -738,20 +799,21 @@ function SistemaAutomacoesSection({
         </Card>
       </div>
 
-      {mensagemModal && mensagens && (
-        <MensagensModal
-          template={mensagemModal}
-          textos={mensagens[mensagemModal]}
+      {cardAberto && (
+        <SistemaModal
+          card={cardAberto}
+          intervalos={intervalos}
+          mensagens={mensagens}
           isPending={ocupado}
-          onClose={() => setMensagemModal(null)}
-          onSave={(textos) => salvarMensagens(mensagemModal, textos)}
+          onClose={() => setCardAberto(null)}
+          onSave={salvar}
         />
       )}
     </section>
   );
 }
 
-// ─── Modal de edição das mensagens de um template (atleta + responsável) ────
+// ─── Modal da automação do sistema (fluxo + intervalo + textos juntos) ──────
 
 const MENSAGEM_MIN_CHARS = 10;
 const MENSAGEM_MAX_CHARS = 2000;
@@ -797,23 +859,85 @@ function CampoMensagem({
   );
 }
 
-function MensagensModal({
-  template,
-  textos,
+function VariaveisLegenda({ variaveis }: { variaveis: string[] }) {
+  return (
+    <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+      Variáveis disponíveis:{" "}
+      {variaveis.map((v) => (
+        <code key={v} className="mr-1.5 font-mono text-foreground">
+          {v}
+        </code>
+      ))}
+      — substituídas no envio. Formatação WhatsApp: *negrito* e _itálico_.
+    </p>
+  );
+}
+
+/** Modal único por card: descrição do fluxo + intervalo + TODOS os textos do
+ *  card juntos. Cards sem nada editável viram "Detalhes" (só leitura). */
+function SistemaModal({
+  card,
+  intervalos,
+  mensagens,
   isPending,
   onClose,
   onSave,
 }: {
-  template: MensagemTemplate;
-  textos: { atleta: string; responsavel: string };
+  card: SistemaCard;
+  intervalos: SchedulerIntervalos;
+  mensagens: SchedulerMensagens | null;
   isPending: boolean;
   onClose: () => void;
-  onSave: (textos: { atleta: string; responsavel: string }) => void;
+  onSave: (payload: SistemaSavePayload) => void;
 }) {
-  const [atleta, setAtleta] = useState(textos.atleta);
-  const [responsavel, setResponsavel] = useState(textos.responsavel);
-  const label = TEMPLATE_OPCOES.find((t) => t.value === template)?.label ?? template;
-  const valido = mensagemValida(atleta) && mensagemValida(responsavel);
+  // Textos editáveis só quando o seed existe no ambiente (sem UI falsa)
+  const templatesEditaveis = mensagens ? card.templates ?? [] : [];
+  const [intervalo, setIntervalo] = useState<number>(
+    card.intervaloChave ? intervalos[card.intervaloChave] : 0,
+  );
+  const [textos, setTextos] = useState<Partial<Record<MensagemTemplate, MensagemPar>>>(() => {
+    const inicial: Partial<Record<MensagemTemplate, MensagemPar>> = {};
+    if (mensagens) {
+      for (const t of card.templates ?? []) inicial[t] = { ...mensagens[t] };
+    }
+    return inicial;
+  });
+  const [reuniao, setReuniao] = useState<MensagemParReuniao | null>(
+    card.editaReuniao && mensagens?.meeting_confirmed
+      ? { ...mensagens.meeting_confirmed }
+      : null,
+  );
+
+  const temEdicao =
+    Boolean(card.intervaloChave) || templatesEditaveis.length > 0 || reuniao !== null;
+
+  const intervaloValido =
+    !card.intervaloChave || (Number.isInteger(intervalo) && intervalo >= 1 && intervalo <= 720);
+  const textosValidos = templatesEditaveis.every((t) => {
+    const par = textos[t];
+    return par !== undefined && mensagemValida(par.atleta) && mensagemValida(par.responsavel);
+  });
+  const reuniaoValida = !reuniao || (mensagemValida(reuniao.lead) && mensagemValida(reuniao.ceo));
+  const valido = intervaloValido && textosValidos && reuniaoValida;
+
+  const setTexto = (template: MensagemTemplate, campo: keyof MensagemPar, valor: string) => {
+    setTextos((prev) => {
+      const par = prev[template] ?? { atleta: "", responsavel: "" };
+      return { ...prev, [template]: { ...par, [campo]: valor } };
+    });
+  };
+
+  const salvar = () => {
+    onSave({
+      ...(card.intervaloChave
+        ? { intervalo: { chave: card.intervaloChave, valor: intervalo } }
+        : {}),
+      ...(templatesEditaveis.length > 0 ? { textos } : {}),
+      ...(reuniao ? { reuniao } : {}),
+    });
+  };
+
+  const titulo = temEdicao ? "Editar automação" : "Detalhes";
 
   return (
     <div
@@ -823,52 +947,135 @@ function MensagensModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Editar mensagens — ${label}`}
+        aria-label={`${titulo} — ${card.nome}`}
         className="liquid-glass my-8 w-full max-w-2xl rounded-2xl p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-title-3 text-foreground">Editar mensagens — {label}</h2>
+          <h2 className="text-title-3 text-foreground">
+            {titulo} — {card.nome}
+          </h2>
           <Button variant="ghost" size="sm" aria-label="Fechar" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="space-y-4">
-          <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
-            Variáveis disponíveis:{" "}
-            {TEMPLATE_VARIAVEIS[template].map((v) => (
-              <code key={v} className="mr-1.5 font-mono text-foreground">
-                {v}
-              </code>
+        <div className="space-y-5">
+          {/* Como funciona */}
+          <section className="space-y-1.5">
+            <p className={SECTION_LABEL}>Como funciona</p>
+            {card.fluxo.map((linha) => (
+              <p key={linha} className="text-[11px] leading-relaxed text-muted-foreground">
+                {linha}
+              </p>
             ))}
-            — substituídas no envio. Formatação WhatsApp: *negrito* e _itálico_.
-          </p>
+          </section>
 
-          <CampoMensagem
-            id={`mensagem-atleta-${template}`}
-            label="Mensagem para o atleta"
-            value={atleta}
-            onChange={setAtleta}
-          />
-          <CampoMensagem
-            id={`mensagem-responsavel-${template}`}
-            label="Mensagem para o responsável"
-            value={responsavel}
-            onChange={setResponsavel}
-          />
+          {/* Intervalo de disparo */}
+          {card.intervaloChave && (
+            <section className="space-y-1.5">
+              <p className={SECTION_LABEL}>Intervalo de disparo</p>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-label-tertiary">dispara após</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={720}
+                  aria-label={`Intervalo de ${card.nome} em horas`}
+                  className="w-20 text-center tabular-nums"
+                  value={String(intervalo)}
+                  onChange={(e) => setIntervalo(Number(e.target.value))}
+                />
+                <span className="text-[10px] font-medium text-muted-foreground">h</span>
+              </div>
+              <p className={cn("text-[10px]", intervaloValido ? "text-label-tertiary" : "text-sys-red")}>
+                Entre 1 e 720 horas — vale a partir do próximo tick do scheduler (1x/hora).
+              </p>
+            </section>
+          )}
+
+          {/* Seed pendente: sem UI falsa de textos */}
+          {(card.templates?.length ?? 0) > 0 && !mensagens && (
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+              Textos indisponíveis neste ambiente (seed{" "}
+              <code className="font-mono">scheduler_mensagens</code> pendente) — os envios
+              seguem com os textos padrão do sistema.
+            </p>
+          )}
+
+          {/* Textos por template (par atleta/responsável) */}
+          {templatesEditaveis.map((template) => {
+            const par = textos[template] ?? { atleta: "", responsavel: "" };
+            return (
+              <section key={template} className="space-y-3">
+                <p className={SECTION_LABEL}>Mensagens — {TEMPLATE_TITULO[template]}</p>
+                <VariaveisLegenda variaveis={TEMPLATE_VARIAVEIS[template]} />
+                <CampoMensagem
+                  id={`mensagem-atleta-${template}`}
+                  label="Mensagem para o atleta"
+                  value={par.atleta}
+                  onChange={(v) => setTexto(template, "atleta", v)}
+                />
+                <CampoMensagem
+                  id={`mensagem-responsavel-${template}`}
+                  label="Mensagem para o responsável"
+                  value={par.responsavel}
+                  onChange={(v) => setTexto(template, "responsavel", v)}
+                />
+              </section>
+            );
+          })}
+
+          {/* Confirmação de reunião (par lead/CEO — calendar-webhook) */}
+          {card.editaReuniao &&
+            (reuniao ? (
+              <section className="space-y-3">
+                <p className={SECTION_LABEL}>Mensagens — Confirmação de reunião</p>
+                <VariaveisLegenda variaveis={MEETING_VARIAVEIS} />
+                <CampoMensagem
+                  id="mensagem-reuniao-lead"
+                  label="Confirmação para a família (lead)"
+                  value={reuniao.lead}
+                  onChange={(v) => setReuniao({ ...reuniao, lead: v })}
+                />
+                <CampoMensagem
+                  id="mensagem-reuniao-ceo"
+                  label="Notificação para o CEO"
+                  value={reuniao.ceo}
+                  onChange={(v) => setReuniao({ ...reuniao, ceo: v })}
+                />
+              </section>
+            ) : (
+              <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+                Edição dos textos indisponível neste ambiente (chave{" "}
+                <code className="font-mono">meeting_confirmed</code> pendente no seed) — os
+                envios seguem com os textos padrão do sistema.
+              </p>
+            ))}
+
+          {/* Card 100% informativo: nada editável (sem UI falsa) */}
+          {!card.intervaloChave && !card.templates?.length && !card.editaReuniao && (
+            <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+              Parâmetros editáveis: em breve.
+            </p>
+          )}
         </div>
 
         <div className="mt-5 flex items-center justify-end gap-2 border-t border-border pt-4">
-          <Button variant="ghost" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={() => onSave({ atleta, responsavel })}
-            disabled={isPending || !valido}
-          >
-            Salvar mensagens
-          </Button>
+          {temEdicao ? (
+            <>
+              <Button variant="ghost" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button onClick={salvar} disabled={isPending || !valido}>
+                Salvar alterações
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" onClick={onClose}>
+              Fechar
+            </Button>
+          )}
         </div>
       </div>
     </div>
