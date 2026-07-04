@@ -1,5 +1,6 @@
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import type { SchedulerMensagens } from "@/lib/actions/automacoes-builder";
 import type {
   Automacao,
   AutomacaoComStats,
@@ -72,12 +73,21 @@ export default async function AutomacoesPage() {
     }
   }
 
-  // Intervalos das automações nativas (seção "Automações do sistema")
-  const { data: intervalosRow } = await supabase
-    .from("configuracoes_sistema")
-    .select("valor")
-    .eq("chave", "scheduler_intervalos")
-    .maybeSingle();
+  // Intervalos + textos das automações nativas (seção "Automações do sistema")
+  const [{ data: intervalosRow }, { data: mensagensRow }] = await Promise.all([
+    supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "scheduler_intervalos")
+      .maybeSingle(),
+    supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "scheduler_mensagens")
+      .maybeSingle(),
+  ]);
+  // null = seed não aplicado neste ambiente → client desabilita a edição
+  const mensagens = (mensagensRow?.valor as SchedulerMensagens | undefined) ?? null;
   const intervalos = {
     whatsapp_inicial_horas: 22,
     whatsapp_timing_alt_horas: 48,
@@ -110,6 +120,7 @@ export default async function AutomacoesPage() {
       runsRecentes={(runsRecentes ?? []) as AutomacaoRunDetalhado[]}
       leadNomes={leadNomes}
       intervalos={intervalos}
+      mensagens={mensagens}
       // Server Component dinâmico (force-dynamic): timestamp de request-time é
       // intencional — âncora da janela "últimos 7 dias" dos KPIs de execução.
       // eslint-disable-next-line react-hooks/purity
