@@ -189,6 +189,37 @@ export async function alternarAtivoAutomacao(id: string, ativo: boolean): Promis
   }
 }
 
+/** Reenfileira um run que terminou em erro (replay manual do CEO).
+ *  Zera tentativas e volta a 'pendente' — a engine reprocessa no próximo tick.
+ *  Idempotência de envio é garantida pela engine (CAS nas colunas *_sent_at). */
+export async function reprocessarRun(runId: string): Promise<ActionResult> {
+  const denied = await requireCeo();
+  if (denied) return { success: false, error: denied };
+  if (!z.string().uuid().safeParse(runId).success) {
+    return { success: false, error: "ID inválido" };
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data, error } = await supabase
+      .from("automacao_runs")
+      .update({ status: "pendente", tentativas: 0, proxima_tentativa_at: null })
+      .eq("id", runId)
+      .eq("status", "erro")
+      .select("id");
+
+    if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Run não está em erro (talvez já reprocessado)." };
+    }
+    revalidatePath("/automacoes");
+    return { success: true, id: runId };
+  } catch (err) {
+    console.error({ level: "error", action: "reprocessar_run", runId, error: String(err) });
+    return { success: false, error: "Erro inesperado ao reprocessar." };
+  }
+}
+
 export async function excluirAutomacao(id: string): Promise<ActionResult> {
   const denied = await requireCeo();
   if (denied) return { success: false, error: denied };

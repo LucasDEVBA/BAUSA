@@ -1,6 +1,11 @@
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import type { Automacao, AutomacaoComStats, AutomacaoRunStatus } from "@/types/automacao";
+import type {
+  Automacao,
+  AutomacaoComStats,
+  AutomacaoRunDetalhado,
+  AutomacaoRunStatus,
+} from "@/types/automacao";
 import { AutomacoesClient } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -23,23 +28,34 @@ export default async function AutomacoesPage() {
 
   const supabase = await createServerSupabaseClient();
 
-  const [{ data: automacoes, error: autoErr }, { data: runs, error: runsErr }, { data: usuarios }] =
-    await Promise.all([
-      supabase
-        .from("automacoes")
-        .select("id, nome, descricao, gatilho, gatilho_config, condicoes, acoes, ativo, created_at, updated_at")
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("automacao_runs")
-        .select("automacao_id, status, created_at")
-        .order("created_at", { ascending: false })
-        .limit(5000),
-      supabase.from("user_profiles").select("id, nome, papel").eq("ativo", true).order("nome"),
-    ]);
+  const [
+    { data: automacoes, error: autoErr },
+    { data: runs, error: runsErr },
+    { data: usuarios },
+    { data: runsRecentes, error: recErr },
+  ] = await Promise.all([
+    supabase
+      .from("automacoes")
+      .select("id, nome, descricao, gatilho, gatilho_config, condicoes, acoes, ativo, created_at, updated_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("automacao_runs")
+      .select("automacao_id, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(5000),
+    supabase.from("user_profiles").select("id, nome, papel").eq("ativo", true).order("nome"),
+    // Aba Execuções: últimos runs com nome/gatilho da automação (embed)
+    supabase
+      .from("automacao_runs")
+      .select("*, automacoes(nome, gatilho)")
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
 
   if (autoErr) console.error({ level: "error", action: "listar_automacoes", error: autoErr.message });
   if (runsErr) console.error({ level: "error", action: "listar_automacao_runs", error: runsErr.message });
+  if (recErr) console.error({ level: "error", action: "listar_runs_recentes", error: recErr.message });
 
   const runRows = (runs ?? []) as RunRow[];
   const withStats: AutomacaoComStats[] = ((automacoes ?? []) as Automacao[]).map((a) => {
@@ -54,5 +70,15 @@ export default async function AutomacoesPage() {
     };
   });
 
-  return <AutomacoesClient automacoes={withStats} usuarios={(usuarios ?? []) as UsuarioRow[]} />;
+  return (
+    <AutomacoesClient
+      automacoes={withStats}
+      usuarios={(usuarios ?? []) as UsuarioRow[]}
+      runsRecentes={(runsRecentes ?? []) as AutomacaoRunDetalhado[]}
+      // Server Component dinâmico (force-dynamic): timestamp de request-time é
+      // intencional — âncora da janela "últimos 7 dias" dos KPIs de execução.
+      // eslint-disable-next-line react-hooks/purity
+      agora={Date.now()}
+    />
+  );
 }
