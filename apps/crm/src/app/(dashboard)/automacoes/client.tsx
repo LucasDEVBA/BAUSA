@@ -35,6 +35,7 @@ import {
   GATILHO_CATALOG,
   ACAO_CATALOG,
   OPERADOR_LABEL,
+  type AgendamentoFrequencia,
   type Automacao,
   type AutomacaoComStats,
   type AutomacaoGatilho,
@@ -141,6 +142,28 @@ const TEMPLATE_OPCOES: { value: string; label: string }[] = [
   { value: "scheduled_return", label: "Retomada agendada (novembro)" },
 ];
 
+// Ação WhatsApp custom — espelha o Zod do servidor (10-1000 chars,
+// placeholders {atleta_nome}/{responsavel_nome}).
+const WHATSAPP_CUSTOM_MIN = 10;
+const WHATSAPP_CUSTOM_MAX = 1000;
+const WHATSAPP_CUSTOM_VARIAVEIS = ["{atleta_nome}", "{responsavel_nome}"];
+
+const FREQUENCIA_OPCOES: { value: AgendamentoFrequencia; label: string }[] = [
+  { value: "diaria", label: "Diária" },
+  { value: "semanal", label: "Semanal" },
+  { value: "mensal", label: "Mensal" },
+];
+
+const DIA_SEMANA_OPCOES = [
+  { value: 0, label: "Domingo" },
+  { value: 1, label: "Segunda-feira" },
+  { value: 2, label: "Terça-feira" },
+  { value: 3, label: "Quarta-feira" },
+  { value: 4, label: "Quinta-feira" },
+  { value: 5, label: "Sexta-feira" },
+  { value: 6, label: "Sábado" },
+];
+
 interface UsuarioRow {
   id: string;
   nome: string;
@@ -155,6 +178,11 @@ interface BuilderState {
   descricao: string;
   gatilho: AutomacaoGatilho;
   gatilhoDias: number;
+  /** Config do gatilho agendamento (frequência + hora BRT + dia condicional). */
+  agFrequencia: AgendamentoFrequencia;
+  agHora: number;
+  agDiaSemana: number;
+  agDiaMes: number;
   condicoes: AutomacaoCondicao[];
   acoes: AutomacaoAcao[];
 }
@@ -166,19 +194,30 @@ function emptyBuilder(): BuilderState {
     descricao: "",
     gatilho: "lead_qualificado",
     gatilhoDias: 3,
+    agFrequencia: "diaria",
+    agHora: 9,
+    agDiaSemana: 1,
+    agDiaMes: 1,
     condicoes: [],
     acoes: [],
   };
 }
 
 function builderFromAutomacao(a: Automacao): BuilderState {
-  const dias = a.gatilho_config?.dias;
+  const cfg = a.gatilho_config ?? {};
+  const dias = cfg.dias;
+  const frequencia = cfg.frequencia;
   return {
     id: a.id,
     nome: a.nome,
     descricao: a.descricao ?? "",
     gatilho: a.gatilho,
     gatilhoDias: typeof dias === "number" ? dias : GATILHO_CATALOG[a.gatilho].configDias?.padrao ?? 3,
+    agFrequencia:
+      frequencia === "semanal" || frequencia === "mensal" ? frequencia : "diaria",
+    agHora: typeof cfg.hora === "number" ? cfg.hora : 9,
+    agDiaSemana: typeof cfg.dia_semana === "number" ? cfg.dia_semana : 1,
+    agDiaMes: typeof cfg.dia_mes === "number" ? cfg.dia_mes : 1,
     condicoes: a.condicoes,
     acoes: a.acoes,
   };
@@ -203,6 +242,8 @@ function defaultAcao(tipo: AutomacaoAcaoTipo, usuarios: UsuarioRow[]): Automacao
       };
     case "enviar_whatsapp":
       return { tipo, parametros: { template: "followup_1" } };
+    case "enviar_whatsapp_custom":
+      return { tipo, parametros: { mensagem: "", destinatario: "responsavel" } };
     case "mover_deal":
       return {
         tipo,
@@ -261,11 +302,20 @@ export function AutomacoesClient({
   const salvar = () => {
     if (!builder) return;
     const gatilhoInfo = GATILHO_CATALOG[builder.gatilho];
+    const gatilhoConfig: Record<string, string | number> = {};
+    if (gatilhoInfo.configAgendamento) {
+      gatilhoConfig.frequencia = builder.agFrequencia;
+      gatilhoConfig.hora = builder.agHora;
+      if (builder.agFrequencia === "semanal") gatilhoConfig.dia_semana = builder.agDiaSemana;
+      if (builder.agFrequencia === "mensal") gatilhoConfig.dia_mes = builder.agDiaMes;
+    } else if (gatilhoInfo.configDias) {
+      gatilhoConfig.dias = builder.gatilhoDias;
+    }
     const input: AutomacaoInput = {
       nome: builder.nome,
       descricao: builder.descricao || undefined,
       gatilho: builder.gatilho,
-      gatilho_config: gatilhoInfo.configDias ? { dias: builder.gatilhoDias } : {},
+      gatilho_config: gatilhoConfig,
       condicoes: builder.condicoes,
       acoes: builder.acoes,
     };
@@ -1188,7 +1238,8 @@ function ExecucoesView({
               <tbody>
                 {visiveis.map((run) => {
                   const gatilho = run.automacoes ? GATILHO_CATALOG[run.automacoes.gatilho] : null;
-                  const atletaId = (run.contexto as { atleta_id?: string })?.atleta_id;
+                  const contexto = run.contexto as { atleta_id?: string; periodo?: string };
+                  const atletaId = contexto?.atleta_id;
                   const leadNome = atletaId ? leadNomes[atletaId] : undefined;
                   return (
                     <tr key={run.id} className="border-b border-border transition-colors hover:bg-accent">
@@ -1210,7 +1261,7 @@ function ExecucoesView({
                           <p className="text-xs font-medium text-foreground">{leadNome}</p>
                         ) : (
                           <p className="text-xs text-muted-foreground font-mono">
-                            {run.gatilho_origem_tabela ?? "—"}
+                            {run.gatilho_origem_tabela ?? contexto?.periodo ?? "—"}
                             {run.gatilho_origem_id ? ` · ${run.gatilho_origem_id.slice(0, 8)}` : ""}
                           </p>
                         )}
@@ -1361,6 +1412,71 @@ function BuilderModal({
                 </div>
               )}
             </div>
+            {gatilhoInfo.configAgendamento && (
+              <>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <select
+                    aria-label="Frequência"
+                    className={FIELD_CLASS}
+                    value={builder.agFrequencia}
+                    onChange={(e) =>
+                      onChange({ ...builder, agFrequencia: e.target.value as AgendamentoFrequencia })
+                    }
+                  >
+                    {FREQUENCIA_OPCOES.map((f) => (
+                      <option key={f.value} value={f.value}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={23}
+                      aria-label="Hora do disparo (0-23, horário de Brasília)"
+                      className="text-center tabular-nums"
+                      value={String(builder.agHora)}
+                      onChange={(e) => onChange({ ...builder, agHora: Number(e.target.value) })}
+                    />
+                    <span className="shrink-0 text-[10px] text-label-tertiary">h (BRT, 0-23)</span>
+                  </div>
+                  {builder.agFrequencia === "semanal" && (
+                    <select
+                      aria-label="Dia da semana"
+                      className={FIELD_CLASS}
+                      value={String(builder.agDiaSemana)}
+                      onChange={(e) => onChange({ ...builder, agDiaSemana: Number(e.target.value) })}
+                    >
+                      {DIA_SEMANA_OPCOES.map((d) => (
+                        <option key={d.value} value={String(d.value)}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {builder.agFrequencia === "mensal" && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={28}
+                        aria-label="Dia do mês (1-28)"
+                        className="text-center tabular-nums"
+                        value={String(builder.agDiaMes)}
+                        onChange={(e) => onChange({ ...builder, agDiaMes: Number(e.target.value) })}
+                      />
+                      <span className="shrink-0 text-[10px] text-label-tertiary">dia do mês (1-28)</span>
+                    </div>
+                  )}
+                </div>
+                <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+                  O disparo não tem lead/deal associado — ações de WhatsApp e mover deal são
+                  ignoradas. Use <strong>criar tarefa</strong> ou <strong>notificar</strong> para
+                  rotinas recorrentes. Dispara 1x por período, no tick da hora escolhida (min 30).
+                </p>
+              </>
+            )}
             <p className="text-[10px] text-label-tertiary">{gatilhoInfo.descricao}</p>
           </section>
 
@@ -1393,7 +1509,9 @@ function BuilderModal({
             </div>
             {builder.condicoes.length === 0 ? (
               <p className="text-[10px] text-label-tertiary">
-                Sem condições — dispara para todo evento do gatilho.
+                {builder.gatilho === "agendamento"
+                  ? "Agendamento não tem condições — não há lead/deal no contexto do disparo."
+                  : "Sem condições — dispara para todo evento do gatilho."}
               </p>
             ) : (
               builder.condicoes.map((cond, i) => {
@@ -1608,6 +1726,50 @@ function BuilderModal({
                     </select>
                     <p className="text-[10px] text-label-tertiary">
                       A engine reaplica a elegibilidade (QUENTE/MORNO, anti-ban) — FRIO nunca recebe.
+                    </p>
+                  </div>
+                )}
+
+                {acao.tipo === "enviar_whatsapp_custom" && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label
+                        htmlFor={`whatsapp-custom-${i}`}
+                        className="text-[11px] font-semibold text-foreground"
+                      >
+                        Mensagem (texto livre)
+                      </label>
+                      <span
+                        className={cn(
+                          "text-[10px] tabular-nums",
+                          acao.parametros.mensagem.length >= WHATSAPP_CUSTOM_MIN &&
+                            acao.parametros.mensagem.length <= WHATSAPP_CUSTOM_MAX
+                            ? "text-label-tertiary"
+                            : "text-sys-red",
+                        )}
+                      >
+                        {acao.parametros.mensagem.length}/{WHATSAPP_CUSTOM_MAX}
+                      </span>
+                    </div>
+                    <textarea
+                      id={`whatsapp-custom-${i}`}
+                      className={cn(FIELD_CLASS, "min-h-28 resize-y leading-relaxed")}
+                      placeholder="Ex.: Olá {responsavel_nome}, temos novidades sobre o projeto de {atleta_nome}…"
+                      value={acao.parametros.mensagem}
+                      onChange={(e) => setAcaoParametro(i, "mensagem", e.target.value)}
+                    />
+                    <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+                      Variáveis disponíveis:{" "}
+                      {WHATSAPP_CUSTOM_VARIAVEIS.map((v) => (
+                        <code key={v} className="mr-1.5 font-mono text-foreground">
+                          {v}
+                        </code>
+                      ))}
+                      — substituídas no envio. Formatação WhatsApp: *negrito* e _itálico_.
+                    </p>
+                    <p className="text-[10px] text-label-tertiary">
+                      Enviada ao <strong>responsável</strong> do lead. Só QUENTE/MORNO recebem —
+                      FRIO nunca, nem mensagem custom (invariante da engine).
                     </p>
                   </div>
                 )}
