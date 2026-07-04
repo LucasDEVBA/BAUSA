@@ -44,7 +44,6 @@ const acaoSchema = z.discriminatedUnion("tipo", [
         "early_potential",
         "late_timing",
         "scheduled_return",
-        "meeting_confirmed",
       ]),
     }),
   }),

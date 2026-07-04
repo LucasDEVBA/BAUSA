@@ -121,6 +121,7 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | `functions/retry-qualification/` | `retry-qualification` | `retry-qualification-uat` | Cloud Scheduler (diário) + HTTP `lead_id` | Reprocessa qualificação Gemini pendente/falha (também usado p/ recuperar lead órfão) |
 | `functions/calendar-webhook/` | `calendar-webhook` | `calendar-webhook-uat` | Google Calendar Push Notification | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO |
 | `functions/renew-calendar-watch/` | `renew-calendar-watch` | `renew-calendar-watch-uat` | Cloud Scheduler (cada 6 dias) | Renova watch channel do Google Calendar |
+| `functions/automation-engine/` | `automation-engine` | `automation-engine-uat` | Cloud Scheduler (1x/hora, min 30) | Engine das automações do BAU Engine (`/automacoes`): materializa gatilhos de tempo + executa runs (tarefa/notificação/WhatsApp/deal) com CAS e retry. Guard CI: `tests/automation-engine-eligibility.test.js` |
 
 **Auth entre serviços:** header `x-webhook-secret` em todos os webhooks.
 

@@ -176,4 +176,29 @@ gcloud scheduler jobs update http "${JOB_MS}" \
   --attempt-deadline=320s
 
 echo "✓ ${JOB_MS} configurado"
+
+# ─── Job 7: Engine de automações (1x/hora, minuto 30 p/ não competir
+#            com os schedulers de mensageria do minuto 0) ────────────
+JOB_AE="automation-engine-job${SUFFIX}"
+AUTOMATION_ENGINE_URL="${AUTOMATION_ENGINE_URL:-https://automation-engine${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_AE}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="30 * * * *" \
+  --uri="${AUTOMATION_ENGINE_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_AE}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="30 * * * *" \
+  --uri="${AUTOMATION_ENGINE_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s
+
+echo "✓ ${JOB_AE} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"

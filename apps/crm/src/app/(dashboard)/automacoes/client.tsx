@@ -119,7 +119,6 @@ const TEMPLATE_OPCOES: { value: string; label: string }[] = [
   { value: "early_potential", label: "Timing cedo (early potential)" },
   { value: "late_timing", label: "Timing tarde (late timing)" },
   { value: "scheduled_return", label: "Retomada agendada (novembro)" },
-  { value: "meeting_confirmed", label: "Confirmação de reunião" },
 ];
 
 interface UsuarioRow {
