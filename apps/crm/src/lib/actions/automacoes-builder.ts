@@ -239,6 +239,103 @@ export async function atualizarIntervalosScheduler(
   }
 }
 
+// Textos das mensagens automáticas de WhatsApp (configuracoes_sistema.
+// scheduler_mensagens). A CF send-whatsapp usa estes textos quando existem;
+// os builders hardcoded dela são o fallback permanente (guard de CI
+// tests/send-whatsapp-mensagens.test.js) — texto vazio jamais é enviado.
+const MENSAGEM_MIN = 10;
+const MENSAGEM_MAX = 2000;
+
+const mensagemTextoSchema = z
+  .string()
+  .min(MENSAGEM_MIN, `Texto muito curto (mínimo ${MENSAGEM_MIN} caracteres)`)
+  .max(MENSAGEM_MAX, `Texto muito longo (máximo ${MENSAGEM_MAX} caracteres)`);
+
+const mensagemParSchema = z.object({
+  atleta: mensagemTextoSchema,
+  responsavel: mensagemTextoSchema,
+});
+
+// Guarda de placeholders: typo ({foo}) chegaria LITERAL na mensagem do lead,
+// e remover {agenda_url} do texto do responsável quebraria o link de
+// agendamento (a conversão do funil) em silêncio.
+const PLACEHOLDERS_VALIDOS = new Set([
+  "atleta_nome",
+  "responsavel_nome",
+  "agenda_url",
+  "proximo_ano",
+]);
+const TEMPLATES_COM_AGENDA = ["initial", "followup_1", "followup_2", "scheduled_return"];
+
+const mensagensSchema = z
+  .object({
+    initial: mensagemParSchema,
+    followup_1: mensagemParSchema,
+    followup_2: mensagemParSchema,
+    early_potential: mensagemParSchema,
+    late_timing: mensagemParSchema,
+    scheduled_return: mensagemParSchema,
+  })
+  .superRefine((valor, ctx) => {
+    for (const [template, par] of Object.entries(valor)) {
+      for (const [destinatario, texto] of Object.entries(par)) {
+        const tokens = texto.match(/\{[a-z0-9_]+\}/g) ?? [];
+        for (const token of tokens) {
+          if (!PLACEHOLDERS_VALIDOS.has(token.slice(1, -1))) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Variável desconhecida ${token} em ${template} (${destinatario}) — válidas: {atleta_nome}, {responsavel_nome}, {agenda_url}, {proximo_ano}`,
+            });
+          }
+        }
+      }
+      if (TEMPLATES_COM_AGENDA.includes(template) && !par.responsavel.includes("{agenda_url}")) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `O texto do responsável em ${template} precisa conter {agenda_url} — é o link de agendamento da reunião`,
+        });
+      }
+    }
+  });
+
+export type SchedulerMensagens = z.infer<typeof mensagensSchema>;
+
+/** Atualiza os textos das mensagens automáticas (todos os 12 obrigatórios —
+ *  o objeto inteiro é reescrito). Vale a partir do próximo envio das CFs. */
+export async function atualizarMensagensScheduler(
+  input: SchedulerMensagens,
+): Promise<ActionResult> {
+  const denied = await requireCeo();
+  if (denied) return { success: false, error: denied };
+
+  const parsed = mensagensSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Textos inválidos (10-2000 caracteres)",
+    };
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .update({ valor: parsed.data })
+      .eq("chave", "scheduler_mensagens")
+      .select("chave");
+
+    if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Config scheduler_mensagens não encontrada (migration pendente?)" };
+    }
+    revalidatePath("/automacoes");
+    return { success: true };
+  } catch (err) {
+    console.error({ level: "error", action: "atualizar_mensagens_scheduler", error: String(err) });
+    return { success: false, error: "Erro inesperado ao salvar mensagens." };
+  }
+}
+
 /** Reenfileira um run que terminou em erro (replay manual do CEO).
  *  Zera tentativas e volta a 'pendente' — a engine reprocessa no próximo tick.
  *  Idempotência de envio é garantida pela engine (CAS nas colunas *_sent_at). */

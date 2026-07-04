@@ -7,6 +7,13 @@ const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
 const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
 const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN;
 
+// Supabase (OPCIONAL — só para textos custom de mensagem). Sem estas env
+// vars a função usa exclusivamente os builders hardcoded (comportamento
+// histórico) — zero mudança de comportamento até serem configuradas.
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
+
 // ─── Log estruturado ───────────────────────────────────────────
 const log = (level, action, details = {}) => {
   console.log(JSON.stringify({ level, action, ...details }));
@@ -30,9 +37,10 @@ const httpRequest = (url, options, postData) => {
     });
 
     req.on('error', (e) => reject(e));
-    req.setTimeout(15000, () => {
+    const timeoutMs = options.timeoutMs || 15000;
+    req.setTimeout(timeoutMs, () => {
       req.destroy();
-      reject(new Error('Request timeout (15s)'));
+      reject(new Error(`Request timeout (${timeoutMs / 1000}s)`));
     });
 
     if (postData) req.write(postData);
@@ -442,6 +450,78 @@ ${buildScheduleUrl(data)}
 — Equipe *Bolsa Atleta USA* — assessoria exclusiva para bolsas esportivas em instituições americanas.`;
 };
 
+// ─── Textos custom (configuracoes_sistema.scheduler_mensagens) ─
+// O CEO edita os textos no Engine (/automacoes). Esta função lê a config
+// UMA vez por request e usa o texto custom quando existir; os builders
+// hardcoded acima NUNCA são removidos — são o fallback permanente
+// (guard de CI: tests/send-whatsapp-mensagens.test.js).
+const fetchMensagensCustom = async () => {
+  // Sem credenciais Supabase → fallback total nos builders (sem WARN:
+  // é o estado esperado até as env vars serem configuradas).
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
+
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema` +
+      '?chave=eq.scheduler_mensagens&select=valor&limit=1';
+    const result = await httpRequest(url, {
+      method: 'GET',
+      // 5s (nao os 15s default): o caller followup-scheduler tem timeout de
+      // 30s - Supabase degradado nao pode consumir metade do budget dele.
+      timeoutMs: 5000,
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+      },
+    });
+
+    if (result.statusCode >= 400) {
+      throw new Error(`Supabase HTTP ${result.statusCode}`);
+    }
+
+    const rows = JSON.parse(result.body);
+    const valor = Array.isArray(rows) ? rows[0]?.valor : null;
+    // Seed ausente ou formato inesperado → builders assumem (sem erro)
+    if (!valor || typeof valor !== 'object') return null;
+    return valor;
+  } catch (error) {
+    log('WARN', 'mensagens_fallback', { error: error.message });
+    return null;
+  }
+};
+
+// Variáveis suportadas nos textos custom — espelham EXATAMENTE as
+// interpolações dos builders hardcoded, inclusive os fallbacks de nome
+// por destinatário/template.
+const buildTemplateVars = (data, messageType, destinatario) => {
+  const athleteFallback =
+    destinatario === 'atleta' ? 'Atleta' :
+    messageType === 'late_timing' ? 'o(a) atleta' :
+    'seu(sua) filho(a)';
+
+  return {
+    '{atleta_nome}': sanitize(data.athlete_name) || athleteFallback,
+    '{responsavel_nome}': sanitize(data.guardian_name) || 'Responsável',
+    '{agenda_url}': buildScheduleUrl(data),
+    '{proximo_ano}': String(new Date().getUTCFullYear() + 1),
+  };
+};
+
+// Renderiza um texto custom substituindo todos os placeholders.
+// Retorna null (→ builder hardcoded assume) se o texto não existir,
+// não for string ou renderizar vazio/whitespace.
+const renderTemplate = (texto, vars) => {
+  if (!texto || typeof texto !== 'string') return null;
+
+  let rendered = texto;
+  for (const [placeholder, valor] of Object.entries(vars)) {
+    rendered = rendered.split(placeholder).join(valor);
+  }
+
+  if (!rendered.trim()) return null;
+  return rendered;
+};
+
 // ─── Cloud Function principal ──────────────────────────────────
 functions.http('sendWhatsApp', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -511,22 +591,35 @@ functions.http('sendWhatsApp', async (req, res) => {
       return res.status(200).send({ success: true, results: [{ to: 'custom', ...result }], durationMs });
     }
 
+    // Textos custom editáveis (config scheduler_mensagens) — buscados UMA
+    // vez por request. Qualquer falha/ausência → athleteCustom/guardianCustom
+    // ficam null e os builders hardcoded abaixo assumem (fallback permanente).
+    const mensagensCustom = await fetchMensagensCustom();
+    const athleteCustom = renderTemplate(
+      mensagensCustom?.[messageType]?.atleta,
+      buildTemplateVars(data, messageType, 'atleta')
+    );
+    const guardianCustom = renderTemplate(
+      mensagensCustom?.[messageType]?.responsavel,
+      buildTemplateVars(data, messageType, 'responsavel')
+    );
+
     // Seleciona templates com base no tipo de mensagem
-    const athleteMsg =
+    const athleteMsg = athleteCustom || (
       messageType === 'followup_2' ? buildAthleteFollowup2Message(data) :
       messageType === 'followup_1' ? buildAthleteFollowup1Message(data) :
       messageType === 'early_potential' ? buildEarlyPotentialAthleteMessage(data) :
       messageType === 'late_timing' ? buildLateTimingAthleteMessage(data) :
       messageType === 'scheduled_return' ? buildScheduledReturnAthleteMessage(data) :
-      buildAthleteMessage(data);
+      buildAthleteMessage(data));
 
-    const guardianMsg =
+    const guardianMsg = guardianCustom || (
       messageType === 'followup_2' ? buildGuardianFollowup2Message(data) :
       messageType === 'followup_1' ? buildGuardianFollowup1Message(data) :
       messageType === 'early_potential' ? buildEarlyPotentialGuardianMessage(data) :
       messageType === 'late_timing' ? buildLateTimingGuardianMessage(data) :
       messageType === 'scheduled_return' ? buildScheduledReturnGuardianMessage(data) :
-      buildGuardianMessage(data);
+      buildGuardianMessage(data));
 
     const results = [];
 

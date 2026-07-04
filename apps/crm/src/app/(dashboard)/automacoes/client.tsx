@@ -16,6 +16,7 @@ import {
   ListChecks,
   History,
   RotateCcw,
+  MessageSquareText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,8 +53,10 @@ import {
   excluirAutomacao,
   reprocessarRun,
   atualizarIntervalosScheduler,
+  atualizarMensagensScheduler,
   type AutomacaoInput,
   type SchedulerIntervalos,
+  type SchedulerMensagens,
 } from "@/lib/actions/automacoes-builder";
 import { cn } from "@/lib/utils";
 
@@ -232,6 +235,7 @@ export function AutomacoesClient({
   runsRecentes,
   leadNomes,
   intervalos,
+  mensagens,
   agora,
 }: {
   automacoes: AutomacaoComStats[];
@@ -239,6 +243,7 @@ export function AutomacoesClient({
   runsRecentes: AutomacaoRunDetalhado[];
   leadNomes: Record<string, string>;
   intervalos: SchedulerIntervalos;
+  mensagens: SchedulerMensagens | null;
   agora: number;
 }) {
   const router = useRouter();
@@ -354,7 +359,11 @@ export function AutomacoesClient({
       )}
 
       {activeTab === "automacoes" && (
-        <SistemaAutomacoesSection intervalos={intervalos} isPending={isPending} />
+        <SistemaAutomacoesSection
+          intervalos={intervalos}
+          mensagens={mensagens}
+          isPending={isPending}
+        />
       )}
 
       {activeTab === "automacoes" && (
@@ -482,59 +491,136 @@ export function AutomacoesClient({
 
 // ─── Automações do sistema (nativas — schedulers e webhooks) ────────────────
 
+type MensagemTemplate = keyof SchedulerMensagens;
+
+/** Variáveis suportadas pela CF send-whatsapp em cada template (legenda do
+ *  modal). Espelham buildTemplateVars de functions/send-whatsapp/index.js. */
+const TEMPLATE_VARIAVEIS: Record<MensagemTemplate, string[]> = {
+  initial: ["{atleta_nome}", "{responsavel_nome}", "{agenda_url}"],
+  followup_1: ["{atleta_nome}", "{responsavel_nome}", "{agenda_url}"],
+  followup_2: ["{atleta_nome}", "{responsavel_nome}", "{agenda_url}"],
+  early_potential: ["{atleta_nome}", "{responsavel_nome}", "{proximo_ano}"],
+  late_timing: ["{atleta_nome}", "{responsavel_nome}"],
+  scheduled_return: ["{atleta_nome}", "{responsavel_nome}", "{agenda_url}"],
+};
+
+/** Rótulo do botão de edição — cards com 2 templates precisam distinguir. */
+const TEMPLATE_BTN_LABEL: Record<MensagemTemplate, string> = {
+  initial: "Editar mensagens",
+  followup_1: "Editar mensagens",
+  followup_2: "Editar mensagens",
+  early_potential: "Mensagens · Timing cedo",
+  late_timing: "Mensagens · Timing tarde",
+  scheduled_return: "Editar mensagens",
+};
+
 /** As 4 nativas com intervalo editável (persistem em scheduler_intervalos;
- *  as CFs leem no próximo tick, com clamp 1h–720h próprio). */
+ *  as CFs leem no próximo tick, com clamp 1h–720h próprio). `templates` são
+ *  os textos de mensagem editáveis (scheduler_mensagens) de cada scheduler. */
 const SISTEMA_EDITAVEIS: {
   chave: keyof SchedulerIntervalos;
   nome: string;
   descricao: string;
   unidade: "h";
+  templates: MensagemTemplate[];
 }[] = [
   {
     chave: "whatsapp_inicial_horas",
     nome: "WhatsApp inicial (timing ideal)",
     descricao: "Convite de agendamento após a qualificação Gemini (QUENTE/MORNO).",
     unidade: "h",
+    templates: ["initial"],
   },
   {
     chave: "whatsapp_timing_alt_horas",
     nome: "WhatsApp timing alternativo",
     descricao: "Mensagem early_potential/late_timing p/ leads muito cedo ou tarde demais.",
     unidade: "h",
+    templates: ["early_potential", "late_timing"],
   },
   {
     chave: "followup_1_horas",
     nome: "Follow-up 1",
     descricao: "Primeiro follow-up após o WhatsApp inicial, se não agendou reunião.",
     unidade: "h",
+    templates: ["followup_1"],
   },
   {
     chave: "followup_2_horas",
     nome: "Follow-up 2",
     descricao: "Segundo follow-up (após o FU1), se ainda não agendou reunião.",
     unidade: "h",
+    templates: ["followup_2"],
   },
 ];
 
-const SISTEMA_INFORMATIVAS: { nome: string; descricao: string }[] = [
-  { nome: "Retomada de novembro", descricao: "Leads muito cedo recebem scheduled_return em 1º/nov (automático)." },
+const SISTEMA_INFORMATIVAS: {
+  nome: string;
+  descricao: string;
+  templates?: MensagemTemplate[];
+}[] = [
+  {
+    nome: "Retomada de novembro",
+    descricao: "Leads muito cedo recebem scheduled_return em 1º/nov (automático).",
+    templates: ["scheduled_return"],
+  },
   { nome: "Confirmação de reunião", descricao: "Agendou no Calendar → WhatsApp instantâneo p/ lead e CEO (webhook)." },
   { nome: "Qualificação Gemini", descricao: "Todo lead novo é classificado (QUENTE/MORNO/FRIO) na entrada." },
   { nome: "E-mails de confirmação", descricao: "Envio automático no cadastro do formulário (Resend/Brevo)." },
   { nome: "Sync Google Sheets", descricao: "Todo lead e atualização espelhados na planilha (cols A–BG)." },
 ];
 
+/** Botões "Editar mensagens" de um card do sistema. Desabilitados quando o
+ *  seed scheduler_mensagens ainda não foi aplicado no ambiente (sem UI falsa). */
+function MensagensBotoes({
+  templates,
+  habilitado,
+  ocupado,
+  onEditar,
+}: {
+  templates: MensagemTemplate[];
+  habilitado: boolean;
+  ocupado: boolean;
+  onEditar: (t: MensagemTemplate) => void;
+}) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {templates.map((t) => (
+        <Button
+          key={t}
+          variant="secondary"
+          size="sm"
+          disabled={!habilitado || ocupado}
+          title={
+            habilitado
+              ? "Editar os textos enviados (atleta e responsável)"
+              : "Indisponível — seed scheduler_mensagens pendente neste ambiente"
+          }
+          onClick={() => onEditar(t)}
+        >
+          <MessageSquareText className="h-3 w-3" />
+          {TEMPLATE_BTN_LABEL[t]}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 function SistemaAutomacoesSection({
   intervalos,
+  mensagens,
   isPending,
 }: {
   intervalos: SchedulerIntervalos;
+  mensagens: SchedulerMensagens | null;
   isPending: boolean;
 }) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
+  const [salvando, startTransition] = useTransition();
   const [draft, setDraft] = useState<SchedulerIntervalos>(intervalos);
+  const [mensagemModal, setMensagemModal] = useState<MensagemTemplate | null>(null);
   const alterado = SISTEMA_EDITAVEIS.some((e) => draft[e.chave] !== intervalos[e.chave]);
+  const ocupado = isPending || salvando;
 
   const salvar = () => {
     startTransition(async () => {
@@ -548,16 +634,42 @@ function SistemaAutomacoesSection({
     });
   };
 
+  const salvarMensagens = (
+    template: MensagemTemplate,
+    textos: { atleta: string; responsavel: string },
+  ) => {
+    if (!mensagens) return;
+    startTransition(async () => {
+      // A chave inteira é reescrita — os demais templates seguem inalterados
+      const result = await atualizarMensagensScheduler({ ...mensagens, [template]: textos });
+      if (!result.success) {
+        toast.error(result.error ?? "Erro ao salvar mensagens");
+        return;
+      }
+      toast.success("Mensagens salvas — valem a partir do próximo envio");
+      setMensagemModal(null);
+      router.refresh();
+    });
+  };
+
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-eyebrow text-label-tertiary">Automações do sistema</p>
         {alterado && (
-          <Button size="sm" onClick={salvar} disabled={isPending}>
+          <Button size="sm" onClick={salvar} disabled={ocupado}>
             Salvar intervalos
           </Button>
         )}
       </div>
+
+      {!mensagens && (
+        <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+          Textos das mensagens indisponíveis neste ambiente (seed{" "}
+          <code className="font-mono">scheduler_mensagens</code> pendente) — a edição fica
+          desabilitada e os envios seguem com os textos padrão do sistema.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {SISTEMA_EDITAVEIS.map((item) => (
@@ -572,6 +684,12 @@ function SistemaAutomacoesSection({
                 <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
                   {item.descricao}
                 </p>
+                <MensagensBotoes
+                  templates={item.templates}
+                  habilitado={mensagens !== null}
+                  ocupado={ocupado}
+                  onEditar={setMensagemModal}
+                />
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <span className="text-[10px] text-label-tertiary">dispara após</span>
@@ -602,6 +720,14 @@ function SistemaAutomacoesSection({
               <Badge tone="neutral" size="sm">Automática</Badge>
             </p>
             <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{item.descricao}</p>
+            {item.templates && (
+              <MensagensBotoes
+                templates={item.templates}
+                habilitado={mensagens !== null}
+                ocupado={ocupado}
+                onEditar={setMensagemModal}
+              />
+            )}
           </Card>
         ))}
         <Card variant="ghost" padding="sm" className="border border-dashed border-border">
@@ -611,7 +737,141 @@ function SistemaAutomacoesSection({
           </p>
         </Card>
       </div>
+
+      {mensagemModal && mensagens && (
+        <MensagensModal
+          template={mensagemModal}
+          textos={mensagens[mensagemModal]}
+          isPending={ocupado}
+          onClose={() => setMensagemModal(null)}
+          onSave={(textos) => salvarMensagens(mensagemModal, textos)}
+        />
+      )}
     </section>
+  );
+}
+
+// ─── Modal de edição das mensagens de um template (atleta + responsável) ────
+
+const MENSAGEM_MIN_CHARS = 10;
+const MENSAGEM_MAX_CHARS = 2000;
+
+function mensagemValida(texto: string): boolean {
+  return texto.length >= MENSAGEM_MIN_CHARS && texto.length <= MENSAGEM_MAX_CHARS;
+}
+
+function CampoMensagem({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const invalido = !mensagemValida(value);
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-[11px] font-semibold text-foreground">
+          {label}
+        </label>
+        <span
+          className={cn(
+            "text-[10px] tabular-nums",
+            invalido ? "text-sys-red" : "text-label-tertiary",
+          )}
+        >
+          {value.length}/{MENSAGEM_MAX_CHARS}
+        </span>
+      </div>
+      <textarea
+        id={id}
+        className={cn(FIELD_CLASS, "min-h-44 resize-y leading-relaxed")}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function MensagensModal({
+  template,
+  textos,
+  isPending,
+  onClose,
+  onSave,
+}: {
+  template: MensagemTemplate;
+  textos: { atleta: string; responsavel: string };
+  isPending: boolean;
+  onClose: () => void;
+  onSave: (textos: { atleta: string; responsavel: string }) => void;
+}) {
+  const [atleta, setAtleta] = useState(textos.atleta);
+  const [responsavel, setResponsavel] = useState(textos.responsavel);
+  const label = TEMPLATE_OPCOES.find((t) => t.value === template)?.label ?? template;
+  const valido = mensagemValida(atleta) && mensagemValida(responsavel);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/20 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Editar mensagens — ${label}`}
+        className="liquid-glass my-8 w-full max-w-2xl rounded-2xl p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-title-3 text-foreground">Editar mensagens — {label}</h2>
+          <Button variant="ghost" size="sm" aria-label="Fechar" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            Variáveis disponíveis:{" "}
+            {TEMPLATE_VARIAVEIS[template].map((v) => (
+              <code key={v} className="mr-1.5 font-mono text-foreground">
+                {v}
+              </code>
+            ))}
+            — substituídas no envio. Formatação WhatsApp: *negrito* e _itálico_.
+          </p>
+
+          <CampoMensagem
+            id={`mensagem-atleta-${template}`}
+            label="Mensagem para o atleta"
+            value={atleta}
+            onChange={setAtleta}
+          />
+          <CampoMensagem
+            id={`mensagem-responsavel-${template}`}
+            label="Mensagem para o responsável"
+            value={responsavel}
+            onChange={setResponsavel}
+          />
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-2 border-t border-border pt-4">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => onSave({ atleta, responsavel })}
+            disabled={isPending || !valido}
+          >
+            Salvar mensagens
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
