@@ -125,6 +125,29 @@ test('process-followup-whatsapp: follow-up só atinge timing ideal/null', () => 
   );
 });
 
+// ─── Intervalos configuráveis: clamp obrigatório (2026-07) ───────────────
+// Os intervalos dos schedulers passaram a ser lidos de
+// configuracoes_sistema.scheduler_intervalos (editáveis em /automacoes).
+// INVARIANTE: clamp 1h–720h — sem ele, uma config mal digitada zeraria o
+// delay (envio imediato em massa) ou congelaria o fluxo indefinidamente.
+const CLAMP_EXPR = 'Math.min(Math.max(n, 1), 720)';
+
+for (const fn of ['process-pending-whatsapp', 'process-followup-whatsapp']) {
+  test(`${fn}: intervalo configurável tem clamp 1h-720h e fallback`, () => {
+    const src = loadExecutableSource(fn);
+    assert.ok(
+      src.includes(CLAMP_EXPR),
+      `INVARIANTE VIOLADO: ${fn} lê intervalos da config e DEVE clampar com ` +
+        `'${CLAMP_EXPR}' — config nunca pode zerar o delay nem passar de 30 dias.`,
+    );
+    assert.ok(
+      src.includes('intervalos_fallback'),
+      `INVARIANTE VIOLADO: ${fn} deve ter fallback nos defaults históricos ` +
+        `quando a config estiver indisponível (scheduler jamais para por config).`,
+    );
+  });
+}
+
 // ─── Sanidade: o guard realmente detecta ausência ───────────────────────
 test('guard: detecta corretamente quando uma cláusula está ausente', () => {
   const fakeSource = "const filters = ['whatsapp_sent_at=is.null'];";

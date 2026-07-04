@@ -114,13 +114,54 @@ const checkMeetingScheduled = async (guardianEmail, whatsappSentAt) => {
   }
 };
 
+// ─── Intervalos configuráveis (editáveis pelo CEO em /automacoes) ──────────
+// Lidos de configuracoes_sistema.scheduler_intervalos com fallback nos
+// defaults históricos. INVARIANTE (guard de CI): clamp 1h–720h — a config
+// jamais pode zerar o delay (envio imediato) nem congelar o fluxo >30 dias.
+const DEFAULT_FU1_HORAS = 48;
+const DEFAULT_FU2_HORAS = 168;
+
+const clampHoras = (valor, fallback) => {
+  // parseFloat (não Number): null/''/false viram NaN → fallback, em vez de 0→1h
+  const n = typeof valor === 'number' ? valor : Number.parseFloat(valor);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(n, 1), 720);
+};
+
+const fetchIntervalos = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.scheduler_intervalos&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET intervalos: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor || {};
+    return {
+      fu1Horas: clampHoras(valor.followup_1_horas, DEFAULT_FU1_HORAS),
+      fu2Horas: clampHoras(valor.followup_2_horas, DEFAULT_FU2_HORAS),
+    };
+  } catch (e) {
+    // Config indisponível JAMAIS para o scheduler — usa os defaults históricos
+    log('WARN', 'intervalos_fallback', { error: e.message });
+    return { fu1Horas: DEFAULT_FU1_HORAS, fu2Horas: DEFAULT_FU2_HORAS };
+  }
+};
+
 // ─── Buscar leads pendentes de follow-up ───────────────────────
 const fetchFollowupLeads = async (followupNumber, executionStartTime) => {
   const isFollowup1 = followupNumber === 1;
 
-  // Follow-up 1: 48h após whatsapp_sent_at, sem followup_1_sent_at
-  // Follow-up 2: 7 dias (168h) após whatsapp_sent_at, com followup_1_sent_at, sem followup_2_sent_at
-  const hoursThreshold = isFollowup1 ? 48 : 168;
+  // Follow-up 1: Nh (default 48h) após whatsapp_sent_at, sem followup_1_sent_at
+  // Follow-up 2: Nh (default 168h/7d) após whatsapp_sent_at, com followup_1_sent_at, sem followup_2_sent_at
+  const intervalos = await fetchIntervalos();
+  const hoursThreshold = isFollowup1 ? intervalos.fu1Horas : intervalos.fu2Horas;
+  log('INFO', 'intervalos_em_uso', { followupNumber, hoursThreshold });
   const cutoffTime = new Date(Date.now() - hoursThreshold * 60 * 60 * 1000).toISOString();
 
   const baseFilters = [

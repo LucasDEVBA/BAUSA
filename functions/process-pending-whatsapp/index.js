@@ -48,15 +48,56 @@ const httpRequest = (url, options, postData) => {
   });
 };
 
+// ─── Intervalos configuráveis (editáveis pelo CEO em /automacoes) ──────────
+// Lidos de configuracoes_sistema.scheduler_intervalos com fallback nos
+// defaults históricos. INVARIANTE (guard de CI): clamp 1h–720h — a config
+// jamais pode zerar o delay (envio imediato) nem congelar o fluxo >30 dias.
+const DEFAULT_INICIAL_HORAS = 22;
+const DEFAULT_TIMING_ALT_HORAS = 48;
+
+const clampHoras = (valor, fallback) => {
+  // parseFloat (não Number): null/''/false viram NaN → fallback, em vez de 0→1h
+  const n = typeof valor === 'number' ? valor : Number.parseFloat(valor);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(n, 1), 720);
+};
+
+const fetchIntervalos = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.scheduler_intervalos&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET intervalos: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor || {};
+    return {
+      inicialHoras: clampHoras(valor.whatsapp_inicial_horas, DEFAULT_INICIAL_HORAS),
+      timingAltHoras: clampHoras(valor.whatsapp_timing_alt_horas, DEFAULT_TIMING_ALT_HORAS),
+    };
+  } catch (e) {
+    // Config indisponível JAMAIS para o scheduler — usa os defaults históricos
+    log('WARN', 'intervalos_fallback', { error: e.message });
+    return { inicialHoras: DEFAULT_INICIAL_HORAS, timingAltHoras: DEFAULT_TIMING_ALT_HORAS };
+  }
+};
+
 // ─── Buscar leads pendentes de WhatsApp ────────────────────────
 // 2 critérios distintos:
-//   A) Timing ideal:        QUENTE/MORNO, qualified_at > 22h, sem whatsapp_sent_at
+//   A) Timing ideal:        QUENTE/MORNO, qualified_at > Nh (default 22h), sem whatsapp_sent_at
 //   B) Timing alternativo:  timing_status IN (muito_cedo, tarde_demais),
-//                            qualified_at > 48h (mais tempo para acomodar
-//                            a comunicação sensível), sem whatsapp_sent_at
+//                            qualified_at > Nh (default 48h — mais tempo para
+//                            acomodar a comunicação sensível), sem whatsapp_sent_at
 const fetchPendingLeads = async () => {
-  const twentyTwoHoursAgo = new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString();
-  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const intervalos = await fetchIntervalos();
+  log('INFO', 'intervalos_em_uso', intervalos);
+  const twentyTwoHoursAgo = new Date(Date.now() - intervalos.inicialHoras * 60 * 60 * 1000).toISOString();
+  const fortyEightHoursAgo = new Date(Date.now() - intervalos.timingAltHoras * 60 * 60 * 1000).toISOString();
 
   const fetchByFilters = async (filters) => {
     const url = `${SUPABASE_URL}/rest/v1/form_submissions?${filters.join('&')}&select=*&order=qualified_at.asc&limit=20`;

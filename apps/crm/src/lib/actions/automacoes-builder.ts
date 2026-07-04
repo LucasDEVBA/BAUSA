@@ -189,6 +189,56 @@ export async function alternarAtivoAutomacao(id: string, ativo: boolean): Promis
   }
 }
 
+// Intervalos das automações NATIVAS (schedulers de WhatsApp). As CFs leem esta
+// chave com clamp 1h-720h próprio (guard de CI) — o Zod espelha o mesmo range.
+const intervalosSchema = z
+  .object({
+    whatsapp_inicial_horas: z.number().int().min(1).max(720),
+    whatsapp_timing_alt_horas: z.number().int().min(1).max(720),
+    followup_1_horas: z.number().int().min(1).max(720),
+    followup_2_horas: z.number().int().min(1).max(720),
+  })
+  // Ambos os cutoffs medem de whatsapp_sent_at — FU2 <= FU1 colapsaria o
+  // espaçamento (lead receberia FU1 e FU2 em ticks consecutivos).
+  .refine((v) => v.followup_2_horas > v.followup_1_horas, {
+    message: "Follow-up 2 deve ter intervalo maior que o Follow-up 1",
+  });
+
+export type SchedulerIntervalos = z.infer<typeof intervalosSchema>;
+
+/** Atualiza os intervalos das automações do sistema (configuracoes_sistema.
+ *  scheduler_intervalos). Efeito no próximo tick dos schedulers (1x/hora). */
+export async function atualizarIntervalosScheduler(
+  input: SchedulerIntervalos,
+): Promise<ActionResult> {
+  const denied = await requireCeo();
+  if (denied) return { success: false, error: denied };
+
+  const parsed = intervalosSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Intervalos inválidos (1-720h)" };
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .update({ valor: parsed.data })
+      .eq("chave", "scheduler_intervalos")
+      .select("chave");
+
+    if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Config scheduler_intervalos não encontrada (migration pendente?)" };
+    }
+    revalidatePath("/automacoes");
+    return { success: true };
+  } catch (err) {
+    console.error({ level: "error", action: "atualizar_intervalos_scheduler", error: String(err) });
+    return { success: false, error: "Erro inesperado ao salvar intervalos." };
+  }
+}
+
 /** Reenfileira um run que terminou em erro (replay manual do CEO).
  *  Zera tentativas e volta a 'pendente' — a engine reprocessa no próximo tick.
  *  Idempotência de envio é garantida pela engine (CAS nas colunas *_sent_at). */
