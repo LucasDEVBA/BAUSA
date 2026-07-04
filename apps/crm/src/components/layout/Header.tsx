@@ -36,6 +36,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/matching": { label: "Motor de Match", parent: "Inteligencia" },
   "/financeiro": { label: "Financeiro", parent: "Comercial" },
   "/remarketing": { label: "Re-marketing", parent: "Comercial" },
+  "/whatsapp": { label: "WhatsApp", parent: "Comercial" },
   "/documentos": { label: "Documentos", parent: "Sistema" },
   "/automacoes": { label: "Automações", parent: "Sistema" },
   "/automacoes-monitor": { label: "Monitor de filas", parent: "Sistema" },

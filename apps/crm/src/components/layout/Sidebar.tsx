@@ -19,6 +19,7 @@ import {
   UserCheck,
   LogOut,
   Megaphone,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
@@ -83,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       { href: "/financeiro", label: "Financeiro", icon: DollarSign, roles: ["ceo"] },
       { href: "/remarketing", label: "Re-marketing", icon: Megaphone, roles: ["ceo"] },
+      { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["ceo"] },
     ],
   },
   {
