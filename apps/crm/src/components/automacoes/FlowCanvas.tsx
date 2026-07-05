@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Clock,
   Diamond,
+  Mail,
   Maximize,
   MessageCircle,
   MessageSquareText,
@@ -89,6 +90,7 @@ const ACAO_ICON: Record<AutomacaoAcaoTipo, LucideIcon> = {
   criar_notificacao: Bell,
   enviar_whatsapp: MessageCircle,
   enviar_whatsapp_custom: MessageSquareText,
+  enviar_email_custom: Mail,
   mover_deal: MoveRight,
 };
 
@@ -266,7 +268,7 @@ function FlowNode({
           </span>
         </span>
         <span className="truncate text-xs font-semibold text-foreground">{titulo}</span>
-        <span className="line-clamp-2 text-[10px] leading-snug text-muted-foreground">
+        <span className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
           {resumo}
         </span>
       </button>
@@ -634,7 +636,7 @@ export function FlowCanvas({
                     <span className="block text-xs font-medium text-foreground">
                       {ACAO_CATALOG[tipo].label}
                     </span>
-                    <span className="block text-[10px] leading-snug text-muted-foreground">
+                    <span className="block text-[11px] leading-snug text-muted-foreground">
                       {ACAO_CATALOG[tipo].descricao}
                     </span>
                   </span>
@@ -650,7 +652,7 @@ export function FlowCanvas({
         <Button variant="ghost" size="sm" aria-label="Diminuir zoom" onClick={() => zoomBy(1 / 1.2)}>
           <ZoomOut className="h-3.5 w-3.5" />
         </Button>
-        <span className="w-10 text-center text-[10px] tabular-nums text-muted-foreground">
+        <span className="w-10 text-center text-[11px] tabular-nums text-muted-foreground">
           {Math.round(view.zoom * 100)}%
         </span>
         <Button variant="ghost" size="sm" aria-label="Aumentar zoom" onClick={() => zoomBy(1.2)}>
@@ -670,7 +672,7 @@ export function FlowCanvas({
       </div>
 
       {/* Legenda mínima */}
-      <p className="pointer-events-none absolute bottom-3 right-3 hidden max-w-sm text-right text-[10px] leading-relaxed text-label-tertiary sm:block">
+      <p className="pointer-events-none absolute bottom-3 right-3 hidden max-w-sm text-right text-[11px] leading-relaxed text-muted-foreground sm:block">
         Gatilho → Condições (todas — E) → Ações · clique num nó para editar ·
         arraste o fundo para mover · scroll para zoom
       </p>

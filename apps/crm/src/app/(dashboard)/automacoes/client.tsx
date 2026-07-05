@@ -265,7 +265,7 @@ export function AutomacoesClient({
                     {a.descricao && (
                       <p className="mt-1 text-xs text-muted-foreground">{a.descricao}</p>
                     )}
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-label-tertiary">
+                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
                         <ListChecks className="h-3 w-3" />
                         {a.condicoes.length} condição{a.condicoes.length !== 1 ? "es" : ""} ·{" "}
@@ -578,7 +578,7 @@ function SistemaAutomacoesSection({
       <p className="text-eyebrow text-label-tertiary">Automações do sistema</p>
 
       {!mensagens && (
-        <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+        <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
           Textos das mensagens indisponíveis neste ambiente (seed{" "}
           <code className="font-mono">scheduler_mensagens</code> pendente) — a edição fica
           desabilitada e os envios seguem com os textos padrão do sistema.
@@ -595,13 +595,13 @@ function SistemaAutomacoesSection({
                   {card.nome}
                   <Badge tone="green" size="sm">Ativa</Badge>
                 </p>
-                <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                   {card.descricao}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1.5">
                 {card.intervaloChave && (
-                  <span className="text-[10px] text-label-tertiary">
+                  <span className="text-[11px] text-muted-foreground">
                     dispara após{" "}
                     <span className="font-semibold tabular-nums text-foreground">
                       {intervalos[card.intervaloChave]}h
@@ -634,7 +634,7 @@ function SistemaAutomacoesSection({
                 {card.nome}
                 <Badge tone="neutral" size="sm">Automática</Badge>
               </p>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{card.descricao}</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{card.descricao}</p>
               <div className="mt-2">
                 <Button
                   variant="secondary"
@@ -652,7 +652,7 @@ function SistemaAutomacoesSection({
         })}
         <Card variant="ghost" padding="sm" className="border border-dashed border-border">
           <p className="text-[11px] font-semibold text-foreground">Régua de cobrança</p>
-          <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
             Monte pela aba builder: gatilho <em>Parcela vencendo/atrasada</em> (D−3, D+1, D+7, D+15) + ações.
           </p>
         </Card>
@@ -701,8 +701,8 @@ function CampoMensagem({
         </label>
         <span
           className={cn(
-            "text-[10px] tabular-nums",
-            invalido ? "text-sys-red" : "text-label-tertiary",
+            "text-[11px] tabular-nums",
+            invalido ? "text-sys-red" : "text-muted-foreground",
           )}
         >
           {value.length}/{MENSAGEM_MAX_CHARS}
@@ -720,7 +720,7 @@ function CampoMensagem({
 
 function VariaveisLegenda({ variaveis }: { variaveis: string[] }) {
   return (
-    <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+    <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
       Variáveis disponíveis:{" "}
       {variaveis.map((v) => (
         <code key={v} className="mr-1.5 font-mono text-foreground">
@@ -835,7 +835,7 @@ function SistemaModal({
             <section className="space-y-1.5">
               <p className={SECTION_LABEL}>Intervalo de disparo</p>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-label-tertiary">dispara após</span>
+                <span className="text-[11px] text-muted-foreground">dispara após</span>
                 <Input
                   type="number"
                   min={1}
@@ -845,9 +845,9 @@ function SistemaModal({
                   value={String(intervalo)}
                   onChange={(e) => setIntervalo(Number(e.target.value))}
                 />
-                <span className="text-[10px] font-medium text-muted-foreground">h</span>
+                <span className="text-[11px] font-medium text-muted-foreground">h</span>
               </div>
-              <p className={cn("text-[10px]", intervaloValido ? "text-label-tertiary" : "text-sys-red")}>
+              <p className={cn("text-[11px]", intervaloValido ? "text-muted-foreground" : "text-sys-red")}>
                 Entre 1 e 720 horas — vale a partir do próximo tick do scheduler (1x/hora).
               </p>
             </section>
@@ -855,7 +855,7 @@ function SistemaModal({
 
           {/* Seed pendente: sem UI falsa de textos */}
           {(card.templates?.length ?? 0) > 0 && !mensagens && (
-            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Textos indisponíveis neste ambiente (seed{" "}
               <code className="font-mono">scheduler_mensagens</code> pendente) — os envios
               seguem com os textos padrão do sistema.
@@ -905,7 +905,7 @@ function SistemaModal({
                 />
               </section>
             ) : (
-              <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+              <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
                 Edição dos textos indisponível neste ambiente (chave{" "}
                 <code className="font-mono">meeting_confirmed</code> pendente no seed) — os
                 envios seguem com os textos padrão do sistema.
@@ -914,7 +914,7 @@ function SistemaModal({
 
           {/* Card 100% informativo: nada editável (sem UI falsa) */}
           {!card.intervaloChave && !card.templates?.length && !card.editaReuniao && (
-            <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Parâmetros editáveis: em breve.
             </p>
           )}
@@ -1005,7 +1005,7 @@ function ExecucoesView({
 
       {/* Filtro por automação (setado também pelo "Ver execuções" do card) */}
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-label-tertiary">Automação:</span>
+        <span className="text-[11px] text-muted-foreground">Automação:</span>
         <select
           aria-label="Filtrar por automação"
           className={cn(FIELD_CLASS, "max-w-xs")}
@@ -1062,7 +1062,7 @@ function ExecucoesView({
                           {run.automacoes?.nome ?? "(removida)"}
                         </p>
                         {gatilho && (
-                          <p className="text-[10px] text-label-tertiary">{gatilho.label}</p>
+                          <p className="text-[11px] text-muted-foreground">{gatilho.label}</p>
                         )}
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
@@ -1075,7 +1075,7 @@ function ExecucoesView({
                           </p>
                         )}
                         {leadNome && (
-                          <p className="text-[10px] text-label-tertiary">{run.gatilho_origem_tabela}</p>
+                          <p className="text-[11px] text-muted-foreground">{run.gatilho_origem_tabela}</p>
                         )}
                       </td>
                       <td className="px-3 py-2.5">

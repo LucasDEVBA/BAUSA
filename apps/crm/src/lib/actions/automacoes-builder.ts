@@ -14,12 +14,35 @@ const condicaoSchema = z.object({
   valor: z.union([z.string().min(1), z.number(), z.array(z.string().min(1)).min(1)]),
 });
 
-// Placeholders da ação enviar_whatsapp_custom — espelham o render da engine
-// (automation-engine): só {atleta_nome} e {responsavel_nome}. Typo ({foo})
-// chegaria LITERAL na mensagem do responsável — rejeitar na entrada.
+// Placeholders das ações custom (enviar_whatsapp_custom e enviar_email_custom)
+// — espelham o render da engine (automation-engine): só {atleta_nome} e
+// {responsavel_nome}. Typo ({foo}) chegaria LITERAL na mensagem do
+// responsável — rejeitar na entrada.
 const CUSTOM_PLACEHOLDERS = new Set(["atleta_nome", "responsavel_nome"]);
 const CUSTOM_MENSAGEM_MIN = 10;
 const CUSTOM_MENSAGEM_MAX = 1000;
+// E-mail custom: assunto 3-150 e mensagem 10-2000 (e-mail comporta texto
+// mais longo que o WhatsApp; limites espelhados em builder-shared.ts).
+const EMAIL_ASSUNTO_MIN = 3;
+const EMAIL_ASSUNTO_MAX = 150;
+const EMAIL_MENSAGEM_MIN = 10;
+const EMAIL_MENSAGEM_MAX = 2000;
+
+// Rejeita variáveis fora do catálogo (padrão existente: regex [a-zA-Z0-9_]
+// captura variantes maiúsculas/typos e falha cedo).
+const semPlaceholderDesconhecido = (texto: string, ctx: z.RefinementCtx) => {
+  const tokens = texto.match(/\{[a-zA-Z0-9_]+\}/g) ?? [];
+  for (const token of tokens) {
+    if (!CUSTOM_PLACEHOLDERS.has(token.slice(1, -1))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          `Variável desconhecida ${token} — válidas: ` +
+          `${[...CUSTOM_PLACEHOLDERS].map((p) => `{${p}}`).join(", ")}`,
+      });
+    }
+  }
+};
 
 const acaoSchema = z.discriminatedUnion("tipo", [
   z.object({
@@ -63,19 +86,26 @@ const acaoSchema = z.discriminatedUnion("tipo", [
         .string()
         .min(CUSTOM_MENSAGEM_MIN, `Mensagem muito curta (mínimo ${CUSTOM_MENSAGEM_MIN} caracteres)`)
         .max(CUSTOM_MENSAGEM_MAX, `Mensagem muito longa (máximo ${CUSTOM_MENSAGEM_MAX} caracteres)`)
-        .superRefine((texto, ctx) => {
-          const tokens = texto.match(/\{[a-zA-Z0-9_]+\}/g) ?? [];
-          for (const token of tokens) {
-            if (!CUSTOM_PLACEHOLDERS.has(token.slice(1, -1))) {
-              ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message:
-                  `Variável desconhecida ${token} — válidas: ` +
-                  `${[...CUSTOM_PLACEHOLDERS].map((p) => `{${p}}`).join(", ")}`,
-              });
-            }
-          }
-        }),
+        .superRefine(semPlaceholderDesconhecido),
+      destinatario: z.literal("responsavel"),
+    }),
+  }),
+  z.object({
+    tipo: z.literal("enviar_email_custom"),
+    parametros: z.object({
+      // A engine reaplica a classe (só QUENTE/MORNO — FRIO nunca recebe) e
+      // envia ao e-mail do lead via caminho customEmail da CF send-messages.
+      // Placeholders valem no assunto E na mensagem (a engine renderiza ambos).
+      assunto: z
+        .string()
+        .min(EMAIL_ASSUNTO_MIN, `Assunto muito curto (mínimo ${EMAIL_ASSUNTO_MIN} caracteres)`)
+        .max(EMAIL_ASSUNTO_MAX, `Assunto muito longo (máximo ${EMAIL_ASSUNTO_MAX} caracteres)`)
+        .superRefine(semPlaceholderDesconhecido),
+      mensagem: z
+        .string()
+        .min(EMAIL_MENSAGEM_MIN, `Mensagem muito curta (mínimo ${EMAIL_MENSAGEM_MIN} caracteres)`)
+        .max(EMAIL_MENSAGEM_MAX, `Mensagem muito longa (máximo ${EMAIL_MENSAGEM_MAX} caracteres)`)
+        .superRefine(semPlaceholderDesconhecido),
       destinatario: z.literal("responsavel"),
     }),
   }),

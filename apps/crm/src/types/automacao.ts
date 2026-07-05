@@ -140,6 +140,7 @@ export type AutomacaoAcaoTipo =
   | "criar_notificacao"
   | "enviar_whatsapp"
   | "enviar_whatsapp_custom"
+  | "enviar_email_custom"
   | "mover_deal";
 
 export interface AcaoCriarTarefa {
@@ -192,6 +193,20 @@ export interface AcaoEnviarWhatsappCustom {
   };
 }
 
+/** Texto livre por E-MAIL via caminho customEmail da CF send-messages
+ *  (Resend→Brevo, wrapper HTML leve). A engine reaplica a classe: só
+ *  QUENTE/MORNO recebem — FRIO nunca, por nenhum canal. Destinatário MVP:
+ *  responsável (campo `email` validado do form_submission). Placeholders
+ *  {atleta_nome}/{responsavel_nome} valem no assunto e na mensagem. */
+export interface AcaoEnviarEmailCustom {
+  tipo: "enviar_email_custom";
+  parametros: {
+    assunto: string;
+    mensagem: string;
+    destinatario: "responsavel";
+  };
+}
+
 /** mover_deal exige next_action (regra inviolável nº 2 do BUSINESS_RULES). */
 export interface AcaoMoverDeal {
   tipo: "mover_deal";
@@ -207,6 +222,7 @@ export type AutomacaoAcao =
   | AcaoCriarNotificacao
   | AcaoEnviarWhatsapp
   | AcaoEnviarWhatsappCustom
+  | AcaoEnviarEmailCustom
   | AcaoMoverDeal;
 
 export const ACAO_CATALOG: Record<AutomacaoAcaoTipo, { label: string; descricao: string }> = {
@@ -225,6 +241,10 @@ export const ACAO_CATALOG: Record<AutomacaoAcaoTipo, { label: string; descricao:
   enviar_whatsapp_custom: {
     label: "WhatsApp custom",
     descricao: "Texto livre ao responsável do lead — só QUENTE/MORNO recebem.",
+  },
+  enviar_email_custom: {
+    label: "E-mail custom",
+    descricao: "Texto livre ao e-mail do responsável — só QUENTE/MORNO.",
   },
   mover_deal: {
     label: "Mover deal",

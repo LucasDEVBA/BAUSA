@@ -15,6 +15,10 @@ import { cn } from "@/lib/utils";
 import {
   CONDICAO_CAMPOS,
   DIA_SEMANA_OPCOES,
+  EMAIL_CUSTOM_ASSUNTO_MAX,
+  EMAIL_CUSTOM_ASSUNTO_MIN,
+  EMAIL_CUSTOM_MENSAGEM_MAX,
+  EMAIL_CUSTOM_MENSAGEM_MIN,
   ETAPA_OPCOES,
   FIELD_CLASS,
   FREQUENCIA_OPCOES,
@@ -75,7 +79,7 @@ export function GatilhoForm({
               value={String(builder.gatilhoDias)}
               onChange={(e) => onChange({ ...builder, gatilhoDias: Number(e.target.value) })}
             />
-            <span className="shrink-0 text-[10px] text-label-tertiary">
+            <span className="shrink-0 text-[11px] text-muted-foreground">
               {gatilhoInfo.configDias.label}
             </span>
           </div>
@@ -108,7 +112,7 @@ export function GatilhoForm({
                 value={String(builder.agHora)}
                 onChange={(e) => onChange({ ...builder, agHora: Number(e.target.value) })}
               />
-              <span className="shrink-0 text-[10px] text-label-tertiary">h (BRT, 0-23)</span>
+              <span className="shrink-0 text-[11px] text-muted-foreground">h (BRT, 0-23)</span>
             </div>
             {builder.agFrequencia === "semanal" && (
               <select
@@ -135,18 +139,18 @@ export function GatilhoForm({
                   value={String(builder.agDiaMes)}
                   onChange={(e) => onChange({ ...builder, agDiaMes: Number(e.target.value) })}
                 />
-                <span className="shrink-0 text-[10px] text-label-tertiary">dia do mês (1-28)</span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">dia do mês (1-28)</span>
               </div>
             )}
           </div>
-          <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+          <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
             O disparo não tem lead/deal associado — ações de WhatsApp e mover deal são ignoradas.
             Use <strong>criar tarefa</strong> ou <strong>notificar</strong> para rotinas
             recorrentes. Dispara 1x por período, no tick da hora escolhida (min 30).
           </p>
         </>
       )}
-      <p className="text-[10px] text-label-tertiary">{gatilhoInfo.descricao}</p>
+      <p className="text-[11px] text-muted-foreground">{gatilhoInfo.descricao}</p>
     </div>
   );
 }
@@ -299,7 +303,7 @@ export function AcaoForm({
               value={String(acao.parametros.prazo_dias)}
               onChange={(e) => setParametro("prazo_dias", Number(e.target.value))}
             />
-            <span className="shrink-0 text-[10px] text-label-tertiary">dias de prazo</span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">dias de prazo</span>
           </div>
         </div>
       )}
@@ -355,7 +359,7 @@ export function AcaoForm({
               </option>
             ))}
           </select>
-          <p className="text-[10px] text-label-tertiary">
+          <p className="text-[11px] text-muted-foreground">
             A engine reaplica a elegibilidade (QUENTE/MORNO, anti-ban) — FRIO nunca recebe.
           </p>
         </div>
@@ -372,10 +376,10 @@ export function AcaoForm({
             </label>
             <span
               className={cn(
-                "text-[10px] tabular-nums",
+                "text-[11px] tabular-nums",
                 acao.parametros.mensagem.length >= WHATSAPP_CUSTOM_MIN &&
                   acao.parametros.mensagem.length <= WHATSAPP_CUSTOM_MAX
-                  ? "text-label-tertiary"
+                  ? "text-muted-foreground"
                   : "text-sys-red",
               )}
             >
@@ -389,7 +393,7 @@ export function AcaoForm({
             value={acao.parametros.mensagem}
             onChange={(e) => setParametro("mensagem", e.target.value)}
           />
-          <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+          <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
             Variáveis disponíveis:{" "}
             {WHATSAPP_CUSTOM_VARIAVEIS.map((v) => (
               <code key={v} className="mr-1.5 font-mono text-foreground">
@@ -398,9 +402,79 @@ export function AcaoForm({
             ))}
             — substituídas no envio. Formatação WhatsApp: *negrito* e _itálico_.
           </p>
-          <p className="text-[10px] text-label-tertiary">
+          <p className="text-[11px] text-muted-foreground">
             Enviada ao <strong>responsável</strong> do lead. Só QUENTE/MORNO recebem — FRIO nunca,
             nem mensagem custom (invariante da engine).
+          </p>
+        </div>
+      )}
+
+      {acao.tipo === "enviar_email_custom" && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor={`email-custom-assunto-${index}`}
+              className="text-[11px] font-semibold text-foreground"
+            >
+              Assunto
+            </label>
+            <span
+              className={cn(
+                "text-[11px] tabular-nums",
+                acao.parametros.assunto.length >= EMAIL_CUSTOM_ASSUNTO_MIN &&
+                  acao.parametros.assunto.length <= EMAIL_CUSTOM_ASSUNTO_MAX
+                  ? "text-muted-foreground"
+                  : "text-sys-red",
+              )}
+            >
+              {acao.parametros.assunto.length}/{EMAIL_CUSTOM_ASSUNTO_MAX}
+            </span>
+          </div>
+          <Input
+            id={`email-custom-assunto-${index}`}
+            placeholder="Ex.: Novidades sobre o projeto de {atleta_nome}"
+            value={acao.parametros.assunto}
+            onChange={(e) => setParametro("assunto", e.target.value)}
+          />
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor={`email-custom-mensagem-${index}`}
+              className="text-[11px] font-semibold text-foreground"
+            >
+              Mensagem (texto livre)
+            </label>
+            <span
+              className={cn(
+                "text-[11px] tabular-nums",
+                acao.parametros.mensagem.length >= EMAIL_CUSTOM_MENSAGEM_MIN &&
+                  acao.parametros.mensagem.length <= EMAIL_CUSTOM_MENSAGEM_MAX
+                  ? "text-muted-foreground"
+                  : "text-sys-red",
+              )}
+            >
+              {acao.parametros.mensagem.length}/{EMAIL_CUSTOM_MENSAGEM_MAX}
+            </span>
+          </div>
+          <textarea
+            id={`email-custom-mensagem-${index}`}
+            className={cn(FIELD_CLASS, "min-h-28 resize-y leading-relaxed")}
+            placeholder="Ex.: Olá {responsavel_nome}, temos novidades sobre o projeto de {atleta_nome}…"
+            value={acao.parametros.mensagem}
+            onChange={(e) => setParametro("mensagem", e.target.value)}
+          />
+          <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            Variáveis disponíveis:{" "}
+            {WHATSAPP_CUSTOM_VARIAVEIS.map((v) => (
+              <code key={v} className="mr-1.5 font-mono text-foreground">
+                {v}
+              </code>
+            ))}
+            — valem no assunto e na mensagem. O e-mail sai com o layout padrão da Bolsa Atleta
+            USA (Resend, com fallback Brevo); quebras de linha viram parágrafos.
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Enviado ao <strong>e-mail do responsável</strong> pelo lead. Só QUENTE/MORNO recebem
+            — FRIO nunca, nem e-mail custom (invariante da engine).
           </p>
         </div>
       )}
@@ -427,7 +501,7 @@ export function AcaoForm({
               value={String(acao.parametros.proxima_acao_dias)}
               onChange={(e) => setParametro("proxima_acao_dias", Number(e.target.value))}
             />
-            <span className="shrink-0 text-[10px] text-label-tertiary">dias p/ próxima ação</span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">dias p/ próxima ação</span>
           </div>
           <Input
             className="sm:col-span-2"

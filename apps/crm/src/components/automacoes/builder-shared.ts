@@ -117,6 +117,13 @@ export const WHATSAPP_CUSTOM_MIN = 10;
 export const WHATSAPP_CUSTOM_MAX = 1000;
 export const WHATSAPP_CUSTOM_VARIAVEIS = ["{atleta_nome}", "{responsavel_nome}"];
 
+// Ação E-mail custom — espelha o Zod do servidor (assunto 3-150, mensagem
+// 10-2000; mesmas variáveis, válidas no assunto E na mensagem).
+export const EMAIL_CUSTOM_ASSUNTO_MIN = 3;
+export const EMAIL_CUSTOM_ASSUNTO_MAX = 150;
+export const EMAIL_CUSTOM_MENSAGEM_MIN = 10;
+export const EMAIL_CUSTOM_MENSAGEM_MAX = 2000;
+
 export const FREQUENCIA_OPCOES: { value: AgendamentoFrequencia; label: string }[] = [
   { value: "diaria", label: "Diária" },
   { value: "semanal", label: "Semanal" },
@@ -213,6 +220,8 @@ export function defaultAcao(tipo: AutomacaoAcaoTipo, usuarios: UsuarioRow[]): Au
       return { tipo, parametros: { template: "followup_1" } };
     case "enviar_whatsapp_custom":
       return { tipo, parametros: { mensagem: "", destinatario: "responsavel" } };
+    case "enviar_email_custom":
+      return { tipo, parametros: { assunto: "", mensagem: "", destinatario: "responsavel" } };
     case "mover_deal":
       return {
         tipo,
@@ -270,6 +279,11 @@ export function resumoAcao(acao: AutomacaoAcao): string {
       const msg = acao.parametros.mensagem.trim();
       if (!msg) return "Escreva a mensagem";
       return msg.length > 48 ? `“${msg.slice(0, 48)}…”` : `“${msg}”`;
+    }
+    case "enviar_email_custom": {
+      const assunto = acao.parametros.assunto.trim();
+      if (!assunto) return "Defina o assunto do e-mail";
+      return assunto.length > 48 ? `“${assunto.slice(0, 48)}…”` : `“${assunto}”`;
     }
     case "mover_deal":
       return `→ ${etapaLabel(acao.parametros.etapa_destino)}`;

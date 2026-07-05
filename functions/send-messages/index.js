@@ -194,6 +194,38 @@ const renderEmailShell = ({ badge, title, bodyHtml, ctaHref = 'https://bolsaatle
 </body></html>`;
 };
 
+// ─── Wrapper HTML do e-mail CUSTOM (automation-engine) ─────────
+// Intencionalmente leve: logo + parágrafos do texto + footer — sem o
+// template pesado dos e-mails de confirmação. O texto chega PLAIN
+// (placeholders já renderizados pela engine); é sanitizado aqui e as
+// quebras de linha viram parágrafos.
+const getCustomEmailHtml = (text) => {
+  const paragraphs = String(text)
+    .split(/\r?\n+/)
+    .map((linha) => linha.trim())
+    .filter((linha) => linha.length > 0)
+    .map((linha) => `<p style="margin:0 0 16px 0;">${sanitize(linha)}</p>`)
+    .join("");
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Bolsa Atleta USA</title></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" style="width:100%;border-collapse:collapse;background-color:#f4f4f4;" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 20px;">
+    <table role="presentation" style="max-width:600px;width:100%;border-collapse:collapse;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.1);" cellpadding="0" cellspacing="0">
+      <tr><td style="padding:32px 40px 24px 40px;text-align:center;border-bottom:1px solid #E2E8F0;">
+        <img src="${LOGO_URL}" alt="Bolsa Atleta USA" style="max-width:180px;height:auto;display:block;margin:0 auto;">
+      </td></tr>
+      <tr><td style="padding:32px 40px;">
+        <div style="color:#2D3748;font-size:16px;line-height:1.7;">${paragraphs}</div>
+      </td></tr>
+      <tr><td style="padding:24px 40px;background-color:#F7FAFC;border-radius:0 0 12px 12px;border-top:1px solid #E2E8F0;">
+        <p style="margin:0;font-size:13px;color:#718096;text-align:center;line-height:1.6;">&copy; ${new Date().getFullYear()} Bolsa Atleta USA. Todos os direitos reservados.<br><span style="font-size:11px;">Este é um e-mail automático, por favor não responda.</span></p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+};
+
 // ─── Template HTML "Cedo demais" (early_potential, 48h) ────────
 const getEarlyPotentialHtml = (athleteName, guardianName) => {
   const safeAthlete = sanitize(athleteName);
@@ -503,6 +535,51 @@ functions.http("sendMessages", async (req, res) => {
   }
 
   try {
+    // ─── Caminho CUSTOM (automation-engine → ação enviar_email_custom) ───
+    // Payload: { customEmail: { to, subject, text } }. Early-return ANTES do
+    // fluxo de confirmação por INSERT — com customEmail ausente, o caminho
+    // existente segue byte-intacto (zero impacto no webhook do formulário).
+    const customEmail = req.body?.customEmail;
+    if (customEmail) {
+      const errors = [];
+      if (!customEmail.to || typeof customEmail.to !== "string" || !customEmail.to.includes("@")) {
+        errors.push("Campo 'to' ausente ou inválido");
+      }
+      if (!customEmail.subject || typeof customEmail.subject !== "string" || customEmail.subject.trim().length === 0) {
+        errors.push("Campo 'subject' ausente ou vazio");
+      }
+      if (!customEmail.text || typeof customEmail.text !== "string" || customEmail.text.trim().length === 0) {
+        errors.push("Campo 'text' ausente ou vazio");
+      }
+      if (errors.length > 0) {
+        console.log(JSON.stringify({
+          level: "WARN", action: "custom_email_validation_failed", errors,
+        }));
+        return res.status(400).send({ success: false, message: "customEmail inválido", errors });
+      }
+
+      console.log(JSON.stringify({ level: "INFO", action: "custom_email_start", to: customEmail.to }));
+      const result = await sendEmailWithFallback(
+        customEmail.to,
+        customEmail.subject.trim(),
+        getCustomEmailHtml(customEmail.text),
+        "CUSTOM"
+      );
+      const durationMs = Date.now() - startTime;
+      console.log(JSON.stringify({
+        level: result.success ? "INFO" : "ERROR",
+        action: "custom_email_complete",
+        to: customEmail.to, success: result.success, durationMs,
+      }));
+      // Falha de envio responde 502 — o chamador (automation-engine) trata
+      // >=400 como erro e faz retry com backoff.
+      return res.status(result.success ? 200 : 502).send({
+        success: result.success,
+        ...(result.success ? { provider: result.provider } : { error: result.reason }),
+        durationMs,
+      });
+    }
+
     const data = req.body.record || req.body;
 
     const validation = validatePayload(data);

@@ -307,7 +307,7 @@ export function BuilderScreen({
                   )}
                 </div>
                 {builder.condicoes.length === 0 ? (
-                  <p className="text-[10px] text-label-tertiary">
+                  <p className="text-[11px] text-muted-foreground">
                     {builder.gatilho === "agendamento"
                       ? "Agendamento não tem condições — não há lead/deal no contexto do disparo."
                       : "Sem condições — dispara para todo evento do gatilho."}
@@ -339,7 +339,7 @@ export function BuilderScreen({
                 </div>
 
                 {builder.acoes.length === 0 && (
-                  <p className="text-[10px] text-label-tertiary">
+                  <p className="text-[11px] text-muted-foreground">
                     Adicione pelo menos uma ação — é o que a automação FAZ quando dispara.
                   </p>
                 )}
