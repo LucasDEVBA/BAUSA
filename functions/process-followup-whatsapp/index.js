@@ -41,9 +41,15 @@ const httpRequest = (url, options, postData) => {
     });
 
     req.on('error', (e) => reject(e));
-    req.setTimeout(30000, () => {
+    // Timeout 90s (paridade com process-pending-whatsapp): o send-whatsapp
+    // leva rotineiramente 22-35s quando atleta e responsável têm números
+    // distintos (envio + delay anti-ban de 20-30s + envio, com retry Z-API).
+    // O timeout antigo de 30s abortava o caller e logava
+    // followup_X_send_failed espúrio mesmo com o envio concluído (o CAS marca
+    // followup_N_sent_at ANTES do call — sem duplicação, mas status falso).
+    req.setTimeout(90000, () => {
       req.destroy();
-      reject(new Error('Request timeout (30s)'));
+      reject(new Error('Request timeout (90s)'));
     });
 
     if (postData) req.write(postData);
