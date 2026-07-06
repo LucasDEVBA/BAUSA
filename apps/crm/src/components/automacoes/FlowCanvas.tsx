@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
@@ -84,6 +85,14 @@ const G_LABEL_H = 22;
 
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 1.75;
+
+/** Menus dos nós fantasmas — overlay NÃO escalado no viewport (fora do mundo
+ *  pan/zoom). Altura máxima + scroll interno garantem TODOS os itens do
+ *  catálogo acessíveis, em qualquer zoom/posição do fluxo. */
+const GHOST_MENU_MAX_H = 320;
+const GHOST_MENU_W_ACAO = 288; // w-72
+const GHOST_MENU_W_CONDICAO = 256; // w-64
+const GHOST_MENU_MARGIN = 8;
 
 const ACAO_ICON: Record<AutomacaoAcaoTipo, LucideIcon> = {
   criar_tarefa: ClipboardList,
@@ -348,6 +357,25 @@ export function FlowCanvas({
   const [panning, setPanning] = useState(false);
   /** Depois que o usuário mexeu no canvas, não refazemos o auto-fit. */
   const touchedRef = useRef(false);
+  /** Tamanho do viewport — posiciona os menus fantasmas (overlay sem escala). */
+  const [vp, setVp] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setVp((prev) =>
+        prev.w === rect.width && prev.h === rect.height
+          ? prev
+          : { w: rect.width, h: rect.height },
+      );
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const fit = useCallback(() => {
     const el = viewportRef.current;
@@ -379,6 +407,8 @@ export function FlowCanvas({
     const el = viewportRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      // Scroll dentro de um menu fantasma rola o menu — não é zoom do canvas.
+      if (e.target instanceof Element && e.target.closest("[data-ghost-menu]")) return;
       e.preventDefault();
       touchedRef.current = true;
       const rect = el.getBoundingClientRect();
@@ -436,6 +466,31 @@ export function FlowCanvas({
   const endPan = () => {
     panRef.current = null;
     setPanning(false);
+  };
+
+  /** Posição do menu fantasma no VIEWPORT (coordenadas de tela, sem escala):
+   *  ancora abaixo do nó fantasma, clampa na horizontal e abre para CIMA
+   *  quando não há espaço abaixo — nada do menu fica fora da tela. */
+  const ghostMenuStyle = (
+    anchor: { x: number; y: number },
+    menuW: number,
+  ): CSSProperties => {
+    const left = Math.min(
+      Math.max(view.x + anchor.x * view.zoom, GHOST_MENU_MARGIN),
+      Math.max(GHOST_MENU_MARGIN, vp.w - menuW - GHOST_MENU_MARGIN),
+    );
+    const anchorTop = view.y + anchor.y * view.zoom;
+    const topBelow = view.y + (anchor.y + GHOST_H) * view.zoom + GHOST_MENU_MARGIN;
+    const spaceBelow = vp.h - topBelow - GHOST_MENU_MARGIN;
+    const spaceAbove = anchorTop - GHOST_MENU_MARGIN * 2;
+    if (spaceBelow >= GHOST_MENU_MAX_H || spaceBelow >= spaceAbove) {
+      return { left, top: topBelow, maxHeight: Math.min(GHOST_MENU_MAX_H, spaceBelow) };
+    }
+    return {
+      left,
+      bottom: vp.h - anchorTop + GHOST_MENU_MARGIN,
+      maxHeight: Math.min(GHOST_MENU_MAX_H, spaceAbove),
+    };
   };
 
   return (
@@ -542,41 +597,14 @@ export function FlowCanvas({
 
         {/* Fantasma + Condição (só quando o gatilho suporta) */}
         {layout.ghostCondicao && (
-          <>
-            <GhostNode
-              x={layout.ghostCondicao.x}
-              y={layout.ghostCondicao.y}
-              label="Condição"
-              ariaLabel="Adicionar condição"
-              expanded={ghostMenu === "condicao"}
-              onClick={() => onGhostMenu(ghostMenu === "condicao" ? null : "condicao")}
-            />
-            {ghostMenu === "condicao" && (
-              <Card
-                variant="plain"
-                padding="sm"
-                className="absolute z-10 w-64 space-y-0.5 shadow-lg"
-                style={{
-                  left: layout.ghostCondicao.x,
-                  top: layout.ghostCondicao.y + GHOST_H + 8,
-                }}
-              >
-                <p className="px-2 pb-1 text-[9px] font-semibold uppercase tracking-widest text-label-tertiary">
-                  Campo da condição
-                </p>
-                {camposDisponiveis.map((campo) => (
-                  <button
-                    key={campo.value}
-                    type="button"
-                    onClick={() => onAddCondicao(campo.value)}
-                    className="block w-full rounded-lg px-2 py-1.5 text-left text-xs text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {campo.label}
-                  </button>
-                ))}
-              </Card>
-            )}
-          </>
+          <GhostNode
+            x={layout.ghostCondicao.x}
+            y={layout.ghostCondicao.y}
+            label="Condição"
+            ariaLabel="Adicionar condição"
+            expanded={ghostMenu === "condicao"}
+            onClick={() => onGhostMenu(ghostMenu === "condicao" ? null : "condicao")}
+          />
         )}
 
         {/* Nós de ação */}
@@ -610,42 +638,70 @@ export function FlowCanvas({
           expanded={ghostMenu === "acao"}
           onClick={() => onGhostMenu(ghostMenu === "acao" ? null : "acao")}
         />
-        {ghostMenu === "acao" && (
-          <Card
-            variant="plain"
-            padding="sm"
-            className="absolute z-10 w-72 space-y-0.5 shadow-lg"
-            style={{ left: layout.ghostAcao.x, top: layout.ghostAcao.y + GHOST_H + 8 }}
-          >
-            <p className="px-2 pb-1 text-[9px] font-semibold uppercase tracking-widest text-label-tertiary">
-              Tipo de ação
-            </p>
-            {(Object.keys(ACAO_CATALOG) as AutomacaoAcaoTipo[]).map((tipo) => {
-              const Icon = ACAO_ICON[tipo];
-              return (
-                <button
-                  key={tipo}
-                  type="button"
-                  onClick={() => onAddAcao(tipo)}
-                  className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                    <Icon aria-hidden className="h-3 w-3" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-xs font-medium text-foreground">
-                      {ACAO_CATALOG[tipo].label}
-                    </span>
-                    <span className="block text-[11px] leading-snug text-muted-foreground">
-                      {ACAO_CATALOG[tipo].descricao}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </Card>
-        )}
       </div>
+
+      {/* Menus fantasmas — overlay no viewport (sem escala do zoom), com
+          clamp/flip e scroll interno: TODOS os itens sempre alcançáveis. */}
+      {ghostMenu === "condicao" && layout.ghostCondicao && vp.h > 0 && (
+        <Card
+          data-ghost-menu
+          variant="plain"
+          padding="sm"
+          className="absolute z-20 w-64 space-y-0.5 overflow-y-auto shadow-lg"
+          style={ghostMenuStyle(layout.ghostCondicao, GHOST_MENU_W_CONDICAO)}
+        >
+          <p className="px-2 pb-1 text-[9px] font-semibold uppercase tracking-widest text-label-tertiary">
+            Campo da condição
+          </p>
+          {camposDisponiveis.map((campo) => (
+            <button
+              key={campo.value}
+              type="button"
+              onClick={() => onAddCondicao(campo.value)}
+              className="block w-full rounded-lg px-2 py-1.5 text-left text-xs text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {campo.label}
+            </button>
+          ))}
+        </Card>
+      )}
+      {ghostMenu === "acao" && vp.h > 0 && (
+        <Card
+          data-ghost-menu
+          variant="plain"
+          padding="sm"
+          className="absolute z-20 w-72 space-y-0.5 overflow-y-auto shadow-lg"
+          style={ghostMenuStyle(layout.ghostAcao, GHOST_MENU_W_ACAO)}
+        >
+          <p className="px-2 pb-1 text-[9px] font-semibold uppercase tracking-widest text-label-tertiary">
+            Tipo de ação
+          </p>
+          {/* SEMPRE deriva do ACAO_CATALOG — mesma fonte da visão Formulário. */}
+          {(Object.keys(ACAO_CATALOG) as AutomacaoAcaoTipo[]).map((tipo) => {
+            const Icon = ACAO_ICON[tipo];
+            return (
+              <button
+                key={tipo}
+                type="button"
+                onClick={() => onAddAcao(tipo)}
+                className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <Icon aria-hidden className="h-3 w-3" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-medium text-foreground">
+                    {ACAO_CATALOG[tipo].label}
+                  </span>
+                  <span className="block text-[11px] leading-snug text-muted-foreground">
+                    {ACAO_CATALOG[tipo].descricao}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </Card>
+      )}
 
       {/* Controles de zoom */}
       <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">

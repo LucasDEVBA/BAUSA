@@ -182,7 +182,7 @@ export function AutomacoesClient({
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Sistema"
+        eyebrow="Comercial"
         title="Automações"
         description="Crie fluxos gatilho → condições → ações e acompanhe cada execução."
         actions={
@@ -217,122 +217,148 @@ export function AutomacoesClient({
         />
       )}
 
+      {/* Lista unificada: automações do sistema (nativas) + as do usuário,
+          na MESMA lista com eyebrows como separadores de grupo. */}
       {activeTab === "automacoes" && (
-        <SistemaAutomacoesSection
-          intervalos={intervalos}
-          mensagens={mensagens}
-          isPending={isPending}
-        />
-      )}
-
-      {activeTab === "automacoes" && (
-        <p className="text-eyebrow text-label-tertiary">Suas automações</p>
-      )}
-
-      {activeTab === "automacoes" && (automacoes.length === 0 ? (
-        <Card variant="plain" padding="none">
-          <EmptyState
-            icon={Workflow}
-            title="Nenhuma automação criada"
-            description="Monte seu primeiro fluxo: escolha um gatilho, adicione condições e defina as ações."
-            action={
-              <Button onClick={() => setBuilder(emptyBuilder())}>
-                <Plus className="h-4 w-4" />
-                Criar automação
-              </Button>
-            }
+        <div className="space-y-4">
+          <SistemaAutomacoesGroup
+            intervalos={intervalos}
+            mensagens={mensagens}
+            isPending={isPending}
           />
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {automacoes.map((a) => {
-            const gatilho = GATILHO_CATALOG[a.gatilho];
-            const OrigemIcon = gatilho.origem === "evento" ? Zap : Clock;
-            return (
-              <Card key={a.id} padding="md" accent={a.ativo ? "green" : "neutral"}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-foreground">{a.nome}</p>
-                      <Badge tone={a.ativo ? "green" : "neutral"} size="sm">
-                        {a.ativo ? "Ativa" : "Pausada"}
-                      </Badge>
-                      <Badge tone="brand" size="sm">
-                        <OrigemIcon className="h-2.5 w-2.5" />
-                        {gatilho.label}
-                      </Badge>
-                    </div>
-                    {a.descricao && (
-                      <p className="mt-1 text-xs text-muted-foreground">{a.descricao}</p>
-                    )}
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <ListChecks className="h-3 w-3" />
-                        {a.condicoes.length} condição{a.condicoes.length !== 1 ? "es" : ""} ·{" "}
-                        {a.acoes.map((ac) => ACAO_CATALOG[ac.tipo].label).join(" + ")}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3 text-sys-green" />
-                        {a.runs_sucesso} sucesso{a.runs_sucesso !== 1 ? "s" : ""}
-                      </span>
-                      {a.runs_erro > 0 && (
-                        <span className="inline-flex items-center gap-1 text-sys-red">
-                          <AlertTriangle className="h-3 w-3" />
-                          {a.runs_erro} erro{a.runs_erro !== 1 ? "s" : ""}
-                        </span>
-                      )}
-                      {a.runs_pendente > 0 && <span>{a.runs_pendente} na fila</span>}
-                      {a.ultimo_run_at && (
-                        <span>
-                          Último disparo: {new Date(a.ultimo_run_at).toLocaleString("pt-BR")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    {/* Toggle ativo/pausada */}
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={a.ativo}
-                      aria-label={a.ativo ? `Pausar ${a.nome}` : `Ativar ${a.nome}`}
-                      disabled={isPending}
-                      onClick={() => alternar(a)}
-                      className={cn(
-                        "relative h-5 w-9 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                        a.ativo ? "bg-sys-green" : "bg-fill-2",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-transform",
-                          a.ativo ? "translate-x-4" : "translate-x-0.5",
-                        )}
-                      />
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`Ver execuções de ${a.nome}`}
-                      title="Ver execuções (quem recebeu)"
-                      onClick={() => verExecucoes(a.id)}
-                    >
-                      <History className="h-3.5 w-3.5" />
+          <section className="space-y-3">
+            <p className="text-eyebrow text-label-tertiary">Suas automações</p>
+
+            {automacoes.length === 0 ? (
+              <Card variant="plain" padding="none">
+                <EmptyState
+                  icon={Workflow}
+                  title="Nenhuma automação criada"
+                  description="Monte seu primeiro fluxo: escolha um gatilho, adicione condições e defina as ações."
+                  action={
+                    <Button onClick={() => setBuilder(emptyBuilder())}>
+                      <Plus className="h-4 w-4" />
+                      Criar automação
                     </Button>
-                    <Button variant="ghost" size="sm" aria-label={`Editar ${a.nome}`} onClick={() => setBuilder(builderFromAutomacao(a))}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="sm" aria-label={`Excluir ${a.nome}`} onClick={() => excluir(a)}>
-                      <Trash2 className="h-3.5 w-3.5 text-sys-red" />
-                    </Button>
-                  </div>
-                </div>
+                  }
+                />
               </Card>
-            );
-          })}
+            ) : (
+              automacoes.map((a) => {
+                const gatilho = GATILHO_CATALOG[a.gatilho];
+                const OrigemIcon = gatilho.origem === "evento" ? Zap : Clock;
+                return (
+                  <Card key={a.id} padding="md" accent={a.ativo ? "green" : "neutral"}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-foreground">{a.nome}</p>
+                          <Badge tone={a.ativo ? "green" : "neutral"} size="sm">
+                            {a.ativo ? "Ativa" : "Pausada"}
+                          </Badge>
+                          <Badge tone="brand" size="sm">
+                            <OrigemIcon className="h-2.5 w-2.5" />
+                            {gatilho.label}
+                          </Badge>
+                        </div>
+                        {a.descricao && (
+                          <p className="mt-1 text-xs text-muted-foreground">{a.descricao}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <ListChecks className="h-3 w-3" />
+                            {a.condicoes.length} condição{a.condicoes.length !== 1 ? "es" : ""} ·{" "}
+                            {a.acoes.map((ac) => ACAO_CATALOG[ac.tipo].label).join(" + ")}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-sys-green" />
+                            {a.runs_sucesso} sucesso{a.runs_sucesso !== 1 ? "s" : ""}
+                          </span>
+                          {a.runs_erro > 0 && (
+                            <span className="inline-flex items-center gap-1 text-sys-red">
+                              <AlertTriangle className="h-3 w-3" />
+                              {a.runs_erro} erro{a.runs_erro !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {a.runs_pendente > 0 && <span>{a.runs_pendente} na fila</span>}
+                          {a.ultimo_run_at && (
+                            <span>
+                              Último disparo: {new Date(a.ultimo_run_at).toLocaleString("pt-BR")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        {/* Toggle ativo/pausada */}
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={a.ativo}
+                          aria-label={a.ativo ? `Pausar ${a.nome}` : `Ativar ${a.nome}`}
+                          disabled={isPending}
+                          onClick={() => alternar(a)}
+                          className={cn(
+                            "relative h-5 w-9 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                            a.ativo ? "bg-sys-green" : "bg-fill-2",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-transform",
+                              a.ativo ? "translate-x-4" : "translate-x-0.5",
+                            )}
+                          />
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Ver execuções de ${a.nome}`}
+                          title="Ver execuções (quem recebeu)"
+                          onClick={() => verExecucoes(a.id)}
+                        >
+                          <History className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" aria-label={`Editar ${a.nome}`} onClick={() => setBuilder(builderFromAutomacao(a))}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" aria-label={`Excluir ${a.nome}`} onClick={() => excluir(a)}>
+                          <Trash2 className="h-3.5 w-3.5 text-sys-red" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })
+            )}
+
+            {/* Sugestão discreta: régua de cobrança ainda não é nativa — nasce
+                pelo builder (sem UI falsa de automação pronta). */}
+            <Card variant="ghost" padding="md" className="border border-dashed border-border">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-foreground">
+                    Sugestão — Régua de cobrança
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                    Monte com o builder: gatilho <em>Parcela vencendo/atrasada</em> (D−3, D+1,
+                    D+7, D+15) + ações de tarefa, notificação ou WhatsApp.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setBuilder({ ...emptyBuilder(), gatilho: "parcela_vencendo" })}
+                >
+                  <Plus className="h-3 w-3" />
+                  Montar no builder
+                </Button>
+              </div>
+            </Card>
+          </section>
         </div>
-      ))}
+      )}
 
       {builder && (
         <BuilderScreen
@@ -389,9 +415,9 @@ const TEMPLATE_TITULO: Record<MensagemTemplate, string> = {
   scheduled_return: "Retomada agendada (scheduled_return)",
 };
 
-/** Card de automação nativa. `intervaloChave`/`templates`/`editaReuniao`
- *  definem o que o modal permite editar — cards sem nada disso abrem um
- *  modal "Detalhes" só de leitura (sem UI falsa). */
+/** Automação nativa (linha do grupo "Sistema" da lista). `intervaloChave`/
+ *  `templates`/`editaReuniao` definem o que o modal permite editar — linhas
+ *  sem nada disso abrem um modal "Detalhes" só de leitura (sem UI falsa). */
 interface SistemaCard {
   id: string;
   nome: string;
@@ -403,10 +429,12 @@ interface SistemaCard {
   editaReuniao?: boolean;
 }
 
-/** As 4 nativas com intervalo editável (persistem em scheduler_intervalos;
- *  as CFs leem no próximo tick, com clamp 1h–720h próprio). `templates` são
- *  os textos de mensagem editáveis (scheduler_mensagens) de cada scheduler. */
-const SISTEMA_EDITAVEIS: SistemaCard[] = [
+/** Automações nativas, na ordem da lista: as 4 com intervalo editável
+ *  (persistem em scheduler_intervalos; as CFs leem no próximo tick, com clamp
+ *  1h–720h próprio — `templates` são os textos editáveis em
+ *  scheduler_mensagens), depois retomada/confirmação (textos editáveis) e as
+ *  3 informativas. Sempre ativas — sem toggle nem exclusão. */
+const SISTEMA_AUTOMACOES: SistemaCard[] = [
   {
     id: "whatsapp_inicial",
     nome: "WhatsApp inicial (timing ideal)",
@@ -451,9 +479,6 @@ const SISTEMA_EDITAVEIS: SistemaCard[] = [
     intervaloChave: "followup_2_horas",
     templates: ["followup_2"],
   },
-];
-
-const SISTEMA_INFORMATIVAS: SistemaCard[] = [
   {
     id: "retomada_novembro",
     nome: "Retomada de novembro",
@@ -515,7 +540,11 @@ interface SistemaSavePayload {
   reuniao?: MensagemParReuniao;
 }
 
-function SistemaAutomacoesSection({
+/** Grupo "Sistema" da lista unificada — as nativas como LINHAS com o mesmo
+ *  visual das automações do usuário. Sempre ativas: badge "Sistema" no lugar
+ *  do toggle, sem exclusão; Editar abre o SistemaModal (intervalo + textos)
+ *  e as informativas abrem o modal Detalhes. */
+function SistemaAutomacoesGroup({
   intervalos,
   mensagens,
   isPending,
@@ -574,8 +603,8 @@ function SistemaAutomacoesSection({
   };
 
   return (
-    <section className="space-y-2">
-      <p className="text-eyebrow text-label-tertiary">Automações do sistema</p>
+    <section className="space-y-3">
+      <p className="text-eyebrow text-label-tertiary">Sistema</p>
 
       {!mensagens && (
         <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
@@ -585,78 +614,51 @@ function SistemaAutomacoesSection({
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {SISTEMA_EDITAVEIS.map((card) => (
-          <Card key={card.id} variant="plain" padding="sm" accent="brand">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                  <Zap className="h-3 w-3 text-primary" />
-                  {card.nome}
-                  <Badge tone="green" size="sm">Ativa</Badge>
-                </p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                  {card.descricao}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
-                {card.intervaloChave && (
-                  <span className="text-[11px] text-muted-foreground">
-                    dispara após{" "}
-                    <span className="font-semibold tabular-nums text-foreground">
-                      {intervalos[card.intervaloChave]}h
+      {SISTEMA_AUTOMACOES.map((card) => {
+        const editavel = cardEditavel(card);
+        return (
+          <Card key={card.id} padding="md" accent="brand">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-foreground">{card.nome}</p>
+                  {/* Sempre ativa — badge fixo no lugar do toggle (sem UI falsa) */}
+                  <Badge tone="brand" size="sm">
+                    <Zap className="h-2.5 w-2.5" />
+                    Sistema
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{card.descricao}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                  {card.intervaloChave ? (
+                    <span>
+                      dispara após{" "}
+                      <span className="font-semibold tabular-nums text-foreground">
+                        {intervalos[card.intervaloChave]}h
+                      </span>
                     </span>
-                  </span>
-                )}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={ocupado}
-                  aria-label={`Editar ${card.nome}`}
-                  onClick={() => setCardAberto(card)}
-                >
-                  <Pencil className="h-3 w-3" />
-                  Editar
-                </Button>
+                  ) : (
+                    <span>automática</span>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {SISTEMA_INFORMATIVAS.map((card) => {
-          const editavel = cardEditavel(card);
-          return (
-            <Card key={card.id} variant="ghost" padding="sm">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
-                <Clock className="h-3 w-3 text-label-tertiary" />
-                {card.nome}
-                <Badge tone="neutral" size="sm">Automática</Badge>
-              </p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{card.descricao}</p>
-              <div className="mt-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button
-                  variant="secondary"
+                  variant="ghost"
                   size="sm"
                   disabled={ocupado}
                   aria-label={editavel ? `Editar ${card.nome}` : `Detalhes de ${card.nome}`}
                   onClick={() => setCardAberto(card)}
                 >
-                  {editavel ? <Pencil className="h-3 w-3" /> : <Info className="h-3 w-3" />}
+                  {editavel ? <Pencil className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
                   {editavel ? "Editar" : "Detalhes"}
                 </Button>
               </div>
-            </Card>
-          );
-        })}
-        <Card variant="ghost" padding="sm" className="border border-dashed border-border">
-          <p className="text-[11px] font-semibold text-foreground">Régua de cobrança</p>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-            Monte pela aba builder: gatilho <em>Parcela vencendo/atrasada</em> (D−3, D+1, D+7, D+15) + ações.
-          </p>
-        </Card>
-      </div>
+            </div>
+          </Card>
+        );
+      })}
 
       {cardAberto && (
         <SistemaModal
