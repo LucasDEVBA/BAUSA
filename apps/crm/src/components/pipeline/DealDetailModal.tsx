@@ -1108,8 +1108,7 @@ function ComunicacoesSection({ deal }: { deal: Deal }) {
 
 function AtribuicaoSection({ deal }: { deal: Deal }) {
   // Esses campos vêm do form_submissions mas não estão no tipo Deal.
-  // Mostramos um aviso se vier vazio — sinalizando ao CEO que a captura
-  // foi feita no LeadFullDetail.
+  // Mostramos um aviso se vier vazio.
   return (
     <div className="space-y-3">
       <Card
