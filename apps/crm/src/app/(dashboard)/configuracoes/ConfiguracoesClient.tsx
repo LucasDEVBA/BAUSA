@@ -369,7 +369,7 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
             { key: "horario_seguro_fim", label: "Horario Seguro Fim", unit: "h (0-23)" },
             { key: "alinhamento_sem_avanco", label: "Alinhamento sem Avanco", unit: "horas" },
             { key: "proposta_sem_followup", label: "Proposta sem Follow-up", unit: "horas" },
-            { key: "negociacao_parada", label: "Negociacao Parada", unit: "horas" },
+            { key: "negociacao_parada", label: "Negociação parada", unit: "horas" },
             { key: "contrato_sem_assinatura", label: "Contrato sem Assinatura", unit: "horas" },
             { key: "contrato_sem_sinal", label: "Contrato sem Sinal", unit: "horas" },
             { key: "nf_pendente_apos_entrada", label: "NF Pendente apos Entrada", unit: "horas" },

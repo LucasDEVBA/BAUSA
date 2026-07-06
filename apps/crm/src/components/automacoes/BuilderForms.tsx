@@ -42,6 +42,26 @@ import { MensagemPreview } from "./MensagemPreview";
  * empilhados na visão Formulário e no painel lateral da visão Fluxo.
  */
 
+/** Campo com rótulo visível — o <label> nativo associa nome acessível ao controle. */
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={cn("block space-y-1", className)}>
+      <span className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
 // ─── Gatilho ─────────────────────────────────────────────────────────────────
 
 export function GatilhoForm({
@@ -52,123 +72,140 @@ export function GatilhoForm({
   onChange: (b: BuilderState) => void;
 }) {
   const gatilhoInfo = GATILHO_CATALOG[builder.gatilho];
+  const gatilhosEvento = Object.entries(GATILHO_CATALOG).filter(([, i]) => i.origem === "evento");
+  const gatilhosTempo = Object.entries(GATILHO_CATALOG).filter(([, i]) => i.origem === "tempo");
+  const etapaEscolhida = ETAPA_OPCOES.find((o) => o.value === builder.gatilhoEtapaPara);
 
   return (
     <div className="space-y-2">
       <div className="grid gap-2 sm:grid-cols-2">
-        <select
-          aria-label="Gatilho"
-          className={FIELD_CLASS}
-          value={builder.gatilho}
-          onChange={(e) => {
-            const gatilho = e.target.value as AutomacaoGatilho;
-            onChange({
-              ...builder,
-              gatilho,
-              gatilhoDias: GATILHO_CATALOG[gatilho].configDias?.padrao ?? builder.gatilhoDias,
-              gatilhoEtapaPara: "", // filtro de etapa só vale p/ deal_etapa_mudou
-              condicoes: [], // catálogo de campos muda com o gatilho
-            });
-          }}
-        >
-          {Object.entries(GATILHO_CATALOG).map(([value, info]) => (
-            <option key={value} value={value}>
-              {info.origem === "evento" ? "⚡" : "⏱"} {info.label}
-            </option>
-          ))}
-        </select>
+        <Field label="Quando isto acontecer">
+          <select
+            className={FIELD_CLASS}
+            value={builder.gatilho}
+            onChange={(e) => {
+              const gatilho = e.target.value as AutomacaoGatilho;
+              onChange({
+                ...builder,
+                gatilho,
+                gatilhoDias: GATILHO_CATALOG[gatilho].configDias?.padrao ?? builder.gatilhoDias,
+                gatilhoEtapaPara: "", // filtro de etapa só vale p/ deal_etapa_mudou
+                condicoes: [], // catálogo de campos muda com o gatilho
+              });
+            }}
+          >
+            <optgroup label="⚡ Evento — dispara na hora">
+              {gatilhosEvento.map(([value, info]) => (
+                <option key={value} value={value}>
+                  {info.label}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="⏱ Tempo — verificado a cada hora">
+              {gatilhosTempo.map(([value, info]) => (
+                <option key={value} value={value}>
+                  {info.label}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </Field>
         {gatilhoInfo.configDias && (
-          <div className="flex items-center gap-2">
+          <Field label={gatilhoInfo.configDias.label}>
             <Input
               type="number"
               min={0}
-              aria-label={gatilhoInfo.configDias.label}
               value={String(builder.gatilhoDias)}
               onChange={(e) => onChange({ ...builder, gatilhoDias: Number(e.target.value) })}
             />
-            <span className="shrink-0 text-[11px] text-muted-foreground">
-              {gatilhoInfo.configDias.label}
-            </span>
-          </div>
+          </Field>
         )}
         {gatilhoInfo.configEtapa && (
-          <select
-            aria-label="Etapa de destino (opcional — vazio = qualquer etapa)"
-            className={FIELD_CLASS}
-            value={builder.gatilhoEtapaPara}
-            onChange={(e) => onChange({ ...builder, gatilhoEtapaPara: e.target.value })}
-          >
-            <option value="">Qualquer etapa (todas as transições)</option>
-            {ETAPA_OPCOES.map((o) => (
-              <option key={o.value} value={o.value}>
-                → {o.label}
-              </option>
-            ))}
-          </select>
+          <Field label="Etapa de destino">
+            <select
+              className={FIELD_CLASS}
+              value={builder.gatilhoEtapaPara}
+              onChange={(e) => onChange({ ...builder, gatilhoEtapaPara: e.target.value })}
+            >
+              <option value="">Qualquer etapa (todas as transições)</option>
+              {ETAPA_OPCOES.map((o) => (
+                <option key={o.value} value={o.value}>
+                  → {o.label}
+                </option>
+              ))}
+            </select>
+          </Field>
         )}
       </div>
       {gatilhoInfo.configEtapa && (
         <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
-          Com uma etapa escolhida, a automação dispara <strong>só quando o deal entra nessa
-          etapa</strong> — sem precisar montar condição. Vazio = qualquer transição.
+          {etapaEscolhida ? (
+            <>
+              Dispara <strong>só quando o deal entrar em {etapaEscolhida.label}</strong> — para
+              cobrir outra coluna, crie outra automação com a etapa dela.
+            </>
+          ) : (
+            <>
+              Dispara em <strong>qualquer transição</strong> do pipeline. Escolha uma etapa de
+              destino para reagir só quando o deal entrar naquela coluna.
+            </>
+          )}
         </p>
       )}
       {gatilhoInfo.configAgendamento && (
         <>
           <div className="grid gap-2 sm:grid-cols-3">
-            <select
-              aria-label="Frequência"
-              className={FIELD_CLASS}
-              value={builder.agFrequencia}
-              onChange={(e) =>
-                onChange({ ...builder, agFrequencia: e.target.value as AgendamentoFrequencia })
-              }
-            >
-              {FREQUENCIA_OPCOES.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-            <div className="flex items-center gap-2">
+            <Field label="Frequência">
+              <select
+                className={FIELD_CLASS}
+                value={builder.agFrequencia}
+                onChange={(e) =>
+                  onChange({ ...builder, agFrequencia: e.target.value as AgendamentoFrequencia })
+                }
+              >
+                {FREQUENCIA_OPCOES.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Hora (BRT, 0-23)">
               <Input
                 type="number"
                 min={0}
                 max={23}
-                aria-label="Hora do disparo (0-23, horário de Brasília)"
                 className="text-center tabular-nums"
                 value={String(builder.agHora)}
                 onChange={(e) => onChange({ ...builder, agHora: Number(e.target.value) })}
               />
-              <span className="shrink-0 text-[11px] text-muted-foreground">h (BRT, 0-23)</span>
-            </div>
+            </Field>
             {builder.agFrequencia === "semanal" && (
-              <select
-                aria-label="Dia da semana"
-                className={FIELD_CLASS}
-                value={String(builder.agDiaSemana)}
-                onChange={(e) => onChange({ ...builder, agDiaSemana: Number(e.target.value) })}
-              >
-                {DIA_SEMANA_OPCOES.map((d) => (
-                  <option key={d.value} value={String(d.value)}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
+              <Field label="Dia da semana">
+                <select
+                  className={FIELD_CLASS}
+                  value={String(builder.agDiaSemana)}
+                  onChange={(e) => onChange({ ...builder, agDiaSemana: Number(e.target.value) })}
+                >
+                  {DIA_SEMANA_OPCOES.map((d) => (
+                    <option key={d.value} value={String(d.value)}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             )}
             {builder.agFrequencia === "mensal" && (
-              <div className="flex items-center gap-2">
+              <Field label="Dia do mês (1-28)">
                 <Input
                   type="number"
                   min={1}
                   max={28}
-                  aria-label="Dia do mês (1-28)"
                   className="text-center tabular-nums"
                   value={String(builder.agDiaMes)}
                   onChange={(e) => onChange({ ...builder, agDiaMes: Number(e.target.value) })}
                 />
-                <span className="shrink-0 text-[11px] text-muted-foreground">dia do mês (1-28)</span>
-              </div>
+              </Field>
             )}
           </div>
           <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
@@ -210,6 +247,12 @@ export function CondicaoForm({
 
   return (
     <div className="flex items-center gap-2">
+      <span
+        aria-hidden
+        className="w-5 shrink-0 text-center text-[10px] font-semibold uppercase text-label-tertiary"
+      >
+        {index === 0 ? "Se" : "e"}
+      </span>
       <select
         aria-label="Campo"
         className={FIELD_CLASS}
@@ -295,98 +338,106 @@ export function AcaoForm({
     <>
       {acao.tipo === "criar_tarefa" && (
         <div className="grid gap-2 sm:grid-cols-2">
-          <Input
-            placeholder="Título da tarefa"
-            value={acao.parametros.titulo}
-            onChange={(e) => setParametro("titulo", e.target.value)}
-          />
-          <select
-            aria-label="Responsável"
-            className={FIELD_CLASS}
-            value={acao.parametros.responsavel_id}
-            onChange={(e) => setParametro("responsavel_id", e.target.value)}
-          >
-            {usuarios.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nome}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Prioridade"
-            className={FIELD_CLASS}
-            value={acao.parametros.prioridade}
-            onChange={(e) => setParametro("prioridade", e.target.value)}
-          >
-            <option value="critica">Crítica</option>
-            <option value="alta">Alta</option>
-            <option value="media">Média</option>
-            <option value="baixa">Baixa</option>
-          </select>
-          <div className="flex items-center gap-2">
+          <Field label="Título da tarefa" className="sm:col-span-2">
+            <Input
+              placeholder="Ex.: Ligar para a família"
+              value={acao.parametros.titulo}
+              onChange={(e) => setParametro("titulo", e.target.value)}
+            />
+          </Field>
+          <Field label="Responsável">
+            <select
+              className={FIELD_CLASS}
+              value={acao.parametros.responsavel_id}
+              onChange={(e) => setParametro("responsavel_id", e.target.value)}
+            >
+              {usuarios.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nome}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Prioridade">
+            <select
+              className={FIELD_CLASS}
+              value={acao.parametros.prioridade}
+              onChange={(e) => setParametro("prioridade", e.target.value)}
+            >
+              <option value="critica">Crítica</option>
+              <option value="alta">Alta</option>
+              <option value="media">Média</option>
+              <option value="baixa">Baixa</option>
+            </select>
+          </Field>
+          <Field label="Prazo (dias após o disparo)">
             <Input
               type="number"
               min={0}
-              aria-label="Prazo em dias"
               value={String(acao.parametros.prazo_dias)}
               onChange={(e) => setParametro("prazo_dias", Number(e.target.value))}
             />
-            <span className="shrink-0 text-[11px] text-muted-foreground">dias de prazo</span>
-          </div>
+          </Field>
         </div>
       )}
 
       {acao.tipo === "criar_notificacao" && (
         <div className="grid gap-2 sm:grid-cols-2">
-          <Input
-            placeholder="Título"
-            value={acao.parametros.titulo}
-            onChange={(e) => setParametro("titulo", e.target.value)}
-          />
-          <select
-            aria-label="Destinatário"
-            className={FIELD_CLASS}
-            value={acao.parametros.destinatario}
-            onChange={(e) => setParametro("destinatario", e.target.value)}
-          >
-            <option value="ceo">CEO</option>
-            <option value="head_sucesso">Head de Sucesso</option>
-            <option value="responsavel">Responsável do registro</option>
-          </select>
-          <Input
-            className="sm:col-span-2"
-            placeholder="Mensagem"
-            value={acao.parametros.mensagem}
-            onChange={(e) => setParametro("mensagem", e.target.value)}
-          />
-          <select
-            aria-label="Severidade"
-            className={FIELD_CLASS}
-            value={acao.parametros.severidade}
-            onChange={(e) => setParametro("severidade", e.target.value)}
-          >
-            <option value="critica">Crítica</option>
-            <option value="alta">Alta</option>
-            <option value="media">Média</option>
-            <option value="baixa">Baixa</option>
-          </select>
+          <Field label="Título">
+            <Input
+              placeholder="Ex.: Deal parado em Negociação"
+              value={acao.parametros.titulo}
+              onChange={(e) => setParametro("titulo", e.target.value)}
+            />
+          </Field>
+          <Field label="Destinatário">
+            <select
+              className={FIELD_CLASS}
+              value={acao.parametros.destinatario}
+              onChange={(e) => setParametro("destinatario", e.target.value)}
+            >
+              <option value="ceo">CEO</option>
+              <option value="head_sucesso">Head de Sucesso</option>
+              <option value="responsavel">Responsável do registro</option>
+            </select>
+          </Field>
+          <Field label="Mensagem" className="sm:col-span-2">
+            <Input
+              placeholder="Texto exibido na notificação"
+              value={acao.parametros.mensagem}
+              onChange={(e) => setParametro("mensagem", e.target.value)}
+            />
+          </Field>
+          <Field label="Severidade">
+            <select
+              className={FIELD_CLASS}
+              value={acao.parametros.severidade}
+              onChange={(e) => setParametro("severidade", e.target.value)}
+            >
+              <option value="critica">Crítica</option>
+              <option value="alta">Alta</option>
+              <option value="media">Média</option>
+              <option value="baixa">Baixa</option>
+            </select>
+          </Field>
         </div>
       )}
 
       {acao.tipo === "enviar_whatsapp" && (
         <div className="space-y-1.5">
-          <select
-            aria-label="Template"
-            className={FIELD_CLASS}
-            value={acao.parametros.template}
-            onChange={(e) => setParametro("template", e.target.value)}
-          >
-            {TEMPLATE_OPCOES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+          <Field label="Template aprovado">
+            <select
+              className={FIELD_CLASS}
+              value={acao.parametros.template}
+              onChange={(e) => setParametro("template", e.target.value)}
+            >
+              {TEMPLATE_OPCOES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </Field>
           <p className="text-[11px] text-muted-foreground">
             A engine reaplica a elegibilidade (QUENTE/MORNO, anti-ban) — FRIO nunca recebe.
           </p>
@@ -584,34 +635,34 @@ export function AcaoForm({
 
       {acao.tipo === "mover_deal" && (
         <div className="grid gap-2 sm:grid-cols-2">
-          <select
-            aria-label="Etapa de destino"
-            className={FIELD_CLASS}
-            value={acao.parametros.etapa_destino}
-            onChange={(e) => setParametro("etapa_destino", e.target.value)}
-          >
-            {ETAPA_OPCOES.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <div className="flex items-center gap-2">
+          <Field label="Mover para a etapa">
+            <select
+              className={FIELD_CLASS}
+              value={acao.parametros.etapa_destino}
+              onChange={(e) => setParametro("etapa_destino", e.target.value)}
+            >
+              {ETAPA_OPCOES.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Próxima ação em (dias)">
             <Input
               type="number"
               min={0}
-              aria-label="Próxima ação em dias"
               value={String(acao.parametros.proxima_acao_dias)}
               onChange={(e) => setParametro("proxima_acao_dias", Number(e.target.value))}
             />
-            <span className="shrink-0 text-[11px] text-muted-foreground">dias p/ próxima ação</span>
-          </div>
-          <Input
-            className="sm:col-span-2"
-            placeholder="Próxima ação (obrigatória — regra do pipeline)"
-            value={acao.parametros.next_action}
-            onChange={(e) => setParametro("next_action", e.target.value)}
-          />
+          </Field>
+          <Field label="Próxima ação (obrigatória — regra do pipeline)" className="sm:col-span-2">
+            <Input
+              placeholder="Ex.: Enviar proposta revisada"
+              value={acao.parametros.next_action}
+              onChange={(e) => setParametro("next_action", e.target.value)}
+            />
+          </Field>
         </div>
       )}
     </>

@@ -4,6 +4,7 @@ import { ETAPA_ORDEM, type StatusDeal } from "../types/crm";
 
 const PROBABILIDADE_POR_ETAPA: Record<string, number> = {
   lead: 10,
+  aguardando_timing: 10, // estacionado = mesma chance de um lead novo
   reuniao_marcada: 20,
   reuniao_realizada: 30,
   diagnostico_fit: 40,
@@ -50,13 +51,18 @@ export async function moverDeal(
 
   const ordemAtual = ETAPA_ORDEM[deal.etapa as StatusDeal] || 0;
   const ordemNova = ETAPA_ORDEM[novaEtapa] || 0;
+  // aguardando_timing é estacionamento: entrar/sair nunca é retrocesso
+  // (mesma regra do trigger SQL — migration 20260706173000)
   const isRetrocesso = ordemNova < ordemAtual
     && novaEtapa !== "perdido"
     && novaEtapa !== "cancelamento_solicitado"
-    && novaEtapa !== "projeto_futuro";
+    && novaEtapa !== "projeto_futuro"
+    && novaEtapa !== "aguardando_timing"
+    && deal.etapa !== "aguardando_timing";
 
-  // Avançar: exige next_action e data_proxima_acao
-  if (ordemNova > ordemAtual) {
+  // Avançar: exige next_action e data_proxima_acao (estacionar não —
+  // o deal fica dormente por design)
+  if (ordemNova > ordemAtual && novaEtapa !== "aguardando_timing") {
     if (!deal.next_action || !deal.data_proxima_acao) {
       return {
         success: false,
