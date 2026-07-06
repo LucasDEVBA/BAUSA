@@ -27,6 +27,22 @@ const EMAIL_ASSUNTO_MIN = 3;
 const EMAIL_ASSUNTO_MAX = 150;
 const EMAIL_MENSAGEM_MIN = 10;
 const EMAIL_MENSAGEM_MAX = 2000;
+// Link/mídia das ações custom (I2): título do card/botão 3-80 (espelhado em
+// builder-shared.ts). URLs sempre http(s) — o WhatsApp/e-mail precisam de
+// URL pública resolvível (e https evita scheme injection tipo javascript:).
+const LINK_TITULO_MIN = 3;
+const LINK_TITULO_MAX = 80;
+
+const urlHttpSchema = z
+  .string()
+  .url("URL inválida")
+  .max(500, "URL muito longa (máximo 500 caracteres)")
+  .refine((u) => /^https?:\/\//i.test(u), "A URL deve começar com http:// ou https://");
+
+const linkTituloSchema = z
+  .string()
+  .min(LINK_TITULO_MIN, `Título do link muito curto (mínimo ${LINK_TITULO_MIN} caracteres)`)
+  .max(LINK_TITULO_MAX, `Título do link muito longo (máximo ${LINK_TITULO_MAX} caracteres)`);
 
 // Rejeita variáveis fora do catálogo (padrão existente: regex [a-zA-Z0-9_]
 // captura variantes maiúsculas/typos e falha cedo).
@@ -79,35 +95,66 @@ const acaoSchema = z.discriminatedUnion("tipo", [
   }),
   z.object({
     tipo: z.literal("enviar_whatsapp_custom"),
-    parametros: z.object({
-      // A engine reaplica a classe (só QUENTE/MORNO — FRIO nunca recebe) e
-      // envia ao responsável (guardian_whatsapp) via caminho custom da CF.
-      mensagem: z
-        .string()
-        .min(CUSTOM_MENSAGEM_MIN, `Mensagem muito curta (mínimo ${CUSTOM_MENSAGEM_MIN} caracteres)`)
-        .max(CUSTOM_MENSAGEM_MAX, `Mensagem muito longa (máximo ${CUSTOM_MENSAGEM_MAX} caracteres)`)
-        .superRefine(semPlaceholderDesconhecido),
-      destinatario: z.literal("responsavel"),
-    }),
+    parametros: z
+      .object({
+        // A engine reaplica a classe (só QUENTE/MORNO — FRIO nunca recebe) e
+        // envia ao responsável (guardian_whatsapp) via caminho custom da CF.
+        mensagem: z
+          .string()
+          .min(CUSTOM_MENSAGEM_MIN, `Mensagem muito curta (mínimo ${CUSTOM_MENSAGEM_MIN} caracteres)`)
+          .max(CUSTOM_MENSAGEM_MAX, `Mensagem muito longa (máximo ${CUSTOM_MENSAGEM_MAX} caracteres)`)
+          .superRefine(semPlaceholderDesconhecido),
+        destinatario: z.literal("responsavel"),
+        // Link/mídia opcionais (I2): com link_url o envio sai via /send-link
+        // (card clicável). imagem_url é a imagem do PREVIEW do card — sem
+        // link não há card, logo exige link_url (refine abaixo).
+        link_url: urlHttpSchema.optional(),
+        link_titulo: linkTituloSchema.optional(),
+        imagem_url: urlHttpSchema.optional(),
+      })
+      .superRefine((p, ctx) => {
+        if (!p.link_url && (p.imagem_url || p.link_titulo)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Imagem/título do card exigem a URL do link — sem link o WhatsApp sai como texto simples",
+          });
+        }
+      }),
   }),
   z.object({
     tipo: z.literal("enviar_email_custom"),
-    parametros: z.object({
-      // A engine reaplica a classe (só QUENTE/MORNO — FRIO nunca recebe) e
-      // envia ao e-mail do lead via caminho customEmail da CF send-messages.
-      // Placeholders valem no assunto E na mensagem (a engine renderiza ambos).
-      assunto: z
-        .string()
-        .min(EMAIL_ASSUNTO_MIN, `Assunto muito curto (mínimo ${EMAIL_ASSUNTO_MIN} caracteres)`)
-        .max(EMAIL_ASSUNTO_MAX, `Assunto muito longo (máximo ${EMAIL_ASSUNTO_MAX} caracteres)`)
-        .superRefine(semPlaceholderDesconhecido),
-      mensagem: z
-        .string()
-        .min(EMAIL_MENSAGEM_MIN, `Mensagem muito curta (mínimo ${EMAIL_MENSAGEM_MIN} caracteres)`)
-        .max(EMAIL_MENSAGEM_MAX, `Mensagem muito longa (máximo ${EMAIL_MENSAGEM_MAX} caracteres)`)
-        .superRefine(semPlaceholderDesconhecido),
-      destinatario: z.literal("responsavel"),
-    }),
+    parametros: z
+      .object({
+        // A engine reaplica a classe (só QUENTE/MORNO — FRIO nunca recebe) e
+        // envia ao e-mail do lead via caminho customEmail da CF send-messages.
+        // Placeholders valem no assunto E na mensagem (a engine renderiza ambos).
+        assunto: z
+          .string()
+          .min(EMAIL_ASSUNTO_MIN, `Assunto muito curto (mínimo ${EMAIL_ASSUNTO_MIN} caracteres)`)
+          .max(EMAIL_ASSUNTO_MAX, `Assunto muito longo (máximo ${EMAIL_ASSUNTO_MAX} caracteres)`)
+          .superRefine(semPlaceholderDesconhecido),
+        mensagem: z
+          .string()
+          .min(EMAIL_MENSAGEM_MIN, `Mensagem muito curta (mínimo ${EMAIL_MENSAGEM_MIN} caracteres)`)
+          .max(EMAIL_MENSAGEM_MAX, `Mensagem muito longa (máximo ${EMAIL_MENSAGEM_MAX} caracteres)`)
+          .superRefine(semPlaceholderDesconhecido),
+        destinatario: z.literal("responsavel"),
+        // Link/mídia opcionais (I2): imagem embutida no topo do corpo;
+        // link vira botão/CTA (rótulo = link_titulo, default "Saiba mais").
+        // Imagem standalone é válida no e-mail; título de botão sem link não.
+        link_url: urlHttpSchema.optional(),
+        link_titulo: linkTituloSchema.optional(),
+        imagem_url: urlHttpSchema.optional(),
+      })
+      .superRefine((p, ctx) => {
+        if (!p.link_url && p.link_titulo) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Texto do botão exige a URL do link — sem link não há botão no e-mail",
+          });
+        }
+      }),
   }),
   z.object({
     tipo: z.literal("mover_deal"),

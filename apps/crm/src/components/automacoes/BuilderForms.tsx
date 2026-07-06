@@ -1,8 +1,11 @@
 "use client";
 
-import { X } from "lucide-react";
+import { useRef, useTransition } from "react";
+import { Upload, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button, Input } from "@/components/ui";
+import { uploadAutomacaoImagem } from "@/lib/actions/automacoes-media";
 import {
   GATILHO_CATALOG,
   type AgendamentoFrequencia,
@@ -14,6 +17,8 @@ import { cn } from "@/lib/utils";
 
 import {
   CONDICAO_CAMPOS,
+  CUSTOM_LINK_TITULO_MAX,
+  CUSTOM_LINK_TITULO_MIN,
   DIA_SEMANA_OPCOES,
   EMAIL_CUSTOM_ASSUNTO_MAX,
   EMAIL_CUSTOM_ASSUNTO_MIN,
@@ -30,6 +35,7 @@ import {
   type BuilderState,
   type UsuarioRow,
 } from "./builder-shared";
+import { MensagemPreview } from "./MensagemPreview";
 
 /**
  * Formulários do builder de automações — MESMOS campos nas duas visões:
@@ -406,6 +412,45 @@ export function AcaoForm({
             Enviada ao <strong>responsável</strong> do lead. Só QUENTE/MORNO recebem — FRIO nunca,
             nem mensagem custom (invariante da engine).
           </p>
+
+          {/* Link + imagem (opcionais) — como na tela de remarketing */}
+          <p className="pt-1 text-[11px] font-semibold text-foreground">
+            Link e imagem (opcional)
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Input
+              type="url"
+              aria-label="URL do link (opcional)"
+              placeholder="URL do link (https://…)"
+              value={acao.parametros.link_url ?? ""}
+              onChange={(e) => setParametro("link_url", e.target.value)}
+            />
+            <Input
+              aria-label="Título do card do link"
+              placeholder={`Título do card (${CUSTOM_LINK_TITULO_MIN}-${CUSTOM_LINK_TITULO_MAX})`}
+              maxLength={CUSTOM_LINK_TITULO_MAX}
+              value={acao.parametros.link_titulo ?? ""}
+              onChange={(e) => setParametro("link_titulo", e.target.value)}
+            />
+          </div>
+          <ImagemUploadField
+            label="Imagem do card (opcional — exige o link)"
+            url={acao.parametros.imagem_url ?? ""}
+            onChange={(url) => setParametro("imagem_url", url)}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Com link, a mensagem sai como <strong>card clicável</strong> (como no remarketing) e a
+            URL é anexada ao final quando não está no texto. Sem link, sai como texto simples.
+          </p>
+
+          <MensagemPreview
+            canal="whatsapp"
+            mensagem={acao.parametros.mensagem}
+            imagemUrl={acao.parametros.imagem_url}
+            linkUrl={acao.parametros.link_url}
+            linkTitulo={acao.parametros.link_titulo}
+            className="pt-1"
+          />
         </div>
       )}
 
@@ -476,6 +521,42 @@ export function AcaoForm({
             Enviado ao <strong>e-mail do responsável</strong> pelo lead. Só QUENTE/MORNO recebem
             — FRIO nunca, nem e-mail custom (invariante da engine).
           </p>
+
+          {/* Imagem + botão/CTA (opcionais) — como na tela de remarketing */}
+          <p className="pt-1 text-[11px] font-semibold text-foreground">
+            Imagem e botão (opcional)
+          </p>
+          <ImagemUploadField
+            label="Imagem do e-mail (topo do corpo)"
+            url={acao.parametros.imagem_url ?? ""}
+            onChange={(url) => setParametro("imagem_url", url)}
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Input
+              type="url"
+              aria-label="URL do botão (opcional)"
+              placeholder="URL do botão (https://…)"
+              value={acao.parametros.link_url ?? ""}
+              onChange={(e) => setParametro("link_url", e.target.value)}
+            />
+            <Input
+              aria-label="Texto do botão"
+              placeholder={`Texto do botão (${CUSTOM_LINK_TITULO_MIN}-${CUSTOM_LINK_TITULO_MAX})`}
+              maxLength={CUSTOM_LINK_TITULO_MAX}
+              value={acao.parametros.link_titulo ?? ""}
+              onChange={(e) => setParametro("link_titulo", e.target.value)}
+            />
+          </div>
+
+          <MensagemPreview
+            canal="email"
+            assunto={acao.parametros.assunto}
+            mensagem={acao.parametros.mensagem}
+            imagemUrl={acao.parametros.imagem_url}
+            linkUrl={acao.parametros.link_url}
+            linkTitulo={acao.parametros.link_titulo}
+            className="pt-1"
+          />
         </div>
       )}
 
@@ -512,5 +593,87 @@ export function AcaoForm({
         </div>
       )}
     </>
+  );
+}
+
+// ─── Upload de imagem das ações custom ───────────────────────────────────────
+// Mesmo padrão da tela de remarketing (MediaImageField): botão de upload +
+// colar URL + thumbnail com remover. Action CEO-only uploadAutomacaoImagem
+// (bucket público remarketing-media, path automacoes/ — URL estável).
+
+function ImagemUploadField({
+  label,
+  url,
+  onChange,
+}: {
+  label: string;
+  url: string;
+  onChange: (url: string) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, startUpload] = useTransition();
+
+  const handleFile = (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    startUpload(async () => {
+      const r = await uploadAutomacaoImagem(fd);
+      if (r.success) {
+        onChange(r.url);
+        toast.success("Imagem enviada");
+      } else {
+        toast.error(r.error);
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      {url.trim() && (
+        <div className="relative overflow-hidden rounded-lg border border-border">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="Pré-visualização da imagem" className="max-h-28 w-full object-cover" />
+          <button
+            type="button"
+            aria-label="Remover imagem"
+            onClick={() => onChange("")}
+            className="absolute right-1 top-1 rounded bg-black/60 p-1 text-white transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+        >
+          <Upload className="h-3.5 w-3.5" />
+          {uploading ? "Enviando…" : "Enviar"}
+        </Button>
+        <Input
+          type="url"
+          aria-label={`${label} — URL da imagem`}
+          placeholder="ou cole uma URL https://…"
+          value={url}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.currentTarget.value = "";
+        }}
+      />
+    </div>
   );
 }

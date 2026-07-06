@@ -44,6 +44,7 @@ import {
   SECTION_LABEL,
   builderFromAutomacao,
   emptyBuilder,
+  normalizarAcaoParaSalvar,
   type BuilderState,
   type UsuarioRow,
 } from "@/components/automacoes/builder-shared";
@@ -126,7 +127,8 @@ export function AutomacoesClient({
       gatilho: builder.gatilho,
       gatilho_config: gatilhoConfig,
       condicoes: builder.condicoes,
-      acoes: builder.acoes,
+      // Link/mídia das ações custom: "" nos forms = ausente no payload
+      acoes: builder.acoes.map(normalizarAcaoParaSalvar),
     };
     startTransition(async () => {
       const result = builder.id

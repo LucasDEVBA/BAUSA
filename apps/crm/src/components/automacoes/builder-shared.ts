@@ -124,6 +124,11 @@ export const EMAIL_CUSTOM_ASSUNTO_MAX = 150;
 export const EMAIL_CUSTOM_MENSAGEM_MIN = 10;
 export const EMAIL_CUSTOM_MENSAGEM_MAX = 2000;
 
+// Link/mídia das ações custom (I2) — espelha o Zod do servidor
+// (título do card/botão 3-80; URLs http/https).
+export const CUSTOM_LINK_TITULO_MIN = 3;
+export const CUSTOM_LINK_TITULO_MAX = 80;
+
 export const FREQUENCIA_OPCOES: { value: AgendamentoFrequencia; label: string }[] = [
   { value: "diaria", label: "Diária" },
   { value: "semanal", label: "Semanal" },
@@ -228,6 +233,25 @@ export function defaultAcao(tipo: AutomacaoAcaoTipo, usuarios: UsuarioRow[]): Au
         parametros: { etapa_destino: "reuniao_marcada", next_action: "", proxima_acao_dias: 2 },
       };
   }
+}
+
+/** Normaliza os campos de link/mídia das ações custom antes de salvar:
+ *  os forms editam strings ("" = ausente); o Zod do servidor espera os
+ *  opcionais AUSENTES (z.string().url() rejeitaria string vazia). */
+export function normalizarAcaoParaSalvar(acao: AutomacaoAcao): AutomacaoAcao {
+  if (acao.tipo !== "enviar_whatsapp_custom" && acao.tipo !== "enviar_email_custom") {
+    return acao;
+  }
+  const { imagem_url, link_url, link_titulo } = acao.parametros;
+  return {
+    ...acao,
+    parametros: {
+      ...acao.parametros,
+      imagem_url: imagem_url?.trim() || undefined,
+      link_url: link_url?.trim() || undefined,
+      link_titulo: link_titulo?.trim() || undefined,
+    },
+  } as AutomacaoAcao;
 }
 
 // ─── Resumos (rótulos dos nós do fluxo) ──────────────────────────────────────

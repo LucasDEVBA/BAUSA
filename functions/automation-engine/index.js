@@ -688,11 +688,26 @@ const executeAcao = async (acao, contexto, runId) => {
     // entre o POST e o finishRun pode reenviar 1x na recuperação de órfão —
     // aceitável para mensagem informativa. NUNCA usar esta ação no lugar da
     // régua initial/follow-up (essa tem CAS por coluna no lead).
+    //
+    // Link/mídia opcionais (I2): com link_url o send-whatsapp troca o
+    // /send-text pelo /send-link (card clicável com título/imagem — mesmo
+    // contrato do sendLink dos templates). Sem link_url, o payload é
+    // byte-idêntico ao histórico (fallback /send-text intacto). URLs só
+    // seguem se http(s) — Zod valida na entrada; isto protege contra lixo
+    // gravado direto no banco (e o send-whatsapp revalida, defesa dupla).
+    const httpUrl = (v) =>
+      (typeof v === 'string' && /^https?:\/\//i.test(v.trim())) ? v.trim() : undefined;
+    const linkUrl = httpUrl(p.link_url);
     const payload = JSON.stringify({
       record: submission,
       messageType: 'meeting_confirmed',
       customMessage: mensagem,
       phone,
+      ...(linkUrl ? {
+        linkUrl,
+        linkTitle: p.link_titulo || undefined,
+        linkImage: httpUrl(p.imagem_url),
+      } : {}),
     });
     const headers = {
       'Content-Type': 'application/json',
@@ -778,8 +793,23 @@ const executeAcao = async (acao, contexto, runId) => {
     // crash entre o POST e o finishRun pode reenviar 1x na recuperação de
     // órfão — aceitável para e-mail informativo. Sem delay anti-ban: e-mail
     // não tem risco de ban do WhatsApp (a ação NÃO conta como whatsappSent).
+    //
+    // Link/mídia opcionais (I2): imageUrl é embutida no topo do corpo e
+    // linkUrl vira botão/CTA (rótulo linkTitle) no wrapper HTML do
+    // send-messages. Ausentes → payload idêntico ao histórico. URLs só
+    // seguem se http(s) — evita 400 (e retry inútil) por lixo no banco;
+    // o send-messages revalida e ainda tem guarda de scheme no render.
+    const emailHttpUrl = (v) =>
+      (typeof v === 'string' && /^https?:\/\//i.test(v.trim())) ? v.trim() : undefined;
     const payload = JSON.stringify({
-      customEmail: { to: email, subject: assunto, text: mensagem },
+      customEmail: {
+        to: email,
+        subject: assunto,
+        text: mensagem,
+        imageUrl: emailHttpUrl(p.imagem_url),
+        linkUrl: emailHttpUrl(p.link_url),
+        linkTitle: p.link_titulo || undefined,
+      },
     });
     const headers = {
       'Content-Type': 'application/json',

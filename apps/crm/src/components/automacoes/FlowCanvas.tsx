@@ -14,6 +14,8 @@ import {
   ClipboardList,
   Clock,
   Diamond,
+  Image as ImageIcon,
+  Link2,
   Mail,
   Maximize,
   MessageCircle,
@@ -31,6 +33,7 @@ import { Button, Card } from "@/components/ui";
 import {
   ACAO_CATALOG,
   GATILHO_CATALOG,
+  type AutomacaoAcao,
   type AutomacaoAcaoTipo,
 } from "@/types/automacao";
 import { cn } from "@/lib/utils";
@@ -42,6 +45,16 @@ import {
   resumoGatilho,
   type BuilderState,
 } from "./builder-shared";
+
+/** Ícones de mídia/link no resumo do nó das ações custom (I2): indicam a
+ *  presença de imagem (Image) e/ou link (Link2) configurados na ação. */
+function acaoMediaIcons(acao: AutomacaoAcao): LucideIcon[] {
+  if (acao.tipo !== "enviar_whatsapp_custom" && acao.tipo !== "enviar_email_custom") return [];
+  const icons: LucideIcon[] = [];
+  if (acao.parametros.imagem_url?.trim()) icons.push(ImageIcon);
+  if (acao.parametros.link_url?.trim()) icons.push(Link2);
+  return icons;
+}
 
 /**
  * FlowCanvas — visão de fluxo estilo n8n do builder de automações.
@@ -239,6 +252,7 @@ function FlowNode({
   onClick,
   onRemove,
   removeLabel,
+  mediaIcons,
 }: {
   x: number;
   y: number;
@@ -251,6 +265,8 @@ function FlowNode({
   onClick: () => void;
   onRemove?: () => void;
   removeLabel?: string;
+  /** Ícones pequenos à direita do eyebrow (mídia/link das ações custom). */
+  mediaIcons?: LucideIcon[];
 }) {
   return (
     <Card
@@ -275,6 +291,13 @@ function FlowNode({
           <span className="text-[9px] font-semibold uppercase tracking-widest text-label-tertiary">
             {eyebrow}
           </span>
+          {mediaIcons && mediaIcons.length > 0 && (
+            <span className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground">
+              {mediaIcons.map((MIcon, i) => (
+                <MIcon key={i} aria-hidden className="h-3 w-3" />
+              ))}
+            </span>
+          )}
         </span>
         <span className="truncate text-xs font-semibold text-foreground">{titulo}</span>
         <span className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
@@ -620,6 +643,7 @@ export function FlowCanvas({
               eyebrow={`Ação ${i + 1}`}
               titulo={ACAO_CATALOG[acao.tipo].label}
               resumo={resumoAcao(acao)}
+              mediaIcons={acaoMediaIcons(acao)}
               selected={selection?.kind === "acao" && selection.index === i}
               ariaLabel={`Ação ${i + 1}: ${ACAO_CATALOG[acao.tipo].label} — editar`}
               onClick={() => onSelect({ kind: "acao", index: i })}

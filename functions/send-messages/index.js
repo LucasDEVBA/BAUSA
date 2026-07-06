@@ -199,13 +199,35 @@ const renderEmailShell = ({ badge, title, bodyHtml, ctaHref = 'https://bolsaatle
 // template pesado dos e-mails de confirmação. O texto chega PLAIN
 // (placeholders já renderizados pela engine); é sanitizado aqui e as
 // quebras de linha viram parágrafos.
-const getCustomEmailHtml = (text) => {
+// Mídia opcional (I2): media.imageUrl embutida no topo do corpo;
+// media.linkUrl vira botão/CTA (rótulo media.linkTitle, default "Saiba
+// mais"). URLs já validadas http(s) no handler; aqui são HTML-escapadas
+// (sanitize) para o contexto de atributo — sem mídia, o HTML é idêntico
+// ao histórico.
+const getCustomEmailHtml = (text, media = {}) => {
   const paragraphs = String(text)
     .split(/\r?\n+/)
     .map((linha) => linha.trim())
     .filter((linha) => linha.length > 0)
     .map((linha) => `<p style="margin:0 0 16px 0;">${sanitize(linha)}</p>`)
     .join("");
+  // Guarda de scheme DENTRO do render (defesa em profundidade além da
+  // validação do handler): URL fora de http(s) — ex.: javascript: — jamais
+  // vira src/href, mesmo se um caller futuro pular a validação de entrada.
+  const safeUrl = (u) =>
+    typeof u === "string" && /^https?:\/\//i.test(u.trim()) ? sanitize(u.trim()) : null;
+  const safeImageUrl = safeUrl(media.imageUrl);
+  const safeLinkUrl = safeUrl(media.linkUrl);
+  const imageHtml = safeImageUrl
+    ? `<tr><td style="padding:28px 40px 0 40px;">
+        <img src="${safeImageUrl}" alt="" style="width:100%;height:auto;display:block;border-radius:8px;">
+      </td></tr>`
+    : "";
+  const buttonHtml = safeLinkUrl
+    ? `<tr><td style="padding:0 40px 32px 40px;text-align:center;">
+        <a href="${safeLinkUrl}" style="display:inline-block;background:linear-gradient(90deg, #1A365D 0%, #2C5282 100%);color:#ffffff;padding:13px 30px;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;box-shadow:0 2px 4px rgba(26,54,93,0.2);">${sanitize(media.linkTitle) || "Saiba mais"}</a>
+      </td></tr>`
+    : "";
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Bolsa Atleta USA</title></head>
@@ -215,9 +237,11 @@ const getCustomEmailHtml = (text) => {
       <tr><td style="padding:32px 40px 24px 40px;text-align:center;border-bottom:1px solid #E2E8F0;">
         <img src="${LOGO_URL}" alt="Bolsa Atleta USA" style="max-width:180px;height:auto;display:block;margin:0 auto;">
       </td></tr>
+      ${imageHtml}
       <tr><td style="padding:32px 40px;">
         <div style="color:#2D3748;font-size:16px;line-height:1.7;">${paragraphs}</div>
       </td></tr>
+      ${buttonHtml}
       <tr><td style="padding:24px 40px;background-color:#F7FAFC;border-radius:0 0 12px 12px;border-top:1px solid #E2E8F0;">
         <p style="margin:0;font-size:13px;color:#718096;text-align:center;line-height:1.6;">&copy; ${new Date().getFullYear()} Bolsa Atleta USA. Todos os direitos reservados.<br><span style="font-size:11px;">Este é um e-mail automático, por favor não responda.</span></p>
       </td></tr>
@@ -551,6 +575,19 @@ functions.http("sendMessages", async (req, res) => {
       if (!customEmail.text || typeof customEmail.text !== "string" || customEmail.text.trim().length === 0) {
         errors.push("Campo 'text' ausente ou vazio");
       }
+      // Mídia opcional (I2): quando presente, URLs precisam ser http(s)
+      // (defesa em profundidade — o Zod do builder já valida na entrada;
+      // aqui protege contra scheme injection em href/src, ex.: javascript:).
+      const isHttpUrl = (v) => typeof v === "string" && /^https?:\/\//i.test(v.trim());
+      if (customEmail.imageUrl !== undefined && !isHttpUrl(customEmail.imageUrl)) {
+        errors.push("Campo 'imageUrl' inválido (URL http/https)");
+      }
+      if (customEmail.linkUrl !== undefined && !isHttpUrl(customEmail.linkUrl)) {
+        errors.push("Campo 'linkUrl' inválido (URL http/https)");
+      }
+      if (customEmail.linkTitle !== undefined && typeof customEmail.linkTitle !== "string") {
+        errors.push("Campo 'linkTitle' inválido");
+      }
       if (errors.length > 0) {
         console.log(JSON.stringify({
           level: "WARN", action: "custom_email_validation_failed", errors,
@@ -558,11 +595,18 @@ functions.http("sendMessages", async (req, res) => {
         return res.status(400).send({ success: false, message: "customEmail inválido", errors });
       }
 
-      console.log(JSON.stringify({ level: "INFO", action: "custom_email_start", to: customEmail.to }));
+      console.log(JSON.stringify({
+        level: "INFO", action: "custom_email_start", to: customEmail.to,
+        withImage: !!customEmail.imageUrl, withLink: !!customEmail.linkUrl,
+      }));
       const result = await sendEmailWithFallback(
         customEmail.to,
         customEmail.subject.trim(),
-        getCustomEmailHtml(customEmail.text),
+        getCustomEmailHtml(customEmail.text, {
+          imageUrl: customEmail.imageUrl ? customEmail.imageUrl.trim() : undefined,
+          linkUrl: customEmail.linkUrl ? customEmail.linkUrl.trim() : undefined,
+          linkTitle: typeof customEmail.linkTitle === "string" ? customEmail.linkTitle.trim() : undefined,
+        }),
         "CUSTOM"
       );
       const durationMs = Date.now() - startTime;

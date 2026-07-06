@@ -579,15 +579,40 @@ functions.http('sendWhatsApp', async (req, res) => {
       messageType,
     });
 
-    // Mensagem custom (meeting_confirmed): envia direto sem template
+    // Mensagem custom (meeting_confirmed): envia direto sem template.
+    // Extensão I2 (aditiva): linkUrl opcional no payload → envia via
+    // /send-link (card clicável com linkTitle/linkDescription/linkImage —
+    // mesmo contrato do sendLink dos templates). SEM linkUrl, o caminho é
+    // o histórico byte-a-byte: /send-text (fallback intacto — callers
+    // existentes como o convite de reunião do Engine não mudam em nada).
     if (messageType === 'meeting_confirmed' && payload.customMessage && payload.phone) {
       const phone = formatPhone(payload.phone);
       if (!phone) {
         return res.status(400).send({ success: false, error: 'Telefone inválido' });
       }
-      const result = await sendMessage(payload.phone, payload.customMessage);
+      const isHttpUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v.trim());
+      const customLinkUrl = isHttpUrl(payload.linkUrl) ? payload.linkUrl.trim() : null;
+      let result;
+      if (customLinkUrl) {
+        // Z-API /send-link: o link precisa estar contido na mensagem para o
+        // card ser clicável — se o texto não o contém, anexa ao final
+        // (WYSIWYG com o preview do builder de automações).
+        const message = payload.customMessage.includes(customLinkUrl)
+          ? payload.customMessage
+          : `${payload.customMessage}\n\n${customLinkUrl}`;
+        result = await sendLink(
+          payload.phone,
+          message,
+          customLinkUrl,
+          sanitize(payload.linkTitle) || customLinkUrl,
+          sanitize(payload.linkDescription) || '',
+          isHttpUrl(payload.linkImage) ? payload.linkImage.trim() : ''
+        );
+      } else {
+        result = await sendMessage(payload.phone, payload.customMessage);
+      }
       const durationMs = Date.now() - startTime;
-      log('INFO', 'custom_message_sent', { phone, durationMs });
+      log('INFO', 'custom_message_sent', { phone, durationMs, withLink: !!customLinkUrl });
       return res.status(200).send({ success: true, results: [{ to: 'custom', ...result }], durationMs });
     }
 

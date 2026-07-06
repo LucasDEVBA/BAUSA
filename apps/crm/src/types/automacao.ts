@@ -184,12 +184,22 @@ export interface AcaoEnviarWhatsapp {
 /** Texto livre via caminho de mensagem custom do send-whatsapp (customMessage
  *  + phone). A engine reaplica a classe: só QUENTE/MORNO recebem — FRIO nunca,
  *  nem custom. Destinatário MVP: responsável (guardian_whatsapp do lead).
- *  Placeholders suportados: {atleta_nome} e {responsavel_nome}. */
+ *  Placeholders suportados: {atleta_nome} e {responsavel_nome}.
+ *  Link/mídia (I2, opcionais): com `link_url` o envio sai via /send-link da
+ *  Z-API (card clicável com título/imagem — mesmo contrato do remarketing);
+ *  sem link, /send-text como sempre. `imagem_url` é a imagem do PREVIEW do
+ *  card — só faz sentido junto com `link_url` (Zod valida a dependência). */
 export interface AcaoEnviarWhatsappCustom {
   tipo: "enviar_whatsapp_custom";
   parametros: {
     mensagem: string;
     destinatario: "responsavel";
+    /** URL do CTA — presença muda o envio para card /send-link. */
+    link_url?: string;
+    /** Título do card do link (3-80). */
+    link_titulo?: string;
+    /** Imagem do preview do card (URL pública) — exige link_url. */
+    imagem_url?: string;
   };
 }
 
@@ -197,13 +207,22 @@ export interface AcaoEnviarWhatsappCustom {
  *  (Resend→Brevo, wrapper HTML leve). A engine reaplica a classe: só
  *  QUENTE/MORNO recebem — FRIO nunca, por nenhum canal. Destinatário MVP:
  *  responsável (campo `email` validado do form_submission). Placeholders
- *  {atleta_nome}/{responsavel_nome} valem no assunto e na mensagem. */
+ *  {atleta_nome}/{responsavel_nome} valem no assunto e na mensagem.
+ *  Link/mídia (I2, opcionais): `imagem_url` é embutida no topo do corpo;
+ *  `link_url` vira botão/CTA no HTML com rótulo `link_titulo` (default
+ *  "Saiba mais"). `link_titulo` exige `link_url` (Zod valida). */
 export interface AcaoEnviarEmailCustom {
   tipo: "enviar_email_custom";
   parametros: {
     assunto: string;
     mensagem: string;
     destinatario: "responsavel";
+    /** URL do botão/CTA no corpo do e-mail. */
+    link_url?: string;
+    /** Rótulo do botão (3-80) — exige link_url. */
+    link_titulo?: string;
+    /** Imagem embutida no topo do corpo (URL pública). */
+    imagem_url?: string;
   };
 }
 
