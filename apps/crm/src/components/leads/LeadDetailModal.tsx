@@ -14,14 +14,11 @@ import {
   History,
   Phone,
   Mail,
-  Send,
   AlertTriangle,
   CalendarClock,
   Hash,
   Layers,
   Trophy,
-  Video,
-  Instagram,
 } from "lucide-react";
 import { type Lead } from "@/types/lead";
 import { cn } from "@/lib/utils";
@@ -35,6 +32,7 @@ import {
   DocumentosUrgentesBadge,
   useDocumentosAtleta,
 } from "@/components/documentos/DocumentosChecklist";
+import { AcoesRapidasCard } from "@/components/mensagem/AcoesRapidasCard";
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -353,6 +351,19 @@ function ExecutivaSection({ lead }: { lead: Lead }) {
         />
       </div>
 
+      {/* Ações rápidas — mensagem direta (I4). Contato re-resolvido no server. */}
+      <AcoesRapidasCard
+        destinatario={{
+          nome: lead.athlete_name,
+          responsavelNome: lead.guardian_name,
+          telefone: lead.guardian_whatsapp ?? lead.athlete_whatsapp ?? null,
+          email: lead.guardian_email ?? lead.email ?? null,
+          classificacao: lead.qualification_classification,
+          leadId: lead.id,
+        }}
+        highlightsUrl={lead.video_highlights}
+      />
+
       {lead.qualification_reason && (
         <MinimalCard
           title="Justificativa Gemini"
@@ -376,42 +387,6 @@ function ExecutivaSection({ lead }: { lead: Lead }) {
           )}
         </MinimalCard>
       )}
-
-      <MinimalCard title="Ações rápidas" icon={Send} iconColor="text-sys-green">
-        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
-          {(lead.guardian_whatsapp || lead.athlete_whatsapp) && (
-            <a
-              href={`https://wa.me/${(lead.guardian_whatsapp ?? lead.athlete_whatsapp ?? "").replace(/\D/g, "")}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sys-green/30 bg-sys-green/10 px-3 py-1.5 text-xs font-medium text-sys-green transition-colors hover:bg-sys-green/20"
-            >
-              <Send className="h-3.5 w-3.5" />
-              WhatsApp
-            </a>
-          )}
-          {lead.guardian_email && (
-            <a
-              href={`mailto:${lead.guardian_email}`}
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sys-blue/30 bg-sys-blue/10 px-3 py-1.5 text-xs font-medium text-sys-blue transition-colors hover:bg-sys-blue/20"
-            >
-              <Mail className="h-3.5 w-3.5" />
-              E-mail
-            </a>
-          )}
-          {lead.video_highlights && (
-            <a
-              href={lead.video_highlights}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
-            >
-              <Video className="h-3.5 w-3.5" />
-              Highlights
-            </a>
-          )}
-        </div>
-      </MinimalCard>
 
       {lead.siblings && lead.siblings.length > 0 && (
         <MinimalCard
