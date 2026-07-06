@@ -20,6 +20,7 @@ import {
   LogOut,
   Megaphone,
   MessageCircle,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
@@ -85,6 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/financeiro", label: "Financeiro", icon: DollarSign, roles: ["ceo"] },
       { href: "/remarketing", label: "Re-marketing", icon: Megaphone, roles: ["ceo"] },
       { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["ceo"] },
+      { href: "/automacoes", label: "Automações", icon: Workflow, roles: ["ceo"] },
     ],
   },
   {
@@ -125,18 +127,17 @@ const NAV_GROUPS: NavGroup[] = [
           "/documentos",
           "/faq",
           "/indicacoes",
-          "/automacoes",
           "/automacoes-monitor",
           "/audit",
           "/configuracoes",
         ],
-        // Hub /sistema + sub-páginas; Automações/Monitor/Audit/Configurações só CEO/CTO.
+        // Hub /sistema + sub-páginas; Monitor/Audit/Configurações só CEO/CTO.
+        // Automações (builder) mora no grupo COMERCIAL.
         subItems: [
           { href: "/tarefas", label: "Tarefas" },
           { href: "/documentos", label: "Documentos" },
           { href: "/faq", label: "FAQ" },
           { href: "/indicacoes", label: "Indicações" },
-          { href: "/automacoes", label: "Automações", roles: ["ceo"] },
           { href: "/automacoes-monitor", label: "Monitor de filas", roles: ["ceo"] },
           { href: "/audit", label: "Audit Trail", roles: ["ceo"] },
           { href: "/configuracoes", label: "Configurações", roles: ["ceo"] },

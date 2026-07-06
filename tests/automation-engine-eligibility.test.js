@@ -164,6 +164,33 @@ test('automation-engine: enviar_whatsapp_custom reaplica a classe QUENTE/MORNO',
   );
 });
 
+// ─── Invariante 4f: ação e-mail custom reaplica a classe QUENTE/MORNO ────
+test('automation-engine: enviar_email_custom reaplica a classe QUENTE/MORNO', () => {
+  const src = loadExecutableSource();
+  const inicio = src.indexOf(`acao.tipo === 'enviar_email_custom'`);
+  assert.ok(
+    inicio >= 0,
+    `INVARIANTE VIOLADO: a ação enviar_email_custom deve existir no ` +
+      `executeAcao (texto livre por e-mail ao responsável).`,
+  );
+  // Recorta o bloco da ação (até o próximo bloco de ação) e garante a
+  // checagem de classe DENTRO dele, ANTES do POST — FRIO nunca recebe
+  // outreach automático por NENHUM canal (mesma política do WhatsApp custom).
+  const proximoBloco = src.indexOf(`acao.tipo === '`, inicio + 1);
+  const bloco = proximoBloco > inicio ? src.slice(inicio, proximoBloco) : src.slice(inicio);
+  assert.ok(
+    bloco.includes(`['QUENTE', 'MORNO'].includes(`),
+    `INVARIANTE VIOLADO: enviar_email_custom deve barrar classificação ` +
+      `fora de QUENTE/MORNO antes de qualquer POST — FRIO NUNCA recebe, ` +
+      `nem e-mail custom (incidente 2026-05-15).`,
+  );
+  assert.ok(
+    bloco.indexOf(`['QUENTE', 'MORNO'].includes(`) < bloco.indexOf('httpRequest'),
+    `INVARIANTE VIOLADO: a checagem de classe da ação de e-mail custom ` +
+      `deve vir ANTES do POST ao send-messages.`,
+  );
+});
+
 // ─── Invariante 5: CAS atômico antes de executar o run ───────────────────
 test('automation-engine: claim do run usa CAS (filtro de status na URL)', () => {
   const src = loadExecutableSource();

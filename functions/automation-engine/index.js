@@ -20,6 +20,10 @@
  *   - Ação enviar_whatsapp_custom (texto livre ao responsável) reaplica a
  *     MESMA regra de classe: ['QUENTE','MORNO'] obrigatório — FRIO NUNCA
  *     recebe, nem mensagem custom (guard de CI cobre a cláusula).
+ *   - Ação enviar_email_custom (texto livre por e-mail, via caminho
+ *     customEmail do send-messages) reaplica a MESMA regra de classe —
+ *     FRIO nunca recebe outreach automático por nenhum canal (guard de CI
+ *     cobre a cláusula). Sem delay anti-ban: e-mail não tem risco de ban.
  *   - CAS antes de qualquer efeito: o run é claimado (pendente→executando)
  *     com filtro de status na URL; 0 rows = outra instância venceu → pula.
  */
@@ -32,6 +36,7 @@ const WEBHOOK_SECRET       = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL         = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SEND_WHATSAPP_URL    = process.env.SEND_WHATSAPP_URL;
+const SEND_MESSAGES_URL    = process.env.SEND_MESSAGES_URL;
 // Schema do Supabase: 'public' em PRD, 'uat' em UAT, 'dev' em DEV
 const SUPABASE_SCHEMA      = process.env.SUPABASE_SCHEMA || 'public';
 
@@ -683,11 +688,26 @@ const executeAcao = async (acao, contexto, runId) => {
     // entre o POST e o finishRun pode reenviar 1x na recuperação de órfão —
     // aceitável para mensagem informativa. NUNCA usar esta ação no lugar da
     // régua initial/follow-up (essa tem CAS por coluna no lead).
+    //
+    // Link/mídia opcionais (I2): com link_url o send-whatsapp troca o
+    // /send-text pelo /send-link (card clicável com título/imagem — mesmo
+    // contrato do sendLink dos templates). Sem link_url, o payload é
+    // byte-idêntico ao histórico (fallback /send-text intacto). URLs só
+    // seguem se http(s) — Zod valida na entrada; isto protege contra lixo
+    // gravado direto no banco (e o send-whatsapp revalida, defesa dupla).
+    const httpUrl = (v) =>
+      (typeof v === 'string' && /^https?:\/\//i.test(v.trim())) ? v.trim() : undefined;
+    const linkUrl = httpUrl(p.link_url);
     const payload = JSON.stringify({
       record: submission,
       messageType: 'meeting_confirmed',
       customMessage: mensagem,
       phone,
+      ...(linkUrl ? {
+        linkUrl,
+        linkTitle: p.link_titulo || undefined,
+        linkImage: httpUrl(p.imagem_url),
+      } : {}),
     });
     const headers = {
       'Content-Type': 'application/json',
@@ -704,6 +724,108 @@ const executeAcao = async (acao, contexto, runId) => {
       throw new Error(`send-whatsapp (custom): ${result.statusCode} ${result.body.slice(0, 300)}`);
     }
     return { tipo: acao.tipo, status: 'ok', detalhe: 'texto custom ao responsável' };
+  }
+
+  // Texto livre por E-MAIL ao responsável do lead. Usa o caminho customEmail
+  // do send-messages ({ customEmail: { to, subject, text } } → Resend→Brevo
+  // com wrapper HTML leve). Mesma política de classe do WhatsApp custom.
+  if (acao.tipo === 'enviar_email_custom') {
+    if (!SEND_MESSAGES_URL) {
+      return { tipo: acao.tipo, status: 'erro', detalhe: 'SEND_MESSAGES_URL não configurada' };
+    }
+    if (!contexto.atleta_id) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'contexto sem atleta_id' };
+    }
+    const atletas = await sbGet(`atletas?id=eq.${contexto.atleta_id}&select=form_submission_id`);
+    const fsId = atletas[0]?.form_submission_id;
+    if (!fsId) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'atleta sem form_submission (cadastro manual)' };
+    }
+    // SELECT * de propósito (padrão das ações de mensageria): registro
+    // completo do lead — leitura parcial já causou data loss em incidente.
+    const submissions = await sbGet(`form_submissions?id=eq.${fsId}&select=*`);
+    const submission = submissions[0];
+    if (!submission) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'form_submission não encontrada' };
+    }
+
+    // INVARIANTE (guard de CI): FRIO NUNCA recebe outreach automático —
+    // nem por e-mail. Mesma cláusula do WhatsApp custom, ANTES do POST.
+    const classificacao = submission.qualification_classification;
+    if (!['QUENTE', 'MORNO'].includes(classificacao)) {
+      log('INFO', 'email_custom_skip_classe', {
+        runId, classificacao: classificacao || 'ausente',
+      });
+      return {
+        tipo: acao.tipo, status: 'ignorado',
+        detalhe: `classificacao ${classificacao || 'ausente'} — só QUENTE/MORNO`,
+      };
+    }
+
+    // E-mail do lead: campo `email` do form_submission — o campo validado e
+    // obrigatório do formulário (mesma extração do send-messages/qualify-lead;
+    // guardian_email é opcional e frequentemente igual — dedup same_email).
+    const email = submission.email;
+    if (!email || !email.includes('@')) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'lead sem e-mail válido' };
+    }
+
+    // Render dos placeholders via split/join (padrão do WhatsApp custom) —
+    // no assunto E na mensagem. Vazio após render → nunca envia.
+    const vars = {
+      '{atleta_nome}': submission.athlete_name || 'Atleta',
+      '{responsavel_nome}': submission.guardian_name || 'Responsável',
+    };
+    let assunto = String(p.assunto || '');
+    let mensagem = String(p.mensagem || '');
+    for (const [placeholder, valor] of Object.entries(vars)) {
+      assunto = assunto.split(placeholder).join(valor);
+      mensagem = mensagem.split(placeholder).join(valor);
+    }
+    if (!assunto.trim() || !mensagem.trim()) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'assunto/mensagem vazios' };
+    }
+
+    // Idempotência (trade-off documentado, igual ao WhatsApp custom): e-mail
+    // custom NÃO tem coluna *_sent_at no lead — não há CAS de lead. A
+    // proteção é run one-shot (dedup na materialização) + CAS do claim do
+    // run + loop guard (3+ disparos da mesma origem em 24h). Janela residual:
+    // crash entre o POST e o finishRun pode reenviar 1x na recuperação de
+    // órfão — aceitável para e-mail informativo. Sem delay anti-ban: e-mail
+    // não tem risco de ban do WhatsApp (a ação NÃO conta como whatsappSent).
+    //
+    // Link/mídia opcionais (I2): imageUrl é embutida no topo do corpo e
+    // linkUrl vira botão/CTA (rótulo linkTitle) no wrapper HTML do
+    // send-messages. Ausentes → payload idêntico ao histórico. URLs só
+    // seguem se http(s) — evita 400 (e retry inútil) por lixo no banco;
+    // o send-messages revalida e ainda tem guarda de scheme no render.
+    const emailHttpUrl = (v) =>
+      (typeof v === 'string' && /^https?:\/\//i.test(v.trim())) ? v.trim() : undefined;
+    const payload = JSON.stringify({
+      customEmail: {
+        to: email,
+        subject: assunto,
+        text: mensagem,
+        imageUrl: emailHttpUrl(p.imagem_url),
+        linkUrl: emailHttpUrl(p.link_url),
+        linkTitle: p.link_titulo || undefined,
+      },
+    });
+    const headers = {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    };
+    if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
+
+    const result = await httpRequest(
+      SEND_MESSAGES_URL,
+      { method: 'POST', headers, timeoutMs: 60000 },
+      payload
+    );
+    if (result.statusCode >= 400) {
+      throw new Error(`send-messages (custom): ${result.statusCode} ${result.body.slice(0, 300)}`);
+    }
+    return { tipo: acao.tipo, status: 'ok', detalhe: 'e-mail custom ao responsável' };
   }
 
   if (acao.tipo === 'mover_deal') {

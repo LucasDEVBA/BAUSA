@@ -96,6 +96,31 @@ test('send-whatsapp: texto custom vazio/whitespace após render cai no fallback'
   );
 });
 
+// ─── Caminho custom (meeting_confirmed) — extensão de link/mídia (I2) ────
+// O caminho custom ganhou envio via sendLink quando o payload traz linkUrl
+// (card clicável — automações com link/imagem). INVARIANTE: SEM linkUrl o
+// fallback sendMessage (/send-text) permanece — callers históricos (convite
+// de reunião do Engine, automações só-texto) nunca mudam de comportamento.
+test('send-whatsapp: caminho custom mantém sendMessage como fallback sem linkUrl', () => {
+  const src = loadExecutableSource();
+  const inicio = src.indexOf(`messageType === 'meeting_confirmed'`);
+  assert.ok(inicio >= 0, 'Caminho custom (meeting_confirmed) não encontrado.');
+  // Recorta o bloco do caminho custom (até a busca dos textos custom).
+  const fim = src.indexOf('fetchMensagensCustom()', inicio);
+  const bloco = fim > inicio ? src.slice(inicio, fim) : src.slice(inicio);
+  assert.ok(
+    bloco.includes('sendMessage(payload.phone, payload.customMessage)'),
+    `INVARIANTE VIOLADO: o caminho custom deve manter o envio via ` +
+      `sendMessage (/send-text) quando o payload NÃO traz linkUrl — ` +
+      `fallback histórico dos callers existentes.`,
+  );
+  assert.ok(
+    bloco.includes('payload.linkUrl') && bloco.includes('sendLink('),
+    `INVARIANTE VIOLADO: o envio via sendLink no caminho custom deve ser ` +
+      `condicionado à presença de payload.linkUrl (card de link opcional).`,
+  );
+});
+
 // Sanidade: o guard detecta ausência de fato
 test('guard: detecta corretamente quando o fallback está ausente', () => {
   const fakeSource = "const msg = custom; // sem builder";

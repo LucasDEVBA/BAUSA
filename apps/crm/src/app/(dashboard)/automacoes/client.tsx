@@ -10,7 +10,6 @@ import {
   Pencil,
   Trash2,
   X,
-  ChevronRight,
   CheckCircle2,
   AlertTriangle,
   ListChecks,
@@ -34,19 +33,21 @@ import {
 import {
   GATILHO_CATALOG,
   ACAO_CATALOG,
-  OPERADOR_LABEL,
-  type AgendamentoFrequencia,
-  type Automacao,
   type AutomacaoComStats,
-  type AutomacaoGatilho,
-  type AutomacaoCondicao,
-  type AutomacaoAcao,
   type AutomacaoAcaoTipo,
   type AutomacaoRunDetalhado,
   type AutomacaoRunStatus,
-  type CondicaoOperador,
 } from "@/types/automacao";
-import { ETAPA_LABELS } from "@/types/crm";
+import { BuilderScreen } from "@/components/automacoes/BuilderScreen";
+import {
+  FIELD_CLASS,
+  SECTION_LABEL,
+  builderFromAutomacao,
+  emptyBuilder,
+  normalizarAcaoParaSalvar,
+  type BuilderState,
+  type UsuarioRow,
+} from "@/components/automacoes/builder-shared";
 import {
   criarAutomacao,
   atualizarAutomacao,
@@ -60,197 +61,6 @@ import {
   type SchedulerMensagens,
 } from "@/lib/actions/automacoes-builder";
 import { cn } from "@/lib/utils";
-
-// ─── Constantes de UI ────────────────────────────────────────────────────────
-
-const FIELD_CLASS =
-  "w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40";
-const SECTION_LABEL = "text-eyebrow text-label-tertiary";
-
-const ETAPA_OPCOES = Object.entries(ETAPA_LABELS).map(([value, label]) => ({ value, label }));
-
-/** Campos de condição disponíveis por gatilho (contexto que a engine resolve). */
-const CONDICAO_CAMPOS: {
-  value: string;
-  label: string;
-  gatilhos: AutomacaoGatilho[];
-  opcoes?: { value: string; label: string }[];
-}[] = [
-  {
-    value: "classificacao",
-    label: "Classificação Gemini",
-    gatilhos: ["lead_qualificado", "deal_etapa_mudou", "reuniao_marcada", "deal_parado_etapa"],
-    opcoes: [
-      { value: "QUENTE", label: "QUENTE" },
-      { value: "MORNO", label: "MORNO" },
-      { value: "FRIO", label: "FRIO" },
-    ],
-  },
-  {
-    value: "etapa_para",
-    label: "Etapa de destino",
-    gatilhos: ["deal_etapa_mudou"],
-    opcoes: ETAPA_OPCOES,
-  },
-  {
-    value: "etapa",
-    label: "Etapa atual",
-    gatilhos: ["deal_parado_etapa"],
-    opcoes: ETAPA_OPCOES,
-  },
-  {
-    value: "plano",
-    label: "Plano contratado",
-    gatilhos: ["parcela_vencendo", "parcela_atrasada", "familia_sem_contato"],
-    opcoes: [
-      { value: "Legacy", label: "Legacy" },
-      { value: "Journey", label: "Journey" },
-      { value: "Start", label: "Start" },
-    ],
-  },
-  {
-    value: "fase",
-    label: "Fase da experiência",
-    gatilhos: ["familia_sem_contato", "temperatura_vermelha"],
-    opcoes: [
-      { value: "admissao", label: "Admissão" },
-      { value: "aprovado", label: "Aprovado" },
-      { value: "pre_embarque", label: "Pré-embarque" },
-      { value: "embarcado_inicial", label: "Embarcado" },
-      { value: "acompanhamento", label: "Acompanhamento" },
-    ],
-  },
-  {
-    value: "prioridade",
-    label: "Prioridade da tarefa",
-    gatilhos: ["tarefa_vencida"],
-    opcoes: [
-      { value: "critica", label: "Crítica" },
-      { value: "alta", label: "Alta" },
-      { value: "media", label: "Média" },
-      { value: "baixa", label: "Baixa" },
-    ],
-  },
-];
-
-const TEMPLATE_OPCOES: { value: string; label: string }[] = [
-  { value: "initial", label: "Mensagem inicial (agendamento)" },
-  { value: "followup_1", label: "Follow-up 1 (48h)" },
-  { value: "followup_2", label: "Follow-up 2 (7 dias)" },
-  { value: "early_potential", label: "Timing cedo (early potential)" },
-  { value: "late_timing", label: "Timing tarde (late timing)" },
-  { value: "scheduled_return", label: "Retomada agendada (novembro)" },
-];
-
-// Ação WhatsApp custom — espelha o Zod do servidor (10-1000 chars,
-// placeholders {atleta_nome}/{responsavel_nome}).
-const WHATSAPP_CUSTOM_MIN = 10;
-const WHATSAPP_CUSTOM_MAX = 1000;
-const WHATSAPP_CUSTOM_VARIAVEIS = ["{atleta_nome}", "{responsavel_nome}"];
-
-const FREQUENCIA_OPCOES: { value: AgendamentoFrequencia; label: string }[] = [
-  { value: "diaria", label: "Diária" },
-  { value: "semanal", label: "Semanal" },
-  { value: "mensal", label: "Mensal" },
-];
-
-const DIA_SEMANA_OPCOES = [
-  { value: 0, label: "Domingo" },
-  { value: 1, label: "Segunda-feira" },
-  { value: 2, label: "Terça-feira" },
-  { value: 3, label: "Quarta-feira" },
-  { value: 4, label: "Quinta-feira" },
-  { value: 5, label: "Sexta-feira" },
-  { value: 6, label: "Sábado" },
-];
-
-interface UsuarioRow {
-  id: string;
-  nome: string;
-  papel: string;
-}
-
-// ─── Formulário (estado do builder) ─────────────────────────────────────────
-
-interface BuilderState {
-  id: string | null;
-  nome: string;
-  descricao: string;
-  gatilho: AutomacaoGatilho;
-  gatilhoDias: number;
-  /** Config do gatilho agendamento (frequência + hora BRT + dia condicional). */
-  agFrequencia: AgendamentoFrequencia;
-  agHora: number;
-  agDiaSemana: number;
-  agDiaMes: number;
-  condicoes: AutomacaoCondicao[];
-  acoes: AutomacaoAcao[];
-}
-
-function emptyBuilder(): BuilderState {
-  return {
-    id: null,
-    nome: "",
-    descricao: "",
-    gatilho: "lead_qualificado",
-    gatilhoDias: 3,
-    agFrequencia: "diaria",
-    agHora: 9,
-    agDiaSemana: 1,
-    agDiaMes: 1,
-    condicoes: [],
-    acoes: [],
-  };
-}
-
-function builderFromAutomacao(a: Automacao): BuilderState {
-  const cfg = a.gatilho_config ?? {};
-  const dias = cfg.dias;
-  const frequencia = cfg.frequencia;
-  return {
-    id: a.id,
-    nome: a.nome,
-    descricao: a.descricao ?? "",
-    gatilho: a.gatilho,
-    gatilhoDias: typeof dias === "number" ? dias : GATILHO_CATALOG[a.gatilho].configDias?.padrao ?? 3,
-    agFrequencia:
-      frequencia === "semanal" || frequencia === "mensal" ? frequencia : "diaria",
-    agHora: typeof cfg.hora === "number" ? cfg.hora : 9,
-    agDiaSemana: typeof cfg.dia_semana === "number" ? cfg.dia_semana : 1,
-    agDiaMes: typeof cfg.dia_mes === "number" ? cfg.dia_mes : 1,
-    condicoes: a.condicoes,
-    acoes: a.acoes,
-  };
-}
-
-function defaultAcao(tipo: AutomacaoAcaoTipo, usuarios: UsuarioRow[]): AutomacaoAcao {
-  switch (tipo) {
-    case "criar_tarefa":
-      return {
-        tipo,
-        parametros: {
-          titulo: "",
-          prioridade: "alta",
-          prazo_dias: 2,
-          responsavel_id: usuarios[0]?.id ?? "",
-        },
-      };
-    case "criar_notificacao":
-      return {
-        tipo,
-        parametros: { titulo: "", mensagem: "", severidade: "alta", destinatario: "ceo" },
-      };
-    case "enviar_whatsapp":
-      return { tipo, parametros: { template: "followup_1" } };
-    case "enviar_whatsapp_custom":
-      return { tipo, parametros: { mensagem: "", destinatario: "responsavel" } };
-    case "mover_deal":
-      return {
-        tipo,
-        parametros: { etapa_destino: "reuniao_marcada", next_action: "", proxima_acao_dias: 2 },
-      };
-  }
-}
 
 // ─── Componente principal ────────────────────────────────────────────────────
 
@@ -317,7 +127,8 @@ export function AutomacoesClient({
       gatilho: builder.gatilho,
       gatilho_config: gatilhoConfig,
       condicoes: builder.condicoes,
-      acoes: builder.acoes,
+      // Link/mídia das ações custom: "" nos forms = ausente no payload
+      acoes: builder.acoes.map(normalizarAcaoParaSalvar),
     };
     startTransition(async () => {
       const result = builder.id
@@ -373,7 +184,7 @@ export function AutomacoesClient({
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Sistema"
+        eyebrow="Comercial"
         title="Automações"
         description="Crie fluxos gatilho → condições → ações e acompanhe cada execução."
         actions={
@@ -408,125 +219,151 @@ export function AutomacoesClient({
         />
       )}
 
+      {/* Lista unificada: automações do sistema (nativas) + as do usuário,
+          na MESMA lista com eyebrows como separadores de grupo. */}
       {activeTab === "automacoes" && (
-        <SistemaAutomacoesSection
-          intervalos={intervalos}
-          mensagens={mensagens}
-          isPending={isPending}
-        />
-      )}
-
-      {activeTab === "automacoes" && (
-        <p className="text-eyebrow text-label-tertiary">Suas automações</p>
-      )}
-
-      {activeTab === "automacoes" && (automacoes.length === 0 ? (
-        <Card variant="plain" padding="none">
-          <EmptyState
-            icon={Workflow}
-            title="Nenhuma automação criada"
-            description="Monte seu primeiro fluxo: escolha um gatilho, adicione condições e defina as ações."
-            action={
-              <Button onClick={() => setBuilder(emptyBuilder())}>
-                <Plus className="h-4 w-4" />
-                Criar automação
-              </Button>
-            }
+        <div className="space-y-4">
+          <SistemaAutomacoesGroup
+            intervalos={intervalos}
+            mensagens={mensagens}
+            isPending={isPending}
           />
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {automacoes.map((a) => {
-            const gatilho = GATILHO_CATALOG[a.gatilho];
-            const OrigemIcon = gatilho.origem === "evento" ? Zap : Clock;
-            return (
-              <Card key={a.id} padding="md" accent={a.ativo ? "green" : "neutral"}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-foreground">{a.nome}</p>
-                      <Badge tone={a.ativo ? "green" : "neutral"} size="sm">
-                        {a.ativo ? "Ativa" : "Pausada"}
-                      </Badge>
-                      <Badge tone="brand" size="sm">
-                        <OrigemIcon className="h-2.5 w-2.5" />
-                        {gatilho.label}
-                      </Badge>
-                    </div>
-                    {a.descricao && (
-                      <p className="mt-1 text-xs text-muted-foreground">{a.descricao}</p>
-                    )}
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-label-tertiary">
-                      <span className="inline-flex items-center gap-1">
-                        <ListChecks className="h-3 w-3" />
-                        {a.condicoes.length} condição{a.condicoes.length !== 1 ? "es" : ""} ·{" "}
-                        {a.acoes.map((ac) => ACAO_CATALOG[ac.tipo].label).join(" + ")}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3 text-sys-green" />
-                        {a.runs_sucesso} sucesso{a.runs_sucesso !== 1 ? "s" : ""}
-                      </span>
-                      {a.runs_erro > 0 && (
-                        <span className="inline-flex items-center gap-1 text-sys-red">
-                          <AlertTriangle className="h-3 w-3" />
-                          {a.runs_erro} erro{a.runs_erro !== 1 ? "s" : ""}
-                        </span>
-                      )}
-                      {a.runs_pendente > 0 && <span>{a.runs_pendente} na fila</span>}
-                      {a.ultimo_run_at && (
-                        <span>
-                          Último disparo: {new Date(a.ultimo_run_at).toLocaleString("pt-BR")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    {/* Toggle ativo/pausada */}
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={a.ativo}
-                      aria-label={a.ativo ? `Pausar ${a.nome}` : `Ativar ${a.nome}`}
-                      disabled={isPending}
-                      onClick={() => alternar(a)}
-                      className={cn(
-                        "relative h-5 w-9 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                        a.ativo ? "bg-sys-green" : "bg-fill-2",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-transform",
-                          a.ativo ? "translate-x-4" : "translate-x-0.5",
-                        )}
-                      />
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`Ver execuções de ${a.nome}`}
-                      title="Ver execuções (quem recebeu)"
-                      onClick={() => verExecucoes(a.id)}
-                    >
-                      <History className="h-3.5 w-3.5" />
+          <section className="space-y-3">
+            <p className="text-eyebrow text-label-tertiary">Suas automações</p>
+
+            {automacoes.length === 0 ? (
+              <Card variant="plain" padding="none">
+                <EmptyState
+                  icon={Workflow}
+                  title="Nenhuma automação criada"
+                  description="Monte seu primeiro fluxo: escolha um gatilho, adicione condições e defina as ações."
+                  action={
+                    <Button onClick={() => setBuilder(emptyBuilder())}>
+                      <Plus className="h-4 w-4" />
+                      Criar automação
                     </Button>
-                    <Button variant="ghost" size="sm" aria-label={`Editar ${a.nome}`} onClick={() => setBuilder(builderFromAutomacao(a))}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="sm" aria-label={`Excluir ${a.nome}`} onClick={() => excluir(a)}>
-                      <Trash2 className="h-3.5 w-3.5 text-sys-red" />
-                    </Button>
-                  </div>
-                </div>
+                  }
+                />
               </Card>
-            );
-          })}
+            ) : (
+              automacoes.map((a) => {
+                const gatilho = GATILHO_CATALOG[a.gatilho];
+                const OrigemIcon = gatilho.origem === "evento" ? Zap : Clock;
+                return (
+                  <Card key={a.id} padding="md" accent={a.ativo ? "green" : "neutral"}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-foreground">{a.nome}</p>
+                          <Badge tone={a.ativo ? "green" : "neutral"} size="sm">
+                            {a.ativo ? "Ativa" : "Pausada"}
+                          </Badge>
+                          <Badge tone="brand" size="sm">
+                            <OrigemIcon className="h-2.5 w-2.5" />
+                            {gatilho.label}
+                          </Badge>
+                        </div>
+                        {a.descricao && (
+                          <p className="mt-1 text-xs text-muted-foreground">{a.descricao}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <ListChecks className="h-3 w-3" />
+                            {a.condicoes.length} condição{a.condicoes.length !== 1 ? "es" : ""} ·{" "}
+                            {a.acoes.map((ac) => ACAO_CATALOG[ac.tipo].label).join(" + ")}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-sys-green" />
+                            {a.runs_sucesso} sucesso{a.runs_sucesso !== 1 ? "s" : ""}
+                          </span>
+                          {a.runs_erro > 0 && (
+                            <span className="inline-flex items-center gap-1 text-sys-red">
+                              <AlertTriangle className="h-3 w-3" />
+                              {a.runs_erro} erro{a.runs_erro !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {a.runs_pendente > 0 && <span>{a.runs_pendente} na fila</span>}
+                          {a.ultimo_run_at && (
+                            <span>
+                              Último disparo: {new Date(a.ultimo_run_at).toLocaleString("pt-BR")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        {/* Toggle ativo/pausada */}
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={a.ativo}
+                          aria-label={a.ativo ? `Pausar ${a.nome}` : `Ativar ${a.nome}`}
+                          disabled={isPending}
+                          onClick={() => alternar(a)}
+                          className={cn(
+                            "relative h-5 w-9 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                            a.ativo ? "bg-sys-green" : "bg-fill-2",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-transform",
+                              a.ativo ? "translate-x-4" : "translate-x-0.5",
+                            )}
+                          />
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Ver execuções de ${a.nome}`}
+                          title="Ver execuções (quem recebeu)"
+                          onClick={() => verExecucoes(a.id)}
+                        >
+                          <History className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" aria-label={`Editar ${a.nome}`} onClick={() => setBuilder(builderFromAutomacao(a))}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" aria-label={`Excluir ${a.nome}`} onClick={() => excluir(a)}>
+                          <Trash2 className="h-3.5 w-3.5 text-sys-red" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })
+            )}
+
+            {/* Sugestão discreta: régua de cobrança ainda não é nativa — nasce
+                pelo builder (sem UI falsa de automação pronta). */}
+            <Card variant="ghost" padding="md" className="border border-dashed border-border">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-foreground">
+                    Sugestão — Régua de cobrança
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                    Monte com o builder: gatilho <em>Parcela vencendo/atrasada</em> (D−3, D+1,
+                    D+7, D+15) + ações de tarefa, notificação ou WhatsApp.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setBuilder({ ...emptyBuilder(), gatilho: "parcela_vencendo" })}
+                >
+                  <Plus className="h-3 w-3" />
+                  Montar no builder
+                </Button>
+              </div>
+            </Card>
+          </section>
         </div>
-      ))}
+      )}
 
       {builder && (
-        <BuilderModal
+        <BuilderScreen
           builder={builder}
           usuarios={usuarios}
           isPending={isPending}
@@ -580,9 +417,9 @@ const TEMPLATE_TITULO: Record<MensagemTemplate, string> = {
   scheduled_return: "Retomada agendada (scheduled_return)",
 };
 
-/** Card de automação nativa. `intervaloChave`/`templates`/`editaReuniao`
- *  definem o que o modal permite editar — cards sem nada disso abrem um
- *  modal "Detalhes" só de leitura (sem UI falsa). */
+/** Automação nativa (linha do grupo "Sistema" da lista). `intervaloChave`/
+ *  `templates`/`editaReuniao` definem o que o modal permite editar — linhas
+ *  sem nada disso abrem um modal "Detalhes" só de leitura (sem UI falsa). */
 interface SistemaCard {
   id: string;
   nome: string;
@@ -594,10 +431,12 @@ interface SistemaCard {
   editaReuniao?: boolean;
 }
 
-/** As 4 nativas com intervalo editável (persistem em scheduler_intervalos;
- *  as CFs leem no próximo tick, com clamp 1h–720h próprio). `templates` são
- *  os textos de mensagem editáveis (scheduler_mensagens) de cada scheduler. */
-const SISTEMA_EDITAVEIS: SistemaCard[] = [
+/** Automações nativas, na ordem da lista: as 4 com intervalo editável
+ *  (persistem em scheduler_intervalos; as CFs leem no próximo tick, com clamp
+ *  1h–720h próprio — `templates` são os textos editáveis em
+ *  scheduler_mensagens), depois retomada/confirmação (textos editáveis) e as
+ *  3 informativas. Sempre ativas — sem toggle nem exclusão. */
+const SISTEMA_AUTOMACOES: SistemaCard[] = [
   {
     id: "whatsapp_inicial",
     nome: "WhatsApp inicial (timing ideal)",
@@ -642,9 +481,6 @@ const SISTEMA_EDITAVEIS: SistemaCard[] = [
     intervaloChave: "followup_2_horas",
     templates: ["followup_2"],
   },
-];
-
-const SISTEMA_INFORMATIVAS: SistemaCard[] = [
   {
     id: "retomada_novembro",
     nome: "Retomada de novembro",
@@ -706,7 +542,11 @@ interface SistemaSavePayload {
   reuniao?: MensagemParReuniao;
 }
 
-function SistemaAutomacoesSection({
+/** Grupo "Sistema" da lista unificada — as nativas como LINHAS com o mesmo
+ *  visual das automações do usuário. Sempre ativas: badge "Sistema" no lugar
+ *  do toggle, sem exclusão; Editar abre o SistemaModal (intervalo + textos)
+ *  e as informativas abrem o modal Detalhes. */
+function SistemaAutomacoesGroup({
   intervalos,
   mensagens,
   isPending,
@@ -765,89 +605,62 @@ function SistemaAutomacoesSection({
   };
 
   return (
-    <section className="space-y-2">
-      <p className="text-eyebrow text-label-tertiary">Automações do sistema</p>
+    <section className="space-y-3">
+      <p className="text-eyebrow text-label-tertiary">Sistema</p>
 
       {!mensagens && (
-        <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+        <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
           Textos das mensagens indisponíveis neste ambiente (seed{" "}
           <code className="font-mono">scheduler_mensagens</code> pendente) — a edição fica
           desabilitada e os envios seguem com os textos padrão do sistema.
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {SISTEMA_EDITAVEIS.map((card) => (
-          <Card key={card.id} variant="plain" padding="sm" accent="brand">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                  <Zap className="h-3 w-3 text-primary" />
-                  {card.nome}
-                  <Badge tone="green" size="sm">Ativa</Badge>
-                </p>
-                <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
-                  {card.descricao}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
-                {card.intervaloChave && (
-                  <span className="text-[10px] text-label-tertiary">
-                    dispara após{" "}
-                    <span className="font-semibold tabular-nums text-foreground">
-                      {intervalos[card.intervaloChave]}h
+      {SISTEMA_AUTOMACOES.map((card) => {
+        const editavel = cardEditavel(card);
+        return (
+          <Card key={card.id} padding="md" accent="brand">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-foreground">{card.nome}</p>
+                  {/* Sempre ativa — badge fixo no lugar do toggle (sem UI falsa) */}
+                  <Badge tone="brand" size="sm">
+                    <Zap className="h-2.5 w-2.5" />
+                    Sistema
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{card.descricao}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                  {card.intervaloChave ? (
+                    <span>
+                      dispara após{" "}
+                      <span className="font-semibold tabular-nums text-foreground">
+                        {intervalos[card.intervaloChave]}h
+                      </span>
                     </span>
-                  </span>
-                )}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={ocupado}
-                  aria-label={`Editar ${card.nome}`}
-                  onClick={() => setCardAberto(card)}
-                >
-                  <Pencil className="h-3 w-3" />
-                  Editar
-                </Button>
+                  ) : (
+                    <span>automática</span>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {SISTEMA_INFORMATIVAS.map((card) => {
-          const editavel = cardEditavel(card);
-          return (
-            <Card key={card.id} variant="ghost" padding="sm">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
-                <Clock className="h-3 w-3 text-label-tertiary" />
-                {card.nome}
-                <Badge tone="neutral" size="sm">Automática</Badge>
-              </p>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{card.descricao}</p>
-              <div className="mt-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button
-                  variant="secondary"
+                  variant="ghost"
                   size="sm"
                   disabled={ocupado}
                   aria-label={editavel ? `Editar ${card.nome}` : `Detalhes de ${card.nome}`}
                   onClick={() => setCardAberto(card)}
                 >
-                  {editavel ? <Pencil className="h-3 w-3" /> : <Info className="h-3 w-3" />}
+                  {editavel ? <Pencil className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
                   {editavel ? "Editar" : "Detalhes"}
                 </Button>
               </div>
-            </Card>
-          );
-        })}
-        <Card variant="ghost" padding="sm" className="border border-dashed border-border">
-          <p className="text-[11px] font-semibold text-foreground">Régua de cobrança</p>
-          <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
-            Monte pela aba builder: gatilho <em>Parcela vencendo/atrasada</em> (D−3, D+1, D+7, D+15) + ações.
-          </p>
-        </Card>
-      </div>
+            </div>
+          </Card>
+        );
+      })}
 
       {cardAberto && (
         <SistemaModal
@@ -892,8 +705,8 @@ function CampoMensagem({
         </label>
         <span
           className={cn(
-            "text-[10px] tabular-nums",
-            invalido ? "text-sys-red" : "text-label-tertiary",
+            "text-[11px] tabular-nums",
+            invalido ? "text-sys-red" : "text-muted-foreground",
           )}
         >
           {value.length}/{MENSAGEM_MAX_CHARS}
@@ -911,7 +724,7 @@ function CampoMensagem({
 
 function VariaveisLegenda({ variaveis }: { variaveis: string[] }) {
   return (
-    <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+    <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
       Variáveis disponíveis:{" "}
       {variaveis.map((v) => (
         <code key={v} className="mr-1.5 font-mono text-foreground">
@@ -1026,7 +839,7 @@ function SistemaModal({
             <section className="space-y-1.5">
               <p className={SECTION_LABEL}>Intervalo de disparo</p>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-label-tertiary">dispara após</span>
+                <span className="text-[11px] text-muted-foreground">dispara após</span>
                 <Input
                   type="number"
                   min={1}
@@ -1036,9 +849,9 @@ function SistemaModal({
                   value={String(intervalo)}
                   onChange={(e) => setIntervalo(Number(e.target.value))}
                 />
-                <span className="text-[10px] font-medium text-muted-foreground">h</span>
+                <span className="text-[11px] font-medium text-muted-foreground">h</span>
               </div>
-              <p className={cn("text-[10px]", intervaloValido ? "text-label-tertiary" : "text-sys-red")}>
+              <p className={cn("text-[11px]", intervaloValido ? "text-muted-foreground" : "text-sys-red")}>
                 Entre 1 e 720 horas — vale a partir do próximo tick do scheduler (1x/hora).
               </p>
             </section>
@@ -1046,7 +859,7 @@ function SistemaModal({
 
           {/* Seed pendente: sem UI falsa de textos */}
           {(card.templates?.length ?? 0) > 0 && !mensagens && (
-            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Textos indisponíveis neste ambiente (seed{" "}
               <code className="font-mono">scheduler_mensagens</code> pendente) — os envios
               seguem com os textos padrão do sistema.
@@ -1096,7 +909,7 @@ function SistemaModal({
                 />
               </section>
             ) : (
-              <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+              <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
                 Edição dos textos indisponível neste ambiente (chave{" "}
                 <code className="font-mono">meeting_confirmed</code> pendente no seed) — os
                 envios seguem com os textos padrão do sistema.
@@ -1105,7 +918,7 @@ function SistemaModal({
 
           {/* Card 100% informativo: nada editável (sem UI falsa) */}
           {!card.intervaloChave && !card.templates?.length && !card.editaReuniao && (
-            <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Parâmetros editáveis: em breve.
             </p>
           )}
@@ -1196,7 +1009,7 @@ function ExecucoesView({
 
       {/* Filtro por automação (setado também pelo "Ver execuções" do card) */}
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-label-tertiary">Automação:</span>
+        <span className="text-[11px] text-muted-foreground">Automação:</span>
         <select
           aria-label="Filtrar por automação"
           className={cn(FIELD_CLASS, "max-w-xs")}
@@ -1253,7 +1066,7 @@ function ExecucoesView({
                           {run.automacoes?.nome ?? "(removida)"}
                         </p>
                         {gatilho && (
-                          <p className="text-[10px] text-label-tertiary">{gatilho.label}</p>
+                          <p className="text-[11px] text-muted-foreground">{gatilho.label}</p>
                         )}
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
@@ -1266,7 +1079,7 @@ function ExecucoesView({
                           </p>
                         )}
                         {leadNome && (
-                          <p className="text-[10px] text-label-tertiary">{run.gatilho_origem_tabela}</p>
+                          <p className="text-[11px] text-muted-foreground">{run.gatilho_origem_tabela}</p>
                         )}
                       </td>
                       <td className="px-3 py-2.5">
@@ -1300,526 +1113,6 @@ function ExecucoesView({
           </div>
         </Card>
       )}
-    </div>
-  );
-}
-
-// ─── Builder modal (gatilho → condições → ações) ────────────────────────────
-
-function BuilderModal({
-  builder,
-  usuarios,
-  isPending,
-  onChange,
-  onClose,
-  onSave,
-}: {
-  builder: BuilderState;
-  usuarios: UsuarioRow[];
-  isPending: boolean;
-  onChange: (b: BuilderState) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  const gatilhoInfo = GATILHO_CATALOG[builder.gatilho];
-  const camposDisponiveis = CONDICAO_CAMPOS.filter((c) => c.gatilhos.includes(builder.gatilho));
-
-  const setCondicao = (i: number, patch: Partial<AutomacaoCondicao>) => {
-    const next = builder.condicoes.map((c, idx) => (idx === i ? { ...c, ...patch } : c));
-    onChange({ ...builder, condicoes: next });
-  };
-
-  const setAcaoParametro = (i: number, campo: string, valor: string | number) => {
-    const next = builder.acoes.map((a, idx) =>
-      idx === i ? ({ ...a, parametros: { ...a.parametros, [campo]: valor } } as AutomacaoAcao) : a,
-    );
-    onChange({ ...builder, acoes: next });
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/20 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={builder.id ? "Editar automação" : "Nova automação"}
-        className="liquid-glass my-8 w-full max-w-2xl rounded-2xl p-5 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-title-3 text-foreground">
-            {builder.id ? "Editar automação" : "Nova automação"}
-          </h2>
-          <Button variant="ghost" size="sm" aria-label="Fechar" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="space-y-5">
-          {/* Identificação */}
-          <section className="space-y-2">
-            <p className={SECTION_LABEL}>Identificação</p>
-            <Input
-              placeholder="Nome da automação (ex.: Régua D-3 — lembrete de parcela)"
-              value={builder.nome}
-              onChange={(e) => onChange({ ...builder, nome: e.target.value })}
-            />
-            <Input
-              placeholder="Descrição (opcional)"
-              value={builder.descricao}
-              onChange={(e) => onChange({ ...builder, descricao: e.target.value })}
-            />
-          </section>
-
-          {/* Gatilho */}
-          <section className="space-y-2">
-            <p className={SECTION_LABEL}>1 · Gatilho</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <select
-                aria-label="Gatilho"
-                className={FIELD_CLASS}
-                value={builder.gatilho}
-                onChange={(e) => {
-                  const gatilho = e.target.value as AutomacaoGatilho;
-                  onChange({
-                    ...builder,
-                    gatilho,
-                    gatilhoDias: GATILHO_CATALOG[gatilho].configDias?.padrao ?? builder.gatilhoDias,
-                    condicoes: [], // catálogo de campos muda com o gatilho
-                  });
-                }}
-              >
-                {Object.entries(GATILHO_CATALOG).map(([value, info]) => (
-                  <option key={value} value={value}>
-                    {info.origem === "evento" ? "⚡" : "⏱"} {info.label}
-                  </option>
-                ))}
-              </select>
-              {gatilhoInfo.configDias && (
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={0}
-                    aria-label={gatilhoInfo.configDias.label}
-                    value={String(builder.gatilhoDias)}
-                    onChange={(e) => onChange({ ...builder, gatilhoDias: Number(e.target.value) })}
-                  />
-                  <span className="shrink-0 text-[10px] text-label-tertiary">
-                    {gatilhoInfo.configDias.label}
-                  </span>
-                </div>
-              )}
-            </div>
-            {gatilhoInfo.configAgendamento && (
-              <>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <select
-                    aria-label="Frequência"
-                    className={FIELD_CLASS}
-                    value={builder.agFrequencia}
-                    onChange={(e) =>
-                      onChange({ ...builder, agFrequencia: e.target.value as AgendamentoFrequencia })
-                    }
-                  >
-                    {FREQUENCIA_OPCOES.map((f) => (
-                      <option key={f.value} value={f.value}>
-                        {f.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={23}
-                      aria-label="Hora do disparo (0-23, horário de Brasília)"
-                      className="text-center tabular-nums"
-                      value={String(builder.agHora)}
-                      onChange={(e) => onChange({ ...builder, agHora: Number(e.target.value) })}
-                    />
-                    <span className="shrink-0 text-[10px] text-label-tertiary">h (BRT, 0-23)</span>
-                  </div>
-                  {builder.agFrequencia === "semanal" && (
-                    <select
-                      aria-label="Dia da semana"
-                      className={FIELD_CLASS}
-                      value={String(builder.agDiaSemana)}
-                      onChange={(e) => onChange({ ...builder, agDiaSemana: Number(e.target.value) })}
-                    >
-                      {DIA_SEMANA_OPCOES.map((d) => (
-                        <option key={d.value} value={String(d.value)}>
-                          {d.label}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {builder.agFrequencia === "mensal" && (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={28}
-                        aria-label="Dia do mês (1-28)"
-                        className="text-center tabular-nums"
-                        value={String(builder.agDiaMes)}
-                        onChange={(e) => onChange({ ...builder, agDiaMes: Number(e.target.value) })}
-                      />
-                      <span className="shrink-0 text-[10px] text-label-tertiary">dia do mês (1-28)</span>
-                    </div>
-                  )}
-                </div>
-                <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
-                  O disparo não tem lead/deal associado — ações de WhatsApp e mover deal são
-                  ignoradas. Use <strong>criar tarefa</strong> ou <strong>notificar</strong> para
-                  rotinas recorrentes. Dispara 1x por período, no tick da hora escolhida (min 30).
-                </p>
-              </>
-            )}
-            <p className="text-[10px] text-label-tertiary">{gatilhoInfo.descricao}</p>
-          </section>
-
-          {/* Condições */}
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className={SECTION_LABEL}>2 · Condições (opcional)</p>
-              {camposDisponiveis.length > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() =>
-                    onChange({
-                      ...builder,
-                      condicoes: [
-                        ...builder.condicoes,
-                        {
-                          campo: camposDisponiveis[0].value,
-                          operador: "eq",
-                          valor: camposDisponiveis[0].opcoes?.[0]?.value ?? "",
-                        },
-                      ],
-                    })
-                  }
-                >
-                  <Plus className="h-3 w-3" />
-                  Condição
-                </Button>
-              )}
-            </div>
-            {builder.condicoes.length === 0 ? (
-              <p className="text-[10px] text-label-tertiary">
-                {builder.gatilho === "agendamento"
-                  ? "Agendamento não tem condições — não há lead/deal no contexto do disparo."
-                  : "Sem condições — dispara para todo evento do gatilho."}
-              </p>
-            ) : (
-              builder.condicoes.map((cond, i) => {
-                const campoInfo = CONDICAO_CAMPOS.find((c) => c.value === cond.campo);
-                return (
-                  <div key={i} className="flex items-center gap-2">
-                    <select
-                      aria-label="Campo"
-                      className={FIELD_CLASS}
-                      value={cond.campo}
-                      onChange={(e) => {
-                        const novo = CONDICAO_CAMPOS.find((c) => c.value === e.target.value);
-                        setCondicao(i, {
-                          campo: e.target.value,
-                          valor: novo?.opcoes?.[0]?.value ?? "",
-                        });
-                      }}
-                    >
-                      {camposDisponiveis.map((c) => (
-                        <option key={c.value} value={c.value}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label="Operador"
-                      className={cn(FIELD_CLASS, "max-w-24")}
-                      value={cond.operador}
-                      onChange={(e) => setCondicao(i, { operador: e.target.value as CondicaoOperador })}
-                    >
-                      {(["eq", "neq", "in"] as CondicaoOperador[]).map((op) => (
-                        <option key={op} value={op}>
-                          {OPERADOR_LABEL[op]}
-                        </option>
-                      ))}
-                    </select>
-                    {campoInfo?.opcoes ? (
-                      <select
-                        aria-label="Valor"
-                        className={FIELD_CLASS}
-                        value={String(cond.valor)}
-                        onChange={(e) => setCondicao(i, { valor: e.target.value })}
-                      >
-                        {campoInfo.opcoes.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Input
-                        aria-label="Valor"
-                        value={String(cond.valor)}
-                        onChange={(e) => setCondicao(i, { valor: e.target.value })}
-                      />
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label="Remover condição"
-                      onClick={() =>
-                        onChange({ ...builder, condicoes: builder.condicoes.filter((_, idx) => idx !== i) })
-                      }
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                );
-              })
-            )}
-          </section>
-
-          {/* Ações */}
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className={SECTION_LABEL}>3 · Ações</p>
-              <div className="flex gap-1.5">
-                {(Object.keys(ACAO_CATALOG) as AutomacaoAcaoTipo[]).map((tipo) => (
-                  <Button
-                    key={tipo}
-                    variant="secondary"
-                    size="sm"
-                    onClick={() =>
-                      onChange({ ...builder, acoes: [...builder.acoes, defaultAcao(tipo, usuarios)] })
-                    }
-                  >
-                    <Plus className="h-3 w-3" />
-                    {ACAO_CATALOG[tipo].label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {builder.acoes.length === 0 && (
-              <p className="text-[10px] text-label-tertiary">
-                Adicione pelo menos uma ação — é o que a automação FAZ quando dispara.
-              </p>
-            )}
-
-            {builder.acoes.map((acao, i) => (
-              <Card key={i} variant="plain" padding="sm" className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <ChevronRight className="h-3 w-3 text-primary" />
-                    {ACAO_CATALOG[acao.tipo].label}
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label="Remover ação"
-                    onClick={() =>
-                      onChange({ ...builder, acoes: builder.acoes.filter((_, idx) => idx !== i) })
-                    }
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-
-                {acao.tipo === "criar_tarefa" && (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Input
-                      placeholder="Título da tarefa"
-                      value={acao.parametros.titulo}
-                      onChange={(e) => setAcaoParametro(i, "titulo", e.target.value)}
-                    />
-                    <select
-                      aria-label="Responsável"
-                      className={FIELD_CLASS}
-                      value={acao.parametros.responsavel_id}
-                      onChange={(e) => setAcaoParametro(i, "responsavel_id", e.target.value)}
-                    >
-                      {usuarios.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.nome}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label="Prioridade"
-                      className={FIELD_CLASS}
-                      value={acao.parametros.prioridade}
-                      onChange={(e) => setAcaoParametro(i, "prioridade", e.target.value)}
-                    >
-                      <option value="critica">Crítica</option>
-                      <option value="alta">Alta</option>
-                      <option value="media">Média</option>
-                      <option value="baixa">Baixa</option>
-                    </select>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        aria-label="Prazo em dias"
-                        value={String(acao.parametros.prazo_dias)}
-                        onChange={(e) => setAcaoParametro(i, "prazo_dias", Number(e.target.value))}
-                      />
-                      <span className="shrink-0 text-[10px] text-label-tertiary">dias de prazo</span>
-                    </div>
-                  </div>
-                )}
-
-                {acao.tipo === "criar_notificacao" && (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Input
-                      placeholder="Título"
-                      value={acao.parametros.titulo}
-                      onChange={(e) => setAcaoParametro(i, "titulo", e.target.value)}
-                    />
-                    <select
-                      aria-label="Destinatário"
-                      className={FIELD_CLASS}
-                      value={acao.parametros.destinatario}
-                      onChange={(e) => setAcaoParametro(i, "destinatario", e.target.value)}
-                    >
-                      <option value="ceo">CEO</option>
-                      <option value="head_sucesso">Head de Sucesso</option>
-                      <option value="responsavel">Responsável do registro</option>
-                    </select>
-                    <Input
-                      className="sm:col-span-2"
-                      placeholder="Mensagem"
-                      value={acao.parametros.mensagem}
-                      onChange={(e) => setAcaoParametro(i, "mensagem", e.target.value)}
-                    />
-                    <select
-                      aria-label="Severidade"
-                      className={FIELD_CLASS}
-                      value={acao.parametros.severidade}
-                      onChange={(e) => setAcaoParametro(i, "severidade", e.target.value)}
-                    >
-                      <option value="critica">Crítica</option>
-                      <option value="alta">Alta</option>
-                      <option value="media">Média</option>
-                      <option value="baixa">Baixa</option>
-                    </select>
-                  </div>
-                )}
-
-                {acao.tipo === "enviar_whatsapp" && (
-                  <div className="space-y-1.5">
-                    <select
-                      aria-label="Template"
-                      className={FIELD_CLASS}
-                      value={acao.parametros.template}
-                      onChange={(e) => setAcaoParametro(i, "template", e.target.value)}
-                    >
-                      {TEMPLATE_OPCOES.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-[10px] text-label-tertiary">
-                      A engine reaplica a elegibilidade (QUENTE/MORNO, anti-ban) — FRIO nunca recebe.
-                    </p>
-                  </div>
-                )}
-
-                {acao.tipo === "enviar_whatsapp_custom" && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label
-                        htmlFor={`whatsapp-custom-${i}`}
-                        className="text-[11px] font-semibold text-foreground"
-                      >
-                        Mensagem (texto livre)
-                      </label>
-                      <span
-                        className={cn(
-                          "text-[10px] tabular-nums",
-                          acao.parametros.mensagem.length >= WHATSAPP_CUSTOM_MIN &&
-                            acao.parametros.mensagem.length <= WHATSAPP_CUSTOM_MAX
-                            ? "text-label-tertiary"
-                            : "text-sys-red",
-                        )}
-                      >
-                        {acao.parametros.mensagem.length}/{WHATSAPP_CUSTOM_MAX}
-                      </span>
-                    </div>
-                    <textarea
-                      id={`whatsapp-custom-${i}`}
-                      className={cn(FIELD_CLASS, "min-h-28 resize-y leading-relaxed")}
-                      placeholder="Ex.: Olá {responsavel_nome}, temos novidades sobre o projeto de {atleta_nome}…"
-                      value={acao.parametros.mensagem}
-                      onChange={(e) => setAcaoParametro(i, "mensagem", e.target.value)}
-                    />
-                    <p className="rounded-md bg-secondary/50 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
-                      Variáveis disponíveis:{" "}
-                      {WHATSAPP_CUSTOM_VARIAVEIS.map((v) => (
-                        <code key={v} className="mr-1.5 font-mono text-foreground">
-                          {v}
-                        </code>
-                      ))}
-                      — substituídas no envio. Formatação WhatsApp: *negrito* e _itálico_.
-                    </p>
-                    <p className="text-[10px] text-label-tertiary">
-                      Enviada ao <strong>responsável</strong> do lead. Só QUENTE/MORNO recebem —
-                      FRIO nunca, nem mensagem custom (invariante da engine).
-                    </p>
-                  </div>
-                )}
-
-                {acao.tipo === "mover_deal" && (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <select
-                      aria-label="Etapa de destino"
-                      className={FIELD_CLASS}
-                      value={acao.parametros.etapa_destino}
-                      onChange={(e) => setAcaoParametro(i, "etapa_destino", e.target.value)}
-                    >
-                      {ETAPA_OPCOES.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        aria-label="Próxima ação em dias"
-                        value={String(acao.parametros.proxima_acao_dias)}
-                        onChange={(e) => setAcaoParametro(i, "proxima_acao_dias", Number(e.target.value))}
-                      />
-                      <span className="shrink-0 text-[10px] text-label-tertiary">dias p/ próxima ação</span>
-                    </div>
-                    <Input
-                      className="sm:col-span-2"
-                      placeholder="Próxima ação (obrigatória — regra do pipeline)"
-                      value={acao.parametros.next_action}
-                      onChange={(e) => setAcaoParametro(i, "next_action", e.target.value)}
-                    />
-                  </div>
-                )}
-              </Card>
-            ))}
-          </section>
-        </div>
-
-        <div className="mt-5 flex items-center justify-end gap-2 border-t border-border pt-4">
-          <Button variant="ghost" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button onClick={onSave} disabled={isPending || !builder.nome || builder.acoes.length === 0}>
-            {builder.id ? "Salvar alterações" : "Criar automação"}
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -8,7 +8,6 @@ import {
   GitBranch,
   Settings,
   Shield,
-  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { requirePapel } from "@/lib/auth";
@@ -55,13 +54,7 @@ const MODULES: SistemaModule[] = [
     icon: GitBranch,
     roles: ["ceo", "head_sucesso"],
   },
-  {
-    href: "/automacoes",
-    label: "Automações",
-    description: "Crie fluxos gatilho → condições → ações e acompanhe cada execução.",
-    icon: Workflow,
-    roles: ["ceo"],
-  },
+  // Automações (builder) mora no grupo COMERCIAL do sidebar (/automacoes).
   {
     href: "/automacoes-monitor",
     label: "Monitor de filas",
