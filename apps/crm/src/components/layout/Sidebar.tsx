@@ -124,7 +124,6 @@ const NAV_GROUPS: NavGroup[] = [
         activeRoutes: [
           "/sistema",
           "/tarefas",
-          "/documentos",
           "/faq",
           "/indicacoes",
           "/automacoes-monitor",
@@ -135,7 +134,6 @@ const NAV_GROUPS: NavGroup[] = [
         // Automações (builder) mora no grupo COMERCIAL.
         subItems: [
           { href: "/tarefas", label: "Tarefas" },
-          { href: "/documentos", label: "Documentos" },
           { href: "/faq", label: "FAQ" },
           { href: "/indicacoes", label: "Indicações" },
           { href: "/automacoes-monitor", label: "Monitor de filas", roles: ["ceo"] },

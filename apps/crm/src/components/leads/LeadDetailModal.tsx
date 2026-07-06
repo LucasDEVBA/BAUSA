@@ -10,6 +10,7 @@ import {
   Target,
   MessageSquare,
   BarChart3,
+  FileText,
   History,
   Phone,
   Mail,
@@ -29,6 +30,11 @@ import {
   MinimalField,
   MinimalStat,
 } from "@/components/shared/MinimalUI";
+import {
+  DocumentosChecklist,
+  DocumentosUrgentesBadge,
+  useDocumentosAtleta,
+} from "@/components/documentos/DocumentosChecklist";
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -45,6 +51,7 @@ type SectionId =
   | "atribuicao"
   | "comunicacoes"
   | "timing"
+  | "documentos"
   | "historico"
   | "sistema";
 
@@ -65,6 +72,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "comunicacoes", label: "Comunicações", icon: MessageSquare, group: "operacao" },
   { id: "atribuicao", label: "Atribuição & UTM", icon: BarChart3, group: "operacao" },
   { id: "timing", label: "Timing", icon: CalendarClock, group: "operacao" },
+  { id: "documentos", label: "Documentos", icon: FileText, group: "operacao" },
   { id: "historico", label: "Histórico", icon: History, group: "auditoria" },
   { id: "sistema", label: "Sistema", icon: Hash, group: "auditoria" },
 ];
@@ -106,6 +114,7 @@ function diasAtras(iso?: string | null): number | null {
 
 export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
   const [section, setSection] = useState<SectionId>("executiva");
+  const documentos = useDocumentosAtleta(lead?.pipeline_atleta_id);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -241,6 +250,11 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
                       >
                         <Icon className="h-3 w-3 shrink-0" />
                         <span className="truncate">{it.label}</span>
+                        {it.id === "documentos" && (
+                          <span className="ml-auto">
+                            <DocumentosUrgentesBadge count={documentos.urgentes} />
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -266,6 +280,9 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
                   >
                     <Icon className="h-3 w-3" />
                     {it.label}
+                    {it.id === "documentos" && (
+                      <DocumentosUrgentesBadge count={documentos.urgentes} />
+                    )}
                   </button>
                 );
               })}
@@ -281,6 +298,17 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
               {section === "atribuicao" && <AtribuicaoSection lead={lead} />}
               {section === "comunicacoes" && <ComunicacoesSection lead={lead} />}
               {section === "timing" && <TimingSection lead={lead} />}
+              {section === "documentos" &&
+                (lead.pipeline_atleta_id ? (
+                  <DocumentosChecklist
+                    atletaId={lead.pipeline_atleta_id}
+                    docs={documentos.docs}
+                    loading={documentos.loading}
+                    onRefetch={documentos.refetch}
+                  />
+                ) : (
+                  <DocumentosEmptySection lead={lead} />
+                ))}
               {section === "historico" && <HistoricoSection lead={lead} />}
               {section === "sistema" && <SistemaSection lead={lead} />}
             </main>
@@ -793,6 +821,22 @@ function HistoricoSection({ lead }: { lead: Lead }) {
         </ol>
       )}
     </MinimalCard>
+  );
+}
+
+function DocumentosEmptySection({ lead }: { lead: Lead }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-12 text-center">
+      <FileText className="h-8 w-8 text-muted-foreground/40" />
+      <p className="text-sm font-medium text-foreground">
+        Checklist de documentos indisponível
+      </p>
+      <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+        {lead.qualification_classification === "FRIO"
+          ? "Leads FRIO não são promovidos ao pipeline, portanto não têm checklist de documentos."
+          : "Este lead ainda não foi promovido ao pipeline. O checklist de documentos fica disponível quando o atleta é criado (leads QUENTE/MORNO são promovidos automaticamente na qualificação)."}
+      </p>
+    </div>
   );
 }
 

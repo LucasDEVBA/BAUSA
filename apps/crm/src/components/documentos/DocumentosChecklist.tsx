@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   FileText,
   Upload,
@@ -23,9 +23,10 @@ import {
 } from "@/lib/actions/documentos";
 import { uploadDocumento } from "@/lib/upload";
 
-interface DealDocumentsTabProps {
-  atletaId: string;
-}
+// ─── Domínio compartilhado ──────────────────────────────────────
+
+const URGENCY_THRESHOLD_DAYS = 14;
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   pendente: {
@@ -69,29 +70,37 @@ function getNextStatus(current: string): string | null {
   return STATUS_FLOW[idx + 1];
 }
 
-function isDeadlineUrgent(deadline: string | null): boolean {
-  if (!deadline) return false;
+function daysUntilDeadline(deadline: string | null): number | null {
+  if (!deadline) return null;
   const diff = new Date(deadline).getTime() - Date.now();
-  const daysDiff = diff / (1000 * 60 * 60 * 24);
-  return daysDiff < 14 && daysDiff >= 0;
+  return Math.ceil(diff / MS_PER_DAY);
 }
 
-function isDeadlineOverdue(deadline: string | null): boolean {
-  if (!deadline) return false;
-  return new Date(deadline).getTime() < Date.now();
+/** Urgente = não aprovado E deadline em menos de 14 dias (inclui vencidos). */
+export function isDocumentoUrgente(doc: DocumentoAtleta): boolean {
+  if (doc.status === "aprovado") return false;
+  const days = daysUntilDeadline(doc.deadline);
+  return days !== null && days < URGENCY_THRESHOLD_DAYS;
 }
 
-export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
+// ─── Hook: documentos do atleta (fetch client-side) ─────────────
+
+export interface UseDocumentosAtletaResult {
+  docs: DocumentoAtleta[];
+  loading: boolean;
+  /** Docs não aprovados com deadline < 14 dias — alimenta o badge da aba. */
+  urgentes: number;
+  refetch: () => Promise<void>;
+}
+
+export function useDocumentosAtleta(
+  atletaId: string | null | undefined,
+): UseDocumentosAtletaResult {
   const [docs, setDocs] = useState<DocumentoAtleta[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isPending, startTransition] = useTransition();
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newTipo, setNewTipo] = useState("");
-  const [newDeadline, setNewDeadline] = useState("");
-  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const fetchDocs = async () => {
+  const refetch = useCallback(async () => {
+    if (!atletaId) return;
     try {
       const data = await listarDocumentos(atletaId);
       setDocs(data as DocumentoAtleta[]);
@@ -100,16 +109,46 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchDocs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [atletaId]);
 
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  const urgentes = useMemo(() => docs.filter(isDocumentoUrgente).length, [docs]);
+
+  if (!atletaId) {
+    return { docs: [], loading: false, urgentes: 0, refetch };
+  }
+  return { docs, loading, urgentes, refetch };
+}
+
+// ─── Checklist reutilizável (detalhe do lead/deal) ──────────────
+
+interface DocumentosChecklistProps {
+  atletaId: string;
+  docs: DocumentoAtleta[];
+  loading: boolean;
+  onRefetch: () => Promise<void>;
+}
+
+export function DocumentosChecklist({
+  atletaId,
+  docs,
+  loading,
+  onRefetch,
+}: DocumentosChecklistProps) {
+  const [isPending, startTransition] = useTransition();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTipo, setNewTipo] = useState("");
+  const [newDeadline, setNewDeadline] = useState("");
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
   const approvedCount = docs.filter((d) => d.status === "aprovado").length;
-  const totalTipos = DOCUMENTO_TIPOS.length;
-  const progressPct = totalTipos > 0 ? Math.round((approvedCount / totalTipos) * 100) : 0;
+  const progressPct =
+    docs.length > 0 ? Math.round((approvedCount / docs.length) * 100) : 0;
+  const urgentes = docs.filter(isDocumentoUrgente).length;
 
   const handleAddDoc = () => {
     if (!newTipo) {
@@ -126,7 +165,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
         setShowAddForm(false);
         setNewTipo("");
         setNewDeadline("");
-        await fetchDocs();
+        await onRefetch();
       } else {
         toast.error(result.error ?? "Erro ao adicionar documento");
       }
@@ -140,21 +179,21 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
       const result = await atualizarStatusDocumento(docId, next);
       if (result.success) {
         toast.success(`Status atualizado para ${STATUS_CONFIG[next]?.label ?? next}`);
-        await fetchDocs();
+        await onRefetch();
       } else {
         toast.error(result.error ?? "Erro ao atualizar status");
       }
     });
   };
 
-  const handleFileUpload = async (docId: string, file: File) => {
-    setUploadingDocId(docId);
+  const handleFileUpload = async (doc: DocumentoAtleta, file: File) => {
+    setUploadingDocId(doc.id);
     try {
-      const url = await uploadDocumento(atletaId, "documento", file);
-      const result = await atualizarArquivoDocumento(docId, url, file.name);
+      const url = await uploadDocumento(atletaId, doc.tipo, file);
+      const result = await atualizarArquivoDocumento(doc.id, url, file.name);
       if (result.success) {
         toast.success("Arquivo enviado");
-        await fetchDocs();
+        await onRefetch();
       } else {
         toast.error(result.error ?? "Erro ao atualizar arquivo");
       }
@@ -185,8 +224,14 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
           <span className="text-xs font-medium text-muted-foreground">
             Progresso dos documentos
           </span>
-          <span className="text-xs font-bold text-foreground">
-            {approvedCount}/{totalTipos} aprovados
+          <span className="flex items-center gap-2 text-xs font-bold text-foreground">
+            {urgentes > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-sys-orange/20 bg-sys-orange/15 px-2 py-0.5 text-[10px] font-semibold text-sys-orange">
+                <AlertTriangle className="h-2.5 w-2.5" />
+                {urgentes} urgente{urgentes !== 1 ? "s" : ""}
+              </span>
+            )}
+            {approvedCount}/{docs.length} aprovados
           </span>
         </div>
         <div className="h-2 rounded-full bg-secondary overflow-hidden">
@@ -207,8 +252,10 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
           docs.map((doc) => {
             const statusCfg = STATUS_CONFIG[doc.status] ?? STATUS_CONFIG.pendente;
             const nextStatus = getNextStatus(doc.status);
-            const urgent = isDeadlineUrgent(doc.deadline);
-            const overdue = isDeadlineOverdue(doc.deadline);
+            const days = daysUntilDeadline(doc.deadline);
+            const overdue = days !== null && days < 0;
+            const urgent =
+              days !== null && days >= 0 && days < URGENCY_THRESHOLD_DAYS;
 
             return (
               <div
@@ -255,7 +302,7 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
                     Prazo:{" "}
                     {new Date(doc.deadline).toLocaleDateString("pt-BR")}
                     {overdue && " (vencido)"}
-                    {urgent && !overdue && " (< 14 dias)"}
+                    {urgent && !overdue && ` (${days}d restantes)`}
                   </div>
                 )}
 
@@ -288,7 +335,8 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) handleFileUpload(doc.id, file);
+                        if (file) handleFileUpload(doc, file);
+                        e.target.value = "";
                       }}
                     />
                   </div>
@@ -312,7 +360,8 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) handleFileUpload(doc.id, file);
+                        if (file) handleFileUpload(doc, file);
+                        e.target.value = "";
                       }}
                     />
                   </div>
@@ -404,5 +453,18 @@ export function DealDocumentsTab({ atletaId }: DealDocumentsTabProps) {
         </button>
       )}
     </div>
+  );
+}
+
+/** Badge de urgência para o label da aba/section "Documentos". */
+export function DocumentosUrgentesBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      title={`${count} documento${count !== 1 ? "s" : ""} urgente${count !== 1 ? "s" : ""} (prazo < 14 dias)`}
+      className="inline-flex shrink-0 items-center rounded-full bg-sys-orange/15 px-1.5 py-px text-[9px] font-semibold text-sys-orange"
+    >
+      {count}
+    </span>
   );
 }

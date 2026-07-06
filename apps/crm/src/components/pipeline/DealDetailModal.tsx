@@ -48,7 +48,11 @@ import { type Deal, DEAL_STAGE_CONFIG } from "@/types/deal";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { DealDetailSheet } from "./DealDetailSheet";
-import { DealDocumentsTab } from "./DealDocumentsTab";
+import {
+  DocumentosChecklist,
+  DocumentosUrgentesBadge,
+  useDocumentosAtleta,
+} from "@/components/documentos/DocumentosChecklist";
 import { DealContratoTab } from "./DealContratoTab";
 import { VisaoExecutivaPanel } from "./panels/VisaoExecutivaPanel";
 import { AcompanhamentoHeadPanel } from "./panels/AcompanhamentoHeadPanel";
@@ -299,6 +303,7 @@ function StatPill({
 export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
   const [section, setSection] = useState<SectionId>("executiva");
   const [showLateralEditor, setShowLateralEditor] = useState(false);
+  const documentos = useDocumentosAtleta(deal?.atleta_id);
 
   // Body scroll lock + Esc to close
   useEffect(() => {
@@ -455,6 +460,11 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
                       >
                         <Icon className="h-3 w-3 shrink-0" />
                         <span className="truncate">{it.label}</span>
+                        {it.id === "documentos" && (
+                          <span className="ml-auto">
+                            <DocumentosUrgentesBadge count={documentos.urgentes} />
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -480,6 +490,9 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
                   >
                     <Icon className="h-3 w-3" />
                     {it.label}
+                    {it.id === "documentos" && (
+                      <DocumentosUrgentesBadge count={documentos.urgentes} />
+                    )}
                   </button>
                 );
               })}
@@ -504,7 +517,12 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
               )}
               {section === "documentos" &&
                 (deal.atleta_id ? (
-                  <DealDocumentsTab atletaId={deal.atleta_id} />
+                  <DocumentosChecklist
+                    atletaId={deal.atleta_id}
+                    docs={documentos.docs}
+                    loading={documentos.loading}
+                    onRefetch={documentos.refetch}
+                  />
                 ) : (
                   <EmptyState text="Atleta ainda não vinculado ao deal." />
                 ))}

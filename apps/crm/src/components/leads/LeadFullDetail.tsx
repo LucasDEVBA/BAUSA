@@ -42,7 +42,10 @@ import { cn } from "@/lib/utils";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
-import { DealDocumentsTab } from "@/components/pipeline/DealDocumentsTab";
+import {
+  DocumentosChecklist,
+  useDocumentosAtleta,
+} from "@/components/documentos/DocumentosChecklist";
 import { DealContratoTab } from "@/components/pipeline/DealContratoTab";
 import { toast } from "sonner";
 
@@ -630,6 +633,9 @@ function AuditTrailSection({
 
 export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
   const [activeTab, setActiveTab] = useState<TabId>("resumo");
+  const documentos = useDocumentosAtleta(
+    lead.is_in_pipeline ? lead.pipeline_atleta_id : null,
+  );
 
   const whatsappUrl = lead.guardian_whatsapp
     ? `https://wa.me/${lead.guardian_whatsapp.replace(/\D/g, "")}`
@@ -1651,7 +1657,12 @@ export function LeadFullDetail({ lead, onClose }: LeadFullDetailProps) {
           {activeTab === "documentos" && (
             <div className="max-w-2xl">
               {lead.is_in_pipeline && lead.pipeline_atleta_id ? (
-                <DealDocumentsTab atletaId={lead.pipeline_atleta_id} />
+                <DocumentosChecklist
+                  atletaId={lead.pipeline_atleta_id}
+                  docs={documentos.docs}
+                  loading={documentos.loading}
+                  onRefetch={documentos.refetch}
+                />
               ) : (
                 <div className="flex flex-col items-center gap-4 py-12">
                   <FileText className="h-10 w-10 text-label-tertiary" />

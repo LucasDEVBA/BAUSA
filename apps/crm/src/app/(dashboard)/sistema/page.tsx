@@ -4,7 +4,6 @@ import {
   BookOpen,
   CheckSquare,
   ChevronRight,
-  FileText,
   GitBranch,
   Settings,
   Shield,
@@ -33,13 +32,7 @@ const MODULES: SistemaModule[] = [
     icon: CheckSquare,
     roles: ["ceo", "head_sucesso"],
   },
-  {
-    href: "/documentos",
-    label: "Documentos",
-    description: "Checklist de documentos por atleta, com status e upload.",
-    icon: FileText,
-    roles: ["ceo", "head_sucesso"],
-  },
+  // Documentos: o checklist vive no detalhe do lead/deal (aba Documentos).
   {
     href: "/faq",
     label: "FAQ",
