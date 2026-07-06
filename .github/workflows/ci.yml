@@ -187,6 +187,7 @@ jobs:
           - remarketing-unsubscribe
           - sync-meta-spend
           - automation-engine
+          - meeting-transcripts
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

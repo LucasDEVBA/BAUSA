@@ -122,6 +122,7 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | `functions/calendar-webhook/` | `calendar-webhook` | `calendar-webhook-uat` | Google Calendar Push Notification | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO |
 | `functions/renew-calendar-watch/` | `renew-calendar-watch` | `renew-calendar-watch-uat` | Cloud Scheduler (cada 6 dias) | Renova watch channel do Google Calendar |
 | `functions/automation-engine/` | `automation-engine` | `automation-engine-uat` | Cloud Scheduler (1x/hora, min 30) | Engine das automações do BAU Engine (`/automacoes`): materializa gatilhos de tempo + executa runs (tarefa/notificação/WhatsApp/deal) com CAS e retry. Guard CI: `tests/automation-engine-eligibility.test.js` |
+| `functions/meeting-transcripts/` | `meeting-transcripts` | `meeting-transcripts-uat` | Cloud Scheduler (a cada 2h, min 15) | Captura a transcrição nativa do Google Meet: acha o Doc anexado ao evento do Calendar (`deals.google_calendar_event_id`), exporta via Drive API (`drive.readonly`), resume via Gemini (opcional) e grava em `reunioes_transcricoes` (idempotente por `UNIQUE(google_event_id)`). Exibida no detalhe do lead/deal no Engine |
 
 **Auth entre serviços:** header `x-webhook-secret` em todos os webhooks.
 
@@ -409,12 +410,12 @@ Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test
 - `WEBHOOK_SECRET` — todas as funções (diferente por ambiente: `_UAT`, `_DEV`)
 - `SUPABASE_SCHEMA` — `public` em PRD, `uat` em UAT, `dev` em DEV
 - `GEMINI_API_KEY` — qualify-lead
-- `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — qualify-lead, process-pending, process-followup, calendar-webhook
+- `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — qualify-lead, process-pending, process-followup, calendar-webhook, meeting-transcripts
 - `SPREADSHEET_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — qualify-lead, sync-leads, calendar-webhook, renew-calendar-watch
 - `ZAPI_INSTANCE_ID` + `ZAPI_TOKEN` + `ZAPI_CLIENT_TOKEN` — send-whatsapp, calendar-webhook
 - `RESEND_API_KEY` + `BREVO_API_KEY` + `FROM_EMAIL` + `INTERNAL_EMAIL` + `LOGO_URL` — send-messages
 - `SEND_WHATSAPP_URL` + `SYNC_LEADS_URL` — process-pending, process-followup, calendar-webhook
-- `GOOGLE_CALENDAR_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — process-followup, calendar-webhook, renew-calendar-watch
+- `GOOGLE_CALENDAR_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — process-followup, calendar-webhook, renew-calendar-watch, meeting-transcripts (+ `GEMINI_API_KEY` opcional p/ resumo)
 - `CEO_WHATSAPP` — calendar-webhook (notificação ao CEO)
 - `CALENDAR_WEBHOOK_URL` — renew-calendar-watch (URL do webhook para registrar no Google)
 
@@ -624,6 +625,12 @@ O CRM usa **light theme** com design tokens em `app/crm.css`:
 ### Configuração externa CRM — Deploy pendente
 - [ ] Deploy qualify-lead com auto-promoção (nova versão com autoPromoteToCRM)
 - [ ] Deploy process-followup-whatsapp com atualização de deals
+
+### Transcrição do Meet (meeting-transcripts) — Config pendente
+- [ ] Env vars da CF `meeting-transcripts` (por ambiente): `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SCHEMA`, `SERVICE_ACCOUNT_EMAIL`, `SERVICE_ACCOUNT_PRIVATE_KEY`, `GOOGLE_CALENDAR_ID`, `GEMINI_API_KEY` (opcional — habilita o resumo)
+- [ ] **Passo manual (Drive):** compartilhar a pasta **"Meet Recordings"** do Drive do CEO com o e-mail da service account (`SERVICE_ACCOUNT_EMAIL`) como **Leitor** — sem isso a CF loga `transcript_access_denied` e pula (não quebra o tick)
+- [ ] Habilitar a **Drive API** no projeto GCP `elite-portal-forms` (a SA usa scope `drive.readonly` para exportar o Doc)
+- [ ] `bash infra/scheduler.sh <env>` — cria/atualiza o job `meeting-transcripts-job{-uat|-dev}` (cron `15 */2 * * *`, deadline 300s)
 
 ### Backlog técnico
 - [ ] Rate limiting no formulário (proteção anti-spam)

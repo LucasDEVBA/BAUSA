@@ -201,4 +201,30 @@ gcloud scheduler jobs update http "${JOB_AE}" \
   --attempt-deadline=600s
 
 echo "✓ ${JOB_AE} configurado"
+
+# ─── Job 8: Transcrições do Google Meet (a cada 2h, minuto 15) ────────
+# A CF só processa reuniões já detectadas (deals.google_calendar_event_id)
+# sem transcrição capturada; anexo ausente = pula silencioso (próximo tick).
+JOB_MT="meeting-transcripts-job${SUFFIX}"
+MEETING_TRANSCRIPTS_URL="${MEETING_TRANSCRIPTS_URL:-https://meeting-transcripts${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_MT}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="15 */2 * * *" \
+  --uri="${MEETING_TRANSCRIPTS_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_MT}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="15 */2 * * *" \
+  --uri="${MEETING_TRANSCRIPTS_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s
+
+echo "✓ ${JOB_MT} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"
