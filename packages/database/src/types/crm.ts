@@ -1,7 +1,7 @@
 export type PapelUsuario = 'ceo' | 'head_sucesso' | 'comercial';
 
 export type StatusDeal =
-  | 'lead' | 'reuniao_marcada' | 'reuniao_realizada'
+  | 'lead' | 'aguardando_timing' | 'reuniao_marcada' | 'reuniao_realizada'
   | 'diagnostico_fit' | 'alinhamento_estrategico' | 'proposta_enviada'
   | 'followup_proposta' | 'negociacao' | 'contrato_enviado'
   | 'contrato_assinado' | 'sinal_pago' | 'admission_process'
@@ -161,18 +161,19 @@ export interface AuditLog {
 // Labels amigáveis para as etapas do pipeline
 export const ETAPA_LABELS: Record<StatusDeal, string> = {
   lead: 'Lead',
-  reuniao_marcada: 'Reuniao Marcada',
-  reuniao_realizada: 'Reuniao Realizada',
-  diagnostico_fit: 'Diagnostico / Fit',
+  aguardando_timing: 'Aguardando Timing',
+  reuniao_marcada: 'Reunião Marcada',
+  reuniao_realizada: 'Reunião Realizada',
+  diagnostico_fit: 'Diagnóstico / Fit',
   alinhamento_estrategico: 'Alinhamento',
   proposta_enviada: 'Proposta Enviada',
   followup_proposta: 'Follow-up Proposta',
-  negociacao: 'Negociacao',
+  negociacao: 'Negociação',
   contrato_enviado: 'Contrato Enviado',
   contrato_assinado: 'Contrato Assinado',
   sinal_pago: 'Sinal Pago',
   admission_process: 'Admission Process',
-  concluido: 'Concluido',
+  concluido: 'Concluído',
   perdido: 'Perdido',
   cancelamento_solicitado: 'Cancelamento',
   projeto_futuro: 'Projeto Futuro',
@@ -181,26 +182,27 @@ export const ETAPA_LABELS: Record<StatusDeal, string> = {
 // Ordem das etapas (para detectar retrocesso)
 export const ETAPA_ORDEM: Record<StatusDeal, number> = {
   lead: 1,
-  reuniao_marcada: 2,
-  reuniao_realizada: 3,
-  diagnostico_fit: 4,
-  alinhamento_estrategico: 5,
-  proposta_enviada: 6,
-  followup_proposta: 7,
-  negociacao: 8,
-  contrato_enviado: 9,
-  contrato_assinado: 10,
-  sinal_pago: 11,
-  admission_process: 12,
-  concluido: 13,
-  perdido: 14,
-  cancelamento_solicitado: 15,
-  projeto_futuro: 16,
+  aguardando_timing: 2,
+  reuniao_marcada: 3,
+  reuniao_realizada: 4,
+  diagnostico_fit: 5,
+  alinhamento_estrategico: 6,
+  proposta_enviada: 7,
+  followup_proposta: 8,
+  negociacao: 9,
+  contrato_enviado: 10,
+  contrato_assinado: 11,
+  sinal_pago: 12,
+  admission_process: 13,
+  concluido: 14,
+  perdido: 15,
+  cancelamento_solicitado: 16,
+  projeto_futuro: 17,
 };
 
 // Etapas visíveis no Kanban (exclui perdido, concluido, cancelamento, projeto_futuro)
 export const PIPELINE_ETAPAS: StatusDeal[] = [
-  'lead', 'reuniao_marcada', 'reuniao_realizada', 'diagnostico_fit',
+  'lead', 'aguardando_timing', 'reuniao_marcada', 'reuniao_realizada', 'diagnostico_fit',
   'alinhamento_estrategico', 'proposta_enviada', 'followup_proposta',
   'negociacao', 'contrato_enviado', 'contrato_assinado', 'sinal_pago',
   'admission_process',

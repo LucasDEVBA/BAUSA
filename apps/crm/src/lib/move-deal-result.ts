@@ -75,15 +75,15 @@ export function failMove(
 
 export const DEFAULT_ERROR_LABEL: Record<MoveDealErrorCode, string> = {
   PERMISSION_DENIED: "Apenas o CEO pode mover deals.",
-  DEAL_NOT_FOUND: "Deal nao encontrado. Recarregue a pagina.",
+  DEAL_NOT_FOUND: "Deal não encontrado. Recarregue a página.",
   MISSING_NEXT_ACTION:
-    'Preencha "Proxima acao" e a data antes de avancar o deal.',
+    'Preencha "Próxima ação" e a data antes de avançar o deal.',
   MISSING_MEETING_NOTES:
-    "Preencha as notas da reuniao antes de avancar para Diagnostico/Fit.",
+    "Preencha as notas da reunião antes de avançar para Diagnóstico/Fit.",
   MISSING_CONTRACT:
     "Crie um contrato financeiro antes de marcar como Contrato Assinado.",
   REQUIRE_RETROCESSO_REASON:
-    "Retrocesso exige justificativa obrigatoria.",
+    "Retrocesso exige justificativa obrigatória.",
   REQUIRE_LOST_REASON: "Marcar como perdido exige motivo.",
   DB_ERROR: "Erro ao mover deal. Tente novamente em instantes.",
 };
@@ -92,18 +92,18 @@ export const DEFAULT_ERROR_LABEL: Record<MoveDealErrorCode, string> = {
 export const ETAPA_LABEL: Record<string, string> = {
   lead: "Lead",
   aguardando_timing: "Aguardando Timing",
-  reuniao_marcada: "Reuniao Marcada",
-  reuniao_realizada: "Reuniao Realizada",
-  diagnostico_fit: "Diagnostico / Fit",
-  alinhamento_estrategico: "Alinhamento Estrategico",
+  reuniao_marcada: "Reunião Marcada",
+  reuniao_realizada: "Reunião Realizada",
+  diagnostico_fit: "Diagnóstico / Fit",
+  alinhamento_estrategico: "Alinhamento Estratégico",
   proposta_enviada: "Proposta Enviada",
   followup_proposta: "Follow-up Proposta",
-  negociacao: "Negociacao",
+  negociacao: "Negociação",
   contrato_enviado: "Contrato Enviado",
   contrato_assinado: "Contrato Assinado",
   sinal_pago: "Sinal Pago",
   admission_process: "Admission Process",
-  concluido: "Concluido",
+  concluido: "Concluído",
   perdido: "Perdido",
   cancelamento_solicitado: "Cancelamento",
   projeto_futuro: "Projeto Futuro",

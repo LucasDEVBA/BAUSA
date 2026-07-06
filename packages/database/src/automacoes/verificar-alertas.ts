@@ -75,8 +75,8 @@ export async function verificarAlertas() {
   (negParada || []).forEach((d: any) => {
     alertas.push({
       tipo: "negociacao_parada",
-      titulo: "Negociacao parada",
-      mensagem: `Negociacao com ${d.atleta?.nome_completo || "atleta"} parada ha 4+ dias.`,
+      titulo: "Negociação parada",
+      mensagem: `Negociação com ${d.atleta?.nome_completo || "atleta"} parada há 4+ dias.`,
       deal_id: d.id,
       severidade: "critica",
     });
