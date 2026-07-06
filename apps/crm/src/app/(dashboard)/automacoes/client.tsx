@@ -120,6 +120,9 @@ export function AutomacoesClient({
       if (builder.agFrequencia === "mensal") gatilhoConfig.dia_mes = builder.agDiaMes;
     } else if (gatilhoInfo.configDias) {
       gatilhoConfig.dias = builder.gatilhoDias;
+    } else if (gatilhoInfo.configEtapa && builder.gatilhoEtapaPara) {
+      // Filtro por etapa do deal_etapa_mudou — vazio = qualquer transição
+      gatilhoConfig.etapa_para = builder.gatilhoEtapaPara;
     }
     const input: AutomacaoInput = {
       nome: builder.nome,
@@ -219,14 +222,15 @@ export function AutomacoesClient({
         />
       )}
 
-      {/* Lista unificada: automações do sistema (nativas) + as do usuário,
-          na MESMA lista com eyebrows como separadores de grupo. */}
+      {/* Automações do sistema em CARDS (apresentação da H4, restaurada a
+          pedido do CEO) + "Suas automações" em lista logo abaixo. */}
       {activeTab === "automacoes" && (
         <div className="space-y-4">
-          <SistemaAutomacoesGroup
+          <SistemaAutomacoesSection
             intervalos={intervalos}
             mensagens={mensagens}
             isPending={isPending}
+            onMontarRegua={() => setBuilder({ ...emptyBuilder(), gatilho: "parcela_vencendo" })}
           />
 
           <section className="space-y-3">
@@ -334,30 +338,6 @@ export function AutomacoesClient({
                 );
               })
             )}
-
-            {/* Sugestão discreta: régua de cobrança ainda não é nativa — nasce
-                pelo builder (sem UI falsa de automação pronta). */}
-            <Card variant="ghost" padding="md" className="border border-dashed border-border">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-foreground">
-                    Sugestão — Régua de cobrança
-                  </p>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                    Monte com o builder: gatilho <em>Parcela vencendo/atrasada</em> (D−3, D+1,
-                    D+7, D+15) + ações de tarefa, notificação ou WhatsApp.
-                  </p>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setBuilder({ ...emptyBuilder(), gatilho: "parcela_vencendo" })}
-                >
-                  <Plus className="h-3 w-3" />
-                  Montar no builder
-                </Button>
-              </div>
-            </Card>
           </section>
         </div>
       )}
@@ -417,9 +397,9 @@ const TEMPLATE_TITULO: Record<MensagemTemplate, string> = {
   scheduled_return: "Retomada agendada (scheduled_return)",
 };
 
-/** Automação nativa (linha do grupo "Sistema" da lista). `intervaloChave`/
- *  `templates`/`editaReuniao` definem o que o modal permite editar — linhas
- *  sem nada disso abrem um modal "Detalhes" só de leitura (sem UI falsa). */
+/** Card de automação nativa. `intervaloChave`/`templates`/`editaReuniao`
+ *  definem o que o modal permite editar — cards sem nada disso abrem um
+ *  modal "Detalhes" só de leitura (sem UI falsa). */
 interface SistemaCard {
   id: string;
   nome: string;
@@ -431,7 +411,7 @@ interface SistemaCard {
   editaReuniao?: boolean;
 }
 
-/** Automações nativas, na ordem da lista: as 4 com intervalo editável
+/** Automações nativas, na ordem dos cards: as 4 com intervalo editável
  *  (persistem em scheduler_intervalos; as CFs leem no próximo tick, com clamp
  *  1h–720h próprio — `templates` são os textos editáveis em
  *  scheduler_mensagens), depois retomada/confirmação (textos editáveis) e as
@@ -534,6 +514,12 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
   },
 ];
 
+/** Grids da seção (apresentação H4): editáveis = as 4 com intervalo (cards
+ *  grandes 2-col, botão Editar único); informativas = as demais (cards
+ *  menores 3-col). Deriva da MESMA fonte SISTEMA_AUTOMACOES. */
+const SISTEMA_EDITAVEIS = SISTEMA_AUTOMACOES.filter((c) => c.intervaloChave);
+const SISTEMA_INFORMATIVAS = SISTEMA_AUTOMACOES.filter((c) => !c.intervaloChave);
+
 /** Payload do modal de edição — sempre convertido em objetos COMPLETOS antes
  *  de chamar as actions (que reescrevem cada config inteira). */
 interface SistemaSavePayload {
@@ -542,18 +528,20 @@ interface SistemaSavePayload {
   reuniao?: MensagemParReuniao;
 }
 
-/** Grupo "Sistema" da lista unificada — as nativas como LINHAS com o mesmo
- *  visual das automações do usuário. Sempre ativas: badge "Sistema" no lugar
- *  do toggle, sem exclusão; Editar abre o SistemaModal (intervalo + textos)
- *  e as informativas abrem o modal Detalhes. */
-function SistemaAutomacoesGroup({
+/** Seção "Automações do sistema" em CARDS (apresentação H4): grid 2-col para
+ *  as editáveis (botão Editar único abre o SistemaModal com intervalo +
+ *  textos) + grid 3-col de cards menores para as informativas + card
+ *  tracejado da régua de cobrança (atalho "Montar no builder"). */
+function SistemaAutomacoesSection({
   intervalos,
   mensagens,
   isPending,
+  onMontarRegua,
 }: {
   intervalos: SchedulerIntervalos;
   mensagens: SchedulerMensagens | null;
   isPending: boolean;
+  onMontarRegua: () => void;
 }) {
   const router = useRouter();
   const [salvando, startTransition] = useTransition();
@@ -605,8 +593,8 @@ function SistemaAutomacoesGroup({
   };
 
   return (
-    <section className="space-y-3">
-      <p className="text-eyebrow text-label-tertiary">Sistema</p>
+    <section className="space-y-2">
+      <p className="text-eyebrow text-label-tertiary">Automações do sistema</p>
 
       {!mensagens && (
         <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
@@ -616,51 +604,90 @@ function SistemaAutomacoesGroup({
         </p>
       )}
 
-      {SISTEMA_AUTOMACOES.map((card) => {
-        const editavel = cardEditavel(card);
-        return (
-          <Card key={card.id} padding="md" accent="brand">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-foreground">{card.nome}</p>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {SISTEMA_EDITAVEIS.map((card) => (
+          <Card key={card.id} variant="plain" padding="sm" accent="brand">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                  <Zap className="h-3 w-3 text-primary" />
+                  {card.nome}
                   {/* Sempre ativa — badge fixo no lugar do toggle (sem UI falsa) */}
-                  <Badge tone="brand" size="sm">
-                    <Zap className="h-2.5 w-2.5" />
-                    Sistema
-                  </Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{card.descricao}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                  {card.intervaloChave ? (
-                    <span>
-                      dispara após{" "}
-                      <span className="font-semibold tabular-nums text-foreground">
-                        {intervalos[card.intervaloChave]}h
-                      </span>
-                    </span>
-                  ) : (
-                    <span>automática</span>
-                  )}
-                </div>
+                  <Badge tone="green" size="sm">Ativa</Badge>
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {card.descricao}
+                </p>
               </div>
-
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
+                {card.intervaloChave && (
+                  <span className="text-[11px] text-muted-foreground">
+                    dispara após{" "}
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {intervalos[card.intervaloChave]}h
+                    </span>
+                  </span>
+                )}
                 <Button
-                  variant="ghost"
+                  variant="secondary"
+                  size="sm"
+                  disabled={ocupado}
+                  aria-label={`Editar ${card.nome}`}
+                  onClick={() => setCardAberto(card)}
+                >
+                  <Pencil className="h-3 w-3" />
+                  Editar
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {SISTEMA_INFORMATIVAS.map((card) => {
+          const editavel = cardEditavel(card);
+          return (
+            <Card key={card.id} variant="ghost" padding="sm">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+                <Clock className="h-3 w-3 text-label-tertiary" />
+                {card.nome}
+                <Badge tone="neutral" size="sm">Automática</Badge>
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                {card.descricao}
+              </p>
+              <div className="mt-2">
+                <Button
+                  variant="secondary"
                   size="sm"
                   disabled={ocupado}
                   aria-label={editavel ? `Editar ${card.nome}` : `Detalhes de ${card.nome}`}
                   onClick={() => setCardAberto(card)}
                 >
-                  {editavel ? <Pencil className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
+                  {editavel ? <Pencil className="h-3 w-3" /> : <Info className="h-3 w-3" />}
                   {editavel ? "Editar" : "Detalhes"}
                 </Button>
               </div>
-            </div>
-          </Card>
-        );
-      })}
+            </Card>
+          );
+        })}
+        {/* Régua de cobrança ainda não é nativa — nasce pelo builder (sem UI
+            falsa de automação pronta); atalho pré-seleciona o gatilho. */}
+        <Card variant="ghost" padding="sm" className="border border-dashed border-border">
+          <p className="text-[11px] font-semibold text-foreground">Régua de cobrança</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+            Monte com o builder: gatilho <em>Parcela vencendo/atrasada</em> (D−3, D+1, D+7,
+            D+15) + ações de tarefa, notificação ou WhatsApp.
+          </p>
+          <div className="mt-2">
+            <Button variant="secondary" size="sm" onClick={onMontarRegua}>
+              <Plus className="h-3 w-3" />
+              Montar no builder
+            </Button>
+          </div>
+        </Card>
+      </div>
 
       {cardAberto && (
         <SistemaModal

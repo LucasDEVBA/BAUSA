@@ -66,6 +66,7 @@ export function GatilhoForm({
               ...builder,
               gatilho,
               gatilhoDias: GATILHO_CATALOG[gatilho].configDias?.padrao ?? builder.gatilhoDias,
+              gatilhoEtapaPara: "", // filtro de etapa só vale p/ deal_etapa_mudou
               condicoes: [], // catálogo de campos muda com o gatilho
             });
           }}
@@ -90,7 +91,28 @@ export function GatilhoForm({
             </span>
           </div>
         )}
+        {gatilhoInfo.configEtapa && (
+          <select
+            aria-label="Etapa de destino (opcional — vazio = qualquer etapa)"
+            className={FIELD_CLASS}
+            value={builder.gatilhoEtapaPara}
+            onChange={(e) => onChange({ ...builder, gatilhoEtapaPara: e.target.value })}
+          >
+            <option value="">Qualquer etapa (todas as transições)</option>
+            {ETAPA_OPCOES.map((o) => (
+              <option key={o.value} value={o.value}>
+                → {o.label}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
+      {gatilhoInfo.configEtapa && (
+        <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+          Com uma etapa escolhida, a automação dispara <strong>só quando o deal entra nessa
+          etapa</strong> — sem precisar montar condição. Vazio = qualquer transição.
+        </p>
+      )}
       {gatilhoInfo.configAgendamento && (
         <>
           <div className="grid gap-2 sm:grid-cols-3">

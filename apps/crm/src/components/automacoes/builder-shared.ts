@@ -159,6 +159,8 @@ export interface BuilderState {
   descricao: string;
   gatilho: AutomacaoGatilho;
   gatilhoDias: number;
+  /** Config do gatilho deal_etapa_mudou: etapa de destino ("" = qualquer). */
+  gatilhoEtapaPara: string;
   /** Config do gatilho agendamento (frequência + hora BRT + dia condicional). */
   agFrequencia: AgendamentoFrequencia;
   agHora: number;
@@ -175,6 +177,7 @@ export function emptyBuilder(): BuilderState {
     descricao: "",
     gatilho: "lead_qualificado",
     gatilhoDias: 3,
+    gatilhoEtapaPara: "",
     agFrequencia: "diaria",
     agHora: 9,
     agDiaSemana: 1,
@@ -195,6 +198,7 @@ export function builderFromAutomacao(a: Automacao): BuilderState {
     gatilho: a.gatilho,
     gatilhoDias:
       typeof dias === "number" ? dias : GATILHO_CATALOG[a.gatilho].configDias?.padrao ?? 3,
+    gatilhoEtapaPara: typeof cfg.etapa_para === "string" ? cfg.etapa_para : "",
     agFrequencia: frequencia === "semanal" || frequencia === "mensal" ? frequencia : "diaria",
     agHora: typeof cfg.hora === "number" ? cfg.hora : 9,
     agDiaSemana: typeof cfg.dia_semana === "number" ? cfg.dia_semana : 1,
@@ -272,6 +276,10 @@ export function resumoGatilho(builder: BuilderState): string {
     return `Diária às ${hora}`;
   }
   if (info.configDias) return `${info.configDias.label}: ${builder.gatilhoDias}`;
+  if (info.configEtapa && builder.gatilhoEtapaPara) {
+    return `→ ${etapaLabel(builder.gatilhoEtapaPara)}`;
+  }
+  if (info.configEtapa) return "Qualquer transição de etapa";
   return "Dispara no evento";
 }
 
