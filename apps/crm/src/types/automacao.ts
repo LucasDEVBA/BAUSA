@@ -16,7 +16,24 @@ export type AutomacaoGatilho =
   | "parcela_vencendo"
   | "parcela_atrasada"
   | "familia_sem_contato"
-  | "tarefa_vencida";
+  | "tarefa_vencida"
+  | "agendamento";
+
+export type AgendamentoFrequencia = "diaria" | "semanal" | "mensal";
+
+/** Config do gatilho `agendamento` (recorrente, hora de parede BRT).
+ *  Runs de agendamento NÃO têm lead/deal no contexto: ações de WhatsApp/
+ *  mover deal viram 'ignorado' na engine — os usos são criar tarefa e
+ *  criar notificação (rotinas recorrentes). */
+export interface GatilhoAgendamentoConfig {
+  frequencia: AgendamentoFrequencia;
+  /** Hora BRT do disparo (0-23) — a engine roda 1x/hora (min 30). */
+  hora: number;
+  /** Dia da semana (0=domingo … 6=sábado) — só frequência semanal. */
+  dia_semana?: number;
+  /** Dia do mês (1-28, evita meses curtos) — só frequência mensal. */
+  dia_mes?: number;
+}
 
 export interface GatilhoInfo {
   label: string;
@@ -24,6 +41,8 @@ export interface GatilhoInfo {
   origem: "evento" | "tempo";
   /** Campo numérico de configuração (ex.: dias) exibido no builder. */
   configDias?: { label: string; padrao: number };
+  /** Gatilho `agendamento`: builder mostra frequência/hora/dia no lugar de dias. */
+  configAgendamento?: boolean;
 }
 
 export const GATILHO_CATALOG: Record<AutomacaoGatilho, GatilhoInfo> = {
@@ -77,6 +96,13 @@ export const GATILHO_CATALOG: Record<AutomacaoGatilho, GatilhoInfo> = {
     origem: "tempo",
     configDias: { label: "Dias após o prazo", padrao: 1 },
   },
+  agendamento: {
+    label: "Agendamento recorrente",
+    descricao:
+      "Dispara em horário fixo (diário, semanal ou mensal) — rotina sem lead/deal: use criar tarefa/notificação.",
+    origem: "tempo",
+    configAgendamento: true,
+  },
 };
 
 // ─── Condições ───────────────────────────────────────────────────────────────
@@ -113,6 +139,7 @@ export type AutomacaoAcaoTipo =
   | "criar_tarefa"
   | "criar_notificacao"
   | "enviar_whatsapp"
+  | "enviar_whatsapp_custom"
   | "mover_deal";
 
 export interface AcaoCriarTarefa {
@@ -153,6 +180,18 @@ export interface AcaoEnviarWhatsapp {
   };
 }
 
+/** Texto livre via caminho de mensagem custom do send-whatsapp (customMessage
+ *  + phone). A engine reaplica a classe: só QUENTE/MORNO recebem — FRIO nunca,
+ *  nem custom. Destinatário MVP: responsável (guardian_whatsapp do lead).
+ *  Placeholders suportados: {atleta_nome} e {responsavel_nome}. */
+export interface AcaoEnviarWhatsappCustom {
+  tipo: "enviar_whatsapp_custom";
+  parametros: {
+    mensagem: string;
+    destinatario: "responsavel";
+  };
+}
+
 /** mover_deal exige next_action (regra inviolável nº 2 do BUSINESS_RULES). */
 export interface AcaoMoverDeal {
   tipo: "mover_deal";
@@ -167,6 +206,7 @@ export type AutomacaoAcao =
   | AcaoCriarTarefa
   | AcaoCriarNotificacao
   | AcaoEnviarWhatsapp
+  | AcaoEnviarWhatsappCustom
   | AcaoMoverDeal;
 
 export const ACAO_CATALOG: Record<AutomacaoAcaoTipo, { label: string; descricao: string }> = {
@@ -181,6 +221,10 @@ export const ACAO_CATALOG: Record<AutomacaoAcaoTipo, { label: string; descricao:
   enviar_whatsapp: {
     label: "Enviar WhatsApp",
     descricao: "Dispara template aprovado via send-whatsapp (respeita elegibilidade).",
+  },
+  enviar_whatsapp_custom: {
+    label: "WhatsApp custom",
+    descricao: "Texto livre ao responsável do lead — só QUENTE/MORNO recebem.",
   },
   mover_deal: {
     label: "Mover deal",

@@ -4,7 +4,9 @@
  * Trigger: Cloud Scheduler (1x/hora). Fluxo por tick:
  *   1. Materializa gatilhos de TEMPO (deal parado, parcela vencendo/atrasada,
  *      família sem contato, tarefa vencida) em automacao_runs 'pendente' —
- *      com dedup one-shot por (automacao, origem).
+ *      com dedup one-shot por (automacao, origem). O gatilho 'agendamento'
+ *      (recorrente diário/semanal/mensal em hora BRT fixa) usa dedup POR
+ *      PERÍODO (bucket em contexto->>periodo) e materializa runs SEM origem.
  *   2. Processa a fila de runs (pendente + erro com retry vencido) com CAS
  *      atômico; avalia condições; executa ações; grava resultado.
  *
@@ -15,6 +17,9 @@
  *     meeting_scheduled IS NOT TRUE; colunas *_sent_at com CAS no lead.
  *     A engine espaça envios de leads distintos (45-60s anti-ban); o
  *     send-whatsapp cuida do delay atleta↔responsável do mesmo lead.
+ *   - Ação enviar_whatsapp_custom (texto livre ao responsável) reaplica a
+ *     MESMA regra de classe: ['QUENTE','MORNO'] obrigatório — FRIO NUNCA
+ *     recebe, nem mensagem custom (guard de CI cobre a cláusula).
  *   - CAS antes de qualquer efeito: o run é claimado (pendente→executando)
  *     com filtro de status na URL; 0 rows = outra instância venceu → pula.
  */
@@ -158,9 +163,29 @@ const BRT_OFFSET_MS = 3 * 3600 * 1000;
 const dateInDays = (dias) => new Date(Date.now() - BRT_OFFSET_MS + dias * 86400000).toISOString().slice(0, 10);
 const todayDate = () => dateInDays(0);
 
-// Cada finder retorna [{ origemId, tabela, contexto }] de registros elegíveis.
+// "Relógio BRT": Date deslocada cujos campos UTC representam o horário de
+// parede em Brasília (mesmo truque do dateInDays acima).
+const nowBRT = () => new Date(Date.now() - BRT_OFFSET_MS);
+
+// Bucket de semana ISO 8601 ('YYYY-Www') p/ dedup do agendamento semanal.
+// Recebe uma Date "relógio BRT" (campos UTC = hora de parede BRT).
+const isoWeekBucket = (brt) => {
+  const d = new Date(Date.UTC(brt.getUTCFullYear(), brt.getUTCMonth(), brt.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); // quinta-feira da semana ISO
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+};
+
+// Config numérica {dias} dos finders de janela — default histórico: 1 dia.
+const configDias = (config) =>
+  Number(config?.dias) > 0 ? Number(config.dias) : 1;
+
+// Cada finder recebe o gatilho_config da automação e retorna
+// [{ origemId, tabela, contexto }] de registros elegíveis.
 const TIME_TRIGGER_FINDERS = {
-  deal_parado_etapa: async (dias) => {
+  deal_parado_etapa: async (config) => {
+    const dias = configDias(config);
     // aguardando_timing fica parado POR DESIGN (retomada em novembro) — excluir.
     const rows = await sbGet(
       'deals?select=id,atleta_id,etapa,responsavel_id,updated_at'
@@ -178,7 +203,8 @@ const TIME_TRIGGER_FINDERS = {
     }));
   },
 
-  parcela_vencendo: async (dias) => {
+  parcela_vencendo: async (config) => {
+    const dias = configDias(config);
     // Enum status_parcela: previsto|recebido|atrasado|cancelado — cobrança só
     // faz sentido fora de recebido/cancelado (não existe valor 'pago').
     const rows = await sbGet(
@@ -197,7 +223,8 @@ const TIME_TRIGGER_FINDERS = {
     }));
   },
 
-  parcela_atrasada: async (dias) => {
+  parcela_atrasada: async (config) => {
+    const dias = configDias(config);
     const rows = await sbGet(
       'parcelas?select=id,contrato_id,valor,vencimento,status'
       + '&status=not.in.(recebido,cancelado)&recebido_at=is.null&deleted_at=is.null'
@@ -214,7 +241,8 @@ const TIME_TRIGGER_FINDERS = {
     }));
   },
 
-  familia_sem_contato: async (dias) => {
+  familia_sem_contato: async (config) => {
+    const dias = configDias(config);
     const limite = encodeURIComponent(isoDaysAgo(dias));
     const rows = await sbGet(
       'crm_experiencia?select=id,atleta_id,deal_id,fase,status,data_ultimo_contato,created_at'
@@ -232,7 +260,8 @@ const TIME_TRIGGER_FINDERS = {
     }));
   },
 
-  tarefa_vencida: async (dias) => {
+  tarefa_vencida: async (config) => {
+    const dias = configDias(config);
     // criada_automaticamente=false: automação de tarefa vencida NUNCA olha
     // tarefas criadas por automação — evita loop infinito de tarefas.
     const rows = await sbGet(
@@ -251,6 +280,55 @@ const TIME_TRIGGER_FINDERS = {
       },
     }));
   },
+
+  // Gatilho recorrente genérico (rotinas do CEO): dispara em hora BRT fixa,
+  // com frequência diária, semanal (dia_semana 0-6, dom=0) ou mensal
+  // (dia_mes 1-28). Dispara SOMENTE quando a hora BRT atual === config.hora —
+  // a engine roda no minuto 30 de cada hora, logo há exatamente 1 tick por
+  // hora e 1 match por dia. O run NÃO tem lead/deal no contexto: ações de
+  // WhatsApp/mover_deal retornam 'ignorado' (sem atleta_id/deal_id) — os usos
+  // são criar_tarefa e criar_notificacao (rotinas recorrentes). hitsLoopGuard
+  // com origem null retorna false (não bloqueia). Dedup POR PERÍODO (bucket
+  // em contexto.periodo) em materializeTimeTriggers — não por origem.
+  agendamento: async (config) => {
+    const hora = Number(config?.hora);
+    if (!Number.isInteger(hora) || hora < 0 || hora > 23) return [];
+    const brt = nowBRT(); // campos UTC = relógio de parede BRT
+    if (brt.getUTCHours() !== hora) return [];
+
+    const frequencia = config?.frequencia || 'diaria';
+    let periodo;
+    if (frequencia === 'diaria') {
+      periodo = brt.toISOString().slice(0, 10);                  // YYYY-MM-DD
+    } else if (frequencia === 'semanal') {
+      if (brt.getUTCDay() !== Number(config?.dia_semana)) return [];
+      periodo = isoWeekBucket(brt);                               // YYYY-Www
+    } else if (frequencia === 'mensal') {
+      if (brt.getUTCDate() !== Number(config?.dia_mes)) return [];
+      periodo = brt.toISOString().slice(0, 7);                    // YYYY-MM
+    } else {
+      return [];
+    }
+
+    return [{
+      origemId: null,
+      tabela: null,
+      contexto: { periodo, agendamento: true },
+    }];
+  },
+};
+
+// ─── Dedup POR PERÍODO (só gatilho agendamento) ──────────────────
+// Runs de agendamento não têm origem — a chave de idempotência é o bucket
+// do período (dia/semana/mês BRT) gravado em contexto.periodo. PostgREST
+// suporta o filtro JSON contexto->>periodo=eq.<bucket>.
+const existsRunNoPeriodo = async (automacaoId, periodo) => {
+  const rows = await sbGet(
+    `automacao_runs?automacao_id=eq.${automacaoId}`
+    + `&contexto->>periodo=eq.${encodeURIComponent(periodo)}`
+    + '&select=id&limit=1'
+  );
+  return rows.length > 0;
 };
 
 const materializeTimeTriggers = async (automacoes) => {
@@ -259,12 +337,23 @@ const materializeTimeTriggers = async (automacoes) => {
     const finder = TIME_TRIGGER_FINDERS[auto.gatilho];
     if (!finder) continue; // gatilhos de evento são materializados por trigger no banco
 
-    const dias = Number(auto.gatilho_config?.dias) > 0 ? Number(auto.gatilho_config.dias) : 1;
     try {
-      const candidatos = await finder(dias);
-      const jaMaterializados = await fetchExistingOrigens(auto.id, candidatos.map((c) => c.origemId));
-      for (const c of candidatos) {
-        if (jaMaterializados.has(c.origemId)) continue;
+      const candidatos = await finder(auto.gatilho_config || {});
+
+      // Dedup: agendamento não tem origem — dedup pelo bucket do período;
+      // os demais gatilhos de tempo deduplicam one-shot por (automacao, origem).
+      let elegiveis;
+      if (auto.gatilho === 'agendamento') {
+        elegiveis = [];
+        for (const c of candidatos) {
+          if (!(await existsRunNoPeriodo(auto.id, c.contexto.periodo))) elegiveis.push(c);
+        }
+      } else {
+        const jaMaterializados = await fetchExistingOrigens(auto.id, candidatos.map((c) => c.origemId));
+        elegiveis = candidatos.filter((c) => !jaMaterializados.has(c.origemId));
+      }
+
+      for (const c of elegiveis) {
         await sbPost('automacao_runs', {
           automacao_id: auto.id,
           status: 'pendente',
@@ -530,6 +619,93 @@ const executeAcao = async (acao, contexto, runId) => {
     return { tipo: acao.tipo, status: 'ok', detalhe: `template ${p.template}` };
   }
 
+  // Texto livre ao RESPONSÁVEL do lead (única opção do MVP). Usa o caminho
+  // de mensagem custom do send-whatsapp (messageType meeting_confirmed +
+  // customMessage + phone → /send-text a UM telefone, sem template).
+  if (acao.tipo === 'enviar_whatsapp_custom') {
+    if (!SEND_WHATSAPP_URL) {
+      return { tipo: acao.tipo, status: 'erro', detalhe: 'SEND_WHATSAPP_URL não configurada' };
+    }
+    if (!contexto.atleta_id) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'contexto sem atleta_id' };
+    }
+    const atletas = await sbGet(`atletas?id=eq.${contexto.atleta_id}&select=form_submission_id`);
+    const fsId = atletas[0]?.form_submission_id;
+    if (!fsId) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'atleta sem form_submission (cadastro manual)' };
+    }
+    // SELECT * de propósito: o record completo vai no payload (o send-whatsapp
+    // valida athlete_name e reaplica o próprio filtro FRIO como defesa extra).
+    const submissions = await sbGet(`form_submissions?id=eq.${fsId}&select=*`);
+    const submission = submissions[0];
+    if (!submission) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'form_submission não encontrada' };
+    }
+
+    // INVARIANTE (guard de CI): FRIO NUNCA recebe mensagem automática —
+    // nem texto custom. Mesma cláusula do checkWhatsappEligibility.
+    const classificacao = submission.qualification_classification;
+    if (!['QUENTE', 'MORNO'].includes(classificacao)) {
+      log('INFO', 'whatsapp_custom_skip_classe', {
+        runId, classificacao: classificacao || 'ausente',
+      });
+      return {
+        tipo: acao.tipo, status: 'ignorado',
+        detalhe: `classificacao ${classificacao || 'ausente'} — só QUENTE/MORNO`,
+      };
+    }
+
+    // Destinatário MVP: responsável — telefone guardian_whatsapp do lead
+    // (mesmo campo que o send-whatsapp usa para o fluxo do responsável).
+    const phone = submission.guardian_whatsapp;
+    if (!phone) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'lead sem guardian_whatsapp' };
+    }
+
+    // Render dos placeholders via split/join (padrão renderTemplate do
+    // send-whatsapp). Mensagem vazia após render → nunca envia.
+    const vars = {
+      '{atleta_nome}': submission.athlete_name || 'Atleta',
+      '{responsavel_nome}': submission.guardian_name || 'Responsável',
+    };
+    let mensagem = String(p.mensagem || '');
+    for (const [placeholder, valor] of Object.entries(vars)) {
+      mensagem = mensagem.split(placeholder).join(valor);
+    }
+    if (!mensagem.trim()) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'mensagem vazia' };
+    }
+
+    // Idempotência (trade-off documentado): mensagens custom NÃO têm coluna
+    // *_sent_at no lead — não há CAS de lead como nos templates. A proteção é
+    // run one-shot (dedup na materialização) + CAS do claim do run + loop
+    // guard (3+ disparos da mesma origem em 24h). Janela residual: crash
+    // entre o POST e o finishRun pode reenviar 1x na recuperação de órfão —
+    // aceitável para mensagem informativa. NUNCA usar esta ação no lugar da
+    // régua initial/follow-up (essa tem CAS por coluna no lead).
+    const payload = JSON.stringify({
+      record: submission,
+      messageType: 'meeting_confirmed',
+      customMessage: mensagem,
+      phone,
+    });
+    const headers = {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    };
+    if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
+
+    const result = await httpRequest(
+      SEND_WHATSAPP_URL,
+      { method: 'POST', headers, timeoutMs: 90000 },
+      payload
+    );
+    if (result.statusCode >= 400) {
+      throw new Error(`send-whatsapp (custom): ${result.statusCode} ${result.body.slice(0, 300)}`);
+    }
+    return { tipo: acao.tipo, status: 'ok', detalhe: 'texto custom ao responsável' };
+  }
+
   if (acao.tipo === 'mover_deal') {
     if (!contexto.deal_id) {
       return { tipo: acao.tipo, status: 'ignorado', detalhe: 'contexto sem deal_id' };
@@ -638,7 +814,10 @@ const processRun = async (run, automacoesById, engineConfig) => {
       }
     }
 
-    const whatsappSent = resultados.some((r) => r.tipo === 'enviar_whatsapp' && r.status === 'ok');
+    // Custom conta para o delay anti-ban do loop igual aos templates.
+    const whatsappSent = resultados.some(
+      (r) => (r.tipo === 'enviar_whatsapp' || r.tipo === 'enviar_whatsapp_custom') && r.status === 'ok'
+    );
 
     if (houveErro) {
       await retryOrExhaust(run, engineConfig, { acoes: resultados });

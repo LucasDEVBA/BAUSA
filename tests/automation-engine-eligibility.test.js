@@ -138,6 +138,32 @@ test('automation-engine: meeting_confirmed não é template executável', () => 
   );
 });
 
+// ─── Invariante 4e: ação custom reaplica a classe QUENTE/MORNO ───────────
+test('automation-engine: enviar_whatsapp_custom reaplica a classe QUENTE/MORNO', () => {
+  const src = loadExecutableSource();
+  const inicio = src.indexOf(`acao.tipo === 'enviar_whatsapp_custom'`);
+  assert.ok(
+    inicio >= 0,
+    `INVARIANTE VIOLADO: a ação enviar_whatsapp_custom deve existir no ` +
+      `executeAcao (texto livre ao responsável).`,
+  );
+  // Recorta o bloco da ação custom (até o próximo bloco de ação) e garante
+  // a checagem de classe DENTRO dele — mesma cláusula dos schedulers.
+  const proximoBloco = src.indexOf(`acao.tipo === '`, inicio + 1);
+  const bloco = proximoBloco > inicio ? src.slice(inicio, proximoBloco) : src.slice(inicio);
+  assert.ok(
+    bloco.includes(`['QUENTE', 'MORNO'].includes(`),
+    `INVARIANTE VIOLADO: enviar_whatsapp_custom deve barrar classificação ` +
+      `fora de QUENTE/MORNO antes de qualquer POST — FRIO NUNCA recebe, ` +
+      `nem mensagem custom (incidente 2026-05-15).`,
+  );
+  assert.ok(
+    bloco.indexOf(`['QUENTE', 'MORNO'].includes(`) < bloco.indexOf('httpRequest'),
+    `INVARIANTE VIOLADO: a checagem de classe da ação custom deve vir ` +
+      `ANTES do POST ao send-whatsapp.`,
+  );
+});
+
 // ─── Invariante 5: CAS atômico antes de executar o run ───────────────────
 test('automation-engine: claim do run usa CAS (filtro de status na URL)', () => {
   const src = loadExecutableSource();

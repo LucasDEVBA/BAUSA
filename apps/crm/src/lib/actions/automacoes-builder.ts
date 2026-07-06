@@ -14,6 +14,13 @@ const condicaoSchema = z.object({
   valor: z.union([z.string().min(1), z.number(), z.array(z.string().min(1)).min(1)]),
 });
 
+// Placeholders da ação enviar_whatsapp_custom — espelham o render da engine
+// (automation-engine): só {atleta_nome} e {responsavel_nome}. Typo ({foo})
+// chegaria LITERAL na mensagem do responsável — rejeitar na entrada.
+const CUSTOM_PLACEHOLDERS = new Set(["atleta_nome", "responsavel_nome"]);
+const CUSTOM_MENSAGEM_MIN = 10;
+const CUSTOM_MENSAGEM_MAX = 1000;
+
 const acaoSchema = z.discriminatedUnion("tipo", [
   z.object({
     tipo: z.literal("criar_tarefa"),
@@ -48,6 +55,31 @@ const acaoSchema = z.discriminatedUnion("tipo", [
     }),
   }),
   z.object({
+    tipo: z.literal("enviar_whatsapp_custom"),
+    parametros: z.object({
+      // A engine reaplica a classe (só QUENTE/MORNO — FRIO nunca recebe) e
+      // envia ao responsável (guardian_whatsapp) via caminho custom da CF.
+      mensagem: z
+        .string()
+        .min(CUSTOM_MENSAGEM_MIN, `Mensagem muito curta (mínimo ${CUSTOM_MENSAGEM_MIN} caracteres)`)
+        .max(CUSTOM_MENSAGEM_MAX, `Mensagem muito longa (máximo ${CUSTOM_MENSAGEM_MAX} caracteres)`)
+        .superRefine((texto, ctx) => {
+          const tokens = texto.match(/\{[a-zA-Z0-9_]+\}/g) ?? [];
+          for (const token of tokens) {
+            if (!CUSTOM_PLACEHOLDERS.has(token.slice(1, -1))) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message:
+                  `Variável desconhecida ${token} — válidas: ` +
+                  `${[...CUSTOM_PLACEHOLDERS].map((p) => `{${p}}`).join(", ")}`,
+              });
+            }
+          }
+        }),
+      destinatario: z.literal("responsavel"),
+    }),
+  }),
+  z.object({
     tipo: z.literal("mover_deal"),
     parametros: z.object({
       etapa_destino: z.string().min(1, "Etapa de destino é obrigatória"),
@@ -58,24 +90,70 @@ const acaoSchema = z.discriminatedUnion("tipo", [
   }),
 ]);
 
-const automacaoSchema = z.object({
-  nome: z.string().min(3, "Nome muito curto").max(120),
-  descricao: z.string().max(500).optional(),
-  gatilho: z.enum([
-    "lead_qualificado",
-    "deal_etapa_mudou",
-    "reuniao_marcada",
-    "temperatura_vermelha",
-    "deal_parado_etapa",
-    "parcela_vencendo",
-    "parcela_atrasada",
-    "familia_sem_contato",
-    "tarefa_vencida",
-  ]),
-  gatilho_config: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
-  condicoes: z.array(condicaoSchema).max(10).default([]),
-  acoes: z.array(acaoSchema).min(1, "Adicione pelo menos uma ação").max(5),
-});
+const automacaoSchema = z
+  .object({
+    nome: z.string().min(3, "Nome muito curto").max(120),
+    descricao: z.string().max(500).optional(),
+    gatilho: z.enum([
+      "lead_qualificado",
+      "deal_etapa_mudou",
+      "reuniao_marcada",
+      "temperatura_vermelha",
+      "deal_parado_etapa",
+      "parcela_vencendo",
+      "parcela_atrasada",
+      "familia_sem_contato",
+      "tarefa_vencida",
+      "agendamento",
+    ]),
+    gatilho_config: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
+    condicoes: z.array(condicaoSchema).max(10).default([]),
+    acoes: z.array(acaoSchema).min(1, "Adicione pelo menos uma ação").max(5),
+  })
+  // Gatilho agendamento: valida a config recorrente (frequencia/hora/dia) —
+  // a engine só dispara quando a hora BRT bate, então config inválida = nunca.
+  .superRefine((v, ctx) => {
+    if (v.gatilho !== "agendamento") return;
+    const cfg = v.gatilho_config;
+    const frequencia = cfg.frequencia;
+    if (frequencia !== "diaria" && frequencia !== "semanal" && frequencia !== "mensal") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Frequência do agendamento deve ser diária, semanal ou mensal",
+      });
+      return;
+    }
+    const hora = cfg.hora;
+    if (typeof hora !== "number" || !Number.isInteger(hora) || hora < 0 || hora > 23) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Hora do agendamento deve ser um inteiro entre 0 e 23",
+      });
+    }
+    if (frequencia === "semanal") {
+      const diaSemana = cfg.dia_semana;
+      if (
+        typeof diaSemana !== "number" ||
+        !Number.isInteger(diaSemana) ||
+        diaSemana < 0 ||
+        diaSemana > 6
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Dia da semana deve ser um inteiro entre 0 (domingo) e 6 (sábado)",
+        });
+      }
+    }
+    if (frequencia === "mensal") {
+      const diaMes = cfg.dia_mes;
+      if (typeof diaMes !== "number" || !Number.isInteger(diaMes) || diaMes < 1 || diaMes > 28) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Dia do mês deve ser um inteiro entre 1 e 28",
+        });
+      }
+    }
+  });
 
 export type AutomacaoInput = z.input<typeof automacaoSchema>;
 
@@ -305,7 +383,7 @@ const mensagensSchema = z
       const validos =
         template === "meeting_confirmed" ? PLACEHOLDERS_MEETING : PLACEHOLDERS_PADRAO;
       for (const [destinatario, texto] of Object.entries(par)) {
-        const tokens = texto.match(/\{[a-z0-9_]+\}/g) ?? [];
+        const tokens = texto.match(/\{[a-zA-Z0-9_]+\}/g) ?? [];
         for (const token of tokens) {
           if (!validos.has(token.slice(1, -1))) {
             ctx.addIssue({
