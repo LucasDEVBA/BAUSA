@@ -38,8 +38,11 @@ const httpRequest = (url, options, postData) =>
       res.on('end', () => resolve({ statusCode: res.statusCode, body }));
     });
     req.on('error', reject);
-    req.setTimeout(60000, () => {
-      req.destroy(new Error('Request timeout (60s)'));
+    // Timeout 90s (paridade com process-pending-whatsapp): o send-whatsapp
+    // faz 2 envios sequenciais (atleta + responsável) com delay anti-ban de
+    // 20-30s entre eles — 60s ficava apertado e gerava erro espúrio.
+    req.setTimeout(90000, () => {
+      req.destroy(new Error('Request timeout (90s)'));
     });
     if (postData) req.write(postData);
     req.end();
