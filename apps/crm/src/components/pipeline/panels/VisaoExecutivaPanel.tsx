@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Sparkles,
-  CircleAlert,
 } from "lucide-react";
 import { type Deal, DEAL_STAGE_CONFIG } from "@/types/deal";
 import { cn } from "@/lib/utils";
@@ -16,6 +15,7 @@ import {
   MinimalField,
   MinimalStat,
 } from "@/components/shared/MinimalUI";
+import { AcoesRapidasCard } from "@/components/mensagem/AcoesRapidasCard";
 
 interface Props {
   deal: Deal;
@@ -106,6 +106,18 @@ export function VisaoExecutivaPanel({ deal }: Props) {
         />
         <MinimalStat label="No pipeline" value={`${diasCriacao}d`} />
       </div>
+
+      {/* Ações rápidas — mensagem direta (I4). Contato re-resolvido no server. */}
+      <AcoesRapidasCard
+        destinatario={{
+          nome: deal.athlete_name,
+          responsavelNome: deal.guardian_name || null,
+          telefone: deal.whatsapp ?? null,
+          email: deal.guardian_email ?? deal.email ?? null,
+          classificacao: deal.classificacao_gemini ?? deal.classification ?? null,
+          dealId: deal.id,
+        }}
+      />
 
       {/* Status comercial */}
       <MinimalCard

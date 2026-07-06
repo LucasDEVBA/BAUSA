@@ -22,9 +22,9 @@ const EXEMPLO_VARS: Record<string, string> = {
   "{responsavel_nome}": "Maria Silva",
 };
 
-function renderPlaceholders(texto: string): string {
+function renderPlaceholders(texto: string, vars: Record<string, string>): string {
   let rendered = texto;
-  for (const [placeholder, valor] of Object.entries(EXEMPLO_VARS)) {
+  for (const [placeholder, valor] of Object.entries(vars)) {
     rendered = rendered.split(placeholder).join(valor);
   }
   return rendered;
@@ -69,6 +69,9 @@ export interface MensagemPreviewProps {
   imagemUrl?: string;
   linkUrl?: string;
   linkTitulo?: string;
+  /** Valores dos placeholders. Default: exemplos do builder (João/Maria).
+   *  O compositor de mensagem direta passa os NOMES REAIS do lead. */
+  vars?: Record<string, string>;
   className?: string;
 }
 
@@ -79,6 +82,7 @@ export function MensagemPreview({
   imagemUrl,
   linkUrl,
   linkTitulo,
+  vars = EXEMPLO_VARS,
   className,
 }: MensagemPreviewProps) {
   // Hora de "envio" do mock — congelada no mount via lazy init. Componente
@@ -88,8 +92,8 @@ export function MensagemPreview({
     new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
   );
 
-  const texto = renderPlaceholders(mensagem);
-  const assuntoRendered = renderPlaceholders(assunto ?? "");
+  const texto = renderPlaceholders(mensagem, vars);
+  const assuntoRendered = renderPlaceholders(assunto ?? "", vars);
   const temLink = Boolean(linkUrl?.trim());
   const temImagem = Boolean(imagemUrl?.trim());
 
