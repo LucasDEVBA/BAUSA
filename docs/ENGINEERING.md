@@ -42,6 +42,7 @@ Em maio/2026 tivemos **dois incidentes silenciosos** que custaram caro e passara
 4. **Fail fast + nunca engolir erro:** try/catch em toda operação async, log estruturado, sem catch vazio. Mas: triggers SQL que tocam tabelas secundárias usam `EXCEPTION WHEN OTHERS` para **nunca abortar a operação crítica** (lição do #52 — handoff de experiência não pode travar o CEO de mover deal).
 5. **Reusar antes de criar:** helpers existem (`war-room-queries.ts`, `createServerSupabaseClient`, `MetricCard`, templates seeded). Buscar antes de escrever novo.
 6. **TS strict no Engine, JS puro nas Functions:** `apps/crm` é `strict: true` sem `any`. `functions/` é Node 20 JS — validar com `node --check`.
+7. **Tabela auditada precisa de chave estável:** toda tabela nova com trigger `audit.log_change()` DEVE ter coluna `id UUID` **ou** uma chave natural estável chamada `chave` (ex.: `configuracoes_sistema`). O audit deriva `registro_id` do `id`; sem ele, cai no fallback determinístico `md5(tabela:chave)`. Sem **nenhuma** das duas, cada UPDATE da mesma linha gera um `registro_id` diferente e o histórico não correlaciona (descoberto no incidente do seed de automações, 2026-07-04 — a função original lia `NEW.id` direto e **abortava** qualquer escrita em tabela sem `id`; corrigida em `20260703232151` seção 0, `search_path` fixado em `20260705214424`).
 
 ---
 
