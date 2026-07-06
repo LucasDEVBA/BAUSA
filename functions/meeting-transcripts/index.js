@@ -29,14 +29,18 @@ const SERVICE_ACCOUNT_PRIVATE_KEY = RAW_KEY
   .replace(/\\\\n/g, '\n');
 
 // Limites operacionais
-const MAX_CANDIDATES_PER_RUN = 20;      // deals verificados por tick
+const MAX_CANDIDATES_PER_RUN = 20;      // deals PROCESSADOS por tick
+// Busca larga: o limit da query vem ANTES do anti-join — com >20 reunioes ja
+// capturadas na janela, um limit estreito esconderia as novas (starvation,
+// mesma classe dos incidentes de elegibilidade). Filtra depois, processa 20.
+const FETCH_LIMIT = 200;
 const LOOKBACK_DAYS = 30;               // janela de reuniões consideradas
 const MAX_TRANSCRIPT_CHARS = 300000;    // teto do texto persistido
-const MAX_GEMINI_INPUT_CHARS = 25000;   // teto do trecho enviado ao Gemini
+const MAX_GEMINI_INPUT_CHARS = 150000;  // teto do trecho enviado ao Gemini (2.5 Flash tem contexto de sobra)
 
 // Anexo de transcript: Doc do Google com título de transcrição
 // ("Transcript", "Transcrição"/"Transcricao" ou "Notes by Gemini").
-const TRANSCRIPT_TITLE_RE = /transcript|transcri[çc][ãa]o|notes by gemini/i;
+const TRANSCRIPT_TITLE_RE = /transcript|transcri[çc][ãa]o|notes by gemini|anota[çc][õo]es (do|de) gemini|notas (do|de) gemini/i;
 const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 
 // ─── Log estruturado ──────────────────────────────────────────
@@ -98,7 +102,7 @@ const fetchCandidateDeals = async () => {
     `&deleted_at=is.null` +
     `&reuniao_agendada_at=gte.${encodeURIComponent(sinceIso)}` +
     `&order=reuniao_agendada_at.asc` +
-    `&limit=${MAX_CANDIDATES_PER_RUN}`;
+    `&limit=${FETCH_LIMIT}`;
 
   const result = await httpRequest(url, {
     method: 'GET',
@@ -140,7 +144,10 @@ const fetchCapturedEventIds = async (eventIds) => {
 const summarizeTranscript = async (transcriptText) => {
   if (!GEMINI_API_KEY || !transcriptText || !transcriptText.trim()) return null;
 
-  const excerpt = transcriptText.slice(0, MAX_GEMINI_INPUT_CHARS);
+  // head+tail: os proximos passos combinados ficam no FIM da reuniao
+  const excerpt = transcriptText.length <= MAX_GEMINI_INPUT_CHARS
+    ? transcriptText
+    : transcriptText.slice(0, MAX_GEMINI_INPUT_CHARS / 2) + "\n[...]\n" + transcriptText.slice(-MAX_GEMINI_INPUT_CHARS / 2);
   const prompt = `Você é assistente comercial da Bolsa Atleta USA (assessoria de bolsas esportivas em instituições americanas).
 
 Abaixo está a transcrição de uma reunião comercial entre o consultor e a família de um atleta (lead). Resuma em 5 a 8 linhas, em português, cobrindo: contexto da família, principais dúvidas/objeções, sinais de interesse ou risco, e próximos passos combinados. Seja objetivo e factual — não invente nada que não esteja na transcrição.
@@ -258,7 +265,8 @@ functions.http('meetingTranscripts', async (req, res) => {
 
     const capturedIds = await fetchCapturedEventIds(Array.from(byEvent.keys()));
     const pending = Array.from(byEvent.values())
-      .filter((deal) => !capturedIds.has(deal.google_calendar_event_id));
+      .filter((deal) => !capturedIds.has(deal.google_calendar_event_id))
+      .slice(0, MAX_CANDIDATES_PER_RUN);
 
     counters.candidates = pending.length;
     log('INFO', 'candidates_found', {
