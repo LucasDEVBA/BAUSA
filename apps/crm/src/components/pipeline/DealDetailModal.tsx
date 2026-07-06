@@ -56,6 +56,7 @@ import {
 import { DealContratoTab } from "./DealContratoTab";
 import { VisaoExecutivaPanel } from "./panels/VisaoExecutivaPanel";
 import { AcompanhamentoHeadPanel } from "./panels/AcompanhamentoHeadPanel";
+import { TranscricaoReuniaoCard } from "@/components/shared/TranscricaoReuniaoCard";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
@@ -947,24 +948,28 @@ function ComercialSection({ deal }: { deal: Deal }) {
 
 function ReuniaoSection({ deal }: { deal: Deal }) {
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      <Card title="Reunião comercial" icon={CalendarDays} iconColor="text-sys-blue">
-        <dl className="grid grid-cols-1 gap-x-4">
-          <Field
-            label="Data/hora agendada"
-            value={fmtDateTime(deal.reuniao_agendada_at)}
-          />
-          <Field
-            label="Data realizada"
-            value={fmtDateTime(deal.reuniao_data)}
-          />
-          <Field
-            label="Link"
-            value={deal.reuniao_link ? "Acessar reunião" : null}
-            href={deal.reuniao_link}
-          />
-        </dl>
-      </Card>
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Card title="Reunião comercial" icon={CalendarDays} iconColor="text-sys-blue">
+          <dl className="grid grid-cols-1 gap-x-4">
+            <Field
+              label="Data/hora agendada"
+              value={fmtDateTime(deal.reuniao_agendada_at)}
+            />
+            <Field
+              label="Data realizada"
+              value={fmtDateTime(deal.reuniao_data)}
+            />
+            <Field
+              label="Link"
+              value={deal.reuniao_link ? "Acessar reunião" : null}
+              href={deal.reuniao_link}
+            />
+          </dl>
+        </Card>
+      </div>
+      {/* Transcrição do Meet (CF meeting-transcripts) — só renderiza se capturada */}
+      <TranscricaoReuniaoCard dealId={deal.id} />
     </div>
   );
 }

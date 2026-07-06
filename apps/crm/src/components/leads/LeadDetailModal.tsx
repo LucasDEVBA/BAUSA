@@ -33,6 +33,7 @@ import {
   useDocumentosAtleta,
 } from "@/components/documentos/DocumentosChecklist";
 import { AcoesRapidasCard } from "@/components/mensagem/AcoesRapidasCard";
+import { TranscricaoReuniaoCard } from "@/components/shared/TranscricaoReuniaoCard";
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -666,46 +667,51 @@ function ComunicacoesSection({ lead }: { lead: Lead }) {
   ];
 
   return (
-    <MinimalCard title="Timeline" icon={MessageSquare}>
-      <ol className="space-y-1">
-        {eventos.map((e, i) => {
-          const ok = !!e.quando;
-          return (
-            <li
-              key={`${e.label}-${i}`}
-              className="flex items-start gap-2 rounded px-1.5 py-1.5 hover:bg-secondary/30"
-            >
-              <span
-                className={cn(
-                  "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
-                  ok ? "bg-sys-green" : "bg-muted-foreground/30",
-                )}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p
-                    className={cn(
-                      "text-xs font-medium",
-                      ok ? "text-foreground" : "text-muted-foreground",
-                    )}
-                  >
-                    {e.label}
-                  </p>
-                  <span className="text-[10px] tabular-nums text-muted-foreground">
-                    {ok ? fmtDateTime(e.quando) : "pendente"}
-                  </span>
+    <div className="flex flex-col gap-3">
+      <MinimalCard title="Timeline" icon={MessageSquare}>
+        <ol className="space-y-1">
+          {eventos.map((e, i) => {
+            const ok = !!e.quando;
+            return (
+              <li
+                key={`${e.label}-${i}`}
+                className="flex items-start gap-2 rounded px-1.5 py-1.5 hover:bg-secondary/30"
+              >
+                <span
+                  className={cn(
+                    "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
+                    ok ? "bg-sys-green" : "bg-muted-foreground/30",
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p
+                      className={cn(
+                        "text-xs font-medium",
+                        ok ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {e.label}
+                    </p>
+                    <span className="text-[10px] tabular-nums text-muted-foreground">
+                      {ok ? fmtDateTime(e.quando) : "pendente"}
+                    </span>
+                  </div>
+                  {e.descricao && (
+                    <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/80">
+                      {e.descricao}
+                    </p>
+                  )}
                 </div>
-                {e.descricao && (
-                  <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/80">
-                    {e.descricao}
-                  </p>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </MinimalCard>
+              </li>
+            );
+          })}
+        </ol>
+      </MinimalCard>
+
+      {/* Transcrição do Meet (CF meeting-transcripts) — lead.id = form_submissions.id */}
+      <TranscricaoReuniaoCard formSubmissionId={lead.id} />
+    </div>
   );
 }
 
