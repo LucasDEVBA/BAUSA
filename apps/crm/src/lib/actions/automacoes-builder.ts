@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { ETAPA_LABELS } from "@/types/crm";
 
 // ─── Schemas (espelham src/types/automacao.ts) ──────────────────────────────
 
@@ -186,6 +187,20 @@ const automacaoSchema = z
     gatilho_config: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
     condicoes: z.array(condicaoSchema).max(10).default([]),
     acoes: z.array(acaoSchema).min(1, "Adicione pelo menos uma ação").max(5),
+  })
+  // Gatilho deal_etapa_mudou: etapa_para é OPCIONAL (ausente = qualquer
+  // transição), mas quando presente precisa ser uma etapa válida do pipeline
+  // — typo silencioso faria a engine ignorar TODOS os runs da automação.
+  .superRefine((v, ctx) => {
+    if (v.gatilho !== "deal_etapa_mudou") return;
+    const etapaPara = v.gatilho_config.etapa_para;
+    if (etapaPara === undefined) return;
+    if (typeof etapaPara !== "string" || !(etapaPara in ETAPA_LABELS)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Etapa de destino inválida — escolha uma etapa do pipeline ou deixe vazio",
+      });
+    }
   })
   // Gatilho agendamento: valida a config recorrente (frequencia/hora/dia) —
   // a engine só dispara quando a hora BRT bate, então config inválida = nunca.

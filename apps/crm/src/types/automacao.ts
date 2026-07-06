@@ -43,6 +43,9 @@ export interface GatilhoInfo {
   configDias?: { label: string; padrao: number };
   /** Gatilho `agendamento`: builder mostra frequência/hora/dia no lugar de dias. */
   configAgendamento?: boolean;
+  /** Gatilho `deal_etapa_mudou`: builder mostra select de etapa de destino
+   *  (opcional — salvo em `gatilho_config.etapa_para`; vazio = qualquer). */
+  configEtapa?: boolean;
 }
 
 export const GATILHO_CATALOG: Record<AutomacaoGatilho, GatilhoInfo> = {
@@ -53,8 +56,10 @@ export const GATILHO_CATALOG: Record<AutomacaoGatilho, GatilhoInfo> = {
   },
   deal_etapa_mudou: {
     label: "Deal mudou de etapa",
-    descricao: "Um deal foi movido no pipeline (qualquer transição).",
+    descricao:
+      "Um deal foi movido no pipeline — qualquer transição ou, escolhendo uma etapa de destino, só quando o deal entra nela.",
     origem: "evento",
+    configEtapa: true,
   },
   reuniao_marcada: {
     label: "Reunião marcada",

@@ -202,6 +202,31 @@ test('automation-engine: claim do run usa CAS (filtro de status na URL)', () => 
   );
 });
 
+// ─── Invariante 5b: filtro por etapa do gatilho deal_etapa_mudou (J1) ────
+test('automation-engine: deal_etapa_mudou respeita gatilho_config.etapa_para', () => {
+  const src = loadExecutableSource();
+  assert.ok(
+    src.includes(`auto.gatilho === 'deal_etapa_mudou'`) &&
+      src.includes('gatilho_config || {}).etapa_para'),
+    `INVARIANTE VIOLADO: processRun deve ler gatilho_config.etapa_para do ` +
+      `gatilho deal_etapa_mudou — sem o filtro, automação configurada para ` +
+      `uma etapa dispararia em TODA transição do pipeline.`,
+  );
+  assert.ok(
+    src.includes('automação espera'),
+    `INVARIANTE VIOLADO: run com etapa divergente deve finalizar como ` +
+      `'ignorado' com motivo claro ("etapa X, automação espera Y").`,
+  );
+  // O filtro precisa vir ANTES da avaliação de condições/execução de ações.
+  const idxFiltro = src.indexOf('automação espera');
+  const idxCondicoes = src.indexOf('evaluateCondicoes(auto.condicoes');
+  assert.ok(
+    idxFiltro >= 0 && idxCondicoes > idxFiltro,
+    `INVARIANTE VIOLADO: o filtro de etapa deve rodar ANTES de ` +
+      `evaluateCondicoes no processRun — depois dele, as ações já executariam.`,
+  );
+});
+
 // ─── Invariante 6: gatilho tarefa_vencida não cria loop de tarefas ───────
 test('automation-engine: tarefa_vencida ignora tarefas criadas por automação', () => {
   const src = loadExecutableSource();

@@ -909,6 +909,19 @@ const processRun = async (run, automacoesById, engineConfig) => {
   const contexto = { ...(run.contexto || {}), __tabela: run.gatilho_origem_tabela };
 
   try {
+    // Filtro por etapa do gatilho deal_etapa_mudou (gatilho_config.etapa_para):
+    // o trigger do banco materializa TODA transição — com etapa configurada,
+    // a automação só roda quando o deal ENTROU naquela etapa. Avaliado ANTES
+    // das condições (e do loop guard: é gratuito, sem round-trip ao banco).
+    const etapaEsperada =
+      auto.gatilho === 'deal_etapa_mudou' ? (auto.gatilho_config || {}).etapa_para : null;
+    if (etapaEsperada && String(contexto.etapa_para) !== String(etapaEsperada)) {
+      await finishRun(run.id, 'ignorado', {
+        motivo: `etapa ${contexto.etapa_para || 'desconhecida'}, automação espera ${etapaEsperada}`,
+      });
+      return { outcome: 'ignorado', whatsappSent: false };
+    }
+
     if (await hitsLoopGuard(run)) {
       await finishRun(run.id, 'ignorado', { motivo: 'loop_guard: 3+ disparos da mesma origem em 24h' });
       log('WARN', 'loop_guard_hit', { runId: run.id, automacao: auto.nome });
