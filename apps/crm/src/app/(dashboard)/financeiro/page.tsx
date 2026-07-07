@@ -27,7 +27,7 @@ import { FolhaView } from "@/components/financeiro/FolhaView";
 import { ResultadoView } from "@/components/financeiro/ResultadoView";
 import { getFinanceiroMetrics, type FinanceiroMetrics } from "@/lib/financeiro-metrics";
 import { PLANO_VALORES } from "@/types/crm";
-import { DESPESA_CATEGORIA_LABEL, type Despesa, type Colaborador } from "@/types/financeiro";
+import { DESPESA_CATEGORIA_LABEL, type Despesa, type Colaborador, type EmpresaDados } from "@/types/financeiro";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
 
 function formatBRL(val: number) {
@@ -306,6 +306,19 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   const metrics: FinanceiroMetrics | null =
     activeTab === "resultado" ? await getFinanceiroMetrics() : null;
 
+  // Dados da empresa (pagador) para recibos — usado nas abas Saídas e Folha
+  const EMPRESA_FALLBACK: EmpresaDados = { razao_social: "Bolsa Atleta USA", cnpj: "", cidade: "" };
+  const empresa: EmpresaDados =
+    activeTab === "folha" || activeTab === "saidas"
+      ? (((
+          await supabase
+            .from("configuracoes_sistema")
+            .select("valor")
+            .eq("chave", "empresa_dados")
+            .maybeSingle()
+        ).data?.valor as EmpresaDados | undefined) ?? EMPRESA_FALLBACK)
+      : EMPRESA_FALLBACK;
+
   return (
     <div className="space-y-5">
       <PageHeader dense
@@ -323,10 +336,10 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
       {activeTab === "resultado" && metrics && <ResultadoView metrics={metrics} />}
 
       {/* Tab: Saídas */}
-      {activeTab === "saidas" && <SaidasView despesas={despesas} />}
+      {activeTab === "saidas" && <SaidasView despesas={despesas} empresa={empresa} />}
 
       {/* Tab: Folha */}
-      {activeTab === "folha" && <FolhaView colaboradores={colaboradores} />}
+      {activeTab === "folha" && <FolhaView colaboradores={colaboradores} empresa={empresa} />}
 
       {/* Tab: NFs Pendentes */}
       {activeTab === "nf_pendentes" && (

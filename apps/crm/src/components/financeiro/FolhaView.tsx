@@ -2,13 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Users, UserPlus, Pencil, Trash2, Wallet, UserCheck } from "lucide-react";
+import { Users, UserPlus, Pencil, Trash2, Wallet, UserCheck, ReceiptText, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge, Card, EmptyState, ScrollList, StatCard, type BadgeTone } from "@/components/ui";
 import { removerColaborador } from "@/lib/actions/colaboradores";
-import { TIPO_CONTRATO_LABEL, type Colaborador } from "@/types/financeiro";
+import { TIPO_CONTRATO_LABEL, type Colaborador, type EmpresaDados } from "@/types/financeiro";
 import { ColaboradorFormModal } from "./ColaboradorFormModal";
+import { ReciboFolhaModal } from "./ReciboFolhaModal";
+import { EmpresaDadosModal } from "./EmpresaDadosModal";
 
 function formatBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -22,11 +24,13 @@ const TIPO_TONE: Record<Colaborador["tipo_contrato"], BadgeTone> = {
   outro: "neutral",
 };
 
-export function FolhaView({ colaboradores }: { colaboradores: Colaborador[] }) {
+export function FolhaView({ colaboradores, empresa }: { colaboradores: Colaborador[]; empresa: EmpresaDados }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Colaborador | null>(null);
+  const [reciboDe, setReciboDe] = useState<Colaborador | null>(null);
+  const [empresaOpen, setEmpresaOpen] = useState(false);
 
   const ativos = colaboradores.filter((c) => c.ativo);
   const folhaMensal = ativos.reduce((s, c) => s + c.custo_mensal_brl, 0);
@@ -68,14 +72,25 @@ export function FolhaView({ colaboradores }: { colaboradores: Colaborador[] }) {
             <h2 className="text-sm font-semibold text-foreground">Colaboradores</h2>
             <p className="text-xs text-muted-foreground">Folha — custo mensal já com encargos</p>
           </div>
-          <button
-            type="button"
-            onClick={openNew}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            Novo colaborador
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEmpresaOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-fill-4 hover:text-foreground"
+              title="Dados da empresa que aparecem nos recibos"
+            >
+              <Building2 className="h-3.5 w-3.5" />
+              Dados da empresa
+            </button>
+            <button
+              type="button"
+              onClick={openNew}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Novo colaborador
+            </button>
+          </div>
         </div>
 
         {colaboradores.length === 0 ? (
@@ -108,6 +123,15 @@ export function FolhaView({ colaboradores }: { colaboradores: Colaborador[] }) {
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
+                    onClick={() => setReciboDe(c)}
+                    aria-label={`Recibo de ${c.nome}`}
+                    title="Gerar recibo de pagamento"
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-sys-green/10 hover:text-sys-green"
+                  >
+                    <ReceiptText className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => openEdit(c)}
                     aria-label={`Editar ${c.nome}`}
                     className="rounded-md p-1.5 text-muted-foreground hover:bg-fill-4 hover:text-foreground"
@@ -131,6 +155,8 @@ export function FolhaView({ colaboradores }: { colaboradores: Colaborador[] }) {
       </Card>
 
       <ColaboradorFormModal open={sheetOpen} onClose={() => setSheetOpen(false)} colaborador={editing} />
+      <ReciboFolhaModal open={reciboDe !== null} onClose={() => setReciboDe(null)} colaborador={reciboDe} empresa={empresa} />
+      <EmpresaDadosModal open={empresaOpen} onClose={() => setEmpresaOpen(false)} empresa={empresa} />
     </div>
   );
 }

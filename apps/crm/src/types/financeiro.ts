@@ -23,6 +23,7 @@ export interface Colaborador {
   id: string;
   nome: string;
   cargo: string | null;
+  cpf: string | null;
   tipo_contrato: TipoContrato;
   custo_mensal_brl: number;
   ativo: boolean;
@@ -31,6 +32,13 @@ export interface Colaborador {
   observacao: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Dados da empresa (pagador) para recibos — config `empresa_dados`. */
+export interface EmpresaDados {
+  razao_social: string;
+  cnpj: string;
+  cidade: string;
 }
 
 // ─── Despesas (saídas) ───────────────────────────────────────────────────────

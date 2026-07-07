@@ -16,6 +16,7 @@ const NAO_AUTORIZADO = "Apenas o CEO pode gerenciar a folha." as const;
 const colaboradorShape = {
   nome: z.string().trim().min(2, "Informe o nome do colaborador.").max(120),
   cargo: z.string().trim().max(120).optional().nullable(),
+  cpf: z.string().trim().max(20).optional().nullable(),
   tipo_contrato: z.enum(TIPO_CONTRATO),
   custo_mensal_brl: z.number().nonnegative("O custo não pode ser negativo."),
   ativo: z.boolean(),
