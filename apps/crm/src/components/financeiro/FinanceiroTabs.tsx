@@ -5,7 +5,9 @@ import { useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { id: "geral", label: "Visao Geral" },
+  { id: "geral", label: "Visão Geral" },
+  { id: "saidas", label: "Saídas" },
+  { id: "folha", label: "Folha" },
   { id: "nf_pendentes", label: "NFs Pendentes" },
   { id: "cancelamentos", label: "Cancelamentos" },
 ] as const;

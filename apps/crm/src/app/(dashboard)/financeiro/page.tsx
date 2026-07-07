@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import {
-  DollarSign,
   TrendingUp,
   AlertTriangle,
   CheckCircle,
@@ -19,14 +18,16 @@ import {
   type FinancialSummary,
   type PlanType,
 } from "@/types/financial";
-import { fetchCancellations, type CancellationDeal } from "@/lib/war-room-queries";
+import { fetchCancellations } from "@/lib/war-room-queries";
 import { cn } from "@/lib/utils";
-import { NfBadge } from "@/components/financeiro/NfBadge";
 import { NfEditRow } from "@/components/financeiro/NfEditRow";
 import { FinanceiroTabs } from "@/components/financeiro/FinanceiroTabs";
-import { PageHeader, Button, ScrollList } from "@/components/ui";
+import { PageHeader, ScrollList, StatCard } from "@/components/ui";
 import { CancelamentoActions } from "@/components/financeiro/CancelamentoActions";
+import { SaidasView } from "@/components/financeiro/SaidasView";
+import { FolhaView } from "@/components/financeiro/FolhaView";
 import { PLANO_VALORES } from "@/types/crm";
+import type { Despesa, Colaborador } from "@/types/financeiro";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
 
 function formatBRL(val: number) {
@@ -176,7 +177,6 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const activeTab = params.tab || "geral";
   const mesAtual = new Date().toISOString().slice(0, 7);
-  const hoje = new Date().toISOString().split("T")[0];
 
   // Buscar contratos com deal + atleta para pegar nomes
   const { data: rawContratos } = await supabase
@@ -274,6 +274,31 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   // Cancelamentos
   const cancellations = activeTab === "cancelamentos" ? await fetchCancellations() : [];
 
+  // Saídas / Folha (abas novas — só busca quando a aba está ativa)
+  const despesas: Despesa[] =
+    activeTab === "saidas"
+      ? (((
+          await supabase
+            .from("despesas")
+            .select("*")
+            .is("deleted_at", null)
+            .order("competencia", { ascending: false })
+            .order("created_at", { ascending: false })
+        ).data as Despesa[] | null) ?? [])
+      : [];
+
+  const colaboradores: Colaborador[] =
+    activeTab === "folha"
+      ? (((
+          await supabase
+            .from("colaboradores")
+            .select("*")
+            .is("deleted_at", null)
+            .order("ativo", { ascending: false })
+            .order("nome", { ascending: true })
+        ).data as Colaborador[] | null) ?? [])
+      : [];
+
   return (
     <div className="space-y-5">
       <PageHeader dense
@@ -281,17 +306,17 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
         title="Gestão Financeira"
         description="Contratos, recebíveis e análise de custos"
         actions={
-          <>
-            <Suspense fallback={null}>
-              <FinanceiroTabs />
-            </Suspense>
-            <Button>
-              <FileText />
-              Novo contrato
-            </Button>
-          </>
+          <Suspense fallback={null}>
+            <FinanceiroTabs />
+          </Suspense>
         }
       />
+
+      {/* Tab: Saídas */}
+      {activeTab === "saidas" && <SaidasView despesas={despesas} />}
+
+      {/* Tab: Folha */}
+      {activeTab === "folha" && <FolhaView colaboradores={colaboradores} />}
 
       {/* Tab: NFs Pendentes */}
       {activeTab === "nf_pendentes" && (
@@ -446,52 +471,34 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
         <>
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              {
-                label: "Receita recebida",
-                value: formatBRL(summary.total_received_brl),
-                sub: "total acumulado",
-                icon: CheckCircle,
-                color: "text-sys-green",
-                bg: "bg-sys-green/10",
-              },
-              {
-                label: "A receber",
-                value: formatBRL(summary.total_receivable_brl),
-                sub: "em aberto",
-                icon: Clock,
-                color: "text-sys-blue",
-                bg: "bg-sys-blue/10",
-              },
-              {
-                label: "Em atraso",
-                value: formatBRL(summary.overdue_brl),
-                sub: `${overdueReceivables.length} parcela${overdueReceivables.length !== 1 ? "s" : ""}`,
-                icon: AlertTriangle,
-                color: "text-sys-red",
-                bg: "bg-sys-red/10",
-              },
-              {
-                label: "Margem liquida",
-                value: `${summary.net_margin_pct}%`,
-                sub: "apos custos fixos",
-                icon: TrendingUp,
-                color: "text-plan-legacy",
-                bg: "bg-plan-legacy/10",
-              },
-            ].map((kpi) => {
-              const Icon = kpi.icon;
-              return (
-                <div key={kpi.label} className="rounded-lg border border-border/70 bg-card/60 p-3">
-                  <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", kpi.bg)}>
-                    <Icon className={cn("h-4 w-4", kpi.color)} />
-                  </div>
-                  <p className="text-xl font-bold text-foreground">{kpi.value}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
-                  <p className="text-[10px] text-label-tertiary">{kpi.sub}</p>
-                </div>
-              );
-            })}
+            <StatCard
+              label="Receita recebida"
+              value={formatBRL(summary.total_received_brl)}
+              icon={CheckCircle}
+              accent="green"
+              context="total acumulado"
+            />
+            <StatCard
+              label="A receber"
+              value={formatBRL(summary.total_receivable_brl)}
+              icon={Clock}
+              accent="blue"
+              context="em aberto"
+            />
+            <StatCard
+              label="Em atraso"
+              value={formatBRL(summary.overdue_brl)}
+              icon={AlertTriangle}
+              accent="red"
+              context={`${overdueReceivables.length} parcela${overdueReceivables.length !== 1 ? "s" : ""}`}
+            />
+            <StatCard
+              label="Margem líquida"
+              value={`${summary.net_margin_pct}%`}
+              icon={TrendingUp}
+              accent="burgundy"
+              context="após custos fixos"
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
