@@ -517,6 +517,70 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
               <div className="flex justify-end">
                 <SaveBtn onClick={() => saveConfig(KEY, configs[KEY])} isPending={isPending} />
               </div>
+
+              {/* Editor das mensagens da régua (texto usado pela CF billing-reminders) */}
+              {(() => {
+                const MSG_KEY = "regua_mensagens";
+                const msgs = getConfigObj(MSG_KEY, {}) as Record<string, Record<string, unknown>>;
+                const MARCOS = [
+                  { key: "dneg3", label: "D-3 · Lembrete amigável", whatsapp: true, email: false },
+                  { key: "d0", label: "D0 · Dia do vencimento", whatsapp: true, email: true },
+                  { key: "d1", label: "D+1 · Atraso", whatsapp: true, email: false },
+                  { key: "d3", label: "D+3 · Notificação formal", whatsapp: false, email: true },
+                  { key: "d7", label: "D+7 · Pendência (avisa o CEO)", whatsapp: true, email: true },
+                  { key: "d15", label: "D+15 · Crítico (avisa o CEO)", whatsapp: false, email: true },
+                ];
+                const updateMsg = (marco: string, campo: string, valor: string) => {
+                  updateLocalConfig(MSG_KEY, { ...msgs, [marco]: { ...(msgs[marco] ?? {}), [campo]: valor } });
+                };
+                const taClass = cn(selectClass, "min-h-20 w-full resize-y leading-relaxed");
+                return (
+                  <>
+                    <Card>
+                      <h3 className="mb-1 text-sm font-semibold text-foreground">Mensagens da régua</h3>
+                      <p className="mb-4 text-xs text-muted-foreground">
+                        Texto enviado às famílias em cada marco. Variáveis:{" "}
+                        {["{responsavel_nome}", "{atleta_nome}", "{valor}", "{vencimento}", "{numero_parcela}"].map((v) => (
+                          <code key={v} className="mr-1.5 rounded bg-secondary px-1 py-0.5 font-mono text-[11px] text-foreground">{v}</code>
+                        ))}
+                      </p>
+                      <div className="space-y-5">
+                        {MARCOS.map((m) => {
+                          const cur = msgs[m.key] ?? {};
+                          return (
+                            <div key={m.key} className="rounded-lg border border-border p-3.5">
+                              <p className="mb-2.5 text-xs font-semibold text-foreground">{m.label}</p>
+                              <div className="space-y-2.5">
+                                {m.whatsapp && (
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-label-tertiary">WhatsApp</label>
+                                    <textarea className={taClass} value={String(cur.whatsapp ?? "")} onChange={(e) => updateMsg(m.key, "whatsapp", e.target.value)} />
+                                  </div>
+                                )}
+                                {m.email && (
+                                  <>
+                                    <div>
+                                      <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-label-tertiary">E-mail — assunto</label>
+                                      <Input value={String(cur.email_assunto ?? "")} onChange={(e) => updateMsg(m.key, "email_assunto", e.target.value)} />
+                                    </div>
+                                    <div>
+                                      <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-label-tertiary">E-mail — corpo</label>
+                                      <textarea className={taClass} value={String(cur.email ?? "")} onChange={(e) => updateMsg(m.key, "email", e.target.value)} />
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                    <div className="flex justify-end">
+                      <SaveBtn onClick={() => saveConfig(MSG_KEY, configs[MSG_KEY])} isPending={isPending} />
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           );
         })()}
