@@ -12,6 +12,7 @@ import {
   CalendarClock,
   CircleDollarSign,
   PlayCircle,
+  ReceiptText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,12 +22,14 @@ import {
   marcarDespesaPaga,
   efetivarDespesaRecorrente,
 } from "@/lib/actions/despesas";
+import { abrirRecibo } from "@/lib/recibo";
 import {
   DESPESA_CATEGORIA_LABEL,
   DESPESA_STATUS_LABEL,
   type Despesa,
   type DespesaCategoria,
   type DespesaStatus,
+  type EmpresaDados,
 } from "@/types/financeiro";
 import { DespesaFormModal } from "./DespesaFormModal";
 
@@ -52,11 +55,23 @@ const STATUS_TONE: Record<DespesaStatus, BadgeTone> = {
   cancelado: "neutral",
 };
 
-export function SaidasView({ despesas }: { despesas: Despesa[] }) {
+export function SaidasView({ despesas, empresa }: { despesas: Despesa[]; empresa: EmpresaDados }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Despesa | null>(null);
+
+  const gerarComprovante = (d: Despesa) => {
+    const mes = d.competencia.slice(0, 7).split("-").reverse().join("/");
+    const ok = abrirRecibo({
+      empresa,
+      recebedorNome: d.fornecedor || d.descricao,
+      valor: d.valor_brl,
+      referente: `${d.descricao} — competência ${mes}`,
+      data: d.pago_at ? new Date(d.pago_at) : undefined,
+    });
+    if (!ok) toast.error("O navegador bloqueou a janela. Permita pop-ups para gerar o comprovante.");
+  };
 
   const mesAtual = new Date().toISOString().slice(0, 7);
   const templates = despesas.filter((d) => d.recorrente);
@@ -214,6 +229,17 @@ export function SaidasView({ despesas }: { despesas: Despesa[] }) {
                       title="Marcar como paga"
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {d.status === "pago" && (
+                    <button
+                      type="button"
+                      onClick={() => gerarComprovante(d)}
+                      aria-label={`Comprovante de ${d.descricao}`}
+                      title="Gerar comprovante de pagamento"
+                      className="rounded-md p-1.5 text-muted-foreground hover:bg-sys-green/10 hover:text-sys-green"
+                    >
+                      <ReceiptText className="h-3.5 w-3.5" />
                     </button>
                   )}
                   <button type="button" onClick={() => openEdit(d)} aria-label={`Editar ${d.descricao}`} className="rounded-md p-1.5 text-muted-foreground hover:bg-fill-4 hover:text-foreground">

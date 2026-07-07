@@ -20,6 +20,7 @@ const selectClass = `${inputClass} appearance-none`;
 interface FormValues {
   nome: string;
   cargo: string;
+  cpf: string;
   tipo_contrato: TipoContrato;
   custo_mensal_brl: number;
   ativo: boolean;
@@ -31,6 +32,7 @@ function defaults(c?: Colaborador | null): FormValues {
   return {
     nome: c?.nome ?? "",
     cargo: c?.cargo ?? "",
+    cpf: c?.cpf ?? "",
     tipo_contrato: c?.tipo_contrato ?? "clt",
     custo_mensal_brl: c?.custo_mensal_brl ?? 0,
     ativo: c?.ativo ?? true,
@@ -65,6 +67,7 @@ export function ColaboradorFormModal({ open, onClose, colaborador }: Colaborador
       const payload: ColaboradorInput = {
         nome: values.nome.trim(),
         cargo: values.cargo.trim() || null,
+        cpf: values.cpf.trim() || null,
         tipo_contrato: values.tipo_contrato,
         custo_mensal_brl: Number(values.custo_mensal_brl) || 0,
         ativo: values.ativo,
@@ -108,7 +111,7 @@ export function ColaboradorFormModal({ open, onClose, colaborador }: Colaborador
                 aria-invalid={!!errors.nome}
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <label className={labelClass}>Cargo</label>
                 <input {...register("cargo")} className={inputClass} placeholder="Ex.: Designer" />
@@ -120,6 +123,10 @@ export function ColaboradorFormModal({ open, onClose, colaborador }: Colaborador
                     <option key={t} value={t}>{TIPO_CONTRATO_LABEL[t]}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className={labelClass}>CPF (recibo)</label>
+                <input {...register("cpf")} className={inputClass} placeholder="000.000.000-00" inputMode="numeric" />
               </div>
             </div>
           </ModalSection>
