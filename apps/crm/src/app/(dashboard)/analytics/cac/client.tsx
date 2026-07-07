@@ -27,14 +27,23 @@ import {
   Info,
   Target,
   Zap,
+  Sparkles,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { InsightCard } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import {
   salvarInvestimento,
   deletarInvestimento,
 } from "@/lib/actions/investimentos";
+import {
+  gerarInsightsCac,
+  type CacInsight,
+  type CacInsights,
+} from "@/lib/actions/cac-insights";
 import type { CacMetrics, CampanhaMetrics, Period } from "@/lib/cac-queries";
 import type { InvestimentoRow } from "./page";
 
@@ -107,6 +116,28 @@ function diaLabel(iso: string): string {
   return `${d}/${m}`;
 }
 
+// Classes estáticas (strings completas) p/ o Tailwind JIT não perder no build.
+const TIPO_BADGE: Record<CacInsight["tipo"], string> = {
+  anomalia: "border-sys-red/30 bg-sys-red/10 text-sys-red",
+  alerta: "border-sys-orange/30 bg-sys-orange/10 text-sys-orange",
+  oportunidade: "border-sys-blue/30 bg-sys-blue/10 text-sys-blue",
+  positivo: "border-sys-green/30 bg-sys-green/10 text-sys-green",
+};
+
+const TIPO_LABEL: Record<CacInsight["tipo"], string> = {
+  anomalia: "Anomalia",
+  alerta: "Alerta",
+  oportunidade: "Oportunidade",
+  positivo: "Positivo",
+};
+
+function dotClass(it: CacInsight): string {
+  if (it.tipo === "positivo") return "bg-sys-green";
+  if (it.severidade === "alta") return "bg-sys-red";
+  if (it.severidade === "media") return "bg-sys-orange";
+  return "bg-sys-blue";
+}
+
 export function CacClient({
   metrics,
   campanhas,
@@ -120,6 +151,10 @@ export function CacClient({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [insightsPending, startInsights] = useTransition();
+  const [insights, setInsights] = useState<CacInsights | null>(null);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [insightsNotConfigured, setInsightsNotConfigured] = useState(false);
   const [form, setForm] = useState({
     mes: new Date().toISOString().slice(0, 7),
     canal: "instagram",
@@ -158,6 +193,21 @@ export function CacClient({
         router.refresh();
       } else {
         toast.error(result.error ?? "Erro ao remover");
+      }
+    });
+  }
+
+  function handleInsights() {
+    setInsightsError(null);
+    setInsightsNotConfigured(false);
+    startInsights(async () => {
+      const result = await gerarInsightsCac(period);
+      if (result.success) {
+        setInsights(result.insights);
+      } else {
+        setInsights(null);
+        setInsightsNotConfigured(result.notConfigured ?? false);
+        setInsightsError(result.error);
       }
     });
   }
@@ -237,6 +287,114 @@ export function CacClient({
           variant="hot"
         />
       </div>
+
+      {/* Insights de IA (Gemini) — resumo executivo sob demanda */}
+      <section className="rounded-lg border border-primary/20 bg-primary/[0.03] p-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Insights de IA
+          </h2>
+          <button
+            onClick={handleInsights}
+            disabled={insightsPending}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {insightsPending
+              ? "Analisando…"
+              : insights
+                ? "Atualizar análise"
+                : "Gerar insights"}
+          </button>
+        </div>
+
+        <div aria-live="polite" aria-busy={insightsPending}>
+          {!insights && !insightsError && !insightsPending && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              A IA analisa o CAC, o ROI por campanha e a tendência de gasto do
+              período — aponta anomalias, melhor/pior campanha e sugestões de
+              realocação de verba.
+            </p>
+          )}
+
+          {insightsPending && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Analisando os dados do período…
+            </p>
+          )}
+
+          {insightsError && !insightsPending && (
+            <p
+              className={cn(
+                "mt-3 text-sm",
+                insightsNotConfigured ? "text-muted-foreground" : "text-sys-red",
+              )}
+            >
+              {insightsNotConfigured
+                ? "Os insights de IA ainda não estão ativos neste ambiente — peça ao time técnico para habilitar."
+                : insightsError}
+            </p>
+          )}
+
+        {insights && !insightsPending && (
+          <div className="mt-3 space-y-3">
+            <InsightCard eyebrow="Resumo executivo" confidence={insights.confianca}>
+              {insights.resumo}
+            </InsightCard>
+
+            <ul className="space-y-2">
+              {insights.insights.map((it, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-card p-3"
+                >
+                  <span
+                    className={cn(
+                      "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                      dotClass(it),
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">{it.titulo}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{it.detalhe}</p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                      TIPO_BADGE[it.tipo],
+                    )}
+                  >
+                    {TIPO_LABEL[it.tipo]}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {insights.recomendacoes.length > 0 && (
+              <div className="rounded-lg border border-border/60 bg-card p-3">
+                <p className="mb-1.5 text-xs font-semibold text-foreground">
+                  Recomendações
+                </p>
+                <ul className="space-y-1.5">
+                  {insights.recomendacoes.map((r, i) => (
+                    <li key={i} className="flex gap-2 text-xs text-muted-foreground">
+                      <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p className="text-[10px] text-label-tertiary">
+              Gerado por IA (Gemini) a partir dos dados do período — revise antes
+              de decidir.
+            </p>
+          </div>
+          )}
+        </div>
+      </section>
 
       {/* ROI EXATO por campanha (Meta × utm_id) — destaque da tela */}
       <section className="rounded-lg border border-primary/25 bg-card p-3.5 shadow-sm">
