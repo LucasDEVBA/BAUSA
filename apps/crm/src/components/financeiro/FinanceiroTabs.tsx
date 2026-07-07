@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { id: "geral", label: "Visão Geral" },
+  { id: "resultado", label: "Resultado" },
   { id: "saidas", label: "Saídas" },
   { id: "folha", label: "Folha" },
   { id: "nf_pendentes", label: "NFs Pendentes" },

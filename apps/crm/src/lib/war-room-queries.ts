@@ -123,7 +123,7 @@ export async function fetchParcelasPrevist30d() {
   const { data } = await supabase
     .from("parcelas")
     .select("valor")
-    .eq("status", "pendente")
+    .eq("status", "previsto")
     .is("deleted_at", null)
     .lte("vencimento", daysFromNowISO(30));
   return (data || []).reduce((s, p) => s + Number(p.valor), 0);
@@ -134,7 +134,7 @@ export async function fetchParcelasPrevist90d() {
   const { data } = await supabase
     .from("parcelas")
     .select("valor")
-    .eq("status", "pendente")
+    .eq("status", "previsto")
     .is("deleted_at", null)
     .lte("vencimento", daysFromNowISO(90));
   return (data || []).reduce((s, p) => s + Number(p.valor), 0);
@@ -479,7 +479,7 @@ export async function fetchRevenueMonths(): Promise<RevenueMonth[]> {
     const { data: pendentes } = await supabase
       .from("parcelas")
       .select("valor")
-      .eq("status", "pendente")
+      .eq("status", "previsto")
       .is("deleted_at", null)
       .gte("vencimento", `${prefix}-01`)
       .lt("vencimento", nextMonth);

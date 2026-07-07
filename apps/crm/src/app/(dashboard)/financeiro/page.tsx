@@ -13,8 +13,6 @@ import {
   PLAN_CONFIG,
   RECEIVABLE_STATUS_CONFIG,
   type Receivable,
-  type FixedCost,
-  type VariableCost,
   type FinancialSummary,
   type PlanType,
 } from "@/types/financial";
@@ -26,8 +24,10 @@ import { PageHeader, ScrollList, StatCard } from "@/components/ui";
 import { CancelamentoActions } from "@/components/financeiro/CancelamentoActions";
 import { SaidasView } from "@/components/financeiro/SaidasView";
 import { FolhaView } from "@/components/financeiro/FolhaView";
+import { ResultadoView } from "@/components/financeiro/ResultadoView";
+import { getFinanceiroMetrics, type FinanceiroMetrics } from "@/lib/financeiro-metrics";
 import { PLANO_VALORES } from "@/types/crm";
-import type { Despesa, Colaborador } from "@/types/financeiro";
+import { DESPESA_CATEGORIA_LABEL, type Despesa, type Colaborador } from "@/types/financeiro";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
 
 function formatBRL(val: number) {
@@ -100,22 +100,6 @@ function ReceivableRow({ rec }: { rec: Receivable }) {
     </tr>
   );
 }
-
-// Custos fixos definidos pela regra de negocio (configuracoes_sistema ou hardcoded)
-const FIXED_COSTS: FixedCost[] = [
-  { id: "fc1", name: "Head de Sucesso e Experiencia da Familia", amount_monthly: 4500, active: true },
-  { id: "fc2", name: "IA (ferramentas e licencas)", amount_monthly: 800, active: true },
-  { id: "fc3", name: "Designer", amount_monthly: 2200, active: true },
-  { id: "fc4", name: "Infraestrutura (sistema, dominio, cloud)", amount_monthly: 350, active: true },
-  { id: "fc5", name: "Marketing e Trafego Pago", amount_monthly: 3000, active: true },
-  { id: "fc6", name: "Outros custos fixos", amount_monthly: 1200, active: true },
-];
-
-const VARIABLE_COSTS: VariableCost[] = [
-  { id: "vc1", plan: "Journey", name: "Psicologa Intercultural", amount: 1200 },
-  { id: "vc2", plan: "Legacy", name: "Psicologa Intercultural", amount: 1200 },
-  { id: "vc3", plan: "Legacy", name: "Suporte VIP Adicional", amount: 800 },
-];
 
 const MOTIVO_PERDA_LABELS: Record<string, string> = {
   financeiro: "Financeiro",
@@ -243,8 +227,27 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   const totalOverdue = overdueReceivables.reduce((s, r) => s + r.amount, 0);
   const totalReceived = receivables.filter((r) => r.status === "recebido").reduce((s, r) => s + r.amount, 0);
 
-  const totalFixedCosts = FIXED_COSTS.filter((c) => c.active).reduce((s, c) => s + c.amount_monthly, 0);
-  const variableCostsTotal = VARIABLE_COSTS.reduce((s, c) => s + c.amount, 0);
+  // Custos fixos REAIS (folha ativa + despesas recorrentes ativas) — Visão Geral.
+  // Substitui os antigos arrays hardcoded; fonte única = tabelas despesas/colaboradores.
+  let folhaMensal = 0;
+  const custosRecorrentes: { nome: string; valor: number; categoria: string }[] = [];
+  if (activeTab === "geral") {
+    const [colabRes, recorrRes] = await Promise.all([
+      supabase.from("colaboradores").select("custo_mensal_brl").eq("ativo", true).is("deleted_at", null),
+      supabase
+        .from("despesas")
+        .select("descricao, valor_brl, categoria")
+        .eq("recorrente", true)
+        .eq("recorrencia_ativa", true)
+        .is("deleted_at", null),
+    ]);
+    folhaMensal = (colabRes.data ?? []).reduce((s, c) => s + Number(c.custo_mensal_brl), 0);
+    for (const r of recorrRes.data ?? []) {
+      custosRecorrentes.push({ nome: r.descricao as string, valor: Number(r.valor_brl), categoria: r.categoria as string });
+    }
+  }
+  const totalRecorrentes = custosRecorrentes.reduce((s, c) => s + c.valor, 0);
+  const totalFixedCosts = folhaMensal + totalRecorrentes;
 
   const netMarginPct = receitaRecebidaMes > 0
     ? Math.round(((receitaRecebidaMes - totalFixedCosts) / receitaRecebidaMes) * 100)
@@ -264,7 +267,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     total_receivable_brl: totalReceivable,
     overdue_brl: totalOverdue,
     fixed_costs_monthly: totalFixedCosts,
-    variable_costs_monthly: variableCostsTotal,
+    variable_costs_monthly: 0,
     net_margin_pct: netMarginPct,
   };
 
@@ -299,6 +302,10 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
         ).data as Colaborador[] | null) ?? [])
       : [];
 
+  // Resultado (DRE + fluxo de caixa) — só busca quando a aba está ativa
+  const metrics: FinanceiroMetrics | null =
+    activeTab === "resultado" ? await getFinanceiroMetrics() : null;
+
   return (
     <div className="space-y-5">
       <PageHeader dense
@@ -311,6 +318,9 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
           </Suspense>
         }
       />
+
+      {/* Tab: Resultado (DRE + Fluxo de caixa) */}
+      {activeTab === "resultado" && metrics && <ResultadoView metrics={metrics} />}
 
       {/* Tab: Saídas */}
       {activeTab === "saidas" && <SaidasView despesas={despesas} />}
@@ -532,35 +542,35 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
               </ScrollList>
             </div>
 
-            {/* Custos fixos */}
+            {/* Custos fixos mensais — dados reais (folha + despesas recorrentes) */}
             <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[20rem]">
               <div className="mb-4 flex items-center justify-between shrink-0">
                 <h2 className="text-sm font-semibold text-foreground">Custos Fixos Mensais</h2>
                 <span className="text-sm font-bold text-sys-red">{formatBRL(totalFixedCosts)}</span>
               </div>
-              <ScrollList>
-                <div className="space-y-2">
-                  {FIXED_COSTS.filter((c) => c.active).map((cost) => (
-                    <div key={cost.id} className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground flex-1 min-w-0 truncate">{cost.name}</p>
-                      <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(cost.amount_monthly)}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 border-t border-border pt-3">
-                  <h3 className="mb-2 text-xs font-semibold text-muted-foreground">Custos Variaveis (por contrato)</h3>
-                  {VARIABLE_COSTS.map((vc) => (
-                    <div key={vc.id} className="flex items-center justify-between gap-2 mb-1.5">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className={cn("rounded-md border px-1.5 py-0.5 text-[9px] font-bold", PLAN_CONFIG[vc.plan].bg, PLAN_CONFIG[vc.plan].color)}>
-                          {vc.plan}
-                        </span>
-                        <p className="text-xs text-muted-foreground truncate">{vc.name}</p>
-                      </div>
-                      <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(vc.amount)}</p>
-                    </div>
-                  ))}
-                </div>
+              <ScrollList className="space-y-2">
+                {folhaMensal > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Folha (equipe)</p>
+                    <p className="flex-shrink-0 text-xs font-semibold text-foreground">{formatBRL(folhaMensal)}</p>
+                  </div>
+                )}
+                {custosRecorrentes.map((c) => (
+                  <div key={c.nome} className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                      {c.nome}
+                      <span className="ml-1.5 text-[10px] text-label-tertiary">
+                        {(DESPESA_CATEGORIA_LABEL as Record<string, string>)[c.categoria] ?? c.categoria}
+                      </span>
+                    </p>
+                    <p className="flex-shrink-0 text-xs font-semibold text-foreground">{formatBRL(c.valor)}</p>
+                  </div>
+                ))}
+                {totalFixedCosts === 0 && (
+                  <p className="text-xs text-label-tertiary">
+                    Nenhum custo fixo cadastrado. Adicione na aba <strong>Saídas</strong> e <strong>Folha</strong>.
+                  </p>
+                )}
               </ScrollList>
             </div>
 

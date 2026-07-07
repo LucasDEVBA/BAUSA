@@ -60,7 +60,7 @@ export function RevenueBarChart({ data }: RevenueBarChartProps) {
               tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+              tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--fill-4)" }} />
             <Legend
