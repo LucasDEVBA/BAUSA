@@ -325,12 +325,11 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
         eyebrow="Comercial"
         title="Gestão Financeira"
         description="Entradas, saídas, folha e resultado (DRE)"
-        actions={
-          <Suspense fallback={null}>
-            <FinanceiroTabs />
-          </Suspense>
-        }
       />
+
+      <Suspense fallback={null}>
+        <FinanceiroTabs />
+      </Suspense>
 
       {/* Tab: Resultado (DRE + Fluxo de caixa) */}
       {activeTab === "resultado" && metrics && <ResultadoView metrics={metrics} />}
