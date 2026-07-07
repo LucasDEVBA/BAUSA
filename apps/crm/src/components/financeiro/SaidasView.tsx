@@ -28,7 +28,7 @@ import {
   type DespesaCategoria,
   type DespesaStatus,
 } from "@/types/financeiro";
-import { DespesaFormSheet } from "./DespesaFormSheet";
+import { DespesaFormModal } from "./DespesaFormModal";
 
 function formatBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -229,7 +229,7 @@ export function SaidasView({ despesas }: { despesas: Despesa[] }) {
         )}
       </Card>
 
-      <DespesaFormSheet open={sheetOpen} onClose={() => setSheetOpen(false)} despesa={editing} />
+      <DespesaFormModal open={sheetOpen} onClose={() => setSheetOpen(false)} despesa={editing} />
     </div>
   );
 }

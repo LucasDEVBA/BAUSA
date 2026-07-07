@@ -311,7 +311,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
       <PageHeader dense
         eyebrow="Comercial"
         title="Gestão Financeira"
-        description="Contratos, recebíveis e análise de custos"
+        description="Entradas, saídas, folha e resultado (DRE)"
         actions={
           <Suspense fallback={null}>
             <FinanceiroTabs />

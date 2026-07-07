@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Badge, Card, EmptyState, ScrollList, StatCard, type BadgeTone } from "@/components/ui";
 import { removerColaborador } from "@/lib/actions/colaboradores";
 import { TIPO_CONTRATO_LABEL, type Colaborador } from "@/types/financeiro";
-import { ColaboradorFormSheet } from "./ColaboradorFormSheet";
+import { ColaboradorFormModal } from "./ColaboradorFormModal";
 
 function formatBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -130,7 +130,7 @@ export function FolhaView({ colaboradores }: { colaboradores: Colaborador[] }) {
         )}
       </Card>
 
-      <ColaboradorFormSheet open={sheetOpen} onClose={() => setSheetOpen(false)} colaborador={editing} />
+      <ColaboradorFormModal open={sheetOpen} onClose={() => setSheetOpen(false)} colaborador={editing} />
     </div>
   );
 }
