@@ -7,6 +7,8 @@ import {
   Bar,
   LineChart,
   Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -23,6 +25,8 @@ import {
   Trash2,
   Plus,
   Info,
+  Target,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,7 +35,7 @@ import {
   salvarInvestimento,
   deletarInvestimento,
 } from "@/lib/actions/investimentos";
-import type { CacMetrics, Period } from "@/lib/cac-queries";
+import type { CacMetrics, CampanhaMetrics, Period } from "@/lib/cac-queries";
 import type { InvestimentoRow } from "./page";
 
 // ─── Helpers ────────────────────────────────────────────────────────────
@@ -94,12 +98,23 @@ function CustomTooltip({
 
 // ─── Component ──────────────────────────────────────────────────────────
 
+function pct(value: number | null): string {
+  return value == null ? "—" : `${(value * 100).toFixed(0)}%`;
+}
+
+function diaLabel(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
 export function CacClient({
   metrics,
+  campanhas,
   period,
   lancamentos,
 }: {
   metrics: CacMetrics;
+  campanhas: CampanhaMetrics;
   period: Period;
   lancamentos: InvestimentoRow[];
 }) {
@@ -149,6 +164,8 @@ export function CacClient({
 
   const roiData = metrics.roiPorCanal.filter((r) => r.gasto > 0);
   const trendData = metrics.porMes.map((m) => ({ mes: m.mes, gasto: m.gasto }));
+  const diaData = campanhas.porDia.map((d) => ({ label: diaLabel(d.data), gasto: d.gasto }));
+  const campanhaData = campanhas.porCampanha;
 
   return (
     <div className="space-y-4">
@@ -220,6 +237,121 @@ export function CacClient({
           variant="hot"
         />
       </div>
+
+      {/* ROI EXATO por campanha (Meta × utm_id) — destaque da tela */}
+      <section className="rounded-lg border border-primary/25 bg-card p-3.5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Target className="h-4 w-4 text-primary" />
+            ROI exato por campanha
+          </h2>
+          <span className="flex items-center gap-1 rounded-full border border-sys-green/30 bg-sys-green/10 px-2 py-0.5 text-[10px] font-medium text-sys-green">
+            <Zap className="h-3 w-3" />
+            atribuição exata (Meta × utm_id)
+          </span>
+        </div>
+
+        {!campanhas.temDados ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <Target className="h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium text-foreground">
+              Sem dados de campanha ainda
+            </p>
+            <p className="max-w-md text-xs text-muted-foreground">
+              Ative o sync do Meta Ads (função{" "}
+              <code className="rounded bg-secondary px-1 py-0.5 text-[11px]">
+                sync-meta-spend
+              </code>
+              ) para ver o gasto e o ROI real por campanha. Os dados aparecem
+              aqui automaticamente na primeira sincronização.
+            </p>
+          </div>
+        ) : (
+          <>
+            {diaData.length > 0 && (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={diaData}>
+                  <defs>
+                    <linearGradient id="gastoDia" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="label" tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} minTickGap={24} />
+                  <YAxis tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ stroke: "var(--border)" }} />
+                  <Area
+                    type="monotone"
+                    dataKey="gasto"
+                    name="Gasto/dia"
+                    stroke="var(--chart-1)"
+                    strokeWidth={2}
+                    fill="url(#gastoDia)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="py-2 pr-4 font-medium">Campanha</th>
+                    <th className="py-2 pr-4 text-right font-medium">Gasto</th>
+                    <th className="py-2 pr-4 text-right font-medium">Leads</th>
+                    <th className="py-2 pr-4 text-right font-medium">CAC/lead</th>
+                    <th className="py-2 pr-4 text-right font-medium">Clientes</th>
+                    <th className="py-2 pr-4 text-right font-medium">Receita</th>
+                    <th className="py-2 pr-4 text-right font-medium">ROI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campanhaData.map((c) => (
+                    <tr key={c.campanhaId} className="border-b border-border/50 text-foreground">
+                      <td className="py-2 pr-4">
+                        <span
+                          className="block max-w-[240px] truncate font-medium"
+                          title={c.campanhaNome ?? c.campanhaId}
+                        >
+                          {c.campanhaNome ?? c.campanhaId}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {c.leadsQualificados} qual. · {c.cliques.toLocaleString("pt-BR")} cliques
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{brl.format(c.gasto)}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{c.leads}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{money(c.cacLead)}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{c.clientes}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">
+                        {c.receita > 0 ? brl.format(c.receita) : "—"}
+                      </td>
+                      <td className="py-2 pr-4 text-right font-medium tabular-nums">
+                        {c.roi == null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span className={c.roi >= 0 ? "text-sys-green" : "text-sys-red"}>
+                            {pct(c.roi)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {campanhas.leadsSemCampanha > 0 && (
+              <p className="mt-3 text-xs text-label-tertiary">
+                {campanhas.leadsSemCampanha} lead(s) no período sem{" "}
+                <code className="rounded bg-secondary px-1 py-0.5 text-[11px]">utm_id</code> — não
+                atribuíveis a campanha (tráfego orgânico/direto ou links sem UTM).
+              </p>
+            )}
+          </>
+        )}
+      </section>
 
       {/* ROI por canal */}
       <section className="rounded-lg border border-border/70 bg-card/60 p-3.5">
@@ -438,10 +570,14 @@ export function CacClient({
         )}
       </section>
 
-      <p className="flex items-center gap-1.5 text-xs text-label-tertiary">
-        <TrendingUp className="h-3 w-3" />
-        ROI por canal é aproximado (taxa de conversão global × ticket médio).
-        ROI exato por campanha chega na Fase 2 (integração Meta Marketing API).
+      <p className="flex items-start gap-1.5 text-xs text-label-tertiary">
+        <TrendingUp className="mt-0.5 h-3 w-3 shrink-0" />
+        <span>
+          <span className="text-foreground">ROI por campanha</span> é exato — gasto real do
+          Meta cruzado 1:1 com as conversões via <code className="rounded bg-secondary px-1 py-0.5 text-[11px]">utm_id</code>.
+          Já o <span className="text-foreground">ROI por canal</span> é aproximado (taxa de
+          conversão global × ticket médio), útil para canais sem integração de gasto por campanha.
+        </span>
       </p>
     </div>
   );

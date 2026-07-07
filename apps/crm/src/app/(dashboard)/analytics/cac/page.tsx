@@ -1,6 +1,10 @@
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { fetchCacMetrics, type Period } from "@/lib/cac-queries";
+import {
+  fetchCacMetrics,
+  fetchCampanhaMetrics,
+  type Period,
+} from "@/lib/cac-queries";
 import { CacClient } from "./client";
 
 export interface InvestimentoRow {
@@ -31,8 +35,9 @@ export default async function CacPage({
 
   const supabase = await createServerSupabaseClient();
 
-  const [metrics, lancamentosRes] = await Promise.all([
+  const [metrics, campanhas, lancamentosRes] = await Promise.all([
     fetchCacMetrics(p),
+    fetchCampanhaMetrics(p),
     supabase
       .from("investimentos_marketing")
       .select(
@@ -45,6 +50,7 @@ export default async function CacPage({
   return (
     <CacClient
       metrics={metrics}
+      campanhas={campanhas}
       period={p}
       lancamentos={(lancamentosRes.data as InvestimentoRow[]) ?? []}
     />
