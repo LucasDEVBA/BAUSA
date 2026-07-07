@@ -41,7 +41,7 @@ function mesAtual(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
-function defaults(d?: Despesa | null): FormValues {
+function defaults(d?: Despesa | null, recorrenteInicial = false): FormValues {
   return {
     descricao: d?.descricao ?? "",
     categoria: d?.categoria ?? "outros",
@@ -52,7 +52,7 @@ function defaults(d?: Despesa | null): FormValues {
     status: d?.status ?? "previsto",
     metodo: d?.metodo ?? "",
     fornecedor: d?.fornecedor ?? "",
-    recorrente: d?.recorrente ?? false,
+    recorrente: d?.recorrente ?? recorrenteInicial,
     recorrencia_dia: d?.recorrencia_dia ?? 5,
     observacao: d?.observacao ?? "",
   };
@@ -62,9 +62,11 @@ interface DespesaFormModalProps {
   open: boolean;
   onClose: () => void;
   despesa?: Despesa | null;
+  /** Ao criar (sem despesa), pré-marca "recorrente" — usado pelo botão "Nova recorrente". */
+  recorrenteInicial?: boolean;
 }
 
-export function DespesaFormModal({ open, onClose, despesa }: DespesaFormModalProps) {
+export function DespesaFormModal({ open, onClose, despesa, recorrenteInicial = false }: DespesaFormModalProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isEdit = Boolean(despesa);
@@ -74,11 +76,11 @@ export function DespesaFormModal({ open, onClose, despesa }: DespesaFormModalPro
     reset,
     watch,
     formState: { errors },
-  } = useForm<FormValues>({ defaultValues: defaults(despesa) });
+  } = useForm<FormValues>({ defaultValues: defaults(despesa, recorrenteInicial) });
 
   useEffect(() => {
-    if (open) reset(defaults(despesa));
-  }, [open, despesa, reset]);
+    if (open) reset(defaults(despesa, recorrenteInicial));
+  }, [open, despesa, recorrenteInicial, reset]);
 
   const recorrente = watch("recorrente");
 

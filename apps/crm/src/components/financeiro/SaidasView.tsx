@@ -60,6 +60,7 @@ export function SaidasView({ despesas, empresa }: { despesas: Despesa[]; empresa
   const [isPending, startTransition] = useTransition();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Despesa | null>(null);
+  const [novaRecorrente, setNovaRecorrente] = useState(false);
 
   const gerarComprovante = (d: Despesa) => {
     const mes = d.competencia.slice(0, 7).split("-").reverse().join("/");
@@ -87,8 +88,9 @@ export function SaidasView({ despesas, empresa }: { despesas: Despesa[]; empresa
     .filter((d) => d.status === "previsto" || d.status === "atrasado")
     .reduce((s, d) => s + d.valor_brl, 0);
 
-  const openNew = () => {
+  const openNew = (recorrente: boolean) => {
     setEditing(null);
+    setNovaRecorrente(recorrente);
     setSheetOpen(true);
   };
   const openEdit = (d: Despesa) => {
@@ -131,11 +133,11 @@ export function SaidasView({ despesas, empresa }: { despesas: Despesa[]; empresa
           </div>
           <button
             type="button"
-            onClick={openNew}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+            onClick={() => openNew(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15"
           >
-            <Plus className="h-3.5 w-3.5" />
-            Nova despesa
+            <Repeat className="h-3.5 w-3.5" />
+            Nova recorrente
           </button>
         </div>
         {templates.length === 0 ? (
@@ -190,12 +192,36 @@ export function SaidasView({ despesas, empresa }: { despesas: Despesa[]; empresa
 
       {/* Lançamentos (avulsas + efetivadas) */}
       <Card variant="plain" padding="none" className="flex h-[28rem] flex-col overflow-hidden">
-        <div className="shrink-0 border-b border-border px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-foreground">Lançamentos</h2>
-          <p className="text-xs text-muted-foreground">Despesas avulsas e recorrentes já efetivadas</p>
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Lançamentos</h2>
+            <p className="text-xs text-muted-foreground">Despesas avulsas e recorrentes já efetivadas</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => openNew(false)}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Nova despesa
+          </button>
         </div>
         {lancamentos.length === 0 ? (
-          <EmptyState icon={Wallet} title="Nenhum lançamento" description="As saídas avulsas e as recorrentes pagas aparecem aqui." />
+          <EmptyState
+            icon={Wallet}
+            title="Nenhum lançamento"
+            description="As saídas avulsas e as recorrentes pagas aparecem aqui."
+            action={
+              <button
+                type="button"
+                onClick={() => openNew(false)}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Lançar despesa
+              </button>
+            }
+          />
         ) : (
           <ScrollList gutter={false} className="divide-y divide-border">
             {lancamentos.map((d) => (
@@ -255,7 +281,7 @@ export function SaidasView({ despesas, empresa }: { despesas: Despesa[]; empresa
         )}
       </Card>
 
-      <DespesaFormModal open={sheetOpen} onClose={() => setSheetOpen(false)} despesa={editing} />
+      <DespesaFormModal open={sheetOpen} onClose={() => setSheetOpen(false)} despesa={editing} recorrenteInicial={novaRecorrente} />
     </div>
   );
 }
