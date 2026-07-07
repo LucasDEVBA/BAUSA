@@ -227,4 +227,31 @@ gcloud scheduler jobs update http "${JOB_MT}" \
   --attempt-deadline=300s
 
 echo "✓ ${JOB_MT} configurado"
+
+# ─── Job 9: Régua de cobrança (diário 09:00 BRT) ──────────────────────
+# Percorre parcelas previsto/atrasado e dispara 1 marco por parcela/tick
+# (D-3 a D+15), com CAS por marco. Nasce PAUSADA — ativar após revisar
+# o texto (config regua_mensagens) e configurar SEND_MESSAGES_URL.
+JOB_BR="billing-reminders-job${SUFFIX}"
+BILLING_REMINDERS_URL="${BILLING_REMINDERS_URL:-https://billing-reminders${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_BR}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 9 * * *" \
+  --uri="${BILLING_REMINDERS_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_BR}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 9 * * *" \
+  --uri="${BILLING_REMINDERS_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s
+
+echo "✓ ${JOB_BR} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"

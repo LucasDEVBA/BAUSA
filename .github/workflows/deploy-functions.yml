@@ -95,6 +95,7 @@ jobs:
             sync-meta-spend)             echo "entry=syncMetaSpend"            >> "$GITHUB_OUTPUT"; echo "name=sync-meta-spend"       >> "$GITHUB_OUTPUT"; echo "timeout=300s" >> "$GITHUB_OUTPUT" ;;
             automation-engine)           echo "entry=automationEngine"         >> "$GITHUB_OUTPUT"; echo "name=automation-engine"     >> "$GITHUB_OUTPUT"; echo "timeout=540s" >> "$GITHUB_OUTPUT" ;;
             meeting-transcripts)         echo "entry=meetingTranscripts"       >> "$GITHUB_OUTPUT"; echo "name=meeting-transcripts"   >> "$GITHUB_OUTPUT"; echo "timeout=300s" >> "$GITHUB_OUTPUT" ;;
+            billing-reminders)           echo "entry=billingReminders"         >> "$GITHUB_OUTPUT"; echo "name=billing-reminders"     >> "$GITHUB_OUTPUT"; echo "timeout=600s" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Deploy
         run: |
