@@ -1,0 +1,12 @@
+{
+  "name": "billing-reminders",
+  "version": "1.0.0",
+  "description": "Cloud Function - Régua de cobrança automática (D-3 a D+15) sobre parcelas em aberto/atrasadas, via WhatsApp e e-mail",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  }
+}

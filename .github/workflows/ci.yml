@@ -188,6 +188,7 @@ jobs:
           - sync-meta-spend
           - automation-engine
           - meeting-transcripts
+          - billing-reminders
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
