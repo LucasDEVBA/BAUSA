@@ -226,7 +226,10 @@ export async function efetivarDespesaRecorrente(
     .is("deleted_at", null)
     .maybeSingle();
 
-  if (existente) return { success: true, id: existente.id };
+  if (existente) {
+    revalidatePath("/financeiro");
+    return { success: true, id: existente.id };
+  }
 
   const tpl = template as Despesa;
   const vencimento = tpl.recorrencia_dia
