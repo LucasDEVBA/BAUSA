@@ -227,26 +227,35 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   const totalOverdue = overdueReceivables.reduce((s, r) => s + r.amount, 0);
   const totalReceived = receivables.filter((r) => r.status === "recebido").reduce((s, r) => s + r.amount, 0);
 
-  // Custos fixos REAIS (folha ativa + despesas recorrentes ativas) — Visão Geral.
-  // Substitui os antigos arrays hardcoded; fonte única = tabelas despesas/colaboradores.
+  // Custos fixos REAIS (folha ativa + despesas recorrentes ativas + marketing) — Visão Geral.
+  // Substitui os arrays hardcoded; fonte única. Marketing vem de
+  // investimentos_marketing (mesma fonte do CAC e do DRE), NÃO de despesas.
   let folhaMensal = 0;
+  let marketingMensal = 0;
   const custosRecorrentes: { nome: string; valor: number; categoria: string }[] = [];
   if (activeTab === "geral") {
-    const [colabRes, recorrRes] = await Promise.all([
+    const [colabRes, recorrRes, mktRes] = await Promise.all([
       supabase.from("colaboradores").select("custo_mensal_brl").eq("ativo", true).is("deleted_at", null),
       supabase
         .from("despesas")
         .select("descricao, valor_brl, categoria")
         .eq("recorrente", true)
         .eq("recorrencia_ativa", true)
+        .neq("categoria", "marketing")
+        .is("deleted_at", null),
+      supabase
+        .from("investimentos_marketing")
+        .select("valor_gasto")
+        .eq("mes", `${mesAtual}-01`)
         .is("deleted_at", null),
     ]);
     folhaMensal = (colabRes.data ?? []).reduce((s, c) => s + Number(c.custo_mensal_brl), 0);
+    marketingMensal = (mktRes.data ?? []).reduce((s, m) => s + Number(m.valor_gasto), 0);
     for (const r of recorrRes.data ?? []) {
       custosRecorrentes.push({ nome: r.descricao as string, valor: Number(r.valor_brl), categoria: r.categoria as string });
     }
   }
-  const totalRecorrentes = custosRecorrentes.reduce((s, c) => s + c.valor, 0);
+  const totalRecorrentes = custosRecorrentes.reduce((s, c) => s + c.valor, 0) + marketingMensal;
   const totalFixedCosts = folhaMensal + totalRecorrentes;
 
   const netMarginPct = receitaRecebidaMes > 0
@@ -565,6 +574,15 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                   <div className="flex items-center justify-between gap-2">
                     <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Folha (equipe)</p>
                     <p className="flex-shrink-0 text-xs font-semibold text-foreground">{formatBRL(folhaMensal)}</p>
+                  </div>
+                )}
+                {marketingMensal > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                      Marketing (mídia)
+                      <span className="ml-1.5 text-[10px] text-label-tertiary">de Analytics/CAC</span>
+                    </p>
+                    <p className="flex-shrink-0 text-xs font-semibold text-foreground">{formatBRL(marketingMensal)}</p>
                   </div>
                 )}
                 {custosRecorrentes.map((c) => (

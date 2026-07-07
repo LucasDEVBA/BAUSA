@@ -16,7 +16,8 @@ export interface DreMes {
   label: string; // "jul/26"
   receita: number;
   folha: number;
-  despesas: number; // não-folha, não-imposto
+  marketing: number; // gasto de mídia (fonte única: investimentos_marketing)
+  despesas: number; // não-folha, não-imposto, não-marketing
   impostos: number;
   resultado: number;
   margem: number; // %
@@ -103,7 +104,7 @@ function despesasPorMes(despesas: Despesa[], meses: string[]): Map<string, Despe
 export async function getFinanceiroMetrics(ref = new Date()): Promise<FinanceiroMetrics> {
   const supabase = await createServerSupabaseClient();
 
-  const [parcelasRes, despesasRes, colabRes, contratosRes] = await Promise.all([
+  const [parcelasRes, despesasRes, colabRes, contratosRes, mktRes] = await Promise.all([
     supabase
       .from("parcelas")
       .select("valor, status, recebido_at, vencimento")
@@ -111,12 +112,24 @@ export async function getFinanceiroMetrics(ref = new Date()): Promise<Financeiro
     supabase.from("despesas").select("*").is("deleted_at", null),
     supabase.from("colaboradores").select("custo_mensal_brl, ativo").is("deleted_at", null),
     supabase.from("contratos_financeiros").select("valor_total").is("deleted_at", null),
+    // Marketing = FONTE ÚNICA em investimentos_marketing (alimenta CAC e DRE).
+    // Despesas categoria='marketing' são excluídas do DRE para não dobrar.
+    supabase.from("investimentos_marketing").select("mes, valor_gasto").is("deleted_at", null),
   ]);
 
   const parcelas = parcelasRes.data ?? [];
   const despesas = (despesasRes.data as Despesa[] | null) ?? [];
   const colaboradores = colabRes.data ?? [];
   const contratos = contratosRes.data ?? [];
+  const investimentos = (mktRes.data as { mes: string; valor_gasto: number }[] | null) ?? [];
+
+  const marketingPorMes = (mes: string) =>
+    investimentos
+      .filter((i) => String(i.mes).startsWith(mes))
+      .reduce((s, i) => s + Number(i.valor_gasto), 0);
+  // Run-rate de marketing (mês corrente) — usado como baseline nas projeções
+  // e no break-even (futuro ainda não tem gasto registrado).
+  const marketingRunRate = marketingPorMes(mesKey(ref));
 
   const folhaMes = colaboradores
     .filter((c) => c.ativo)
@@ -133,9 +146,11 @@ export async function getFinanceiroMetrics(ref = new Date()): Promise<Financeiro
 
     const saidasMes = saidasPorMes.get(mes) ?? [];
     const impostos = saidasMes.filter((d) => d.categoria === "impostos").reduce((s, d) => s + d.valor_brl, 0);
+    // Exclui folha, impostos E marketing (marketing vem de investimentos_marketing).
     const despesasNaoFolha = saidasMes
-      .filter((d) => d.categoria !== "impostos" && d.categoria !== "folha")
+      .filter((d) => d.categoria !== "impostos" && d.categoria !== "folha" && d.categoria !== "marketing")
       .reduce((s, d) => s + d.valor_brl, 0);
+    const marketing = marketingPorMes(mes);
     // Folha = run-rate da equipe (Σ colaboradores ativos) + despesas categoria 'folha'.
     // CONVENÇÃO: a folha mensal recorrente é gerida na aba Folha (colaboradores);
     // despesas categoria 'folha' são custos AVULSOS de pessoal (bônus, 13º, rescisão)
@@ -143,9 +158,9 @@ export async function getFinanceiroMetrics(ref = new Date()): Promise<Financeiro
     const folhaLedger = saidasMes.filter((d) => d.categoria === "folha").reduce((s, d) => s + d.valor_brl, 0);
     const folha = folhaMes + folhaLedger;
 
-    const resultado = receita - folha - despesasNaoFolha - impostos;
+    const resultado = receita - folha - marketing - despesasNaoFolha - impostos;
     const margem = receita > 0 ? Math.round((resultado / receita) * 100) : 0;
-    return { mes, label: mesLabel(mes), receita, folha, despesas: despesasNaoFolha, impostos, resultado, margem };
+    return { mes, label: mesLabel(mes), receita, folha, marketing, despesas: despesasNaoFolha, impostos, resultado, margem };
   });
 
   // ── Fluxo de Caixa: realizado (6m) + projetado (3m) ──
@@ -155,12 +170,18 @@ export async function getFinanceiroMetrics(ref = new Date()): Promise<Financeiro
       .filter((p) => p.status === "recebido" && (p.recebido_at as string | null)?.startsWith(mes))
       .reduce((s, p) => s + Number(p.valor), 0);
     const saidasMes = saidasPorMes.get(mes) ?? [];
-    // Caixa realizado: saídas efetivamente pagas + templates recorrentes (baseline).
+    // Caixa realizado: saídas efetivamente pagas + templates recorrentes (baseline)
+    // + folha + marketing (fonte única investimentos_marketing). Marketing é
+    // excluído do bucket de despesas para não dobrar.
     // Uma instância recorrente materializada mas ainda 'previsto' fica de fora
     // (não saiu do caixa) — o dedup já removeu o template dela, então não some duas
     // vezes; ela entra quando for marcada como paga.
     const saidas =
-      saidasMes.filter((d) => d.status === "pago" || d.recorrente).reduce((s, d) => s + d.valor_brl, 0) + folhaMes;
+      saidasMes
+        .filter((d) => d.categoria !== "marketing" && (d.status === "pago" || d.recorrente))
+        .reduce((s, d) => s + d.valor_brl, 0) +
+      folhaMes +
+      marketingPorMes(mes);
     return { mes, label: mesLabel(mes), entradas, saidas, saldo: entradas - saidas, projetado: false };
   });
 
@@ -174,7 +195,10 @@ export async function getFinanceiroMetrics(ref = new Date()): Promise<Financeiro
       )
       .reduce((s, p) => s + Number(p.valor), 0);
     const saidasMes = saidasPorMes.get(mes) ?? [];
-    const saidas = saidasMes.reduce((s, d) => s + d.valor_brl, 0) + folhaMes;
+    const saidas =
+      saidasMes.filter((d) => d.categoria !== "marketing").reduce((s, d) => s + d.valor_brl, 0) +
+      folhaMes +
+      (marketingPorMes(mes) || marketingRunRate);
     return { mes, label: mesLabel(mes), entradas, saidas, saldo: entradas - saidas, projetado: true };
   });
 
@@ -184,9 +208,9 @@ export async function getFinanceiroMetrics(ref = new Date()): Promise<Financeiro
   const mesAtualKey = mesKey(ref);
   const dreAtual = dre.find((d) => d.mes === mesAtualKey);
   const recorrentesAtivas = despesas
-    .filter((d) => d.recorrente && d.recorrencia_ativa)
+    .filter((d) => d.recorrente && d.recorrencia_ativa && d.categoria !== "marketing")
     .reduce((s, d) => s + d.valor_brl, 0);
-  const custosFixosMes = folhaMes + recorrentesAtivas;
+  const custosFixosMes = folhaMes + recorrentesAtivas + marketingRunRate;
   const ticketMedio =
     contratos.length > 0
       ? Math.round(contratos.reduce((s, c) => s + Number(c.valor_total), 0) / contratos.length)

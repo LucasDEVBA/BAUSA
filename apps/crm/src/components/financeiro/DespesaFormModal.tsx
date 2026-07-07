@@ -142,9 +142,13 @@ export function DespesaFormModal({ open, onClose, despesa, recorrenteInicial = f
               <div>
                 <label className={labelClass}>Categoria</label>
                 <select {...register("categoria")} className={selectClass}>
-                  {(Object.keys(DESPESA_CATEGORIA_LABEL) as DespesaCategoria[]).map((c) => (
-                    <option key={c} value={c}>{DESPESA_CATEGORIA_LABEL[c]}</option>
-                  ))}
+                  {/* 'marketing' é gerido em Analytics → CAC (investimentos_marketing),
+                      fonte única que já alimenta o DRE — fora daqui p/ não dobrar. */}
+                  {(Object.keys(DESPESA_CATEGORIA_LABEL) as DespesaCategoria[])
+                    .filter((c) => c !== "marketing")
+                    .map((c) => (
+                      <option key={c} value={c}>{DESPESA_CATEGORIA_LABEL[c]}</option>
+                    ))}
                 </select>
               </div>
               <div>

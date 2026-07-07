@@ -86,7 +86,7 @@ export function ResultadoView({ metrics }: { metrics: FinanceiroMetrics }) {
         <div className="border-b border-border px-5 py-3.5">
           <h2 className="text-sm font-semibold text-foreground">DRE — Resultado por mês</h2>
           <p className="text-xs text-muted-foreground">
-            Receita recebida − folha (run-rate atual) − despesas − impostos
+            Receita recebida − folha (run-rate) − marketing − despesas − impostos
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -96,6 +96,7 @@ export function ResultadoView({ metrics }: { metrics: FinanceiroMetrics }) {
                 <th className="py-2.5 pl-5 pr-3 text-left font-semibold">Mês</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Receita</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Folha</th>
+                <th className="px-3 py-2.5 text-right font-semibold">Marketing</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Despesas</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Impostos</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Resultado</th>
@@ -108,6 +109,7 @@ export function ResultadoView({ metrics }: { metrics: FinanceiroMetrics }) {
                   <td className="py-2.5 pl-5 pr-3 font-medium text-foreground">{m.label}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-foreground">{formatBRL(m.receita)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">−{formatBRL(m.folha)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">−{formatBRL(m.marketing)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">−{formatBRL(m.despesas)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">−{formatBRL(m.impostos)}</td>
                   <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${m.resultado >= 0 ? "text-sys-green" : "text-sys-red"}`}>
