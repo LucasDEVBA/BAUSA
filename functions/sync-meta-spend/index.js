@@ -2,21 +2,22 @@ const functions = require('@google-cloud/functions-framework');
 const https = require('https');
 
 // ════════════════════════════════════════════════════════════════════════
-// sync-meta-spend — CAC Fase 2A: ingere o gasto de anúncios da Meta
+// sync-meta-spend — CAC Fase 2B: ingere o gasto de Meta Ads POR CAMPANHA/DIA
 // ════════════════════════════════════════════════════════════════════════
 //
-// Acionada pelo Cloud Scheduler (diário). Puxa o gasto agregado da conta de
-// anúncios da Meta (Marketing API, Ads Insights) por mês e faz UPSERT em
-// investimentos_marketing (canal='meta', source='meta_api'). O dashboard
-// /analytics/cac já é agnóstico a `source` — passa a exibir o gasto real
-// da Meta automaticamente, sem input manual.
+// Acionada pelo Cloud Scheduler (diário 06h BRT). Puxa da Marketing API
+// (Ads Insights, level=campaign, time_increment=1) o gasto por campanha e dia
+// e grava em DUAS camadas:
+//   1. meta_ads_campanha  — 1 linha por (dia, campanha) → ROI exato por
+//      campanha (cruza campanha_id ↔ form_submissions.utm_id). Idempotente
+//      por UNIQUE(data, campanha_id).
+//   2. investimentos_marketing — rollup mensal (canal='meta', source='meta_api')
+//      = fonte única dos TOTAIS do CAC e do DRE. Idempotente por
+//      UNIQUE(mes, canal, source).
 //
-// Sincroniza o mês atual + N-1 meses anteriores (Meta reajusta gasto após o
-// fechamento). Idempotente: UPSERT em (mes, canal, source).
-//
-// Auth (System User token, NÃO expira): META_ACCESS_TOKEN. Conta: META_AD_ACCOUNT_ID.
-// ⚠️ valor_gasto é BRL; assume conta de anúncios em BRL (loga account_currency
-//    e alerta se ≠ BRL — conversão de moeda é trabalho futuro).
+// Sincroniza o mês atual + N-1 anteriores (Meta reajusta gasto pós-fechamento).
+// Segue paginação (paging.next). Auth: META_ACCESS_TOKEN (System User, não
+// expira). Conta: META_AD_ACCOUNT_ID. Assume conta BRL (loga se ≠ BRL).
 // ════════════════════════════════════════════════════════════════════════
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
@@ -26,7 +27,8 @@ const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID; // ex.: act_123 ou 123
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
-const MESES_SYNC = Math.max(1, Number(process.env.META_SYNC_MESES || 2)); // mês atual + (N-1) anteriores
+const MESES_SYNC = Math.max(1, Number(process.env.META_SYNC_MESES || 2));
+const MAX_PAGINAS = 50; // trava de segurança na paginação
 
 const log = (level, action, details = {}) => console.log(JSON.stringify({ level, action, ...details }));
 
@@ -38,12 +40,11 @@ const httpRequest = (url, options, postData) =>
       (res) => { let b = ''; res.on('data', (c) => (b += c)); res.on('end', () => resolve({ statusCode: res.statusCode, body: b })); },
     );
     req.on('error', reject);
-    req.setTimeout(30000, () => { req.destroy(); reject(new Error('Request timeout (30s)')); });
+    req.setTimeout(60000, () => { req.destroy(); reject(new Error('Request timeout (60s)')); });
     if (postData) req.write(postData);
     req.end();
   });
 
-// ─── Supabase REST (upsert) ────────────────────────────────────────────
 const supaUpsert = async (pathWithConflict, body) => {
   const r = await httpRequest(`${SUPABASE_URL}/rest/v1/${pathWithConflict}`, {
     method: 'POST',
@@ -58,27 +59,38 @@ const supaUpsert = async (pathWithConflict, body) => {
   if (r.statusCode >= 400) throw new Error(`Supabase upsert ${r.statusCode}: ${r.body}`);
 };
 
-// ─── Meta Ads Insights (gasto agregado da conta no período) ─────────────
-const fetchMetaSpend = async (since, until) => {
+// ─── Meta Ads Insights por campanha/dia (segue paginação) ───────────────
+const fetchInsightsCampanhaDia = async (since, until) => {
   const acct = String(META_AD_ACCOUNT_ID).startsWith('act_') ? META_AD_ACCOUNT_ID : `act_${META_AD_ACCOUNT_ID}`;
   const timeRange = encodeURIComponent(JSON.stringify({ since, until }));
-  const url =
+  let url =
     `https://graph.facebook.com/${META_GRAPH_VERSION}/${acct}/insights` +
-    `?fields=spend,impressions,clicks,account_currency&time_range=${timeRange}` +
-    `&access_token=${encodeURIComponent(META_ACCESS_TOKEN)}`;
-  const r = await httpRequest(url, { method: 'GET' });
-  if (r.statusCode >= 400) throw new Error(`Meta API ${r.statusCode}: ${r.body.slice(0, 300)}`);
-  const json = JSON.parse(r.body || '{}');
-  return Array.isArray(json.data) && json.data.length ? json.data[0] : null;
+    `?level=campaign&time_increment=1` +
+    `&fields=campaign_id,campaign_name,spend,impressions,clicks,account_currency` +
+    `&time_range=${timeRange}&limit=200&access_token=${encodeURIComponent(META_ACCESS_TOKEN)}`;
+
+  const rows = [];
+  let pagina = 0;
+  for (; pagina < MAX_PAGINAS && url; pagina++) {
+    const r = await httpRequest(url, { method: 'GET' });
+    if (r.statusCode >= 400) throw new Error(`Meta API ${r.statusCode}: ${r.body.slice(0, 300)}`);
+    const json = JSON.parse(r.body || '{}');
+    if (Array.isArray(json.data)) rows.push(...json.data);
+    url = json.paging && json.paging.next ? json.paging.next : null;
+  }
+  // Truncou no teto de páginas e ainda há mais: NÃO silenciar (dado incompleto).
+  if (url) log('WARN', 'meta_paginacao_truncada', { paginas: pagina, linhas: rows.length, since, until });
+  return rows;
 };
 
-// Mês de referência i meses atrás: { since: 'YYYY-MM-01', until: 'YYYY-MM-último' }
 const mesRange = (mesesAtras) => {
   const now = new Date();
   const ref = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - mesesAtras, 1));
   const last = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 0));
-  return { since: ref.toISOString().slice(0, 10), until: last.toISOString().slice(0, 10) };
+  return { since: ref.toISOString().slice(0, 10), until: last.toISOString().slice(0, 10), mes01: ref.toISOString().slice(0, 10) };
 };
+
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 functions.http('syncMetaSpend', async (req, res) => {
   if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
@@ -93,29 +105,52 @@ functions.http('syncMetaSpend', async (req, res) => {
 
     const resultados = [];
     for (let i = 0; i < MESES_SYNC; i++) {
-      const { since, until } = mesRange(i);
-      const insight = await fetchMetaSpend(since, until);
-      const spend = insight ? Number(insight.spend || 0) : 0;
-      const impressions = insight ? Number(insight.impressions || 0) : 0;
-      const clicks = insight ? Number(insight.clicks || 0) : 0;
-      const currency = insight ? insight.account_currency : null;
+      const { since, until, mes01 } = mesRange(i);
+      const linhas = await fetchInsightsCampanhaDia(since, until);
 
-      if (currency && currency !== 'BRL') {
-        log('WARN', 'meta_currency_nao_brl', { currency, mes: since });
+      let totalSpend = 0;
+      let totalImp = 0;
+      let totalClk = 0;
+      let currency = null;
+
+      for (const l of linhas) {
+        currency = currency || l.account_currency || null;
+        const dia = l.date_start; // com time_increment=1, date_start = o dia
+        if (!dia || !l.campaign_id) continue;
+        const spend = num(l.spend);
+        const imp = num(l.impressions);
+        const clk = num(l.clicks);
+        totalSpend += spend;
+        totalImp += imp;
+        totalClk += clk;
+
+        // Detalhe por campanha/dia
+        await supaUpsert('meta_ads_campanha?on_conflict=data,campanha_id', {
+          data: dia,
+          campanha_id: String(l.campaign_id),
+          campanha_nome: l.campaign_name || null,
+          valor_gasto: spend,
+          impressoes: imp,
+          cliques: clk,
+          source: 'meta_api',
+        });
       }
 
+      if (currency && currency !== 'BRL') log('WARN', 'meta_currency_nao_brl', { currency, mes: mes01 });
+
+      // Rollup mensal → fonte única dos TOTAIS (CAC/DRE)
       await supaUpsert('investimentos_marketing?on_conflict=mes,canal,source', {
-        mes: since,
+        mes: mes01,
         canal: 'meta',
         source: 'meta_api',
-        valor_gasto: Number.isFinite(spend) ? spend : 0,
-        impressoes: Number.isFinite(impressions) ? impressions : 0,
-        cliques: Number.isFinite(clicks) ? clicks : 0,
-        observacao: `Meta API ${META_GRAPH_VERSION} (${currency || '?'}) — sync ${new Date().toISOString()}`,
+        valor_gasto: totalSpend,
+        impressoes: totalImp,
+        cliques: totalClk,
+        observacao: `Meta API ${META_GRAPH_VERSION} (${currency || '?'}) — ${linhas.length} linhas campanha/dia — sync ${new Date().toISOString()}`,
       });
 
-      log('INFO', 'meta_sync_mes', { mes: since, spend, impressions, clicks, currency });
-      resultados.push({ mes: since, spend, impressions, clicks, currency });
+      log('INFO', 'meta_sync_mes', { mes: mes01, linhas: linhas.length, totalSpend, totalImp, totalClk, currency });
+      resultados.push({ mes: mes01, linhas: linhas.length, totalSpend, totalImp, totalClk, currency });
     }
 
     log('INFO', 'meta_sync_complete', { meses: resultados.length });

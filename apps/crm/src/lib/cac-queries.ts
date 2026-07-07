@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { dedupInvestimentos } from "@/lib/marketing-spend";
 
 // ════════════════════════════════════════════════════════════════════════
 // CAC/ROI — camada de dados (Fase 1, input manual de gasto)
@@ -71,6 +72,7 @@ interface GastoRow {
   canal: string;
   valor_gasto: number;
   leads_gerados: number | null;
+  source: string;
 }
 
 interface LeadRow {
@@ -117,7 +119,7 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
   const [gastoRes, leadsRes, contratosRes] = await Promise.all([
     supabase
       .from("investimentos_marketing")
-      .select("mes, canal, valor_gasto, leads_gerados")
+      .select("mes, canal, valor_gasto, leads_gerados, source")
       .is("deleted_at", null)
       .gte("mes", startMonth),
     supabase
@@ -131,7 +133,9 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
       .gte("created_at", startISO),
   ]);
 
-  const gastos = (gastoRes.data as GastoRow[] | null) ?? [];
+  // Dedup por (mês, canal): meta_api vence manual — mesma regra do DRE, para
+  // não dobrar o gasto de Meta quando o sync automático e o manual coexistem.
+  const gastos = dedupInvestimentos((gastoRes.data as GastoRow[] | null) ?? []);
   const leads = (leadsRes.data as LeadRow[] | null) ?? [];
   const contratos = (contratosRes.data as ContratoRow[] | null) ?? [];
 

@@ -26,6 +26,7 @@ import { SaidasView } from "@/components/financeiro/SaidasView";
 import { FolhaView } from "@/components/financeiro/FolhaView";
 import { ResultadoView } from "@/components/financeiro/ResultadoView";
 import { getFinanceiroMetrics, type FinanceiroMetrics } from "@/lib/financeiro-metrics";
+import { dedupInvestimentos, type InvestimentoRow } from "@/lib/marketing-spend";
 import { PLANO_VALORES } from "@/types/crm";
 import { DESPESA_CATEGORIA_LABEL, type Despesa, type Colaborador, type EmpresaDados } from "@/types/financeiro";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
@@ -245,12 +246,13 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
         .is("deleted_at", null),
       supabase
         .from("investimentos_marketing")
-        .select("valor_gasto")
+        .select("mes, canal, valor_gasto, source")
         .eq("mes", `${mesAtual}-01`)
         .is("deleted_at", null),
     ]);
     folhaMensal = (colabRes.data ?? []).reduce((s, c) => s + Number(c.custo_mensal_brl), 0);
-    marketingMensal = (mktRes.data ?? []).reduce((s, m) => s + Number(m.valor_gasto), 0);
+    marketingMensal = dedupInvestimentos((mktRes.data as InvestimentoRow[] | null) ?? [])
+      .reduce((s, m) => s + Number(m.valor_gasto), 0);
     for (const r of recorrRes.data ?? []) {
       custosRecorrentes.push({ nome: r.descricao as string, valor: Number(r.valor_brl), categoria: r.categoria as string });
     }
