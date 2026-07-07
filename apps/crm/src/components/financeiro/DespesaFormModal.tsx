@@ -3,7 +3,7 @@
 import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { Wallet, X, Loader2 } from "lucide-react";
+import { Wallet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { criarDespesa, atualizarDespesa, type DespesaInput } from "@/lib/actions/despesas";
@@ -17,18 +17,17 @@ import {
   type DespesaStatus,
   type DespesaTipo,
 } from "@/types/financeiro";
+import { FormModal, ModalSection, modalFieldClasses } from "./FormModal";
 
-const inputClass =
-  "w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
+const { input: inputClass, label: labelClass } = modalFieldClasses;
 const selectClass = `${inputClass} appearance-none`;
-const labelClass = "text-[10px] font-medium text-muted-foreground mb-1 block";
 
 interface FormValues {
   descricao: string;
   categoria: DespesaCategoria;
   tipo: DespesaTipo;
   valor_brl: number;
-  competenciaMes: string; // YYYY-MM (input type=month)
+  competenciaMes: string;
   vencimento: string;
   status: DespesaStatus;
   metodo: "" | DespesaMetodo;
@@ -59,13 +58,13 @@ function defaults(d?: Despesa | null): FormValues {
   };
 }
 
-interface DespesaFormSheetProps {
+interface DespesaFormModalProps {
   open: boolean;
   onClose: () => void;
   despesa?: Despesa | null;
 }
 
-export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetProps) {
+export function DespesaFormModal({ open, onClose, despesa }: DespesaFormModalProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isEdit = Boolean(despesa);
@@ -80,15 +79,6 @@ export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetPro
   useEffect(() => {
     if (open) reset(defaults(despesa));
   }, [open, despesa, reset]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
 
   const recorrente = watch("recorrente");
 
@@ -123,41 +113,19 @@ export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetPro
     });
   };
 
-  if (!open) return null;
-
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={isEdit ? "Editar despesa" : "Nova despesa"}
-        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col liquid-glass"
-      >
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sys-red/12 text-sys-red ring-1 ring-sys-red/25">
-              <Wallet className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-foreground">
-                {isEdit ? "Editar despesa" : "Nova despesa"}
-              </h2>
-              <p className="text-xs text-muted-foreground">Saída financeira — avulsa ou recorrente</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-fill-4 hover:text-foreground"
-            aria-label="Fechar"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+    <FormModal
+      open={open}
+      onClose={onClose}
+      icon={Wallet}
+      iconClass="bg-sys-red/12 text-sys-red ring-sys-red/25"
+      title={isEdit ? "Editar despesa" : "Nova despesa"}
+      subtitle="Saída financeira — avulsa ou recorrente"
+      ariaLabel={isEdit ? "Editar despesa" : "Nova despesa"}
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+          <ModalSection title="Despesa">
             <div>
               <label className={labelClass}>Descrição</label>
               <input
@@ -168,15 +136,12 @@ export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetPro
                 aria-invalid={!!errors.descricao}
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <label className={labelClass}>Categoria</label>
                 <select {...register("categoria")} className={selectClass}>
                   {(Object.keys(DESPESA_CATEGORIA_LABEL) as DespesaCategoria[]).map((c) => (
-                    <option key={c} value={c}>
-                      {DESPESA_CATEGORIA_LABEL[c]}
-                    </option>
+                    <option key={c} value={c}>{DESPESA_CATEGORIA_LABEL[c]}</option>
                   ))}
                 </select>
               </div>
@@ -187,9 +152,6 @@ export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetPro
                   <option value="variavel">Variável</option>
                 </select>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Valor (R$)</label>
                 <input
@@ -201,6 +163,11 @@ export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetPro
                   aria-invalid={!!errors.valor_brl}
                 />
               </div>
+            </div>
+          </ModalSection>
+
+          <ModalSection title="Pagamento">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>Competência (mês)</label>
                 <input
@@ -210,15 +177,14 @@ export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetPro
                   aria-invalid={!!errors.competenciaMes}
                 />
               </div>
+              <label className="flex items-end gap-2 pb-2 text-xs text-foreground sm:items-center sm:pb-0">
+                <input type="checkbox" {...register("recorrente")} className="size-4 accent-primary" />
+                Despesa recorrente (repete todo mês)
+              </label>
             </div>
 
-            <label className="flex items-center gap-2 rounded-md bg-secondary/50 px-3 py-2 text-xs text-foreground">
-              <input type="checkbox" {...register("recorrente")} className="size-4 accent-primary" />
-              Despesa recorrente (repete todo mês)
-            </label>
-
             {recorrente ? (
-              <div>
+              <div className="sm:max-w-[50%]">
                 <label className={labelClass}>Dia do vencimento (1–28)</label>
                 <input
                   type="number"
@@ -229,7 +195,7 @@ export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetPro
                 />
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className={labelClass}>Vencimento</label>
                   <input type="date" {...register("vencimento")} className={inputClass} />
@@ -238,24 +204,20 @@ export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetPro
                   <label className={labelClass}>Status</label>
                   <select {...register("status")} className={selectClass}>
                     {(Object.keys(DESPESA_STATUS_LABEL) as DespesaStatus[]).map((s) => (
-                      <option key={s} value={s}>
-                        {DESPESA_STATUS_LABEL[s]}
-                      </option>
+                      <option key={s} value={s}>{DESPESA_STATUS_LABEL[s]}</option>
                     ))}
                   </select>
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>Método (opcional)</label>
                 <select {...register("metodo")} className={selectClass}>
                   <option value="">—</option>
                   {(Object.keys(DESPESA_METODO_LABEL) as DespesaMetodo[]).map((m) => (
-                    <option key={m} value={m}>
-                      {DESPESA_METODO_LABEL[m]}
-                    </option>
+                    <option key={m} value={m}>{DESPESA_METODO_LABEL[m]}</option>
                   ))}
                 </select>
               </div>
@@ -264,32 +226,31 @@ export function DespesaFormSheet({ open, onClose, despesa }: DespesaFormSheetPro
                 <input {...register("fornecedor")} className={inputClass} placeholder="Ex.: Google" />
               </div>
             </div>
+          </ModalSection>
 
-            <div>
-              <label className={labelClass}>Observação (opcional)</label>
-              <textarea {...register("observacao")} className={`${inputClass} min-h-16 resize-y`} />
-            </div>
-          </div>
+          <ModalSection title="Observação">
+            <textarea {...register("observacao")} className={`${inputClass} min-h-16 resize-y`} placeholder="Anotações internas (opcional)" />
+          </ModalSection>
+        </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-fill-4 hover:text-foreground"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-            >
-              {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isEdit ? "Salvar" : "Criar despesa"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </>
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-fill-4 hover:text-foreground"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+          >
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isEdit ? "Salvar" : "Criar despesa"}
+          </button>
+        </div>
+      </form>
+    </FormModal>
   );
 }
