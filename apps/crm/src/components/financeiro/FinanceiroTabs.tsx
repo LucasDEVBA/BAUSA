@@ -2,7 +2,8 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback } from "react";
-import { cn } from "@/lib/utils";
+
+import { BrandTabs } from "@/components/ui";
 
 const TABS = [
   { id: "geral", label: "Visão Geral" },
@@ -26,7 +27,7 @@ export function FinanceiroTabs({ className }: FinanceiroTabsProps) {
   const currentTab = (searchParams.get("tab") as TabId) || "geral";
 
   const handleChange = useCallback(
-    (tab: TabId) => {
+    (tab: string) => {
       const params = new URLSearchParams(searchParams.toString());
       if (tab === "geral") {
         params.delete("tab");
@@ -36,25 +37,17 @@ export function FinanceiroTabs({ className }: FinanceiroTabsProps) {
       const qs = params.toString();
       router.push(`${pathname}${qs ? `?${qs}` : ""}`);
     },
-    [router, pathname, searchParams]
+    [router, pathname, searchParams],
   );
 
   return (
-    <div className={cn("liquid-glass flex gap-1 rounded-lg p-1", className)}>
-      {TABS.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => handleChange(tab.id)}
-          className={cn(
-            "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-            currentTab === tab.id
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-fill-4 hover:text-foreground"
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
+    <BrandTabs
+      items={TABS.map((t) => ({ id: t.id, label: t.label }))}
+      activeId={currentTab}
+      onSelect={handleChange}
+      variant="segmented"
+      ariaLabel="Abas do financeiro"
+      className={className}
+    />
   );
 }
