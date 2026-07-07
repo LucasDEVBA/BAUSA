@@ -64,7 +64,7 @@ export async function fetchDealsAtivos() {
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase
     .from("deals")
-    .select("id, valor_estimado, probabilidade_fechamento, etapa, next_action, data_proxima_acao, product_tier, has_discount, atleta:atletas(nome_completo)")
+    .select("id, valor_estimado, probabilidade_fechamento, etapa, next_action, data_proxima_acao, atleta:atletas(nome_completo)")
     .is("deleted_at", null)
     .not("etapa", "in", "(perdido,concluido,cancelamento_solicitado)");
   return data || [];
@@ -362,21 +362,32 @@ export async function fetchRevenueAtRisk(): Promise<RevenueAtRiskMetrics> {
 }
 
 export async function fetchPositioning(): Promise<PositioningMetrics> {
+  // Ticket médio do pipeline (deals ativos) — independente do mix de planos.
   const dealsAtivos = await fetchDealsAtivos();
-  const total = dealsAtivos.length || 1;
-
-  const legacy = dealsAtivos.filter((d) => d.product_tier === "Legacy").length;
-  const journey = dealsAtivos.filter((d) => d.product_tier === "Journey").length;
-  const start = dealsAtivos.filter((d) => d.product_tier === "Start").length;
-  const withDiscount = dealsAtivos.filter((d) => d.has_discount).length;
+  const totalDeals = dealsAtivos.length;
   const totalValor = dealsAtivos.reduce((s, d) => s + (Number(d.valor_estimado) || 0), 0);
+  const avg_ticket_brl = totalDeals > 0 ? Math.round(totalValor / totalDeals) : 0;
+
+  // Mix de planos + desconto vêm dos CONTRATOS: o plano real do cliente vive em
+  // contratos_financeiros.plano (enum journey/legacy/start), NÃO em deals
+  // (que nunca teve product_tier/has_discount). Desconto = valor customizado.
+  const supabase = await createServerSupabaseClient();
+  const { data: contratos } = await supabase
+    .from("contratos_financeiros")
+    .select("plano, valor_customizado")
+    .is("deleted_at", null);
+
+  const lista = contratos ?? [];
+  const totalContratos = lista.length || 1;
+  const porPlano = (plano: string) => lista.filter((c) => c.plano === plano).length;
+  const comDesconto = lista.filter((c) => c.valor_customizado != null).length;
 
   return {
-    pct_legacy: Math.round((legacy / total) * 100),
-    pct_journey: Math.round((journey / total) * 100),
-    pct_start: Math.round((start / total) * 100),
-    avg_ticket_brl: total > 0 ? Math.round(totalValor / total) : 0,
-    pct_discounted: Math.round((withDiscount / total) * 100),
+    pct_legacy: Math.round((porPlano("legacy") / totalContratos) * 100),
+    pct_journey: Math.round((porPlano("journey") / totalContratos) * 100),
+    pct_start: Math.round((porPlano("start") / totalContratos) * 100),
+    avg_ticket_brl,
+    pct_discounted: Math.round((comDesconto / totalContratos) * 100),
   };
 }
 
