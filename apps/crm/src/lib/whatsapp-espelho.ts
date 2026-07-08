@@ -17,11 +17,15 @@ export interface EspelhoChat {
   phone: string;
   /** Nome do contato, quando a Z-API informa. */
   name: string | null;
+  /** Nome do lead/responsável no CRM (de-para por telefone), quando houver. */
+  leadName: string | null;
   /** Epoch em ms da última mensagem, quando disponível. */
   lastMessageTime: number | null;
+  /** Epoch em ms da última mensagem RECEBIDA (from_me=false) no espelho. */
+  lastInboundAt: number | null;
   /** Preview textual da última mensagem, quando disponível. */
   lastMessagePreview: string | null;
-  /** Quantidade de mensagens não lidas. */
+  /** Quantidade de mensagens não lidas (contagem da Z-API). */
   unread: number;
 }
 
@@ -123,7 +127,9 @@ export function normalizeChat(raw: unknown): EspelhoChat | null {
   return {
     phone,
     name: asNonEmptyString(rec.name),
+    leadName: null, // enriquecido na API route (de-para com o CRM)
     lastMessageTime: toEpochMs(rec.lastMessageTime) ?? toEpochMs(rec.messageTime),
+    lastInboundAt: null, // enriquecido na API route (espelho whatsapp_mensagens)
     lastMessagePreview,
     unread: toCount(rec.unread) || toCount(rec.messagesUnread),
   };

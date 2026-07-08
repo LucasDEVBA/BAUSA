@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, RefreshCw, Search, Send, Settings2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge, Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
+import { Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
 import { cn, getInitials } from "@/lib/utils";
 import {
   formatPhoneDisplay,
@@ -15,8 +15,10 @@ import {
 
 // ─── Constantes ──────────────────────────────────────────────────
 
-const CHATS_POLL_MS = 30_000;
-const THREAD_POLL_MS = 15_000;
+const CHATS_POLL_MS = 15_000;
+const THREAD_POLL_MS = 8_000;
+/** localStorage: última vez que o CEO abriu cada conversa (badge de não-lida). */
+const LAST_SEEN_KEY = "bausa_whatsapp_last_seen";
 const MESSAGE_MAX_LENGTH = 4096;
 /** 100vh − header (4rem) − padding do main (2rem) − PageHeader denso + gap (~3.75rem). */
 const PANEL_HEIGHT = "h-[calc(100vh-9.75rem)] min-h-[26rem]";
@@ -101,12 +103,15 @@ function ChatAvatar({ name, imgUrl }: { name: string | null; imgUrl: string | nu
 interface ChatListItemProps {
   chat: EspelhoChat;
   contact: EspelhoContact | null;
+  unread: boolean;
   selected: boolean;
   onSelect: (phone: string) => void;
 }
 
-function ChatListItem({ chat, contact, selected, onSelect }: ChatListItemProps) {
-  const displayName = chat.name ?? contact?.name ?? formatPhoneDisplay(chat.phone);
+function ChatListItem({ chat, contact, unread, selected, onSelect }: ChatListItemProps) {
+  // De-para: contato salvo no aparelho → nome do lead no CRM → telefone.
+  const displayName =
+    chat.name ?? contact?.name ?? chat.leadName ?? formatPhoneDisplay(chat.phone);
 
   return (
     <button
@@ -118,24 +123,42 @@ function ChatListItem({ chat, contact, selected, onSelect }: ChatListItemProps) 
         selected ? "bg-primary/10" : "hover:bg-accent",
       )}
     >
-      <ChatAvatar name={chat.name ?? contact?.name ?? null} imgUrl={contact?.imgUrl ?? null} />
+      <ChatAvatar name={displayName} imgUrl={contact?.imgUrl ?? null} />
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm font-medium text-foreground">{displayName}</span>
+          <span
+            className={cn(
+              "truncate text-sm text-foreground",
+              unread ? "font-bold" : "font-medium",
+            )}
+          >
+            {displayName}
+          </span>
           {chat.lastMessageTime !== null && (
-            <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+            <span
+              className={cn(
+                "shrink-0 text-[10px] tabular-nums",
+                unread ? "font-semibold text-sys-green" : "text-muted-foreground",
+              )}
+            >
               {formatChatTime(chat.lastMessageTime)}
             </span>
           )}
         </span>
         <span className="mt-0.5 flex items-center justify-between gap-2">
-          <span className="truncate text-xs text-muted-foreground">
+          <span
+            className={cn(
+              "truncate text-xs",
+              unread ? "font-medium text-foreground" : "text-muted-foreground",
+            )}
+          >
             {chat.lastMessagePreview ?? formatPhoneDisplay(chat.phone)}
           </span>
-          {chat.unread > 0 && (
-            <Badge tone="brand" size="sm">
-              {chat.unread}
-            </Badge>
+          {unread && (
+            <span
+              aria-label="Mensagem não lida"
+              className="size-2.5 shrink-0 rounded-full bg-sys-green"
+            />
           )}
         </span>
       </span>
@@ -199,6 +222,8 @@ export function WhatsAppEspelhoClient() {
   const [historyUnavailable, setHistoryUnavailable] = useState(false);
   const [mirrorActive, setMirrorActive] = useState(false);
   const [contacts, setContacts] = useState<Record<string, EspelhoContact | null>>({});
+  /** phone → epoch ms da última vez que o CEO abriu a conversa (badge não-lida). */
+  const [lastSeen, setLastSeen] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -217,6 +242,45 @@ export function WhatsAppEspelhoClient() {
   useEffect(() => {
     selectedPhoneRef.current = selectedPhone;
   }, [selectedPhone]);
+
+  // Carrega o "visto por último" persistido (por navegador do CEO).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LAST_SEEN_KEY);
+      if (raw) setLastSeen(JSON.parse(raw) as Record<string, number>);
+    } catch {
+      // localStorage indisponível/corrompido — segue sem histórico de leitura.
+    }
+  }, []);
+
+  // Marca a conversa como lida ATÉ `value` (epoch ms). Faz bail se já estiver
+  // igual/maior — sem re-render/gravação à toa (o efeito de thread chama a cada
+  // mudança de mensagens).
+  const markSeen = useCallback((phone: string, value: number) => {
+    setLastSeen((prev) => {
+      if ((prev[phone] ?? 0) >= value) return prev;
+      const next = { ...prev, [phone]: value };
+      try {
+        localStorage.setItem(LAST_SEEN_KEY, JSON.stringify(next));
+      } catch {
+        // ignora falha de persistência
+      }
+      return next;
+    });
+  }, []);
+
+  // Abrir a conversa = selecionar + marcar como lida até a última recebida
+  // conhecida (max com now cobre conversas sem inbound registrado; usar o
+  // lastInboundAt do servidor evita skew do relógio do cliente).
+  const handleSelect = useCallback(
+    (phone: string) => {
+      setSelectedPhone(phone);
+      const inbound =
+        chats.find((c) => c.phone === phone)?.lastInboundAt ?? 0;
+      markSeen(phone, Math.max(Date.now(), inbound));
+    },
+    [markSeen, chats],
+  );
 
   // ── Fetchers (proxy server-side — credenciais Z-API nunca chegam aqui) ──
 
@@ -358,7 +422,7 @@ export function WhatsAppEspelhoClient() {
     };
   }, [chats]);
 
-  // ── Carga inicial + polling da lista (30s, pausa com aba oculta) ──
+  // ── Carga inicial + polling da lista (15s, pausa com aba oculta) ──
 
   useEffect(() => {
     void fetchChats();
@@ -372,7 +436,7 @@ export function WhatsAppEspelhoClient() {
     };
   }, [fetchChats]);
 
-  // ── Carga da thread ao selecionar + polling (15s, pausa com aba oculta) ──
+  // ── Carga da thread ao selecionar + polling (8s, pausa com aba oculta) ──
 
   useEffect(() => {
     if (!selectedPhone) return;
@@ -391,6 +455,31 @@ export function WhatsAppEspelhoClient() {
       messagesAbortRef.current?.abort();
     };
   }, [selectedPhone, fetchMessages]);
+
+  // Conversa aberta = lida até a última RECEBIDA exibida (timestamp do servidor,
+  // sem skew do relógio do cliente). Cobre inbounds que chegam com a conversa
+  // aberta; o markSeen faz bail quando não há avanço.
+  useEffect(() => {
+    if (!selectedPhone || messages.length === 0) return;
+    let maxInbound = 0;
+    for (const m of messages) {
+      if (!m.fromMe && (m.timestamp ?? 0) > maxInbound) maxInbound = m.timestamp ?? 0;
+    }
+    if (maxInbound > 0) markSeen(selectedPhone, maxInbound);
+  }, [messages, selectedPhone, markSeen]);
+
+  // ── Refresh imediato ao voltar para a aba (não espera o próximo tick) ──
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.hidden) return;
+      void fetchChats({ silent: true });
+      const phone = selectedPhoneRef.current;
+      if (phone) void fetchMessages(phone, { silent: true });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchChats, fetchMessages]);
 
   // ── Auto-scroll para o fim da thread quando as mensagens mudam ──
 
@@ -496,6 +585,7 @@ export function WhatsAppEspelhoClient() {
   const selectedDisplayName =
     selectedChat?.name ??
     selectedContact?.name ??
+    selectedChat?.leadName ??
     (selectedPhone ? formatPhoneDisplay(selectedPhone) : "");
 
   // ── Render ──
@@ -584,8 +674,12 @@ export function WhatsAppEspelhoClient() {
                     key={chat.phone}
                     chat={chat}
                     contact={contacts[chat.phone] ?? null}
+                    unread={
+                      chat.phone !== selectedPhone &&
+                      (chat.lastInboundAt ?? 0) > (lastSeen[chat.phone] ?? 0)
+                    }
                     selected={chat.phone === selectedPhone}
-                    onSelect={setSelectedPhone}
+                    onSelect={handleSelect}
                   />
                 ))}
               </ScrollList>
@@ -606,7 +700,7 @@ export function WhatsAppEspelhoClient() {
               <>
                 <div className="flex shrink-0 items-center gap-2.5 border-b border-border px-4 py-3">
                   <ChatAvatar
-                    name={selectedChat?.name ?? selectedContact?.name ?? null}
+                    name={selectedDisplayName || null}
                     imgUrl={selectedContact?.imgUrl ?? null}
                   />
                   <div className="min-w-0">
