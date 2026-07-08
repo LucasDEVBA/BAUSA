@@ -152,3 +152,31 @@ export function normalizeMessage(raw: unknown, index: number): EspelhoMessage | 
     timestamp,
   };
 }
+
+// ─── Contato (GET /contacts/{phone}) ─────────────────────────────
+
+export interface EspelhoContact {
+  /** Nome do contato (name → vname verificado → short). */
+  name: string | null;
+  /** Recado/"about" do WhatsApp. */
+  about: string | null;
+  /** URL da foto de perfil (pps.whatsapp.net), quando visível. */
+  imgUrl: string | null;
+}
+
+/**
+ * Normaliza a resposta de GET /contacts/{phone} — a Z-API ora devolve o objeto
+ * direto, ora uma lista de 1. Nunca lança; ausências viram `null`.
+ */
+export function normalizeContact(raw: unknown): EspelhoContact {
+  const rec = asRecord(Array.isArray(raw) ? raw[0] : raw);
+  if (!rec) return { name: null, about: null, imgUrl: null };
+  return {
+    name:
+      asNonEmptyString(rec.name) ??
+      asNonEmptyString(rec.vname) ??
+      asNonEmptyString(rec.short),
+    about: asNonEmptyString(rec.about),
+    imgUrl: asNonEmptyString(rec.imgUrl),
+  };
+}
