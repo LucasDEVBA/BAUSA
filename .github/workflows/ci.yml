@@ -189,6 +189,7 @@ jobs:
           - automation-engine
           - meeting-transcripts
           - billing-reminders
+          - zapi-inbox
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

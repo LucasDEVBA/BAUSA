@@ -31,7 +31,14 @@ interface MessagesResponse {
   messages?: EspelhoMessage[];
   /** true = instância Z-API multi-device não expõe histórico por API. */
   historyUnavailable?: boolean;
+  /** true = histórico veio do espelho próprio (whatsapp_mensagens via webhook). */
+  mirror?: boolean;
 }
+
+/** Janela p/ casar eco local com a mensagem real vinda do espelho (webhook). */
+const ECHO_MATCH_WINDOW_MS = 120_000;
+/** Eco sem confirmação some depois disso (evita fantasma eterno). */
+const ECHO_TTL_MS = 10 * 60_000;
 
 interface ContactResponse {
   contact?: EspelhoContact;
@@ -190,6 +197,7 @@ export function WhatsAppEspelhoClient() {
   const [messages, setMessages] = useState<EspelhoMessage[]>([]);
   const [messagesStatus, setMessagesStatus] = useState<LoadStatus>("ready");
   const [historyUnavailable, setHistoryUnavailable] = useState(false);
+  const [mirrorActive, setMirrorActive] = useState(false);
   const [contacts, setContacts] = useState<Record<string, EspelhoContact | null>>({});
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
@@ -256,14 +264,35 @@ export function WhatsAppEspelhoClient() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as MessagesResponse;
       if (data.historyUnavailable) {
-        // Multi-device: sem histórico via API. NÃO sobrescreve as mensagens
-        // locais (ecos de envios desta sessão continuam visíveis).
+        // Multi-device sem espelho: NÃO sobrescreve as mensagens locais
+        // (ecos de envios desta sessão continuam visíveis).
         setHistoryUnavailable(true);
+        setMirrorActive(false);
         setMessagesStatus("ready");
         return;
       }
+      const server = data.messages ?? [];
+      // Mescla ecos locais ainda não confirmados pelo espelho (o webhook leva
+      // ~1-2s p/ gravar o envio) — sem isso o eco pisca/some até o próximo poll.
+      // Consumo 1:1: cada linha do servidor confirma NO MÁXIMO um eco (enviar a
+      // mesma mensagem 2x em <2min não pode sumir com as duas).
+      const usadas = new Set<string>();
+      const echoes = (sessionEchoesRef.current.get(phone) ?? []).filter((echo) => {
+        const match = server.find(
+          (msg) =>
+            !usadas.has(msg.id) &&
+            msg.fromMe &&
+            msg.text === echo.text &&
+            Math.abs((msg.timestamp ?? 0) - (echo.timestamp ?? 0)) < ECHO_MATCH_WINDOW_MS,
+        );
+        if (match) usadas.add(match.id);
+        const expired = Date.now() - (echo.timestamp ?? 0) > ECHO_TTL_MS;
+        return !match && !expired;
+      });
+      sessionEchoesRef.current.set(phone, echoes);
       setHistoryUnavailable(false);
-      setMessages(data.messages ?? []);
+      setMirrorActive(data.mirror === true);
+      setMessages([...server, ...echoes]);
       setMessagesStatus("ready");
     } catch (error) {
       if (isAbortError(error)) return;
@@ -622,11 +651,15 @@ export function WhatsAppEspelhoClient() {
                     />
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="flex flex-1 items-center justify-center">
+                  <div className="flex flex-1 items-center justify-center px-6">
                     <EmptyState
                       icon={MessageCircle}
                       title="Sem mensagens nesta conversa"
-                      description="Envie a primeira mensagem pelo campo abaixo."
+                      description={
+                        mirrorActive
+                          ? "O espelho registra as mensagens a partir da ativação do webhook — esta conversa ainda não tem registros. Envie ou receba uma mensagem e ela aparece aqui."
+                          : "Envie a primeira mensagem pelo campo abaixo."
+                      }
                     />
                   </div>
                 ) : (
