@@ -3,6 +3,26 @@
 > Runbook único de tudo que falta para deixar **todas as features 100% funcionais** em UAT e PRD.
 > Gerado após o deploy do PR #200 (CAC granular + Insights IA + contraste + encurtador UTM + deep-linking + financeiro exato).
 
+## ✅ STATUS DA EXECUÇÃO (2026-07-08 — via gcloud/vercel CLI)
+
+**Feito automaticamente (UAT completo):**
+- Env vars propagadas PRD→UAT em: `automation-engine-uat`, `billing-reminders-uat`, `meeting-transcripts-uat`, `sync-meta-spend-uat`, `weekly-report-uat`, `process-scheduled-followups-uat` (Supabase, URLs internas, service account, Gemini).
+- `retry-qualification-uat` **criada** (não existia) e ACTIVE.
+- **Vercel `bolsa-atleta-crm`**: `GEMINI_API_KEY`, `SUPABASE_SERVICE_KEY`, `SEND_WHATSAPP_URL`, `SEND_MESSAGES_URL` adicionadas em **Production + Preview (develop)**; preview redeployado.
+- **Google Drive API habilitada** no projeto.
+- **Cloud Scheduler UAT**: 10 jobs criados/atualizados (whatsapp, followup, renew-watch, weekly-report, remarketing, sync-meta-spend, automation-engine, meeting-transcripts, billing-reminders, scheduled-followups-daily). `billing-reminders-job-uat` **PAUSADO** (nasce pausada, por design).
+- `sync-meta-spend` (PRD) já com Supabase vars — no go-live falta só a credencial Meta.
+
+**Restam apenas (ação humana):**
+1. 🧑‍💼 **Meta**: System User token (`ads_read`) + `act_<id>` → setar `META_ACCESS_TOKEN`/`META_AD_ACCOUNT_ID` nas CFs `sync-meta-spend-uat` e (go-live) `sync-meta-spend`.
+2. 🧑‍💼 **Drive**: compartilhar a pasta "Meet Recordings" com a service account (Leitor).
+3. 🧑‍💼 Validar UAT logado (notificações/famílias/financeiro/CAC/insights).
+4. 🧑‍💼 Webhooks Supabase do schema `uat` (se ainda não existem) + `user_profiles` (já existentes, presumo — o login funciona).
+5. 🧑‍💼 Decisão pendente: `NEXT_PUBLIC_SUPABASE_SCHEMA=uat` no Preview do CRM (hoje o preview lê `public`/PRD — comportamento atual mantido de propósito; mudar troca o UAT para o schema `uat`, quase vazio).
+6. 🧑‍💼 Templates WhatsApp aprovados na Meta (envios reais) e textos/consentimento da régua antes de despausar `billing-reminders`.
+
+---
+
 ## Como usar este documento
 
 - **Legenda de responsável:** 🧑‍💼 **VOCÊ** (config/segredo/acesso externo) · 🤖 **CLAUDE** (código, já feito ou a fazer) · ⏳ **automático** (roda no deploy).
