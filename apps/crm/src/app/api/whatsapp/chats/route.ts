@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { normalizeChat, type EspelhoChat } from "@/lib/whatsapp-espelho";
+import {
+  construirMapaNomes,
+  resolverNomeLead,
+  type AtletaLookupRow,
+  type ResponsavelLookupRow,
+} from "@/lib/whatsapp-lead-lookup";
 import { logZapi, zapiRequest } from "@/lib/zapi-server";
 
 import { guardWhatsAppApi } from "../guard";
@@ -9,7 +16,55 @@ export const dynamic = "force-dynamic";
 
 const CHATS_PAGE_SIZE = 60;
 
-/** GET /api/whatsapp/chats — lista de conversas via Z-API (proxy server-side). */
+/**
+ * Enriquece os chats com dados do CRM/espelho, tolerante a falha (a lista da
+ * Z-API é o essencial; nome de lead e não-lida são bônus). Nunca lança.
+ */
+async function enriquecer(chats: EspelhoChat[]): Promise<EspelhoChat[]> {
+  if (chats.length === 0) return chats;
+  try {
+    const supabase = await createServerSupabaseClient();
+    const phones = chats.map((c) => c.phone);
+
+    const [atletasRes, respRes, inboundRes] = await Promise.all([
+      supabase.from("atletas").select("nome_completo, whatsapp, responsavel_id"),
+      supabase.from("responsaveis").select("id, nome, whatsapp"),
+      // Última RECEBIDA por telefone (p/ badge de não-lida no Engine).
+      supabase
+        .from("whatsapp_mensagens")
+        .select("phone, momment")
+        .in("phone", phones)
+        .eq("from_me", false)
+        .order("momment", { ascending: false }),
+    ]);
+
+    const mapaNomes = construirMapaNomes(
+      (atletasRes.data as AtletaLookupRow[] | null) ?? [],
+      (respRes.data as ResponsavelLookupRow[] | null) ?? [],
+    );
+
+    const lastInbound = new Map<string, number>();
+    for (const row of (inboundRes.data as { phone: string; momment: string | null }[] | null) ??
+      []) {
+      if (lastInbound.has(row.phone)) continue; // já ordenado desc → 1º = mais recente
+      const ts = row.momment ? Date.parse(row.momment) : NaN;
+      if (Number.isFinite(ts)) lastInbound.set(row.phone, ts);
+    }
+
+    return chats.map((c) => ({
+      ...c,
+      leadName: resolverNomeLead(mapaNomes, c.phone),
+      lastInboundAt: lastInbound.get(c.phone) ?? null,
+    }));
+  } catch (error) {
+    logZapi("warn", "chats_enrich_failed", {
+      reason: error instanceof Error ? error.name : "unknown",
+    });
+    return chats;
+  }
+}
+
+/** GET /api/whatsapp/chats — lista de conversas via Z-API + enriquecimento CRM. */
 export async function GET(): Promise<NextResponse> {
   const guard = await guardWhatsAppApi();
   if ("response" in guard) return guard.response;
@@ -26,10 +81,12 @@ export async function GET(): Promise<NextResponse> {
     }
 
     const rawList = Array.isArray(result.data) ? result.data : [];
-    const chats = rawList
+    const base = rawList
       .map(normalizeChat)
       .filter((chat): chat is EspelhoChat => chat !== null)
       .sort((a, b) => (b.lastMessageTime ?? 0) - (a.lastMessageTime ?? 0));
+
+    const chats = await enriquecer(base);
 
     logZapi("info", "chats_listed", { count: chats.length });
     return NextResponse.json({ chats });
