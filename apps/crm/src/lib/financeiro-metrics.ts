@@ -9,6 +9,7 @@
  */
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { dedupInvestimentos, type InvestimentoRow } from "@/lib/marketing-spend";
 import type { Despesa } from "@/types/financeiro";
 
 export interface DreMes {
@@ -114,14 +115,16 @@ export async function getFinanceiroMetrics(ref = new Date()): Promise<Financeiro
     supabase.from("contratos_financeiros").select("valor_total").is("deleted_at", null),
     // Marketing = FONTE ÚNICA em investimentos_marketing (alimenta CAC e DRE).
     // Despesas categoria='marketing' são excluídas do DRE para não dobrar.
-    supabase.from("investimentos_marketing").select("mes, valor_gasto").is("deleted_at", null),
+    supabase.from("investimentos_marketing").select("mes, canal, valor_gasto, source").is("deleted_at", null),
   ]);
 
   const parcelas = parcelasRes.data ?? [];
   const despesas = (despesasRes.data as Despesa[] | null) ?? [];
   const colaboradores = colabRes.data ?? [];
   const contratos = contratosRes.data ?? [];
-  const investimentos = (mktRes.data as { mes: string; valor_gasto: number }[] | null) ?? [];
+  const investimentos = dedupInvestimentos(
+    (mktRes.data as InvestimentoRow[] | null) ?? [],
+  );
 
   const marketingPorMes = (mes: string) =>
     investimentos

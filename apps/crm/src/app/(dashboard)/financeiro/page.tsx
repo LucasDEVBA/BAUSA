@@ -20,12 +20,14 @@ import { fetchCancellations } from "@/lib/war-room-queries";
 import { cn } from "@/lib/utils";
 import { NfEditRow } from "@/components/financeiro/NfEditRow";
 import { FinanceiroTabs } from "@/components/financeiro/FinanceiroTabs";
+import { FinanceiroDeepLink } from "@/components/financeiro/FinanceiroDeepLink";
 import { PageHeader, ScrollList, StatCard } from "@/components/ui";
 import { CancelamentoActions } from "@/components/financeiro/CancelamentoActions";
 import { SaidasView } from "@/components/financeiro/SaidasView";
 import { FolhaView } from "@/components/financeiro/FolhaView";
 import { ResultadoView } from "@/components/financeiro/ResultadoView";
 import { getFinanceiroMetrics, type FinanceiroMetrics } from "@/lib/financeiro-metrics";
+import { dedupInvestimentos, type InvestimentoRow } from "@/lib/marketing-spend";
 import { PLANO_VALORES } from "@/types/crm";
 import { DESPESA_CATEGORIA_LABEL, type Despesa, type Colaborador, type EmpresaDados } from "@/types/financeiro";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
@@ -68,14 +70,17 @@ function mapParcelaToReceivable(
   };
 }
 
-function ReceivableRow({ rec }: { rec: Receivable }) {
+function ReceivableRow({ rec, dealId }: { rec: Receivable; dealId?: string | null }) {
   const statusCfg = RECEIVABLE_STATUS_CONFIG[rec.status];
   const planCfg = PLAN_CONFIG[rec.plan];
   const dueDate = new Date(rec.due_date);
   const isOverdue = rec.status === "atrasado";
 
   return (
-    <tr className={cn("border-b border-border transition-colors hover:bg-accent", isOverdue && "bg-sys-red/5")}>
+    <tr
+      data-deal-id={dealId ?? undefined}
+      className={cn("border-b border-border transition-colors hover:bg-accent", isOverdue && "bg-sys-red/5")}
+    >
       <td className="py-3 pl-4 pr-3">
         <p className="text-sm font-medium text-foreground">{rec.client_name}</p>
         <p className="text-xs text-muted-foreground">{rec.description}</p>
@@ -153,7 +158,7 @@ interface ContractWithNf {
 }
 
 interface PageProps {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; deal?: string }>;
 }
 
 export default async function FinanceiroPage({ searchParams }: PageProps) {
@@ -169,8 +174,11 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  // Mapa contrato_id -> { plano, atletaNome }
-  const contratoMap = new Map<string, { plano: string; atletaNome: string }>();
+  // Mapa contrato_id -> { plano, atletaNome, deal_id }
+  const contratoMap = new Map<
+    string,
+    { plano: string; atletaNome: string; deal_id: string | null }
+  >();
   const contractsWithNf: ContractWithNf[] = [];
 
   for (const c of rawContratos ?? []) {
@@ -183,6 +191,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     contratoMap.set(c.id as string, {
       plano: (c.plano as string) ?? "",
       atletaNome,
+      deal_id: (c.deal_id as string) ?? null,
     });
 
     contractsWithNf.push({
@@ -245,12 +254,13 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
         .is("deleted_at", null),
       supabase
         .from("investimentos_marketing")
-        .select("valor_gasto")
+        .select("mes, canal, valor_gasto, source")
         .eq("mes", `${mesAtual}-01`)
         .is("deleted_at", null),
     ]);
     folhaMensal = (colabRes.data ?? []).reduce((s, c) => s + Number(c.custo_mensal_brl), 0);
-    marketingMensal = (mktRes.data ?? []).reduce((s, m) => s + Number(m.valor_gasto), 0);
+    marketingMensal = dedupInvestimentos((mktRes.data as InvestimentoRow[] | null) ?? [])
+      .reduce((s, m) => s + Number(m.valor_gasto), 0);
     for (const r of recorrRes.data ?? []) {
       custosRecorrentes.push({ nome: r.descricao as string, valor: Number(r.valor_brl), categoria: r.categoria as string });
     }
@@ -335,6 +345,8 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
         title="Gestão Financeira"
         description="Entradas, saídas, folha e resultado (DRE)"
       />
+
+      <FinanceiroDeepLink targetDeal={params.deal} />
 
       <Suspense fallback={null}>
         <FinanceiroTabs />
@@ -436,7 +448,11 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
               </thead>
               <tbody>
                 {cancellations.map((c) => (
-                  <tr key={c.id} className="border-b border-border transition-colors hover:bg-accent">
+                  <tr
+                    key={c.id}
+                    data-deal-id={c.id}
+                    className="border-b border-border transition-colors hover:bg-accent"
+                  >
                     <td className="py-3 pl-4 pr-3">
                       <p className="text-sm font-medium text-foreground">{c.athlete_name}</p>
                     </td>
@@ -806,7 +822,11 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                     .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
                     .slice(0, 30)
                     .map((rec) => (
-                      <ReceivableRow key={rec.id} rec={rec} />
+                      <ReceivableRow
+                        key={rec.id}
+                        rec={rec}
+                        dealId={contratoMap.get(rec.contract_id)?.deal_id ?? null}
+                      />
                     ))}
                 </tbody>
               </table>

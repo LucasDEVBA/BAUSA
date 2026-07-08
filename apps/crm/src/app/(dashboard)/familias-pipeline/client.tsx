@@ -46,6 +46,7 @@ import { FamiliasPipelineTable } from "./FamiliasPipelineTable";
 export interface FamiliaPipelineCard {
   id: string;
   atleta_id: string;
+  deal_id: string | null;
   athlete_name: string;
   guardian_name: string;
   whatsapp: string;
@@ -277,6 +278,32 @@ export function FamiliasPipelineClient({
   useEffect(() => {
     setCards(initialCards);
   }, [initialCards]);
+
+  // Deep-link: abre a modal da família ao chegar com ?openExperiencia / ?deal /
+  // ?atleta na URL (vindo de notificações ou da tela gerencial de famílias).
+  // Client-only (window.location) — sem Suspense e sem reabrir após limpar.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const openExp = params.get("openExperiencia");
+    const openDeal = params.get("deal");
+    const openAtleta = params.get("atleta");
+    if (!openExp && !openDeal && !openAtleta) return;
+    const match = cards.find(
+      (c) =>
+        (openExp && c.id === openExp) ||
+        (openDeal && c.deal_id === openDeal) ||
+        (openAtleta && c.atleta_id === openAtleta),
+    );
+    if (match) {
+      setSelectedCard(match);
+    } else {
+      toast.error("Família não encontrada nesta visão.");
+    }
+    // Remove o param sem navegar (não reabre em refresh nem polui o histórico),
+    // inclusive quando não há match — a URL não fica com param preso.
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [cards]);
 
   const filteredCards = useMemo(() => {
     const search = filters.search.trim().toLowerCase();

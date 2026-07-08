@@ -267,7 +267,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
       {/* Aviso LGPD + disparo controlado */}
       <div className="flex items-start gap-2.5 rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-3">
         <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-sys-orange" />
-        <p className="text-xs leading-relaxed text-sys-orange/80">
+        <p className="text-xs leading-relaxed text-sys-orange">
           <strong className="text-sys-orange">Disparo controlado (LGPD).</strong> WhatsApp sai
           em ritmo seguro (~120/dia, 30–45s, 9h–20h); e-mail com link de descadastro 1-clique.
           Ambos com opt-out e <strong> dry-run obrigatório</strong> antes do envio real. Contate

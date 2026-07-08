@@ -56,7 +56,7 @@ export function PipelineColumn({
       <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">
         {deals.length === 0 ? (
           <div className="flex flex-1 items-center justify-center py-6">
-            <p className="text-[10px] text-muted-foreground/60">vazio</p>
+            <p className="text-[10px] text-muted-foreground">vazio</p>
           </div>
         ) : (
           deals.map((deal) => (

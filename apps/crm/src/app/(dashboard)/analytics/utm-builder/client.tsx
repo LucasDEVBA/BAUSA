@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Copy,
   Check,
@@ -14,7 +15,14 @@ import {
   Video,
   Search,
   Megaphone,
+  Scissors,
+  MousePointerClick,
+  EyeOff,
 } from "lucide-react";
+import { toast } from "sonner";
+
+import { criarLinkCurto } from "@/lib/actions/links-curtos";
+import type { LinkCurtoRow } from "./page";
 
 // ─── Presets ────────────────────────────────────────────────────────────────
 
@@ -123,7 +131,8 @@ const PRESETS: Preset[] = [
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export function UtmBuilderClient() {
+export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
+  const router = useRouter();
   const [baseUrl] = useState("https://bolsaatletausa.com");
   const [source, setSource] = useState("");
   const [medium, setMedium] = useState("");
@@ -132,6 +141,13 @@ export function UtmBuilderClient() {
   const [term, setTerm] = useState("");
   const [copied, setCopied] = useState(false);
   const [copiedShort, setCopiedShort] = useState(false);
+  // Encurtador
+  const [creating, startCreate] = useTransition();
+  const [target, setTarget] = useState<"landing" | "forms">("landing");
+  const [titulo, setTitulo] = useState("");
+  const [shortSlug, setShortSlug] = useState<string | null>(null);
+  const [copiedShortLink, setCopiedShortLink] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const generatedUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -172,6 +188,46 @@ export function UtmBuilderClient() {
   }
 
   const hasParams = source || medium || campaign;
+
+  const buildShort = useCallback(
+    (slug: string) => `${baseUrl}/l/${slug}`,
+    [baseUrl],
+  );
+
+  function handleEncurtar() {
+    const destino = target === "forms" ? formsUrl : generatedUrl;
+    setShortSlug(null);
+    startCreate(async () => {
+      const result = await criarLinkCurto({
+        destino,
+        titulo: titulo.trim() || undefined,
+        utm_source: source || undefined,
+        utm_medium: medium || undefined,
+        utm_campaign: campaign || undefined,
+        utm_content: content || undefined,
+        utm_term: term || undefined,
+      });
+      if (result.success) {
+        setShortSlug(result.slug);
+        toast.success("Link curto criado — as UTMs ficam escondidas");
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  async function copiarShort(url: string) {
+    await navigator.clipboard.writeText(url);
+    setCopiedShortLink(true);
+    setTimeout(() => setCopiedShortLink(false), 2000);
+  }
+
+  async function copiarDaLista(id: string, url: string) {
+    await navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }
 
   return (
     <div className="space-y-4">
@@ -373,6 +429,170 @@ export function UtmBuilderClient() {
           </div>
         </div>
       </div>
+
+      {/* Encurtador — esconde as UTMs no link compartilhado */}
+      <section className="rounded-lg border border-primary/25 bg-card p-3.5 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Scissors className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">Encurtar link</h2>
+          <span className="flex items-center gap-1 rounded-full border border-sys-green/30 bg-sys-green/10 px-2 py-0.5 text-[10px] font-medium text-sys-green">
+            <EyeOff className="h-3 w-3" /> esconde as UTMs
+          </span>
+        </div>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Gera um link limpo{" "}
+          <span className="font-mono text-foreground">
+            {baseUrl.replace("https://", "")}/l/xxxx
+          </span>{" "}
+          que redireciona para a URL com UTMs — o link compartilhado não expõe os
+          parâmetros e os cliques são contados.
+        </p>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Destino
+            </label>
+            <div className="flex gap-1 rounded-lg border border-border bg-secondary p-1">
+              {(["landing", "forms"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTarget(t)}
+                  className={
+                    target === t
+                      ? "rounded-md bg-primary/15 px-3 py-1.5 text-xs font-medium text-foreground"
+                      : "rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  }
+                >
+                  {t === "landing" ? "Landing" : "Formulário"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="min-w-[180px] flex-1">
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Título{" "}
+              <span className="text-label-tertiary">(opcional — p/ identificar)</span>
+            </label>
+            <input
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              placeholder="ex.: Stories lançamento fall"
+              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary"
+            />
+          </div>
+
+          <button
+            onClick={handleEncurtar}
+            disabled={!hasParams || creating}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Scissors className="h-4 w-4" />
+            {creating ? "Gerando…" : "Gerar link curto"}
+          </button>
+        </div>
+
+        {shortSlug && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-sys-green/30 bg-sys-green/10 p-3">
+            <span className="break-all font-mono text-sm font-medium text-foreground">
+              {buildShort(shortSlug)}
+            </span>
+            <button
+              onClick={() => copiarShort(buildShort(shortSlug))}
+              className="ml-auto flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:opacity-90"
+            >
+              {copiedShortLink ? (
+                <>
+                  <Check className="h-3.5 w-3.5" /> Copiado!
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" /> Copiar
+                </>
+              )}
+            </button>
+          </div>
+        )}
+        {!hasParams && (
+          <p className="mt-2 text-xs text-label-tertiary">
+            Preencha os parâmetros UTM acima para gerar um link curto.
+          </p>
+        )}
+      </section>
+
+      {/* Meus links curtos */}
+      <section className="rounded-lg border border-border/70 bg-card/60 p-3.5">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground">
+            Meus links curtos
+          </h2>
+          <span className="text-xs text-muted-foreground">
+            {links.length} link(s)
+          </span>
+        </div>
+        {links.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Nenhum link curto ainda. Gere o primeiro acima.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">Link curto</th>
+                  <th className="py-2 pr-4 font-medium">Destino (com UTMs)</th>
+                  <th className="py-2 pr-4 text-right font-medium">Cliques</th>
+                  <th className="py-2 pr-4 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {links.map((l) => (
+                  <tr key={l.id} className="border-b border-border/50 text-foreground">
+                    <td className="py-2 pr-4">
+                      <span className="block font-mono text-xs font-medium">
+                        /l/{l.slug}
+                      </span>
+                      {l.titulo && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {l.titulo}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4">
+                      <span
+                        className="block max-w-[280px] truncate text-xs text-muted-foreground"
+                        title={l.destino}
+                      >
+                        {l.destino}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4 text-right">
+                      <span className="inline-flex items-center gap-1 tabular-nums text-muted-foreground">
+                        <MousePointerClick className="h-3 w-3" />
+                        {l.cliques}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4 text-right">
+                      <button
+                        onClick={() => copiarDaLista(l.id, buildShort(l.slug))}
+                        className="text-muted-foreground transition hover:text-primary"
+                        aria-label="Copiar link curto"
+                      >
+                        {copiedId === l.id ? (
+                          <Check className="h-4 w-4 text-sys-green" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

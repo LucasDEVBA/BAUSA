@@ -41,7 +41,7 @@
   --muted-foreground: #5b6b86;
   --accent: #e8eefb;
   --accent-foreground: #14213d;
-  --destructive: #e5484d;
+  --destructive: #cc3a3f;
   --destructive-foreground: #ffffff;
   --border: #e3e7f0;
   --input: #e3e7f0;
@@ -50,9 +50,9 @@
   /* — hierarquia de texto — */
   --label: #0e1726;
   --label-secondary: #5b6b86;
-  --label-tertiary: #8b98b0;
+  --label-tertiary: #69768d;   /* contraste AA (era #8b98b0 = 2.9:1, reprovado) */
   --label-quaternary: #b6c0d2;
-  --placeholder: #9aa6bd;
+  --placeholder: #78859e;      /* legível como dica (era #9aa6bd = 2.5:1) */
 
   /* — fills translúcidos (azul-tinta) — */
   --fill-1: rgba(24, 40, 80, 0.10);
@@ -65,8 +65,9 @@
   --separator-opaque: #e3e7f0;
 
   /* — cores de sistema (status — NÃO são marca) — */
-  --sys-red: #e5484d;     --sys-orange: #f2760a;  --sys-yellow: #e0a80d;
-  --sys-green: #2f9e44;   --sys-mint: #12b886;    --sys-teal: #0ca5b0;
+  /* status escurecidos p/ passar AA como TEXTO (também ótimos como fill) */
+  --sys-red: #cc3a3f;     --sys-orange: #c2540a;  --sys-yellow: #e0a80d;
+  --sys-green: #278239;   --sys-mint: #12b886;    --sys-teal: #0c8189;
   --sys-cyan: #1098ad;    --sys-blue: #2563eb;    --sys-indigo: #4f46e5;
   --sys-purple: #7c3aed;  --sys-pink: #e64980;    --sys-brown: #a16207;
 
@@ -144,9 +145,9 @@
 
   --label: #eef2fb;
   --label-secondary: #97a4c0;
-  --label-tertiary: #66759a;
+  --label-tertiary: #8391b0;   /* contraste AA no dark (era #66759a, reprovava em accent) */
   --label-quaternary: #46557a;
-  --placeholder: #66759a;
+  --placeholder: #8391b0;
 
   --fill-1: rgba(150, 170, 210, 0.16);
   --fill-2: rgba(150, 170, 210, 0.12);
@@ -493,3 +494,15 @@
   border-radius: 9999px;
 }
 .crm-scroll::-webkit-scrollbar-thumb:hover { background-color: var(--fill-1); }
+
+/* Deep-link highlight — destaca a linha alvo (ex.: /financeiro?deal=<id>) por ~3s */
+@keyframes deeplink-pulse {
+  0%, 25% { background-color: var(--fill-1); }
+  100% { background-color: transparent; }
+}
+.deeplink-highlight {
+  animation: deeplink-pulse 3s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .deeplink-highlight { animation: none; background-color: var(--fill-2); }
+}

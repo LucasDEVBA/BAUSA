@@ -230,7 +230,7 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
             <aside className="hidden w-[184px] shrink-0 overflow-y-auto border-r border-border bg-secondary/10 px-1.5 py-2 md:block">
               {(Object.keys(groupedNav) as Array<NavItem["group"]>).map((g) => (
                 <div key={g} className="mb-2 last:mb-0">
-                  <p className="px-2 pb-0.5 text-[9px] font-medium uppercase tracking-widest text-muted-foreground/60">
+                  <p className="px-2 pb-0.5 text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
                     {GROUP_LABEL[g]}
                   </p>
                   {groupedNav[g].map((it) => {
@@ -500,7 +500,7 @@ function EsporteSection({ lead }: { lead: Lead }) {
           <div className="space-y-2">
             {lead.club_history && (
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
+                <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
                   Histórico de clubes
                 </p>
                 <p className="mt-0.5 whitespace-pre-wrap text-xs text-foreground/90">
@@ -510,7 +510,7 @@ function EsporteSection({ lead }: { lead: Lead }) {
             )}
             {lead.achievements && (
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
+                <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
                   Conquistas
                 </p>
                 <p className="mt-0.5 whitespace-pre-wrap text-xs text-foreground/90">
@@ -698,7 +698,7 @@ function ComunicacoesSection({ lead }: { lead: Lead }) {
                     </span>
                   </div>
                   {e.descricao && (
-                    <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/80">
+                    <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
                       {e.descricao}
                     </p>
                   )}

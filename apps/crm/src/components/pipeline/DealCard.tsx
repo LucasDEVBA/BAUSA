@@ -156,7 +156,7 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
 
       {/* Motivo de perda */}
       {deal.lost_reason && (
-        <p className="mt-1 truncate text-[10px] italic text-sys-red/70">
+        <p className="mt-1 truncate text-[10px] italic text-sys-red">
           {deal.lost_reason}
         </p>
       )}

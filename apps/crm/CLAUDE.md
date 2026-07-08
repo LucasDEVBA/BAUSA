@@ -86,6 +86,18 @@ sonner — toasts
 
 ## Atualizações recentes
 
+### CAC — ROI exato por campanha + Insights de IA (2026-07)
+- **`/analytics/cac`** ganhou a seção **ROI exato por campanha**: gasto do Meta
+  (`meta_ads_campanha.campanha_id`) cruzado 1:1 com as conversões via
+  `form_submissions.utm_id` (contrato→deal→atleta→form_submission), série diária
+  de gasto, estado vazio de ativação. Query `fetchCampanhaMetrics` em
+  `src/lib/cac-queries.ts`. Distinto do "ROI por canal" (aproximado).
+- **Insights de IA** (Gemini, sob demanda, só CEO): `src/lib/gemini.ts` (client
+  server-side, gemini-2.5-flash, JSON mode, erros tipados) + server action
+  `gerarInsightsCac` em `src/lib/actions/cac-insights.ts` (Zod, sanitização do
+  nome de campanha, degradação graciosa). **Requer `GEMINI_API_KEY` no ambiente
+  do CRM (Vercel)** — sem ela a UI mostra "IA não configurada" sem quebrar.
+
 ### Redesign do zero — v2 (2026-07)
 - **Design System reconstruído do zero**, LIGHT-first, na **paleta oficial do brandbook** (azul
   `#193b8b`, bordô `#8e1824`, off-white; **sem dourado**). `globals.css` reescrito; nomes de token
