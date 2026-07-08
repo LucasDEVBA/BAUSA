@@ -1,0 +1,10 @@
+{
+  "name": "zapi-inbox",
+  "version": "1.0.0",
+  "description": "Espelho do WhatsApp — recebe webhooks da Z-API e grava mensagens em whatsapp_mensagens",
+  "main": "index.js",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.0"
+  }
+}

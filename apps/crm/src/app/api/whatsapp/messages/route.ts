@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
   cleanPhone,
   isValidPhone,
@@ -14,8 +15,22 @@ import { guardWhatsAppApi } from "../guard";
 export const dynamic = "force-dynamic";
 
 const MESSAGES_AMOUNT = 60;
+const MIRROR_LIMIT = 200;
 
-/** GET /api/whatsapp/messages?phone= — histórico da conversa via Z-API. */
+interface MirrorRow {
+  message_id: string;
+  phone: string;
+  from_me: boolean;
+  texto: string | null;
+  momment: string | null;
+}
+
+/**
+ * GET /api/whatsapp/messages?phone= — histórico da conversa.
+ * Fonte primária: espelho próprio (whatsapp_mensagens, alimentado pelo webhook
+ * da Z-API via CF zapi-inbox) — a instância multi-device não fornece histórico
+ * por API. Fallback: Z-API direto (tabela ausente pré-migration).
+ */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const guard = await guardWhatsAppApi();
   if ("response" in guard) return guard.response;
@@ -23,6 +38,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const phone = cleanPhone(request.nextUrl.searchParams.get("phone") ?? "");
   if (!isValidPhone(phone)) {
     return NextResponse.json({ error: "telefone_invalido" }, { status: 400 });
+  }
+
+  // ── Fonte primária: espelho no banco ──
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("whatsapp_mensagens")
+      .select("message_id, phone, from_me, texto, momment")
+      .eq("phone", phone)
+      .order("momment", { ascending: true })
+      .limit(MIRROR_LIMIT);
+
+    if (!error) {
+      const messages: EspelhoMessage[] = ((data as MirrorRow[] | null) ?? []).map(
+        (row) => ({
+          id: row.message_id,
+          phone: row.phone,
+          fromMe: row.from_me,
+          text: row.texto,
+          timestamp: row.momment ? Date.parse(row.momment) : null,
+        }),
+      );
+      logZapi("info", "messages_mirror_listed", {
+        phone: maskPhone(phone),
+        count: messages.length,
+      });
+      return NextResponse.json({ messages, mirror: true });
+    }
+    // Tabela ausente/erro → cai no fallback Z-API abaixo.
+    logZapi("warn", "messages_mirror_error", { code: error.code ?? "unknown" });
+  } catch {
+    // Falha no client Supabase — segue para o fallback.
   }
 
   try {
