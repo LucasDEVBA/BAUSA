@@ -82,6 +82,7 @@ function mapExperienciaToFamily(row: Record<string, unknown>): Family {
 
   return {
     id: row.id as string,
+    atleta_id: (row.atleta_id as string) ?? undefined,
     athlete_name: (atleta?.nome_completo as string) ?? "Atleta",
     athlete_position: (atleta?.posicao as string) ?? undefined,
     guardian_name: (responsavel?.nome as string) ?? "Responsavel",

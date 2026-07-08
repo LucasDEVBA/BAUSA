@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, Check, CheckCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,7 +33,48 @@ function timeAgo(dateStr: string): string {
   return `${days}d`;
 }
 
+/**
+ * Deriva o destino de uma notificação: leva o CEO EXATAMENTE ao contexto —
+ * família (abre a modal via ?deal), onboarding, financeiro ou remarketing.
+ * Os params ?deal/?openExperiencia são resolvidos pela tela de destino, que
+ * abre a modal correta automaticamente.
+ */
+function buildNotifHref(notif: Notificacao): string | null {
+  const dealParam = notif.deal_id ? `?deal=${notif.deal_id}` : "";
+  switch (notif.tipo) {
+    // Família / experiência → abre a modal da família no pipeline de famílias
+    case "handoff":
+    case "experiencia_alerta":
+    case "escalonamento":
+    case "crise":
+    case "nps_detrator":
+    case "psicologa_pendente":
+    case "sem_contato_critico":
+    case "mensagem_direta":
+    case "whatsapp_manual":
+    case "pdf":
+      return `/familias-pipeline${dealParam}`;
+    // Onboarding → acompanhamento das famílias recém-admitidas
+    case "onboarding_iniciado":
+    case "onboarding_etapa_concluida":
+    case "onboarding_concluido":
+      return "/war-room/familias-onboarding";
+    // Financeiro → a tela não consome ?deal ainda; respeita o link específico
+    // (ex.: ?tab=cancelamentos) ou cai na visão geral (não deixa param inerte).
+    case "entrada":
+    case "saldo":
+    case "cancelamento":
+      return notif.link || "/financeiro";
+    case "texto":
+      return "/remarketing";
+    default:
+      // Fallback: link explícito, senão família (se houver deal), senão nada.
+      return notif.link || (notif.deal_id ? `/familias-pipeline${dealParam}` : null);
+  }
+}
+
 export function NotificationCenter() {
+  const router = useRouter();
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -75,6 +117,14 @@ export function NotificationCenter() {
         setNotificacoes((prev) => prev.filter((n) => n.id !== id));
       }
     });
+  };
+
+  // Clique na notificação: navega para o contexto exato + marca como lida.
+  const handleNotifClick = (notif: Notificacao) => {
+    const href = buildNotifHref(notif);
+    handleMarcarLida(notif.id);
+    setOpen(false);
+    if (href) router.push(href);
   };
 
   const handleMarcarTodasLidas = () => {
@@ -146,10 +196,18 @@ export function NotificationCenter() {
               </div>
             ) : (
               displayList.map((notif) => (
-                <button
+                <div
                   key={notif.id}
-                  onClick={() => handleMarcarLida(notif.id)}
-                  className="flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-accent last:border-0"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleNotifClick(notif)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleNotifClick(notif);
+                    }
+                  }}
+                  className="flex w-full cursor-pointer items-start gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-accent last:border-0"
                 >
                   {/* Severity dot */}
                   <span
@@ -172,9 +230,18 @@ export function NotificationCenter() {
                     </p>
                   </div>
 
-                  {/* Mark as read icon */}
-                  <Check className="mt-1 h-3.5 w-3.5 flex-shrink-0 text-label-tertiary hover:text-primary" />
-                </button>
+                  {/* Marcar como lida (sem navegar) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarcarLida(notif.id);
+                    }}
+                    aria-label="Marcar como lida"
+                    className="mt-1 flex-shrink-0 text-label-tertiary transition-colors hover:text-primary"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               ))
             )}
           </div>

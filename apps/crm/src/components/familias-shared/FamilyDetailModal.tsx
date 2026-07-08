@@ -200,6 +200,15 @@ export function FamilyDetailModal({
   const tempCfg = TEMPERATURE_CONFIG[family.temperatura];
   const stageCfg = JOURNEY_STAGE_CONFIG[family.fase];
 
+  // Fecha com Escape (padrão dos demais modais: DealDetailModal, FormModal…).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const handleSaved = () => {
     onChanged?.();
     router.refresh();
@@ -211,6 +220,9 @@ export function FamilyDetailModal({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Detalhe da família ${family.athlete_name}`}
         className="w-full max-w-4xl max-h-[92vh] rounded-2xl flex flex-col overflow-hidden liquid-glass"
         onClick={(e) => e.stopPropagation()}
       >
@@ -1042,6 +1054,7 @@ function TabDocumentos({
   const [novoObs, setNovoObs] = useState("");
 
   useEffect(() => {
+    if (!atletaId) return;
     let cancelled = false;
     startLoadTransition(async () => {
       const data = (await listarDocumentos(atletaId)) as DocumentoRow[];
@@ -1104,6 +1117,16 @@ function TabDocumentos({
       }
     });
   };
+
+  if (!atletaId) {
+    return (
+      <div className="rounded-xl border border-dashed border-border py-10 text-center">
+        <p className="text-xs text-muted-foreground">
+          Atleta não vinculado a esta família — documentos indisponíveis.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[20rem] space-y-5">
