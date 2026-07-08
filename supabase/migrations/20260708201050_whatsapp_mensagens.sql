@@ -45,10 +45,13 @@ COMMENT ON TABLE public.whatsapp_mensagens IS 'Espelho do WhatsApp comercial —
 CREATE INDEX IF NOT EXISTS idx_whatsapp_msg_phone_momment
   ON public.whatsapp_mensagens (phone, momment DESC);
 
+-- RLS: leitura SÓ CEO (cto resolve p/ ceo) — a tela /whatsapp é CEO-only e o
+-- conteúdo é conversa pessoal integral; liberar p/ authenticated permitiria
+-- head/comercial lerem tudo via PostgREST direto, driblando o guard da UI.
 ALTER TABLE public.whatsapp_mensagens ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "whatsapp_msg_select" ON public.whatsapp_mensagens;
 CREATE POLICY "whatsapp_msg_select" ON public.whatsapp_mensagens
-  FOR SELECT TO authenticated USING (true);
+  FOR SELECT TO authenticated USING (public.get_user_papel() = 'ceo');
 DROP POLICY IF EXISTS "whatsapp_msg_service" ON public.whatsapp_mensagens;
 CREATE POLICY "whatsapp_msg_service" ON public.whatsapp_mensagens
   FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -75,7 +78,7 @@ BEGIN
     EXECUTE 'CREATE INDEX IF NOT EXISTS idx_whatsapp_msg_phone_momment ON uat.whatsapp_mensagens (phone, momment DESC)';
     EXECUTE 'ALTER TABLE uat.whatsapp_mensagens ENABLE ROW LEVEL SECURITY';
     EXECUTE 'DROP POLICY IF EXISTS "whatsapp_msg_select" ON uat.whatsapp_mensagens';
-    EXECUTE 'CREATE POLICY "whatsapp_msg_select" ON uat.whatsapp_mensagens FOR SELECT TO authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "whatsapp_msg_select" ON uat.whatsapp_mensagens FOR SELECT TO authenticated USING (public.get_user_papel() = ''ceo'')';
     EXECUTE 'DROP POLICY IF EXISTS "whatsapp_msg_service" ON uat.whatsapp_mensagens';
     EXECUTE 'CREATE POLICY "whatsapp_msg_service" ON uat.whatsapp_mensagens FOR ALL TO service_role USING (true) WITH CHECK (true)';
     EXECUTE 'GRANT SELECT ON uat.whatsapp_mensagens TO authenticated';
@@ -105,7 +108,7 @@ BEGIN
     EXECUTE 'CREATE INDEX IF NOT EXISTS idx_whatsapp_msg_phone_momment ON dev.whatsapp_mensagens (phone, momment DESC)';
     EXECUTE 'ALTER TABLE dev.whatsapp_mensagens ENABLE ROW LEVEL SECURITY';
     EXECUTE 'DROP POLICY IF EXISTS "whatsapp_msg_select" ON dev.whatsapp_mensagens';
-    EXECUTE 'CREATE POLICY "whatsapp_msg_select" ON dev.whatsapp_mensagens FOR SELECT TO authenticated USING (true)';
+    EXECUTE 'CREATE POLICY "whatsapp_msg_select" ON dev.whatsapp_mensagens FOR SELECT TO authenticated USING (public.get_user_papel() = ''ceo'')';
     EXECUTE 'DROP POLICY IF EXISTS "whatsapp_msg_service" ON dev.whatsapp_mensagens';
     EXECUTE 'CREATE POLICY "whatsapp_msg_service" ON dev.whatsapp_mensagens FOR ALL TO service_role USING (true) WITH CHECK (true)';
     EXECUTE 'GRANT SELECT ON dev.whatsapp_mensagens TO authenticated';

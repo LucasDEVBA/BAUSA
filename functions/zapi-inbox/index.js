@@ -20,10 +20,21 @@ const https = require('https');
 // Resposta sempre 200 para payloads não-mensagem (evita retry-storm).
 // ════════════════════════════════════════════════════════════════════════
 
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+// Token DEDICADO desta função (não o WEBHOOK_SECRET compartilhado): ele viaja
+// na query string e o Cloud Run loga a URL — vazar este token não compromete
+// os webhooks das demais funções. Setado manualmente via gcloud (ATIVACAO.md).
+const ZAPI_INBOX_TOKEN = process.env.ZAPI_INBOX_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
+// HARDCODED de propósito: a instância Z-API é única → o stream é SEMPRE dado
+// de produção, mesmo na função -uat. Env var aqui seria regressão silenciosa:
+// o deploy UAT injeta SUPABASE_SCHEMA=uat em todas as funções e desviaria o
+// stream p/ uat.whatsapp_mensagens enquanto o Engine lê public.
+const SUPABASE_SCHEMA = 'public';
+
+// Só callbacks de MENSAGEM viram linha; status/presença/conexão são ignorados
+// (sem allowlist, um webhook de status apontado aqui viraria linhas 'other').
+const TIPOS_CALLBACK_MENSAGEM = ['ReceivedCallback', 'SentCallback'];
 
 const PHONE_MIN = 10;
 const PHONE_MAX = 15;
@@ -62,7 +73,11 @@ const TIPOS_MIDIA = ['image', 'audio', 'video', 'document', 'sticker', 'location
 
 /** Extrai { tipo, texto } do payload — texto puro, caption de mídia, ou null. */
 function extrairConteudo(p) {
-  const textoPuro = p.text && typeof p.text.message === 'string' ? p.text.message.trim() : '';
+  // Z-API alterna entre text.message e body conforme o endpoint/versão
+  // (mesmo comportamento documentado em apps/crm/src/lib/whatsapp-espelho.ts).
+  const textoPuro =
+    (p.text && typeof p.text.message === 'string' ? p.text.message.trim() : '') ||
+    (typeof p.body === 'string' ? p.body.trim() : '');
   if (textoPuro) return { tipo: 'text', texto: textoPuro };
   for (const t of TIPOS_MIDIA) {
     if (p[t] && typeof p[t] === 'object') {
@@ -76,6 +91,9 @@ function extrairConteudo(p) {
 /** Normaliza um webhook de mensagem; null = payload que não é mensagem espelhável. */
 function normalizarMensagem(p) {
   if (!p || typeof p !== 'object') return null;
+  // Allowlist: callbacks de status/presença/conexão têm type próprio e não
+  // devem virar linha. type ausente → tenta normalizar (variantes da Z-API).
+  if (typeof p.type === 'string' && !TIPOS_CALLBACK_MENSAGEM.includes(p.type)) return null;
   const messageId = typeof p.messageId === 'string' && p.messageId ? p.messageId : null;
   const phone = cleanPhone(p.phone);
   // Sem id/telefone individual válido (grupos têm sufixo/ids longos) → ignora.
@@ -102,8 +120,9 @@ function normalizarMensagem(p) {
 // ─── Handler ─────────────────────────────────────────────────────────────
 
 functions.http('zapiInbox', async (req, res) => {
-  // Z-API não envia headers customizados → token na query string.
-  if (!WEBHOOK_SECRET || req.query.token !== WEBHOOK_SECRET) {
+  // Z-API não envia headers customizados → token dedicado na query string
+  // (fail-closed: sem ZAPI_INBOX_TOKEN configurado, nega tudo).
+  if (!ZAPI_INBOX_TOKEN || req.query.token !== ZAPI_INBOX_TOKEN) {
     log('WARN', 'auth_failed');
     return res.status(401).send({ success: false, error: 'Unauthorized' });
   }
@@ -135,7 +154,13 @@ functions.http('zapiInbox', async (req, res) => {
       },
       JSON.stringify(row),
     );
-    if (r.statusCode >= 400) throw new Error(`Supabase insert ${r.statusCode}: ${r.body.slice(0, 200)}`);
+    if (r.statusCode >= 400) {
+      // NÃO logar o body cru: em violação de constraint o Postgres devolve a
+      // linha inteira no DETAIL (phone + texto da mensagem = PII).
+      let pgCode = 'unknown';
+      try { pgCode = JSON.parse(r.body).code || 'unknown'; } catch { /* body não-JSON */ }
+      throw new Error(`Supabase insert ${r.statusCode} (code ${pgCode})`);
+    }
 
     log('INFO', 'mensagem_gravada', {
       phone: maskPhone(row.phone),

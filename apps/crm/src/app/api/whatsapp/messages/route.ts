@@ -43,31 +43,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // ── Fonte primária: espelho no banco ──
   try {
     const supabase = await createServerSupabaseClient();
+    // DESC + reverse: pega as N mais RECENTES (asc pegaria as mais antigas e
+    // congelaria a thread quando a conversa passasse do limite).
     const { data, error } = await supabase
       .from("whatsapp_mensagens")
       .select("message_id, phone, from_me, texto, momment")
       .eq("phone", phone)
-      .order("momment", { ascending: true })
+      .order("momment", { ascending: false, nullsFirst: false })
       .limit(MIRROR_LIMIT);
 
     if (!error) {
-      const messages: EspelhoMessage[] = ((data as MirrorRow[] | null) ?? []).map(
-        (row) => ({
+      const messages: EspelhoMessage[] = ((data as MirrorRow[] | null) ?? [])
+        .map((row) => ({
           id: row.message_id,
           phone: row.phone,
           fromMe: row.from_me,
           text: row.texto,
           timestamp: row.momment ? Date.parse(row.momment) : null,
-        }),
-      );
+        }))
+        .reverse();
       logZapi("info", "messages_mirror_listed", {
         phone: maskPhone(phone),
         count: messages.length,
       });
       return NextResponse.json({ messages, mirror: true });
     }
-    // Tabela ausente/erro → cai no fallback Z-API abaixo.
+
+    // Só cai no fallback Z-API se a TABELA não existe (pré-migration, 42P01).
+    // Erro transitório não pode virar o aviso multi-device na UI → 502 genérico.
     logZapi("warn", "messages_mirror_error", { code: error.code ?? "unknown" });
+    if (error.code !== "42P01") {
+      return NextResponse.json({ error: "zapi_erro" }, { status: 502 });
+    }
   } catch {
     // Falha no client Supabase — segue para o fallback.
   }

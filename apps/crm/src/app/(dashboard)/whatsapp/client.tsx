@@ -274,15 +274,20 @@ export function WhatsAppEspelhoClient() {
       const server = data.messages ?? [];
       // Mescla ecos locais ainda não confirmados pelo espelho (o webhook leva
       // ~1-2s p/ gravar o envio) — sem isso o eco pisca/some até o próximo poll.
+      // Consumo 1:1: cada linha do servidor confirma NO MÁXIMO um eco (enviar a
+      // mesma mensagem 2x em <2min não pode sumir com as duas).
+      const usadas = new Set<string>();
       const echoes = (sessionEchoesRef.current.get(phone) ?? []).filter((echo) => {
-        const confirmed = server.some(
+        const match = server.find(
           (msg) =>
+            !usadas.has(msg.id) &&
             msg.fromMe &&
             msg.text === echo.text &&
             Math.abs((msg.timestamp ?? 0) - (echo.timestamp ?? 0)) < ECHO_MATCH_WINDOW_MS,
         );
+        if (match) usadas.add(match.id);
         const expired = Date.now() - (echo.timestamp ?? 0) > ECHO_TTL_MS;
-        return !confirmed && !expired;
+        return !match && !expired;
       });
       sessionEchoesRef.current.set(phone, echoes);
       setHistoryUnavailable(false);
