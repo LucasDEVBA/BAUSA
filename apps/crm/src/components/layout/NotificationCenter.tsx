@@ -59,12 +59,14 @@ function buildNotifHref(notif: Notificacao): string | null {
     case "onboarding_etapa_concluida":
     case "onboarding_concluido":
       return "/war-room/familias-onboarding";
-    // Financeiro → a tela não consome ?deal ainda; respeita o link específico
-    // (ex.: ?tab=cancelamentos) ou cai na visão geral (não deixa param inerte).
+    // Financeiro → a tela destaca a linha do contrato/parcelas via ?deal.
+    case "cancelamento":
+      return `/financeiro?tab=cancelamentos${
+        notif.deal_id ? `&deal=${notif.deal_id}` : ""
+      }`;
     case "entrada":
     case "saldo":
-    case "cancelamento":
-      return notif.link || "/financeiro";
+      return notif.deal_id ? `/financeiro?deal=${notif.deal_id}` : "/financeiro";
     case "texto":
       return "/remarketing";
     default:
