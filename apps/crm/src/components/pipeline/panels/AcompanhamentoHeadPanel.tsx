@@ -187,7 +187,7 @@ export function AcompanhamentoHeadPanel({ atletaId }: Props) {
           )}
           {exp.descricao_problema && (
             <div>
-              <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
+              <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
                 Problema
               </p>
               <p className="mt-0.5 text-xs text-foreground/90">
@@ -197,7 +197,7 @@ export function AcompanhamentoHeadPanel({ atletaId }: Props) {
           )}
           {exp.acao_em_andamento && (
             <div>
-              <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
+              <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
                 Ação em andamento
               </p>
               <p className="mt-0.5 text-xs text-foreground/90">

@@ -99,7 +99,7 @@ export function MinimalField({
     value !== null && value !== undefined && value !== "" && value !== "—";
   return (
     <div className="py-1">
-      <dt className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
+      <dt className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
         {label}
       </dt>
       <dd

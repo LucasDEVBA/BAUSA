@@ -767,7 +767,7 @@ function FamilyEditForm({
             </>
           )}
 
-          <p className="text-[10px] text-sys-orange/80">
+          <p className="text-[10px] text-sys-orange">
             Ao salvar, o CEO será notificado automaticamente.
           </p>
         </Card>

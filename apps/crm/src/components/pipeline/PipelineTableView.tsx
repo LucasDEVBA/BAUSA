@@ -264,7 +264,7 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
                         )}
                       </>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground/60">
+                      <span className="text-[10px] text-muted-foreground">
                         —
                       </span>
                     )}

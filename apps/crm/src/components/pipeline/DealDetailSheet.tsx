@@ -487,7 +487,7 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
                       <p key={campo} className="text-xs text-muted-foreground">
                         <span className="font-medium text-foreground">{label}</span>
                         {anterior != null && (
-                          <span className="text-label-tertiary"> de <span className="text-sys-red/70">{String(anterior)}</span></span>
+                          <span className="text-label-tertiary"> de <span className="text-sys-red">{String(anterior)}</span></span>
                         )}
                         <span className="text-label-tertiary"> para </span>
                         <span className={color}>{String(novo ?? "—")}</span>
