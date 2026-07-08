@@ -201,7 +201,9 @@ SUPABASE_URL=<url>,SUPABASE_SERVICE_KEY=<service key>,SUPABASE_SCHEMA=uat,WEBHOO
 
 | Projeto | Ambiente | Env vars |
 |---|---|---|
-| `bolsa-atleta-crm` (Engine) | Preview (UAT) + Production (PRD) | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_SCHEMA` (`uat` no Preview / omitir no PRD), **`GEMINI_API_KEY`** (novo), `SUPABASE_SERVICE_KEY`, `SEND_WHATSAPP_URL`, `WEBHOOK_SECRET`, `SERVICE_ACCOUNT_*`, `GOOGLE_CALENDAR_ID`, `CEO_WHATSAPP`, `NEXT_PUBLIC_GTM_ID` |
+| `bolsa-atleta-crm` (Engine) | Preview (UAT) + Production (PRD) | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_SCHEMA` (`uat` no Preview / omitir no PRD), **`GEMINI_API_KEY`** ✅, `SUPABASE_SERVICE_KEY` ✅, `SEND_WHATSAPP_URL` ✅, `SEND_MESSAGES_URL` ✅, **`ZAPI_INSTANCE_ID`/`ZAPI_TOKEN`/`ZAPI_CLIENT_TOKEN`** ✅ (espelho WhatsApp), `WEBHOOK_SECRET`, `SERVICE_ACCOUNT_*`, `GOOGLE_CALENDAR_ID`, `CEO_WHATSAPP`, `NEXT_PUBLIC_GTM_ID` |
+
+> **Espelho WhatsApp — limitação conhecida:** a instância Z-API é **multi-device** e NÃO fornece histórico de conversa por API (`400 "Does not work in multi device version"`). A tela mostra lista/fotos/infos + envios da sessão. **Histórico completo** exige armazenamento via webhook (CF receptora + tabela `whatsapp_mensagens`) — 🧑‍💼 decisão pendente: conferir no painel Z-API se já há webhook configurado (apontar o nosso sobrescreve o existente) e autorizar a construção.
 | `bausa-web` (site) | Preview (UAT) + Production (PRD) | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_SCHEMA`, `SUPABASE_SERVICE_ROLE_KEY` (redirect `/l/[slug]` + webhooks) |
 
 ---

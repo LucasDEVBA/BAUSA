@@ -32,6 +32,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
 
     if (!result.ok) {
+      // Instâncias multi-device da Z-API não expõem histórico por API
+      // (400 "Does not work in multi device version") — limitação permanente
+      // do plano, não instabilidade. A UI mostra o estado honesto em vez de
+      // "tente novamente".
+      const zapiError =
+        typeof (result.data as { error?: unknown } | null)?.error === "string"
+          ? (result.data as { error: string }).error
+          : "";
+      if (result.status === 400 && zapiError.toLowerCase().includes("multi device")) {
+        logZapi("info", "messages_history_unavailable_multidevice", {
+          phone: maskPhone(phone),
+        });
+        return NextResponse.json({ messages: [], historyUnavailable: true });
+      }
+
       logZapi("error", "messages_zapi_error", {
         phone: maskPhone(phone),
         zapiStatus: result.status,

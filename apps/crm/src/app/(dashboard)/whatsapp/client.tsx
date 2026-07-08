@@ -9,6 +9,7 @@ import { cn, getInitials } from "@/lib/utils";
 import {
   formatPhoneDisplay,
   type EspelhoChat,
+  type EspelhoContact,
   type EspelhoMessage,
 } from "@/lib/whatsapp-espelho";
 
@@ -28,7 +29,16 @@ interface ChatsResponse {
 
 interface MessagesResponse {
   messages?: EspelhoMessage[];
+  /** true = instância Z-API multi-device não expõe histórico por API. */
+  historyUnavailable?: boolean;
 }
+
+interface ContactResponse {
+  contact?: EspelhoContact;
+}
+
+/** Contatos buscados em lotes p/ não estourar rate limit da Z-API. */
+const CONTACTS_CHUNK_SIZE = 4;
 
 interface SendResponse {
   success?: boolean;
@@ -52,14 +62,44 @@ function isAbortError(error: unknown): boolean {
 
 // ─── Sub-componentes ─────────────────────────────────────────────
 
+/** Avatar com foto real do WhatsApp (fallback: iniciais no gradiente de marca). */
+function ChatAvatar({ name, imgUrl }: { name: string | null; imgUrl: string | null }) {
+  // Erro rastreado POR URL: trocar de contato (header sem key por chat) não
+  // pode herdar o "failed" da foto expirada do contato anterior.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const failed = imgUrl !== null && failedUrl === imgUrl;
+  if (imgUrl && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- foto externa da Z-API (pps.whatsapp.net); domínio dinâmico fora do next/image
+      <img
+        src={imgUrl}
+        alt=""
+        aria-hidden
+        referrerPolicy="no-referrer"
+        onError={() => setFailedUrl(imgUrl)}
+        className="size-9 shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white"
+    >
+      {name ? getInitials(name) : <MessageCircle className="size-4" />}
+    </span>
+  );
+}
+
 interface ChatListItemProps {
   chat: EspelhoChat;
+  contact: EspelhoContact | null;
   selected: boolean;
   onSelect: (phone: string) => void;
 }
 
-function ChatListItem({ chat, selected, onSelect }: ChatListItemProps) {
-  const displayName = chat.name ?? formatPhoneDisplay(chat.phone);
+function ChatListItem({ chat, contact, selected, onSelect }: ChatListItemProps) {
+  const displayName = chat.name ?? contact?.name ?? formatPhoneDisplay(chat.phone);
 
   return (
     <button
@@ -71,12 +111,7 @@ function ChatListItem({ chat, selected, onSelect }: ChatListItemProps) {
         selected ? "bg-primary/10" : "hover:bg-accent",
       )}
     >
-      <span
-        aria-hidden
-        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white"
-      >
-        {chat.name ? getInitials(chat.name) : <MessageCircle className="size-4" />}
-      </span>
+      <ChatAvatar name={chat.name ?? contact?.name ?? null} imgUrl={contact?.imgUrl ?? null} />
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
           <span className="truncate text-sm font-medium text-foreground">{displayName}</span>
@@ -154,6 +189,8 @@ export function WhatsAppEspelhoClient() {
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [messages, setMessages] = useState<EspelhoMessage[]>([]);
   const [messagesStatus, setMessagesStatus] = useState<LoadStatus>("ready");
+  const [historyUnavailable, setHistoryUnavailable] = useState(false);
+  const [contacts, setContacts] = useState<Record<string, EspelhoContact | null>>({});
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -161,7 +198,17 @@ export function WhatsAppEspelhoClient() {
 
   const chatsAbortRef = useRef<AbortController | null>(null);
   const messagesAbortRef = useRef<AbortController | null>(null);
+  const contactsInflightRef = useRef<Set<string>>(new Set());
+  const contactsCacheRef = useRef<Record<string, EspelhoContact | null>>({});
+  /** Conversa aberta AGORA — guard contra eco/refetch na thread errada após await. */
+  const selectedPhoneRef = useRef<string | null>(null);
+  /** Ecos de envios da sessão, por conversa — sobrevivem à troca de chat (multi-device). */
+  const sessionEchoesRef = useRef<Map<string, EspelhoMessage[]>>(new Map());
   const threadRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    selectedPhoneRef.current = selectedPhone;
+  }, [selectedPhone]);
 
   // ── Fetchers (proxy server-side — credenciais Z-API nunca chegam aqui) ──
 
@@ -208,6 +255,14 @@ export function WhatsAppEspelhoClient() {
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as MessagesResponse;
+      if (data.historyUnavailable) {
+        // Multi-device: sem histórico via API. NÃO sobrescreve as mensagens
+        // locais (ecos de envios desta sessão continuam visíveis).
+        setHistoryUnavailable(true);
+        setMessagesStatus("ready");
+        return;
+      }
+      setHistoryUnavailable(false);
       setMessages(data.messages ?? []);
       setMessagesStatus("ready");
     } catch (error) {
@@ -215,6 +270,64 @@ export function WhatsAppEspelhoClient() {
       if (!opts?.silent) setMessagesStatus("error");
     }
   }, []);
+
+  // ── Metadados de contato (foto/nome/about) — lotes com cache em memória ──
+  // Cache em ref (fonte da verdade de "já buscado") + estado só p/ render:
+  // o efeito depende apenas de `chats`, sem churn de cancel/refetch.
+
+  useEffect(() => {
+    const cache = contactsCacheRef.current;
+    const inflight = contactsInflightRef.current;
+    const pending = chats
+      .map((chat) => chat.phone)
+      .filter((phone) => !(phone in cache) && !inflight.has(phone));
+    if (pending.length === 0) {
+      // Sincroniza resultados que chegaram após um cancelamento (bail-out se igual —
+      // evita re-render a cada poll de chats).
+      setContacts((prev) =>
+        Object.keys(prev).length === Object.keys(cache).length ? prev : { ...cache },
+      );
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      for (let i = 0; i < pending.length; i += CONTACTS_CHUNK_SIZE) {
+        if (cancelled) break;
+        const batch = pending.slice(i, i + CONTACTS_CHUNK_SIZE);
+        // Marca inflight SÓ o batch que vai de fato buscar — cancelamento no meio
+        // (poll de 30s / StrictMode) não deixa phones presos p/ sempre (starvation).
+        batch.forEach((phone) => inflight.add(phone));
+        const results = await Promise.all(
+          batch.map(async (phone): Promise<[string, EspelhoContact | null]> => {
+            try {
+              const res = await fetch(
+                `/api/whatsapp/contact?phone=${encodeURIComponent(phone)}`,
+                { cache: "no-store" },
+              );
+              if (!res.ok) return [phone, null];
+              const data = (await res.json()) as ContactResponse;
+              return [phone, data.contact ?? null];
+            } catch {
+              return [phone, null];
+            }
+          }),
+        );
+        for (const [phone, contact] of results) {
+          cache[phone] = contact;
+          inflight.delete(phone);
+        }
+        if (!cancelled) setContacts({ ...cache });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      // Batch em voo ainda grava no cache e sai do inflight ao concluir; o branch
+      // de sincronização acima entrega esses resultados na próxima execução.
+    };
+  }, [chats]);
 
   // ── Carga inicial + polling da lista (30s, pausa com aba oculta) ──
 
@@ -234,7 +347,10 @@ export function WhatsAppEspelhoClient() {
 
   useEffect(() => {
     if (!selectedPhone) return;
-    setMessages([]);
+    // Semeia com os ecos da sessão desta conversa (no multi-device o servidor
+    // não devolve histórico — sem isso, trocar de chat apagaria os envios).
+    setMessages(sessionEchoesRef.current.get(selectedPhone) ?? []);
+    setHistoryUnavailable(false);
     void fetchMessages(selectedPhone);
 
     const interval = setInterval(() => {
@@ -258,6 +374,12 @@ export function WhatsAppEspelhoClient() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    // Ação explícita do usuário: re-tenta contatos que falharam (cache null) —
+    // o refetch de chats re-dispara o loader sem tempestade no polling.
+    const cache = contactsCacheRef.current;
+    for (const key of Object.keys(cache)) {
+      if (cache[key] === null) delete cache[key];
+    }
     try {
       await Promise.all([
         fetchChats({ silent: true }),
@@ -273,13 +395,16 @@ export function WhatsAppEspelhoClient() {
       event.preventDefault();
       const message = draft.trim();
       if (!selectedPhone || message.length === 0 || sending) return;
+      // Captura a conversa-alvo ANTES do await — o usuário pode trocar de chat
+      // com o envio em voo (a lista continua clicável).
+      const phone = selectedPhone;
 
       setSending(true);
       try {
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: selectedPhone, message }),
+          body: JSON.stringify({ phone, message }),
         });
         const data = (await res.json().catch(() => null)) as SendResponse | null;
 
@@ -293,18 +418,23 @@ export function WhatsAppEspelhoClient() {
         }
 
         setDraft("");
-        // Eco otimista + refetch para confirmar com o histórico real da Z-API.
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `local-${Date.now()}`,
-            phone: selectedPhone,
-            fromMe: true,
-            text: message,
-            timestamp: Date.now(),
-          },
+        const echo: EspelhoMessage = {
+          id: `local-${Date.now()}`,
+          phone,
+          fromMe: true,
+          text: message,
+          timestamp: Date.now(),
+        };
+        // Persiste o eco por conversa (sessão) — reaparece ao voltar ao chat.
+        sessionEchoesRef.current.set(phone, [
+          ...(sessionEchoesRef.current.get(phone) ?? []),
+          echo,
         ]);
-        void fetchMessages(selectedPhone, { silent: true });
+        // Se o usuário já está noutra conversa, não contamina a thread aberta
+        // nem aborta o fetch dela — o eco fica guardado para quando voltar.
+        if (selectedPhoneRef.current !== phone) return;
+        setMessages((prev) => [...prev, echo]);
+        void fetchMessages(phone, { silent: true });
       } catch {
         toast.error("Falha ao enviar a mensagem. Verifique a conexão.");
       } finally {
@@ -332,7 +462,12 @@ export function WhatsAppEspelhoClient() {
     [chats, selectedPhone],
   );
 
-  const selectedDisplayName = selectedChat?.name ?? (selectedPhone ? formatPhoneDisplay(selectedPhone) : "");
+  const selectedContact = selectedPhone ? (contacts[selectedPhone] ?? null) : null;
+
+  const selectedDisplayName =
+    selectedChat?.name ??
+    selectedContact?.name ??
+    (selectedPhone ? formatPhoneDisplay(selectedPhone) : "");
 
   // ── Render ──
 
@@ -419,6 +554,7 @@ export function WhatsAppEspelhoClient() {
                   <ChatListItem
                     key={chat.phone}
                     chat={chat}
+                    contact={contacts[chat.phone] ?? null}
                     selected={chat.phone === selectedPhone}
                     onSelect={setSelectedPhone}
                   />
@@ -440,16 +576,19 @@ export function WhatsAppEspelhoClient() {
             ) : (
               <>
                 <div className="flex shrink-0 items-center gap-2.5 border-b border-border px-4 py-3">
-                  <span
-                    aria-hidden
-                    className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white"
-                  >
-                    {selectedChat?.name ? getInitials(selectedChat.name) : <MessageCircle className="size-4" />}
-                  </span>
+                  <ChatAvatar
+                    name={selectedChat?.name ?? selectedContact?.name ?? null}
+                    imgUrl={selectedContact?.imgUrl ?? null}
+                  />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">{selectedDisplayName}</p>
                     <p className="truncate text-xs tabular-nums text-muted-foreground">
                       {formatPhoneDisplay(selectedPhone)}
+                      {selectedContact?.about ? (
+                        <span className="ml-2 font-normal not-italic text-label-tertiary">
+                          · {selectedContact.about}
+                        </span>
+                      ) : null}
                     </p>
                   </div>
                 </div>
@@ -474,6 +613,14 @@ export function WhatsAppEspelhoClient() {
                       }
                     />
                   </div>
+                ) : messages.length === 0 && historyUnavailable ? (
+                  <div className="flex flex-1 items-center justify-center px-6">
+                    <EmptyState
+                      icon={TriangleAlert}
+                      title="Histórico indisponível nesta instância Z-API"
+                      description="Instâncias multi-device da Z-API não fornecem o histórico de conversas por API. As mensagens que você enviar por aqui aparecem durante a sessão — para o espelho completo, é preciso ativar o armazenamento via webhook (ver docs/ATIVACAO.md)."
+                    />
+                  </div>
                 ) : messages.length === 0 ? (
                   <div className="flex flex-1 items-center justify-center">
                     <EmptyState
@@ -483,11 +630,18 @@ export function WhatsAppEspelhoClient() {
                     />
                   </div>
                 ) : (
-                  <ScrollList ref={threadRef} className="space-y-2 p-4" aria-label="Histórico da conversa">
-                    {messages.map((message) => (
-                      <MessageBubble key={message.id} message={message} />
-                    ))}
-                  </ScrollList>
+                  <>
+                    {historyUnavailable && (
+                      <p className="shrink-0 border-b border-border bg-secondary px-4 py-1.5 text-center text-[11px] text-muted-foreground">
+                        Histórico completo indisponível (Z-API multi-device) — mostrando as mensagens desta sessão.
+                      </p>
+                    )}
+                    <ScrollList ref={threadRef} className="space-y-2 p-4" aria-label="Histórico da conversa">
+                      {messages.map((message) => (
+                        <MessageBubble key={message.id} message={message} />
+                      ))}
+                    </ScrollList>
+                  </>
                 )}
 
                 <form
