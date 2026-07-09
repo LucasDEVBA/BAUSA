@@ -28,6 +28,7 @@ import {
   EmptyState,
   BrandTabs,
   StatCard,
+  useConfirm,
   type BadgeTone,
 } from "@/components/ui";
 import {
@@ -98,6 +99,7 @@ export function AutomacoesClient({
   agora: number;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [builder, setBuilder] = useState<BuilderState | null>(null);
   const [activeTab, setActiveTab] = useState<"automacoes" | "execucoes">("automacoes");
@@ -159,8 +161,14 @@ export function AutomacoesClient({
     });
   };
 
-  const excluir = (a: AutomacaoComStats) => {
-    if (!window.confirm(`Excluir a automação “${a.nome}”? Os runs históricos são preservados.`)) return;
+  const excluir = async (a: AutomacaoComStats) => {
+    const ok = await confirm({
+      title: "Excluir automação?",
+      description: `“${a.nome}” será excluída. Os runs históricos são preservados.`,
+      confirmLabel: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
     startTransition(async () => {
       const result = await excluirAutomacao(a.id);
       if (!result.success) {

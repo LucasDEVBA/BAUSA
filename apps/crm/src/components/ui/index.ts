@@ -25,3 +25,9 @@ export { PeriodSelector, type PeriodSelectorProps, type PeriodOption } from "./P
 export { BrandTabs, type BrandTab } from "./BrandTabs";
 export { ScrollList, type ScrollListProps } from "./ScrollList";
 export { HeaderMenu, type HeaderMenuProps } from "./HeaderMenu";
+export {
+  ConfirmProvider,
+  useConfirm,
+  type ConfirmOptions,
+  type ConfirmTone,
+} from "./ConfirmDialog";

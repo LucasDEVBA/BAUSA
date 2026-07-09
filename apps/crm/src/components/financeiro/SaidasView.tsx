@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge, Card, EmptyState, ScrollList, StatCard, type BadgeTone } from "@/components/ui";
+import { Badge, Card, EmptyState, ScrollList, StatCard, useConfirm, type BadgeTone } from "@/components/ui";
 import {
   removerDespesa,
   marcarDespesaPaga,
@@ -57,6 +57,7 @@ const STATUS_TONE: Record<DespesaStatus, BadgeTone> = {
 
 export function SaidasView({ despesas, empresa }: { despesas: Despesa[]; empresa: EmpresaDados }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Despesa | null>(null);
@@ -110,8 +111,14 @@ export function SaidasView({ despesas, empresa }: { despesas: Despesa[]; empresa
     });
   };
 
-  const remover = (d: Despesa) => {
-    if (!window.confirm(`Remover "${d.descricao}"?`)) return;
+  const remover = async (d: Despesa) => {
+    const ok = await confirm({
+      title: "Remover despesa?",
+      description: `“${d.descricao}” será removida do lançamento.`,
+      confirmLabel: "Remover",
+      tone: "danger",
+    });
+    if (!ok) return;
     run(() => removerDespesa(d.id), "Despesa removida");
   };
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Users, UserPlus, Pencil, Trash2, Wallet, UserCheck, ReceiptText, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge, Card, EmptyState, ScrollList, StatCard, type BadgeTone } from "@/components/ui";
+import { Badge, Card, EmptyState, ScrollList, StatCard, useConfirm, type BadgeTone } from "@/components/ui";
 import { removerColaborador } from "@/lib/actions/colaboradores";
 import { TIPO_CONTRATO_LABEL, type Colaborador, type EmpresaDados } from "@/types/financeiro";
 import { ColaboradorFormModal } from "./ColaboradorFormModal";
@@ -26,6 +26,7 @@ const TIPO_TONE: Record<Colaborador["tipo_contrato"], BadgeTone> = {
 
 export function FolhaView({ colaboradores, empresa }: { colaboradores: Colaborador[]; empresa: EmpresaDados }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Colaborador | null>(null);
@@ -45,8 +46,14 @@ export function FolhaView({ colaboradores, empresa }: { colaboradores: Colaborad
     setSheetOpen(true);
   };
 
-  const remover = (c: Colaborador) => {
-    if (!window.confirm(`Remover ${c.nome} da folha?`)) return;
+  const remover = async (c: Colaborador) => {
+    const ok = await confirm({
+      title: "Remover da folha?",
+      description: `${c.nome} será removido(a) da folha de pagamento.`,
+      confirmLabel: "Remover",
+      tone: "danger",
+    });
+    if (!ok) return;
     startTransition(async () => {
       const result = await removerColaborador(c.id);
       if (result.success) {

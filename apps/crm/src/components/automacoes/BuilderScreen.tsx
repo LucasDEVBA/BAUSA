@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, ListChecks, Plus, Trash2, Workflow, X } from "lucide-react";
 
-import { BrandTabs, Button, Card } from "@/components/ui";
+import { BrandTabs, Button, Card, useConfirm } from "@/components/ui";
 import { ACAO_CATALOG, type AutomacaoAcaoTipo } from "@/types/automacao";
 
 import { AcaoForm, CondicaoForm, GatilhoForm } from "./BuilderForms";
@@ -50,6 +50,7 @@ export function BuilderScreen({
   onClose,
   onSave,
 }: BuilderScreenProps) {
+  const confirm = useConfirm();
   const [view, setView] = useState<BuilderView>("fluxo");
   const [selection, setSelection] = useState<FlowSelection | null>(null);
   const [ghostMenu, setGhostMenu] = useState<GhostMenu>(null);
@@ -63,10 +64,19 @@ export function BuilderScreen({
     [builder],
   );
 
-  const requestClose = useCallback(() => {
-    if (isDirty() && !window.confirm("Descartar as alterações desta automação?")) return;
+  const requestClose = useCallback(async () => {
+    if (
+      isDirty() &&
+      !(await confirm({
+        title: "Descartar alterações?",
+        description: "As alterações não salvas desta automação serão perdidas.",
+        confirmLabel: "Descartar",
+        tone: "danger",
+      }))
+    )
+      return;
     onClose();
-  }, [isDirty, onClose]);
+  }, [isDirty, onClose, confirm]);
 
   // ESC: fecha menu fantasma → painel lateral → (com confirmação) o builder
   useEffect(() => {
