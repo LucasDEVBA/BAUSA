@@ -106,6 +106,17 @@ export function MensagemPreview({
       {canal === "whatsapp" ? (
         <div className="rounded-xl bg-secondary/60 p-3">
           <div className="ml-auto w-fit max-w-[92%] rounded-lg rounded-tr-sm border border-sys-green/20 bg-sys-green/15 px-2.5 py-1.5 shadow-sm">
+            {temImagem && !temLink && (
+              // Imagem sem link → mídia nativa (o texto vira legenda abaixo).
+              <div className="mb-1.5 overflow-hidden rounded-md">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imagemUrl}
+                  alt="Imagem da mensagem"
+                  className="max-h-40 w-full rounded-md object-cover"
+                />
+              </div>
+            )}
             {temLink && (
               <div className="mb-1.5 overflow-hidden rounded-md bg-card/80">
                 {temImagem && (

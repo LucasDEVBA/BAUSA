@@ -26,7 +26,7 @@ import { getUserPapel } from "@/lib/auth";
 const MENSAGEM_MIN = 5;
 const MENSAGEM_MAX = 2000;
 const ASSUNTO_MAX = 150;
-const LINK_TITULO_MAX = 120;
+const LINK_TITULO_MAX = 200;
 const CF_TIMEOUT_MS = 30_000;
 
 const urlHttp = z
@@ -195,6 +195,24 @@ async function chamarCloudFunction(
         error: `Erro HTTP ${response.status} no envio${corpo ? `: ${corpo.slice(0, 200)}` : "."}`,
       };
     }
+    // A CF responde HTTP 200 mesmo quando o Z-API falha na ENTREGA — o
+    // resultado real por destinatário vem em `results[].success`. Sem isto, um
+    // envio falho (imagem inacessível, número fora do WhatsApp) reportaria
+    // "enviado" sem entregar (falso positivo). Shape ausente → assume ok
+    // (compat. com CFs que não devolvem `results`, ex.: e-mail).
+    const corpo = (await response.json().catch(() => null)) as
+      | { results?: Array<{ success?: boolean; error?: string }> }
+      | null;
+    const results = Array.isArray(corpo?.results) ? corpo.results : null;
+    const falho = results?.find((r) => r?.success === false);
+    if (falho) {
+      return {
+        ok: false,
+        error: falho.error
+          ? `Falha na entrega: ${String(falho.error).slice(0, 200)}`
+          : "O serviço de envio reportou falha na entrega.",
+      };
+    }
     return { ok: true };
   } catch (err) {
     const timeout = err instanceof Error && err.name === "TimeoutError";
@@ -252,10 +270,13 @@ export async function enviarMensagemDireta(
       messageType: "meeting_confirmed",
       customMessage: mensagem,
       phone: dest.telefone,
-      // Contrato I2: imagem só acompanha o card do link (linkImage).
+      // Com link: imagem acompanha o card (linkImage). Sem link mas com imagem:
+      // envia a imagem como mídia nativa (/send-image) com o texto de legenda.
       ...(linkUrl
         ? { linkUrl, linkTitle: linkTitulo || undefined, linkImage: imagemUrl || undefined }
-        : {}),
+        : imagemUrl
+          ? { imageUrl: imagemUrl }
+          : {}),
     });
   } else {
     if (!dest.email) return { success: false, error: "Lead sem e-mail cadastrado." };
