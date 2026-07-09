@@ -313,7 +313,7 @@ export async function atualizarAutomacao(
 
   try {
     const supabase = await createAuditedSupabaseClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("automacoes")
       .update({
         nome: parsed.data.nome,
@@ -324,9 +324,15 @@ export async function atualizarAutomacao(
         acoes: parsed.data.acoes,
       })
       .eq("id", id)
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      // Âncoras de sistema (Fase 2b) não são editáveis pelo builder
+      .neq("gatilho", "sistema")
+      .select("id");
 
     if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Automação não encontrada (ou é uma automação do sistema)." };
+    }
     revalidatePath("/automacoes");
     return { success: true, id };
   } catch (err) {
@@ -344,13 +350,19 @@ export async function alternarAtivoAutomacao(id: string, ativo: boolean): Promis
 
   try {
     const supabase = await createAuditedSupabaseClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("automacoes")
       .update({ ativo })
       .eq("id", id)
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      // Âncoras de sistema (Fase 2b): nunca ativas — a engine não pode vê-las
+      .neq("gatilho", "sistema")
+      .select("id");
 
     if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Automação não encontrada (ou é uma automação do sistema)." };
+    }
     revalidatePath("/automacoes");
     return { success: true, id };
   } catch (err) {
@@ -769,6 +781,26 @@ export async function reprocessarRun(runId: string): Promise<ActionResult> {
 
   try {
     const supabase = await createAuditedSupabaseClient();
+
+    // Runs de automações de SISTEMA (âncoras gatilho='sistema', registrados
+    // pelas Cloud Functions) nascem em estado TERMINAL e não têm ações que a
+    // engine saiba executar — reenfileirar criaria um run zumbi. Bloquear.
+    const { data: runInfo, error: runInfoError } = await supabase
+      .from("automacao_runs")
+      .select("id, automacoes(gatilho)")
+      .eq("id", runId)
+      .maybeSingle();
+
+    if (runInfoError) return { success: false, error: runInfoError.message };
+    if (!runInfo) return { success: false, error: "Execução não encontrada." };
+    const automacaoDoRun = runInfo.automacoes as { gatilho?: string } | null;
+    if (automacaoDoRun?.gatilho === "sistema") {
+      return {
+        success: false,
+        error: "Execuções de automações do sistema não são reprocessáveis por aqui.",
+      };
+    }
+
     const { data, error } = await supabase
       .from("automacao_runs")
       .update({ status: "pendente", tentativas: 0, proxima_tentativa_at: null })
@@ -798,13 +830,19 @@ export async function excluirAutomacao(id: string): Promise<ActionResult> {
   try {
     const supabase = await createAuditedSupabaseClient();
     // Soft delete + pausa (engine ignora automações deletadas/pausadas)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("automacoes")
       .update({ deleted_at: new Date().toISOString(), ativo: false })
       .eq("id", id)
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      // Âncoras de sistema (Fase 2b): não excluíveis (as CFs as referenciam)
+      .neq("gatilho", "sistema")
+      .select("id");
 
     if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Automação não encontrada (ou é uma automação do sistema)." };
+    }
     revalidatePath("/automacoes");
     return { success: true, id };
   } catch (err) {

@@ -838,6 +838,36 @@ const fetchSistemaConfig = async () => {
   return out;
 };
 
+// ─── Âncora da automação de SISTEMA (aba Execuções de /automacoes) ─────────
+// ID fixo semeado pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_QUALIFICACAO_ID = 'a0000000-0000-4000-8000-000000000006';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    await supabaseRequest('POST', 'automacao_runs', {
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    }, { 'Prefer': 'return=minimal' });
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
+  }
+};
+
 // ─── Cloud Function principal ──────────────────────────────────
 functions.http('qualifyLead', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -937,6 +967,19 @@ functions.http('qualifyLead', async (req, res) => {
         }
       }
 
+      // Registro em automacao_runs (aba Execuções) — estado TERMINAL (erro).
+      // Skip por toggle desligado (skipped_disabled acima) NÃO registra.
+      await registrarRunSistema({
+        automacaoId: RUN_QUALIFICACAO_ID,
+        ok: false,
+        lead: data,
+        acoes: [{
+          tipo: 'qualificacao',
+          status: 'falha',
+          detalhe: `Gemini indisponível — lead pendente p/ retry: ${(geminiErr.message || '').substring(0, 200)}`,
+        }],
+      });
+
       return res.status(202).send({
         success: false,
         action: 'pending_retry',
@@ -957,6 +1000,19 @@ functions.http('qualifyLead', async (req, res) => {
     try {
       await updateSupabase(data.id, data.email, data.athlete_name, qualification, timingStatus, scheduledFollowupAt);
       log('INFO', 'supabase_updated', { email: data.email, timing_status: timingStatus });
+
+      // Registro em automacao_runs (aba Execuções) — estado TERMINAL, após a
+      // classificação persistida no Supabase.
+      await registrarRunSistema({
+        automacaoId: RUN_QUALIFICACAO_ID,
+        ok: true,
+        lead: data,
+        acoes: [{
+          tipo: 'qualificacao',
+          status: 'ok',
+          detalhe: `${qualification.classification} (confiança ${qualification.confidence})`,
+        }],
+      });
     } catch (error) {
       log('ERROR', 'supabase_update_failed', { error: error.message });
     }

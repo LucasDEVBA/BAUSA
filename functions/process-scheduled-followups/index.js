@@ -169,6 +169,50 @@ const triggerSyncLeads = async (lead) => {
   }
 };
 
+// ─── Âncora da automação de SISTEMA (aba Execuções de /automacoes) ─────────
+// ID fixo semeado pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_SCHEDULED_RETURN_ID = 'a0000000-0000-4000-8000-000000000005';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': SUPABASE_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
+  }
+};
+
 // ─── Toggles on/off das automações de sistema (/automacoes) ────────────────
 // configuracoes_sistema.sistema_automacoes_ativas — campo ausente = ATIVA
 // (fail-open). Config indisponível JAMAIS para o scheduler — fallback {}.
@@ -276,6 +320,20 @@ functions.http('processScheduledFollowups', async (req, res) => {
           email: lead.email,
           whatsappStatusCode: waResult.statusCode,
           emailStatusCode: emailResult.statusCode,
+        });
+
+        // Registro em automacao_runs (aba Execuções) — estado TERMINAL, APÓS
+        // o resultado real do envio (CAS perdido acima não registra).
+        const envioOk = waResult.statusCode < 400 || emailResult.statusCode < 400;
+        await registrarRunSistema({
+          automacaoId: RUN_SCHEDULED_RETURN_ID,
+          ok: envioOk,
+          lead,
+          acoes: [{
+            tipo: 'scheduled_return',
+            status: envioOk ? 'ok' : 'falha',
+            detalhe: `whatsapp HTTP ${waResult.statusCode}, email HTTP ${emailResult.statusCode}`,
+          }],
         });
 
         // Sincroniza Sheets (fire-and-forget)

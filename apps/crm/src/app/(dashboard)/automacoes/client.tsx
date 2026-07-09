@@ -1406,10 +1406,20 @@ function ExecucoesView({
               </thead>
               <tbody>
                 {visiveis.map((run) => {
-                  const gatilho = run.automacoes ? GATILHO_CATALOG[run.automacoes.gatilho] : null;
-                  const contexto = run.contexto as { atleta_id?: string; periodo?: string };
+                  // "sistema" (âncoras nativas) não está no catálogo do builder
+                  const gatilho =
+                    run.automacoes && run.automacoes.gatilho !== "sistema"
+                      ? GATILHO_CATALOG[run.automacoes.gatilho]
+                      : null;
+                  const contexto = run.contexto as {
+                    atleta_id?: string;
+                    periodo?: string;
+                    athlete_name?: string;
+                  };
                   const atletaId = contexto?.atleta_id;
-                  const leadNome = atletaId ? leadNomes[atletaId] : undefined;
+                  // Runs de SISTEMA gravam athlete_name direto no contexto
+                  const leadNome =
+                    (atletaId ? leadNomes[atletaId] : undefined) ?? contexto?.athlete_name;
                   return (
                     <tr key={run.id} className="border-b border-border transition-colors hover:bg-accent">
                       <td className="py-2.5 pl-4 pr-3 text-xs text-muted-foreground whitespace-nowrap">
@@ -1448,7 +1458,9 @@ function ExecucoesView({
                         {resumoResultado(run)}
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        {run.status === "erro" && (
+                        {/* Runs de SISTEMA não são reprocessáveis (a action
+                            também bloqueia server-side) — sem UI falsa. */}
+                        {run.status === "erro" && run.automacoes?.gatilho !== "sistema" && (
                           <Button
                             variant="secondary"
                             size="sm"

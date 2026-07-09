@@ -418,8 +418,9 @@ const buildMeetingVars = (lead, recipientName, phone, event) => {
 
 // ─── Enviar WhatsApp de confirmação para o lead ───────────────
 // customMessage: texto custom já renderizado (null → builder hardcoded).
+// Retorna true quando o Z-API confirmou o envio (usado no registro de run).
 const sendConfirmationWhatsApp = async (phone, name, event, customMessage) => {
-  if (!phone) return;
+  if (!phone) return false;
 
   const meetLink = event.hangoutLink || event.htmlLink || '';
   const { eventDate, eventTime } = formatEventDateTime(event);
@@ -433,12 +434,14 @@ const sendConfirmationWhatsApp = async (phone, name, event, customMessage) => {
   if (sent) {
     log('INFO', 'whatsapp_confirmation_sent', { phone, name });
   }
+  return sent;
 };
 
 // ─── Notificar CEO ────────────────────────────────────────────
 // customMessage: texto custom já renderizado (null → builder hardcoded).
+// Retorna true quando o Z-API confirmou o envio (usado no registro de run).
 const notifyCeo = async (athleteName, guardianName, phone, email, event, customMessage) => {
-  if (!CEO_WHATSAPP) return;
+  if (!CEO_WHATSAPP) return false;
 
   const meetLink = event.hangoutLink || event.htmlLink || '';
   const { eventDate, eventTime } = formatEventDateTime(event);
@@ -451,6 +454,51 @@ const notifyCeo = async (athleteName, guardianName, phone, email, event, customM
   const sent = await sendLinkMessage(CEO_WHATSAPP, message, meetLink, linkTitle, linkDesc);
   if (sent) {
     log('INFO', 'ceo_notification_sent');
+  }
+  return sent;
+};
+
+// ─── Âncora da automação de SISTEMA (aba Execuções de /automacoes) ─────────
+// ID fixo semeado pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_CONFIRMACAO_REUNIAO_ID = 'a0000000-0000-4000-8000-000000000007';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': SUPABASE_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
   }
 };
 
@@ -604,12 +652,13 @@ functions.http('calendarWebhook', async (req, res) => {
         const leadCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.lead, meetingVars);
         const ceoCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.ceo, meetingVars);
 
+        let leadSent = false;
         if (confirmPhone) {
-          await sendConfirmationWhatsApp(confirmPhone, confirmName, event, leadCustomMsg);
+          leadSent = await sendConfirmationWhatsApp(confirmPhone, confirmName, event, leadCustomMsg);
         }
 
         // 4. Notificar CEO
-        await notifyCeo(
+        const ceoSent = await notifyCeo(
           lead.athlete_name,
           lead.guardian_name || lead.athlete_name,
           confirmPhone || 'N/A',
@@ -617,6 +666,31 @@ functions.http('calendarWebhook', async (req, res) => {
           event,
           ceoCustomMsg,
         );
+
+        // Registro em automacao_runs (aba Execuções) — estado TERMINAL, após
+        // as notificações. Toggle desligado (skip acima) NÃO registra.
+        // PII: detalhe sem telefone/e-mail — só rótulos das notificações.
+        const acoesRun = [];
+        if (confirmPhone) {
+          acoesRun.push({
+            tipo: 'confirmacao_reuniao',
+            status: leadSent ? 'ok' : 'falha',
+            detalhe: 'WhatsApp de confirmação ao lead',
+          });
+        }
+        if (CEO_WHATSAPP) {
+          acoesRun.push({
+            tipo: 'confirmacao_reuniao',
+            status: ceoSent ? 'ok' : 'falha',
+            detalhe: 'Notificação de reunião ao CEO',
+          });
+        }
+        await registrarRunSistema({
+          automacaoId: RUN_CONFIRMACAO_REUNIAO_ID,
+          ok: acoesRun.every((a) => a.status === 'ok'),
+          lead,
+          acoes: acoesRun,
+        });
       }
 
       // 5. Sync Sheets
