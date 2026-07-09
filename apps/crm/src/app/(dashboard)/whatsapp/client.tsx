@@ -15,6 +15,7 @@ import {
   Trash2,
   TriangleAlert,
   User as UserIcon,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -74,6 +75,19 @@ interface SendResponse {
   error?: string;
   /** messageId da Z-API — id real da mensagem, usado p/ casar o eco 1:1. */
   messageId?: string | null;
+}
+
+/** Mídia selecionada/gravada aguardando revisão e confirmação de envio. */
+interface PendingMedia {
+  kind: "image" | "document" | "audio";
+  file: File;
+  /** object URL local só p/ o preview (revogado ao confirmar/cancelar). */
+  previewUrl: string;
+  fileName: string;
+  /** Legenda (só imagem — vai como caption no /send-image). */
+  caption: string;
+  /** Conversa-alvo capturada na seleção (troca de chat não muda o destino). */
+  phone: string;
 }
 
 // ─── Helpers de formatação ───────────────────────────────────────
@@ -348,6 +362,100 @@ function ThreadSkeleton() {
   );
 }
 
+/**
+ * Modal de REVISÃO antes do envio (foto/áudio/documento) — como no WhatsApp o
+ * envio não pode ser cancelado, o CEO revê/ouve/visualiza e confirma. Imagem
+ * ganha legenda opcional.
+ */
+function MediaPreviewModal({
+  media,
+  sending,
+  onCaptionChange,
+  onCancel,
+  onConfirm,
+}: {
+  media: PendingMedia;
+  sending: boolean;
+  onCaptionChange: (caption: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const titulo =
+    media.kind === "image" ? "Revisar foto" : media.kind === "audio" ? "Revisar áudio" : "Revisar documento";
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-[2px]"
+        onClick={sending ? undefined : onCancel}
+        aria-hidden
+      />
+      <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={titulo}
+          className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+        >
+          <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
+            <p className="text-sm font-semibold text-foreground">{titulo}</p>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={sending}
+              aria-label="Fechar"
+              className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+            >
+              <X className="size-4" />
+            </button>
+          </header>
+
+          <div className="space-y-3 p-4">
+            {media.kind === "image" && (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- preview local (object URL) */}
+                <img
+                  src={media.previewUrl}
+                  alt="Pré-visualização"
+                  className="max-h-72 w-full rounded-lg bg-secondary object-contain"
+                />
+                <Input
+                  value={media.caption}
+                  onChange={(e) => onCaptionChange(e.target.value)}
+                  placeholder="Legenda (opcional)"
+                  aria-label="Legenda"
+                  maxLength={MESSAGE_MAX_LENGTH}
+                  disabled={sending}
+                />
+              </>
+            )}
+            {media.kind === "audio" && (
+              <audio controls src={media.previewUrl} className="w-full" />
+            )}
+            {media.kind === "document" && (
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-3">
+                <FileText className="size-6 shrink-0 text-primary" />
+                <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                  {media.fileName}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <footer className="flex items-center justify-end gap-2 border-t border-border bg-secondary/30 px-4 py-3">
+            <Button variant="ghost" size="sm" onClick={onCancel} disabled={sending}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={onConfirm} disabled={sending}>
+              {sending ? <Loader2 className="animate-spin" /> : <Send />}
+              {sending ? "Enviando…" : "Enviar"}
+            </Button>
+          </footer>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Tela ────────────────────────────────────────────────────────
 
 export function WhatsAppEspelhoClient() {
@@ -368,6 +476,7 @@ export function WhatsAppEspelhoClient() {
   const [refreshing, setRefreshing] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
 
   const attachRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -747,27 +856,27 @@ export function WhatsAppEspelhoClient() {
   // Anexar e enviar foto/documento: upload → Z-API (/send-image ou
   // /send-document) → eco de mídia. Guard de tamanho + try/catch (upload via
   // Server Action; ver next-serveraction-bodysize).
-  const handleAttach = useCallback(
-    async (file: File) => {
-      if (!selectedPhone || attaching) return;
-      if (file.size > MAX_UPLOAD_BYTES) {
-        toast.error("Arquivo muito grande (máx 10MB).");
-        return;
-      }
-      const phone = selectedPhone;
-      const ehImagem = file.type.startsWith("image/");
+  // Upload + envio da mídia JÁ REVISADA (chamado pelo modal de confirmação).
+  // Guard de tamanho + try/catch (upload via Server Action; ver bodySizeLimit).
+  const enviarMidia = useCallback(
+    async (pm: PendingMedia) => {
+      const { kind, file, fileName, caption, phone } = pm;
       setAttaching(true);
       try {
         const fd = new FormData();
         fd.append("file", file);
-        const up = await uploadMensagemArquivo(fd);
+        const up = kind === "audio" ? await uploadMensagemAudio(fd) : await uploadMensagemArquivo(fd);
         if (!up.success) {
           toast.error(up.error);
           return;
         }
-        const corpo = ehImagem
-          ? { phone, imageUrl: up.url }
-          : { phone, documentUrl: up.url, fileName: up.nomeArquivo };
+        const legenda = kind === "image" ? caption.trim() : "";
+        const corpo =
+          kind === "image"
+            ? { phone, imageUrl: up.url, caption: legenda || undefined }
+            : kind === "document"
+              ? { phone, documentUrl: up.url, fileName }
+              : { phone, audioUrl: up.url };
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -778,60 +887,95 @@ export function WhatsAppEspelhoClient() {
           toast.error(
             data?.error === "zapi_nao_configurado"
               ? "Z-API não configurada no ambiente do Engine."
-              : "Falha ao enviar o arquivo. Tente novamente.",
+              : "Falha ao enviar. Tente novamente.",
           );
           return;
         }
         const echo: EspelhoMessage = {
-          // id = messageId real da Z-API → casa 1:1 com a linha do espelho
-          // (evita duplicar/misturar ecos de mídia, todos com text=null).
           id: data?.messageId ?? `local-${Date.now()}`,
           phone,
           fromMe: true,
-          text: null,
+          text: kind === "image" ? legenda || null : null,
           timestamp: Date.now(),
-          tipo: ehImagem ? "image" : "document",
+          tipo: kind,
           mediaUrl: up.url,
           mimeType: file.type || null,
-          fileName: ehImagem ? null : up.nomeArquivo,
+          fileName: kind === "document" ? fileName : null,
         };
         sessionEchoesRef.current.set(phone, [
           ...(sessionEchoesRef.current.get(phone) ?? []),
           echo,
         ]);
-        toast.success(ehImagem ? "Imagem enviada" : "Documento enviado");
-        if (selectedPhoneRef.current !== phone) return;
-        setMessages((prev) => [...prev, echo]);
-        void fetchMessages(phone, { silent: true });
+        toast.success(
+          kind === "image" ? "Imagem enviada" : kind === "document" ? "Documento enviado" : "Áudio enviado",
+        );
+        // Fecha o modal de revisão SÓ no sucesso — em falha (upload/502/rede) o
+        // modal fica aberto p/ nova tentativa (a mídia não é descartada).
+        setPendingMedia(null);
+        if (selectedPhoneRef.current === phone) {
+          setMessages((prev) => [...prev, echo]);
+          void fetchMessages(phone, { silent: true });
+        }
       } catch {
-        toast.error("Falha ao enviar o arquivo. Verifique a conexão.");
+        toast.error("Falha ao enviar. Verifique a conexão.");
       } finally {
         setAttaching(false);
       }
     },
-    [selectedPhone, attaching, fetchMessages],
+    [fetchMessages],
   );
+
+  // Selecionar foto/documento → abre o modal de REVISÃO (não envia direto).
+  const handleAttach = useCallback(
+    (file: File) => {
+      if (!selectedPhone) return;
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast.error("Arquivo muito grande (máx 10MB).");
+        return;
+      }
+      setPendingMedia({
+        kind: file.type.startsWith("image/") ? "image" : "document",
+        file,
+        previewUrl: URL.createObjectURL(file),
+        fileName: file.name,
+        caption: "",
+        phone: selectedPhone,
+      });
+    },
+    [selectedPhone],
+  );
+
+  // Confirmar o envio da mídia revisada. Mantém o modal aberto durante o envio
+  // (sending=attaching → spinner + botões desabilitados + backdrop travado); o
+  // `attaching` guard bloqueia reentrada/duplo-clique. O modal fecha no sucesso
+  // (dentro de enviarMidia); em falha fica aberto p/ retry.
+  const confirmSendMedia = useCallback(() => {
+    if (!pendingMedia || attaching) return;
+    void enviarMidia(pendingMedia);
+  }, [pendingMedia, attaching, enviarMidia]);
+
+  const cancelPendingMedia = useCallback(() => {
+    setPendingMedia(null);
+  }, []);
 
   // ── Gravação e envio de áudio (mensagem de voz) ──
   // Grava via MediaRecorder → upload (bucket) → Z-API /send-audio → eco.
   // O MediaRecorder do Chrome grava webm/opus; a Z-API transcodifica p/ WhatsApp.
 
-  const finalizarAudio = useCallback(async () => {
+  const finalizarAudio = useCallback(() => {
     if (recordTimerRef.current) {
       clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;
     }
     audioStreamRef.current?.getTracks().forEach((t) => t.stop());
     audioStreamRef.current = null;
+    setRecording(false);
 
     const phone = recordPhoneRef.current;
     const chunks = audioChunksRef.current;
     audioChunksRef.current = [];
-    // Cancelado, sem conversa, ou gravação vazia → descarta e fecha a barra.
-    if (cancelRecordRef.current || !phone || chunks.length === 0) {
-      setRecording(false);
-      return;
-    }
+    // Cancelado, sem conversa, ou gravação vazia → descarta.
+    if (cancelRecordRef.current || !phone || chunks.length === 0) return;
 
     // MIME BASE (sem `;codecs=opus`): o storage-js ignora options.contentType
     // para File/Blob e usa File.type — então o tipo TEM de vir limpo aqui para
@@ -840,70 +984,24 @@ export function WhatsAppEspelhoClient() {
       (mediaRecorderRef.current?.mimeType || "audio/webm").split(";")[0].trim().toLowerCase() ||
       "audio/webm";
     const blob = new Blob(chunks, { type: baseType });
-    if (blob.size === 0) {
-      setRecording(false);
-      return;
-    }
+    if (blob.size === 0) return;
     if (blob.size > MAX_UPLOAD_BYTES) {
       toast.error("Áudio muito longo (máx 10MB).");
-      setRecording(false);
       return;
     }
     const ext = baseType.split("/")[1] || "webm";
     const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: baseType });
 
-    // Mantém a barra visível com "Enviando áudio…" (recording=true) durante o
-    // upload; só fecha no finally — sem flicker do compositor normal.
-    setAttaching(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const up = await uploadMensagemAudio(fd);
-      if (!up.success) {
-        toast.error(up.error);
-        return;
-      }
-      const res = await fetch("/api/whatsapp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, audioUrl: up.url }),
-      });
-      const data = (await res.json().catch(() => null)) as SendResponse | null;
-      if (!res.ok) {
-        toast.error(
-          data?.error === "zapi_nao_configurado"
-            ? "Z-API não configurada no ambiente do Engine."
-            : "Falha ao enviar o áudio. Tente novamente.",
-        );
-        return;
-      }
-      const echo: EspelhoMessage = {
-        id: data?.messageId ?? `local-${Date.now()}`,
-        phone,
-        fromMe: true,
-        text: null,
-        timestamp: Date.now(),
-        tipo: "audio",
-        mediaUrl: up.url,
-        mimeType: baseType,
-        fileName: null,
-      };
-      sessionEchoesRef.current.set(phone, [
-        ...(sessionEchoesRef.current.get(phone) ?? []),
-        echo,
-      ]);
-      toast.success("Áudio enviado");
-      if (selectedPhoneRef.current === phone) {
-        setMessages((prev) => [...prev, echo]);
-        void fetchMessages(phone, { silent: true });
-      }
-    } catch {
-      toast.error("Falha ao enviar o áudio. Verifique a conexão.");
-    } finally {
-      setAttaching(false);
-      setRecording(false);
-    }
-  }, [fetchMessages]);
+    // Abre o modal de REVISÃO p/ OUVIR o áudio antes de enviar (não envia direto).
+    setPendingMedia({
+      kind: "audio",
+      file,
+      previewUrl: URL.createObjectURL(blob),
+      fileName: file.name,
+      caption: "",
+      phone,
+    });
+  }, []);
 
   const handleStartRecording = useCallback(async () => {
     // Guard síncrono (startingRef) além do estado `recording` — o estado só
@@ -987,6 +1085,16 @@ export function WhatsAppEspelhoClient() {
       }
     };
   }, []);
+
+  // Revoga o object URL ao trocar de mídia / fechar / desmontar. Depende SÓ da
+  // previewUrl (string) — editar a legenda recria o objeto pendingMedia com a
+  // MESMA url; depender do objeto inteiro revogaria a imagem em uso a cada tecla.
+  useEffect(() => {
+    const url = pendingMedia?.previewUrl;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [pendingMedia?.previewUrl]);
 
   // ── Derivados ──
 
@@ -1199,38 +1307,31 @@ export function WhatsAppEspelhoClient() {
 
                 {recording ? (
                   <div className="flex shrink-0 items-center gap-3 border-t border-border p-3">
-                    {attaching ? (
-                      <span className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="size-4 animate-spin" /> Enviando áudio…
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Cancelar gravação"
+                      onClick={handleCancelRecording}
+                    >
+                      <Trash2 className="text-sys-red" />
+                    </Button>
+                    <span className="flex flex-1 items-center gap-2 text-sm text-foreground">
+                      <span aria-hidden className="size-2.5 shrink-0 animate-pulse rounded-full bg-sys-red" />
+                      <span className="tabular-nums">
+                        {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, "0")}
                       </span>
-                    ) : (
-                      <>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Cancelar gravação"
-                          onClick={handleCancelRecording}
-                        >
-                          <Trash2 className="text-sys-red" />
-                        </Button>
-                        <span className="flex flex-1 items-center gap-2 text-sm text-foreground">
-                          <span aria-hidden className="size-2.5 shrink-0 animate-pulse rounded-full bg-sys-red" />
-                          <span className="tabular-nums">
-                            {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, "0")}
-                          </span>
-                          <span className="text-muted-foreground">Gravando áudio…</span>
-                        </span>
-                        <Button
-                          type="button"
-                          size="icon"
-                          aria-label="Enviar áudio"
-                          onClick={handleStopAndSend}
-                        >
-                          <Send />
-                        </Button>
-                      </>
-                    )}
+                      <span className="text-muted-foreground">Gravando áudio…</span>
+                    </span>
+                    {/* Parar → abre o modal de revisão p/ ouvir antes de enviar. */}
+                    <Button
+                      type="button"
+                      size="icon"
+                      aria-label="Parar e revisar áudio"
+                      onClick={handleStopAndSend}
+                    >
+                      <Send />
+                    </Button>
                   </div>
                 ) : (
                   <form
@@ -1287,6 +1388,18 @@ export function WhatsAppEspelhoClient() {
             )}
           </Card>
         </div>
+      )}
+
+      {pendingMedia && (
+        <MediaPreviewModal
+          media={pendingMedia}
+          sending={attaching}
+          onCaptionChange={(caption) =>
+            setPendingMedia((pm) => (pm ? { ...pm, caption } : pm))
+          }
+          onCancel={cancelPendingMedia}
+          onConfirm={confirmSendMedia}
+        />
       )}
     </div>
   );
