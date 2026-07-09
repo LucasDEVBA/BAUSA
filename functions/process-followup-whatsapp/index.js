@@ -60,6 +60,51 @@ const httpRequest = (url, options, postData) => {
 // ─── Delay entre leads (anti-ban) ──────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// ─── Âncoras das automações de SISTEMA (aba Execuções de /automacoes) ──────
+// IDs fixos semeados pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_FOLLOWUP_1_ID = 'a0000000-0000-4000-8000-000000000003';
+const RUN_FOLLOWUP_2_ID = 'a0000000-0000-4000-8000-000000000004';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': SUPABASE_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
+  }
+};
+
 // ─── Verificar se lead agendou reunião via Google Calendar API ─
 // Busca eventos no calendário do Leandro onde o e-mail do responsável
 // apareça como participante, a partir da data de envio do WhatsApp inicial.
@@ -540,6 +585,19 @@ const processFollowupBatch = async (followupNumber, executionStartTime) => {
       log('INFO', `followup_${followupNumber}_whatsapp_result`, {
         email: lead.email,
         statusCode: whatsappResult.statusCode,
+      });
+
+      // Registro em automacao_runs (aba Execuções) — estado TERMINAL, APÓS o
+      // resultado real do envio (CAS perdido/meeting_scheduled não registram).
+      await registrarRunSistema({
+        automacaoId: followupNumber === 1 ? RUN_FOLLOWUP_1_ID : RUN_FOLLOWUP_2_ID,
+        ok: whatsappResult.statusCode < 400,
+        lead,
+        acoes: [{
+          tipo: followupNumber === 1 ? 'followup_1' : 'followup_2',
+          status: whatsappResult.statusCode < 400 ? 'ok' : 'falha',
+          detalhe: `template followup_${followupNumber} (HTTP ${whatsappResult.statusCode})`,
+        }],
       });
 
       // Sync Sheets: DB já foi marcado pelo CAS — sincroniza independente do resultado do WhatsApp

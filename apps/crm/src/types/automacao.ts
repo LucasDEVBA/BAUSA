@@ -316,7 +316,9 @@ export interface AutomacaoComStats extends Automacao {
   ultimo_run_at: string | null;
 }
 
-/** Run enriquecido p/ a aba Execuções (embed do nome/gatilho da automação). */
+/** Run enriquecido p/ a aba Execuções (embed do nome/gatilho da automação).
+ *  `gatilho` inclui "sistema" — âncoras das automações NATIVAS (Fase 2b):
+ *  seus runs aparecem aqui, mas não são criáveis/editáveis pelo builder. */
 export interface AutomacaoRunDetalhado extends AutomacaoRun {
-  automacoes: { nome: string; gatilho: AutomacaoGatilho } | null;
+  automacoes: { nome: string; gatilho: AutomacaoGatilho | "sistema" } | null;
 }

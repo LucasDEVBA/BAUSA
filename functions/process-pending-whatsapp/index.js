@@ -338,6 +338,51 @@ const triggerEmail = async (lead) => {
   };
 };
 
+// ─── Âncoras das automações de SISTEMA (aba Execuções de /automacoes) ──────
+// IDs fixos semeados pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_WHATSAPP_INICIAL_ID = 'a0000000-0000-4000-8000-000000000001';
+const RUN_WHATSAPP_TIMING_ALT_ID = 'a0000000-0000-4000-8000-000000000002';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': SUPABASE_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
+  }
+};
+
 // ─── Delay entre leads (anti-ban) ──────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -438,6 +483,19 @@ functions.http('processPendingWhatsApp', async (req, res) => {
             log('WARN', 'email_send_failed', { email: lead.email, error: emailErr.message });
           }
         }
+
+        // Registro em automacao_runs (aba Execuções) — estado TERMINAL, APÓS
+        // o resultado real do envio (CAS perdido/skip acima não registra).
+        await registrarRunSistema({
+          automacaoId: isAlternativeTiming ? RUN_WHATSAPP_TIMING_ALT_ID : RUN_WHATSAPP_INICIAL_ID,
+          ok: whatsappResult.statusCode < 400,
+          lead,
+          acoes: [{
+            tipo: isAlternativeTiming ? 'whatsapp_timing_alt' : 'whatsapp_inicial',
+            status: whatsappResult.statusCode < 400 ? 'ok' : 'falha',
+            detalhe: `template ${whatsappResult.messageType} (HTTP ${whatsappResult.statusCode})`,
+          }],
+        });
 
         // 2c. Sync Sheets independente do resultado do envio (DB já foi
         // marcado pelo CAS — refletir mesmo se Z-API der erro/timeout).

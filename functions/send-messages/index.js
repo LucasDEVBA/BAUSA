@@ -589,6 +589,53 @@ const fetchEmailConfig = async () => {
   return out;
 };
 
+// ─── Âncora da automação de SISTEMA (aba Execuções de /automacoes) ─────────
+// ID fixo semeado pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_EMAIL_CONFIRMACAO_ID = "a0000000-0000-4000-8000-000000000008";
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const u = new URL(`${SUPABASE_URL}/rest/v1/automacao_runs`);
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? "sucesso" : "erro",
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? "form_submissions" : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest({
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(postData),
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+        "Content-Profile": SUPABASE_SCHEMA,
+        "Prefer": "return=minimal",
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || "").substring(0, 200)}`);
+    }
+  } catch (e) {
+    console.log(JSON.stringify({ level: "WARN", action: "run_sistema_fallback", error: e.message }));
+  }
+};
+
 functions.http("sendMessages", async (req, res) => {
   const startTime = Date.now();
 
@@ -833,6 +880,22 @@ functions.http("sendMessages", async (req, res) => {
       athlete: data.athlete_name,
       totalSent, totalSkipped, totalFailed, durationMs, results,
     }));
+
+    // Registro em automacao_runs (aba Execuções) — UM run por request do
+    // fluxo `record` (o caminho customEmail NÃO chega aqui: early-return).
+    // PII: detalhe usa só os labels (ATLETA/RESPONSAVEL/INTERNO), sem e-mail.
+    await registrarRunSistema({
+      automacaoId: RUN_EMAIL_CONFIRMACAO_ID,
+      ok: totalFailed === 0,
+      lead: data,
+      acoes: results.map((r) => ({
+        tipo: "email_confirmacao",
+        status: r.success ? "ok" : "falha",
+        detalhe: r.skipped
+          ? `${r.label}: pulado (toggle)`
+          : `${r.label}: ${r.success ? "enviado" : "falhou"}${r.provider ? ` via ${r.provider}` : ""}`,
+      })),
+    });
 
     res.status(200).send({
       success: true,
