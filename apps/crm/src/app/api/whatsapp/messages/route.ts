@@ -7,6 +7,7 @@ import {
   maskPhone,
   normalizeMessage,
   type EspelhoMessage,
+  type MensagemTipo,
 } from "@/lib/whatsapp-espelho";
 import { logZapi, zapiRequest } from "@/lib/zapi-server";
 
@@ -16,6 +17,9 @@ export const dynamic = "force-dynamic";
 
 const MESSAGES_AMOUNT = 60;
 const MIRROR_LIMIT = 200;
+/** Erros estruturais pré-migration → degradar p/ fallback (não 502): tabela
+ *  ausente (42P01), coluna ausente (42703), cache de schema PostgREST (PGRST204). */
+const PRE_MIGRATION_CODES = new Set(["42P01", "42703", "PGRST204"]);
 
 interface MirrorRow {
   message_id: string;
@@ -23,6 +27,10 @@ interface MirrorRow {
   from_me: boolean;
   texto: string | null;
   momment: string | null;
+  tipo: MensagemTipo | null;
+  media_url: string | null;
+  mime_type: string | null;
+  media_filename: string | null;
 }
 
 /**
@@ -51,7 +59,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // congelaria a thread quando a conversa passasse do limite).
     const { data, error } = await supabase
       .from("whatsapp_mensagens")
-      .select("message_id, phone, from_me, texto, momment")
+      .select("message_id, phone, from_me, texto, momment, tipo, media_url, mime_type, media_filename")
       .in("phone", chaves)
       .order("momment", { ascending: false, nullsFirst: false })
       .limit(MIRROR_LIMIT);
@@ -64,6 +72,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           fromMe: row.from_me,
           text: row.texto,
           timestamp: row.momment ? Date.parse(row.momment) : null,
+          tipo: (row.tipo ?? "text") as MensagemTipo,
+          mediaUrl: row.media_url,
+          mimeType: row.mime_type,
+          fileName: row.media_filename,
         }))
         .reverse();
       logZapi("info", "messages_mirror_listed", {
@@ -73,10 +85,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ messages, mirror: true });
     }
 
-    // Só cai no fallback Z-API se a TABELA não existe (pré-migration, 42P01).
-    // Erro transitório não pode virar o aviso multi-device na UI → 502 genérico.
+    // Cai no fallback Z-API só em erro estrutural pré-migration: tabela ausente
+    // (42P01) OU coluna ausente (42703 / cache PostgREST PGRST204) — janela em
+    // que o Engine subiu antes da migration de mídia aplicar. Erro transitório
+    // não pode virar o aviso multi-device na UI → 502 genérico.
     logZapi("warn", "messages_mirror_error", { code: error.code ?? "unknown" });
-    if (error.code !== "42P01") {
+    if (!PRE_MIGRATION_CODES.has(error.code ?? "")) {
       return NextResponse.json({ error: "zapi_erro" }, { status: 502 });
     }
   } catch {

@@ -71,21 +71,43 @@ const toEpochMs = (v) => {
 
 const TIPOS_MIDIA = ['image', 'audio', 'video', 'document', 'sticker', 'location', 'contact', 'reaction'];
 
-/** Extrai { tipo, texto } do payload — texto puro, caption de mídia, ou null. */
+const isHttpUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v.trim());
+
+/** Primeira URL http válida dentre os candidatos (shapes variam por versão). */
+function primeiraUrl(...cands) {
+  for (const c of cands) if (isHttpUrl(c)) return c.trim();
+  return null;
+}
+
+/** Extrai { tipo, texto, mediaUrl, mimeType, fileName } — texto puro ou mídia. */
 function extrairConteudo(p) {
   // Z-API alterna entre text.message e body conforme o endpoint/versão
   // (mesmo comportamento documentado em apps/crm/src/lib/whatsapp-espelho.ts).
   const textoPuro =
     (p.text && typeof p.text.message === 'string' ? p.text.message.trim() : '') ||
     (typeof p.body === 'string' ? p.body.trim() : '');
-  if (textoPuro) return { tipo: 'text', texto: textoPuro };
+  if (textoPuro) return { tipo: 'text', texto: textoPuro, mediaUrl: null, mimeType: null, fileName: null };
   for (const t of TIPOS_MIDIA) {
-    if (p[t] && typeof p[t] === 'object') {
-      const caption = typeof p[t].caption === 'string' ? p[t].caption.trim() : '';
-      return { tipo: t, texto: caption || null };
+    const m = p[t];
+    if (m && typeof m === 'object') {
+      const caption = typeof m.caption === 'string' ? m.caption.trim() : '';
+      // A URL da mídia vem em `${tipo}Url` (imageUrl/audioUrl/…) ou variantes.
+      const mediaUrl = primeiraUrl(
+        m[`${t}Url`], m.url, m.imageUrl, m.audioUrl, m.videoUrl,
+        m.documentUrl, m.stickerUrl, m.fileUrl,
+      );
+      const mimeType =
+        (typeof m.mimeType === 'string' && m.mimeType) ||
+        (typeof m.mimetype === 'string' && m.mimetype) ||
+        null;
+      const fileName =
+        (typeof m.fileName === 'string' && m.fileName) ||
+        (typeof m.title === 'string' && m.title) ||
+        null;
+      return { tipo: t, texto: caption || null, mediaUrl, mimeType, fileName };
     }
   }
-  return { tipo: 'other', texto: null };
+  return { tipo: 'other', texto: null, mediaUrl: null, mimeType: null, fileName: null };
 }
 
 /** Normaliza um webhook de mensagem; null = payload que não é mensagem espelhável. */
@@ -100,7 +122,7 @@ function normalizarMensagem(p) {
   if (!messageId || phone.length < PHONE_MIN || phone.length > PHONE_MAX) return null;
   if (p.isGroup === true || p.isGroup === 'true') return null;
 
-  const { tipo, texto } = extrairConteudo(p);
+  const { tipo, texto, mediaUrl, mimeType, fileName } = extrairConteudo(p);
   const momment = toEpochMs(p.momment);
   return {
     message_id: messageId,
@@ -108,6 +130,9 @@ function normalizarMensagem(p) {
     from_me: p.fromMe === true || p.fromMe === 'true',
     tipo,
     texto,
+    media_url: mediaUrl,
+    mime_type: mimeType,
+    media_filename: fileName,
     sender_name:
       (typeof p.senderName === 'string' && p.senderName.trim()) ||
       (typeof p.chatName === 'string' && p.chatName.trim()) ||
