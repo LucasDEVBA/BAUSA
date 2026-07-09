@@ -539,6 +539,224 @@ export async function atualizarMensagensScheduler(
   }
 }
 
+// ─── Config das automações de SISTEMA (Fase 2a — toggles/e-mail/prompt) ─────
+// As CFs leem estas chaves com FAIL-OPEN (campo ausente = comportamento
+// histórico); as actions gravam o objeto COMPLETO (padrão das demais).
+
+/** Slugs dos toggles — espelham os gates `ativas.<slug> === false` das CFs
+ *  (guard de CI tests/sistema-automacoes-ativas.test.js). `catchall(boolean)`
+ *  em vez de `.strict()`: um slug futuro gravado por outra versão não pode
+ *  quebrar TODO save de toggle (forward-compat; as CFs são fail-open). */
+const ativasSchema = z
+  .object({
+    whatsapp_inicial: z.boolean().optional(),
+    whatsapp_timing_alt: z.boolean().optional(),
+    followup_1: z.boolean().optional(),
+    followup_2: z.boolean().optional(),
+    scheduled_return: z.boolean().optional(),
+    qualificacao: z.boolean().optional(),
+    email_confirmacao: z.boolean().optional(),
+    email_interno: z.boolean().optional(),
+    confirmacao_reuniao: z.boolean().optional(),
+  })
+  .catchall(z.boolean());
+
+export type SistemaAtivas = z.infer<typeof ativasSchema>;
+
+/** Liga/desliga automações de sistema (configuracoes_sistema.
+ *  sistema_automacoes_ativas). Campo ausente = ATIVA (fail-open nas CFs);
+ *  efeito no próximo tick/envio. */
+export async function atualizarAtivasSistema(input: SistemaAtivas): Promise<ActionResult> {
+  const denied = await requireCeo();
+  if (denied) return { success: false, error: denied };
+
+  const parsed = ativasSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Toggles inválidos" };
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .update({ valor: parsed.data })
+      .eq("chave", "sistema_automacoes_ativas")
+      .select("chave");
+
+    if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Config sistema_automacoes_ativas não encontrada (migration pendente?)" };
+    }
+    revalidatePath("/automacoes");
+    return { success: true };
+  } catch (err) {
+    console.error({ level: "error", action: "atualizar_ativas_sistema", error: String(err) });
+    return { success: false, error: "Erro inesperado ao salvar toggles." };
+  }
+}
+
+const emailConfigSchema = z.object({
+  /** Vazio/ausente → a CF usa a env INTERNAL_EMAIL (fallback). */
+  destino_interno: z.string().trim().email("E-mail de destino inválido").max(200).optional(),
+});
+
+export type SistemaEmailConfig = z.infer<typeof emailConfigSchema>;
+
+/** Atualiza o destino do e-mail interno de novo lead (configuracoes_sistema.
+ *  email_config). String vazia remove o override (volta ao fallback da env). */
+export async function atualizarEmailConfig(input: {
+  destino_interno?: string;
+}): Promise<ActionResult> {
+  const denied = await requireCeo();
+  if (denied) return { success: false, error: denied };
+
+  // '' = limpar override → grava {} (a CF cai no fallback env INTERNAL_EMAIL)
+  const normalizado: SistemaEmailConfig = {};
+  if (typeof input.destino_interno === "string" && input.destino_interno.trim()) {
+    normalizado.destino_interno = input.destino_interno.trim();
+  }
+  const parsed = emailConfigSchema.safeParse(normalizado);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "E-mail inválido" };
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .update({ valor: parsed.data })
+      .eq("chave", "email_config")
+      .select("chave");
+
+    if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Config email_config não encontrada (migration pendente?)" };
+    }
+    revalidatePath("/automacoes");
+    return { success: true };
+  } catch (err) {
+    console.error({ level: "error", action: "atualizar_email_config", error: String(err) });
+    return { success: false, error: "Erro inesperado ao salvar e-mail." };
+  }
+}
+
+// Seções editáveis do prompt Gemini de qualificação. Seção ausente/vazia →
+// a CF usa o default do código (fail-open). Limite folgado por seção; o
+// contrato de saída JSON permanece fixo na CF (não é editável).
+const PROMPT_SECAO_MAX = 4000;
+// Único placeholder válido nas seções (substituído pela CF na montagem).
+const PROMPT_PLACEHOLDER_VALIDO = "{criterio_endereco}";
+const promptCfgSchema = z
+  .object({
+    persona: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
+    criterio_quente: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
+    criterio_morno: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
+    morno_endereco_br: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
+    morno_endereco_internacional: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
+    criterio_frio: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
+    regra_renda_variavel: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
+    regras_importantes: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
+  })
+  // Seções futuras gravadas por outra versão não quebram o save (forward-compat)
+  .catchall(z.string().trim().max(PROMPT_SECAO_MAX))
+  // Invariantes que a CF depende (mesma classe de guard do scheduler_mensagens:
+  // "remover {agenda_url} quebraria em silêncio"):
+  .superRefine((val, ctx) => {
+    // 1) criterio_morno customizado DEVE manter o placeholder — sem ele o
+    //    critério de endereço some de TODA qualificação (MORNO vira FRIO).
+    if (val.criterio_morno && !val.criterio_morno.includes(PROMPT_PLACEHOLDER_VALIDO)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `O critério MORNO deve conter ${PROMPT_PLACEHOLDER_VALIDO} (substituído pela variante BR/internacional).`,
+      });
+    }
+    // 2) Placeholder desconhecido chegaria LITERAL no prompt (typo silencioso).
+    for (const [chave, texto] of Object.entries(val)) {
+      if (typeof texto !== "string") continue;
+      for (const m of texto.matchAll(/\{[a-z_]+\}/g)) {
+        if (m[0] !== PROMPT_PLACEHOLDER_VALIDO) {
+          ctx.addIssue({
+            code: "custom",
+            message: `Placeholder desconhecido ${m[0]} em "${chave}" — só ${PROMPT_PLACEHOLDER_VALIDO} é substituído.`,
+          });
+        }
+      }
+    }
+    // 3) Âncoras de classe: o parser da CF espera QUENTE/MORNO/FRIO — critério
+    //    sem o próprio rótulo desorienta o Gemini (classe fora do contrato).
+    const ancoras: [keyof typeof val, string][] = [
+      ["criterio_quente", "QUENTE"],
+      ["criterio_morno", "MORNO"],
+      ["criterio_frio", "FRIO"],
+    ];
+    for (const [chave, rotulo] of ancoras) {
+      const texto = val[chave];
+      if (typeof texto === "string" && texto && !texto.includes(rotulo)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `O critério deve conter o rótulo ${rotulo} (contrato de saída da qualificação).`,
+        });
+      }
+    }
+  });
+
+export type QualificacaoPromptInput = Partial<
+  Record<
+    | "persona"
+    | "criterio_quente"
+    | "criterio_morno"
+    | "morno_endereco_br"
+    | "morno_endereco_internacional"
+    | "criterio_frio"
+    | "regra_renda_variavel"
+    | "regras_importantes",
+    string
+  >
+>;
+
+/** Atualiza as seções editáveis do prompt de qualificação (configuracoes_
+ *  sistema.qualificacao_prompt). Só OVERRIDES são gravados — seção vazia é
+ *  omitida (a CF continua no default do código, que é a fonte da verdade e
+ *  evolui sem "congelar" texto antigo). */
+export async function atualizarQualificacaoPrompt(
+  input: QualificacaoPromptInput,
+): Promise<ActionResult> {
+  const denied = await requireCeo();
+  if (denied) return { success: false, error: denied };
+
+  // Remove campos vazios (voltam ao default do código)
+  const semVazios: Record<string, string> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (typeof v === "string" && v.trim()) semVazios[k] = v;
+  }
+  const parsed = promptCfgSchema.safeParse(semVazios);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? `Seções inválidas (máx ${PROMPT_SECAO_MAX} caracteres)`,
+    };
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .update({ valor: parsed.data })
+      .eq("chave", "qualificacao_prompt")
+      .select("chave");
+
+    if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Config qualificacao_prompt não encontrada (migration pendente?)" };
+    }
+    revalidatePath("/automacoes");
+    return { success: true };
+  } catch (err) {
+    console.error({ level: "error", action: "atualizar_qualificacao_prompt", error: String(err) });
+    return { success: false, error: "Erro inesperado ao salvar o prompt." };
+  }
+}
+
 /** Reenfileira um run que terminou em erro (replay manual do CEO).
  *  Zera tentativas e volta a 'pendente' — a engine reprocessa no próximo tick.
  *  Idempotência de envio é garantida pela engine (CAS nas colunas *_sent_at). */

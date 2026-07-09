@@ -57,10 +57,20 @@ import {
   reprocessarRun,
   atualizarIntervalosScheduler,
   atualizarMensagensScheduler,
+  atualizarAtivasSistema,
+  atualizarEmailConfig,
+  atualizarQualificacaoPrompt,
   type AutomacaoInput,
   type SchedulerIntervalos,
   type SchedulerMensagens,
+  type SistemaAtivas,
+  type SistemaEmailConfig,
 } from "@/lib/actions/automacoes-builder";
+import {
+  QUALIFICACAO_PROMPT_DEFAULTS,
+  QUALIFICACAO_PROMPT_LABELS,
+  type QualificacaoPromptCfg,
+} from "@/lib/automacoes/qualificacao-prompt-defaults";
 import { cn } from "@/lib/utils";
 
 // ─── Componente principal ────────────────────────────────────────────────────
@@ -88,6 +98,9 @@ export function AutomacoesClient({
   leadNomes,
   intervalos,
   mensagens,
+  ativas,
+  emailCfg,
+  promptCfg,
   agora,
 }: {
   automacoes: AutomacaoComStats[];
@@ -96,6 +109,9 @@ export function AutomacoesClient({
   leadNomes: Record<string, string>;
   intervalos: SchedulerIntervalos;
   mensagens: SchedulerMensagens | null;
+  ativas: SistemaAtivas | null;
+  emailCfg: SistemaEmailConfig | null;
+  promptCfg: QualificacaoPromptCfg | null;
   agora: number;
 }) {
   const router = useRouter();
@@ -237,6 +253,9 @@ export function AutomacoesClient({
           <SistemaAutomacoesSection
             intervalos={intervalos}
             mensagens={mensagens}
+            ativas={ativas}
+            emailCfg={emailCfg}
+            promptCfg={promptCfg}
             isPending={isPending}
             onMontarRegua={() => setBuilder({ ...emptyBuilder(), gatilho: "parcela_vencendo" })}
           />
@@ -405,9 +424,10 @@ const TEMPLATE_TITULO: Record<MensagemTemplate, string> = {
   scheduled_return: "Retomada agendada (scheduled_return)",
 };
 
-/** Card de automação nativa. `intervaloChave`/`templates`/`editaReuniao`
- *  definem o que o modal permite editar — cards sem nada disso abrem um
- *  modal "Detalhes" só de leitura (sem UI falsa). */
+/** Card de automação nativa. `intervaloChave`/`templates`/`editaReuniao`/
+ *  `toggles`/`editaEmailDestino`/`editaPrompt` definem o que o modal permite
+ *  editar — cards sem nada disso abrem um modal "Detalhes" só de leitura
+ *  (sem UI falsa). */
 interface SistemaCard {
   id: string;
   nome: string;
@@ -417,6 +437,13 @@ interface SistemaCard {
   intervaloChave?: keyof SchedulerIntervalos;
   templates?: MensagemTemplate[];
   editaReuniao?: boolean;
+  /** On/off persistidos em sistema_automacoes_ativas (ausente = ativa —
+   *  fail-open nas CFs). Aviso opcional exibido ao desligar. */
+  toggles?: { chave: keyof SistemaAtivas; label: string; avisoDesligar?: string }[];
+  /** Card de e-mails: edita o destino do e-mail interno (email_config). */
+  editaEmailDestino?: boolean;
+  /** Card da qualificação: edita as seções do prompt Gemini. */
+  editaPrompt?: boolean;
 }
 
 /** Automações nativas, na ordem dos cards: as 4 com intervalo editável
@@ -435,6 +462,11 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     ],
     intervaloChave: "whatsapp_inicial_horas",
     templates: ["initial"],
+    toggles: [{
+      chave: "whatsapp_inicial",
+      label: "Envio do WhatsApp inicial",
+      avisoDesligar: "Leads qualificados NÃO receberão o convite de agendamento enquanto desligado — acumulam e disparam quando reativar.",
+    }],
   },
   {
     id: "whatsapp_timing_alt",
@@ -446,6 +478,11 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     ],
     intervaloChave: "whatsapp_timing_alt_horas",
     templates: ["early_potential", "late_timing"],
+    toggles: [{
+      chave: "whatsapp_timing_alt",
+      label: "Envio das mensagens de timing",
+      avisoDesligar: "Leads muito cedo/tarde demais NÃO receberão a mensagem de timing enquanto desligado — acumulam e disparam quando reativar.",
+    }],
   },
   {
     id: "followup_1",
@@ -457,6 +494,11 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     ],
     intervaloChave: "followup_1_horas",
     templates: ["followup_1"],
+    toggles: [{
+      chave: "followup_1",
+      label: "Envio do Follow-up 1",
+      avisoDesligar: "Sem o FU1, o FU2 também não sai (depende do FU1 enviado). Ao reativar após dias, o FU1 sai tardio e o FU2 respeita espaçamento mínimo de 24h.",
+    }],
   },
   {
     id: "followup_2",
@@ -468,6 +510,7 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     ],
     intervaloChave: "followup_2_horas",
     templates: ["followup_2"],
+    toggles: [{ chave: "followup_2", label: "Envio do Follow-up 2" }],
   },
   {
     id: "retomada_novembro",
@@ -478,6 +521,7 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
       "Na data, atleta e responsável recebem o template scheduled_return — envio único por lead. A data da retomada não é configurável.",
     ],
     templates: ["scheduled_return"],
+    toggles: [{ chave: "scheduled_return", label: "Envio da retomada de novembro" }],
   },
   {
     id: "confirmacao_reuniao",
@@ -489,6 +533,11 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
       "O link do Meet é anexado automaticamente como preview do WhatsApp — não precisa constar no texto.",
     ],
     editaReuniao: true,
+    toggles: [{
+      chave: "confirmacao_reuniao",
+      label: "Notificações de reunião (lead + CEO)",
+      avisoDesligar: "Só as notificações param — a detecção da reunião, o pipeline e o Sheets continuam funcionando.",
+    }],
   },
   {
     id: "qualificacao_gemini",
@@ -497,8 +546,14 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     fluxo: [
       "Dispara no cadastro de cada formulário (webhook Supabase) e classifica o lead como QUENTE, MORNO ou FRIO via Google Gemini.",
       "QUENTE/MORNO entram automaticamente no pipeline (atleta + deal na etapa Lead) e seguem para o WhatsApp inicial.",
-      "Falhas de qualificação são reprocessadas automaticamente 1x/dia. Critérios do prompt: docs/BUSINESS_RULES.md (ajuste via código).",
+      "Falhas de qualificação são reprocessadas automaticamente 1x/dia. As seções do prompt são editáveis abaixo — seção vazia volta ao padrão do sistema.",
     ],
+    editaPrompt: true,
+    toggles: [{
+      chave: "qualificacao",
+      label: "Qualificação automática",
+      avisoDesligar: "Leads novos ficam PENDENTES (sem classe, sem pipeline, sem WhatsApp) até reativar — o reprocesso é automático na reativação.",
+    }],
   },
   {
     id: "emails_confirmacao",
@@ -507,7 +562,16 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     fluxo: [
       "Dispara no cadastro do formulário e envia os e-mails de confirmação (família + cópia interna).",
       "Resend é o provedor primário, com fallback automático para Brevo em caso de falha.",
-      "Remetente e destinatário interno são configurados nas variáveis da função no GCP (FROM_EMAIL, INTERNAL_EMAIL).",
+      "O destinatário do e-mail interno é editável abaixo; o remetente (FROM_EMAIL) segue nas variáveis da função no GCP.",
+    ],
+    editaEmailDestino: true,
+    toggles: [
+      {
+        chave: "email_confirmacao",
+        label: "E-mails automáticos ao lead (confirmação + timing)",
+        avisoDesligar: "Cobre confirmação de candidatura E as mensagens de timing por e-mail. Envios manuais (mensagem direta) não são afetados.",
+      },
+      { chave: "email_interno", label: "E-mail interno de novo lead" },
     ],
   },
   {
@@ -534,6 +598,12 @@ interface SistemaSavePayload {
   intervalo?: { chave: keyof SchedulerIntervalos; valor: number };
   textos?: Partial<Record<MensagemTemplate, MensagemPar>>;
   reuniao?: MensagemParReuniao;
+  /** Mudanças de toggle deste card (mescladas ao objeto completo na section). */
+  ativas?: Partial<SistemaAtivas>;
+  /** Destino do e-mail interno ('' limpa o override → volta ao padrão env). */
+  emailDestino?: string;
+  /** Overrides das seções do prompt ('' numa seção volta ao padrão do código). */
+  promptCfg?: QualificacaoPromptCfg;
 }
 
 /** Seção "Automações do sistema" em CARDS (apresentação H4): grid 2-col para
@@ -543,11 +613,17 @@ interface SistemaSavePayload {
 function SistemaAutomacoesSection({
   intervalos,
   mensagens,
+  ativas,
+  emailCfg,
+  promptCfg,
   isPending,
   onMontarRegua,
 }: {
   intervalos: SchedulerIntervalos;
   mensagens: SchedulerMensagens | null;
+  ativas: SistemaAtivas | null;
+  emailCfg: SistemaEmailConfig | null;
+  promptCfg: QualificacaoPromptCfg | null;
   isPending: boolean;
   onMontarRegua: () => void;
 }) {
@@ -560,7 +636,17 @@ function SistemaAutomacoesSection({
   const cardEditavel = (card: SistemaCard): boolean =>
     Boolean(card.intervaloChave) ||
     Boolean(card.templates?.length && mensagens) ||
-    Boolean(card.editaReuniao && mensagens?.meeting_confirmed);
+    Boolean(card.editaReuniao && mensagens?.meeting_confirmed) ||
+    Boolean(card.toggles?.length && ativas) ||
+    Boolean(card.editaEmailDestino && emailCfg) ||
+    Boolean(card.editaPrompt && promptCfg);
+
+  /** Card está ativo? Ausente na config = ATIVA (fail-open, como nas CFs).
+   *  Cards com vários toggles: desativado só se TODOS estiverem off. */
+  const cardAtivo = (card: SistemaCard): boolean => {
+    if (!card.toggles?.length || !ativas) return true;
+    return card.toggles.some((t) => ativas[t.chave] !== false);
+  };
 
   const salvar = (payload: SistemaSavePayload) => {
     startTransition(async () => {
@@ -594,6 +680,37 @@ function SistemaAutomacoesSection({
           return;
         }
       }
+      if (payload.ativas && ativas) {
+        // Objeto completo: toggles dos DEMAIS cards seguem inalterados.
+        // Campos undefined (opcionais não setados) saem — o schema catchall
+        // exige boolean estrito nas chaves presentes.
+        const mesclado: Record<string, boolean> = {};
+        for (const [k, v] of Object.entries({ ...ativas, ...payload.ativas })) {
+          if (typeof v === "boolean") mesclado[k] = v;
+        }
+        const result = await atualizarAtivasSistema(mesclado);
+        if (!result.success) {
+          toast.error(result.error ?? "Erro ao salvar status");
+          router.refresh();
+          return;
+        }
+      }
+      if (payload.emailDestino !== undefined) {
+        const result = await atualizarEmailConfig({ destino_interno: payload.emailDestino });
+        if (!result.success) {
+          toast.error(result.error ?? "Erro ao salvar e-mail de destino");
+          router.refresh();
+          return;
+        }
+      }
+      if (payload.promptCfg) {
+        const result = await atualizarQualificacaoPrompt(payload.promptCfg);
+        if (!result.success) {
+          toast.error(result.error ?? "Erro ao salvar o prompt");
+          router.refresh();
+          return;
+        }
+      }
       toast.success("Automação atualizada — vale a partir do próximo tick/envio");
       setCardAberto(null);
       router.refresh();
@@ -620,8 +737,12 @@ function SistemaAutomacoesSection({
                 <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                   <Zap className="h-3 w-3 text-primary" />
                   {card.nome}
-                  {/* Sempre ativa — badge fixo no lugar do toggle (sem UI falsa) */}
-                  <Badge tone="green" size="sm">Ativa</Badge>
+                  {/* Badge reflete o toggle (sistema_automacoes_ativas) */}
+                  {cardAtivo(card) ? (
+                    <Badge tone="green" size="sm">Ativa</Badge>
+                  ) : (
+                    <Badge tone="red" size="sm">Desativada</Badge>
+                  )}
                 </p>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                   {card.descricao}
@@ -660,7 +781,14 @@ function SistemaAutomacoesSection({
               <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
                 <Clock className="h-3 w-3 text-label-tertiary" />
                 {card.nome}
-                <Badge tone="neutral" size="sm">Automática</Badge>
+                {/* Com toggle → badge reflete o status; sem toggle → informativo */}
+                {!card.toggles?.length ? (
+                  <Badge tone="neutral" size="sm">Automática</Badge>
+                ) : cardAtivo(card) ? (
+                  <Badge tone="green" size="sm">Ativa</Badge>
+                ) : (
+                  <Badge tone="red" size="sm">Desativada</Badge>
+                )}
               </p>
               <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                 {card.descricao}
@@ -702,6 +830,9 @@ function SistemaAutomacoesSection({
           card={cardAberto}
           intervalos={intervalos}
           mensagens={mensagens}
+          ativas={ativas}
+          emailCfg={emailCfg}
+          promptCfg={promptCfg}
           isPending={ocupado}
           onClose={() => setCardAberto(null)}
           onSave={salvar}
@@ -777,6 +908,9 @@ function SistemaModal({
   card,
   intervalos,
   mensagens,
+  ativas,
+  emailCfg,
+  promptCfg,
   isPending,
   onClose,
   onSave,
@@ -784,12 +918,19 @@ function SistemaModal({
   card: SistemaCard;
   intervalos: SchedulerIntervalos;
   mensagens: SchedulerMensagens | null;
+  ativas: SistemaAtivas | null;
+  emailCfg: SistemaEmailConfig | null;
+  promptCfg: QualificacaoPromptCfg | null;
   isPending: boolean;
   onClose: () => void;
   onSave: (payload: SistemaSavePayload) => void;
 }) {
   // Textos editáveis só quando o seed existe no ambiente (sem UI falsa)
   const templatesEditaveis = mensagens ? card.templates ?? [] : [];
+  // Toggles/e-mail/prompt: idem — null (migration pendente) desabilita
+  const togglesEditaveis = ativas ? card.toggles ?? [] : [];
+  const emailEditavel = Boolean(card.editaEmailDestino && emailCfg);
+  const promptEditavel = Boolean(card.editaPrompt && promptCfg);
   const [intervalo, setIntervalo] = useState<number>(
     card.intervaloChave ? intervalos[card.intervaloChave] : 0,
   );
@@ -805,18 +946,49 @@ function SistemaModal({
       ? { ...mensagens.meeting_confirmed }
       : null,
   );
+  // Toggles deste card (ausente na config = ATIVA — fail-open, como nas CFs)
+  const [toggleValores, setToggleValores] = useState<Record<string, boolean>>(() => {
+    const inicial: Record<string, boolean> = {};
+    if (ativas) {
+      for (const t of card.toggles ?? []) inicial[t.chave] = ativas[t.chave] !== false;
+    }
+    return inicial;
+  });
+  const [emailDestino, setEmailDestino] = useState<string>(
+    emailCfg?.destino_interno ?? "",
+  );
+  // Seções do prompt: config ?? default do código (o CEO vê o texto que roda)
+  const [promptSecoes, setPromptSecoes] = useState<Record<string, string>>(() => {
+    const inicial: Record<string, string> = {};
+    if (card.editaPrompt && promptCfg) {
+      for (const chave of Object.keys(QUALIFICACAO_PROMPT_DEFAULTS) as (keyof QualificacaoPromptCfg)[]) {
+        inicial[chave] = promptCfg[chave] ?? QUALIFICACAO_PROMPT_DEFAULTS[chave];
+      }
+    }
+    return inicial;
+  });
 
   const temEdicao =
-    Boolean(card.intervaloChave) || templatesEditaveis.length > 0 || reuniao !== null;
+    Boolean(card.intervaloChave) ||
+    templatesEditaveis.length > 0 ||
+    reuniao !== null ||
+    togglesEditaveis.length > 0 ||
+    emailEditavel ||
+    promptEditavel;
 
   const intervaloValido =
     !card.intervaloChave || (Number.isInteger(intervalo) && intervalo >= 1 && intervalo <= 720);
+  const emailValido =
+    !emailEditavel || emailDestino.trim() === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailDestino.trim());
   const textosValidos = templatesEditaveis.every((t) => {
     const par = textos[t];
     return par !== undefined && mensagemValida(par.atleta) && mensagemValida(par.responsavel);
   });
   const reuniaoValida = !reuniao || (mensagemValida(reuniao.lead) && mensagemValida(reuniao.ceo));
-  const valido = intervaloValido && textosValidos && reuniaoValida;
+  // Prompt: seção pode ficar vazia (= volta ao padrão), mas não estourar 4000
+  const promptValido =
+    !promptEditavel || Object.values(promptSecoes).every((v) => v.length <= 4000);
+  const valido = intervaloValido && textosValidos && reuniaoValida && emailValido && promptValido;
 
   const setTexto = (template: MensagemTemplate, campo: keyof MensagemPar, valor: string) => {
     setTextos((prev) => {
@@ -826,12 +998,27 @@ function SistemaModal({
   };
 
   const salvar = () => {
+    // Prompt: grava só OVERRIDES — seção igual ao default do código é enviada
+    // vazia (a action a omite; a CF segue no default, que evolui sem congelar)
+    let promptOverrides: QualificacaoPromptCfg | undefined;
+    if (promptEditavel) {
+      promptOverrides = {};
+      for (const [chave, valor] of Object.entries(promptSecoes)) {
+        const k = chave as keyof QualificacaoPromptCfg;
+        const texto = valor.trim();
+        (promptOverrides as Record<string, string>)[k] =
+          texto && texto !== QUALIFICACAO_PROMPT_DEFAULTS[k] ? texto : "";
+      }
+    }
     onSave({
       ...(card.intervaloChave
         ? { intervalo: { chave: card.intervaloChave, valor: intervalo } }
         : {}),
       ...(templatesEditaveis.length > 0 ? { textos } : {}),
       ...(reuniao ? { reuniao } : {}),
+      ...(togglesEditaveis.length > 0 ? { ativas: toggleValores } : {}),
+      ...(emailEditavel ? { emailDestino: emailDestino.trim() } : {}),
+      ...(promptOverrides ? { promptCfg: promptOverrides } : {}),
     });
   };
 
@@ -868,6 +1055,46 @@ function SistemaModal({
               </p>
             ))}
           </section>
+
+          {/* Status (on/off) — persiste em sistema_automacoes_ativas */}
+          {togglesEditaveis.length > 0 && (
+            <section className="space-y-2">
+              <p className={SECTION_LABEL}>Status</p>
+              {togglesEditaveis.map((t) => {
+                const ligado = toggleValores[t.chave] !== false;
+                return (
+                  <div key={t.chave} className="space-y-1">
+                    <label className="flex cursor-pointer items-center gap-2 text-[12px] text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={ligado}
+                        onChange={(e) =>
+                          setToggleValores((prev) => ({ ...prev, [t.chave]: e.target.checked }))
+                        }
+                        className="size-4 accent-primary"
+                      />
+                      <span className="font-medium">{t.label}</span>
+                      <Badge tone={ligado ? "green" : "red"} size="sm">
+                        {ligado ? "Ativa" : "Desativada"}
+                      </Badge>
+                    </label>
+                    {!ligado && t.avisoDesligar && (
+                      <p className="rounded-md bg-sys-orange/10 px-3 py-2 text-[11px] leading-relaxed text-sys-orange">
+                        {t.avisoDesligar}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          )}
+          {(card.toggles?.length ?? 0) > 0 && !ativas && (
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              Status indisponível neste ambiente (seed{" "}
+              <code className="font-mono">sistema_automacoes_ativas</code> pendente) — a
+              automação segue ativa com o comportamento padrão.
+            </p>
+          )}
 
           {/* Intervalo de disparo */}
           {card.intervaloChave && (
@@ -951,8 +1178,102 @@ function SistemaModal({
               </p>
             ))}
 
+          {/* E-mail interno (destino editável — email_config) */}
+          {emailEditavel && (
+            <section className="space-y-1.5">
+              <p className={SECTION_LABEL}>Destino do e-mail interno</p>
+              <Input
+                type="email"
+                aria-label="E-mail de destino da notificação interna de novo lead"
+                placeholder="Vazio = padrão da função (INTERNAL_EMAIL)"
+                value={emailDestino}
+                onChange={(e) => setEmailDestino(e.target.value)}
+              />
+              <p className={cn("text-[11px]", emailValido ? "text-muted-foreground" : "text-sys-red")}>
+                {emailValido
+                  ? "Recebe a notificação '🎯 Novo Lead' com os dados completos. Vazio volta ao padrão configurado no GCP."
+                  : "E-mail inválido."}
+              </p>
+            </section>
+          )}
+          {card.editaEmailDestino && !emailCfg && (
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              Destino indisponível neste ambiente (seed{" "}
+              <code className="font-mono">email_config</code> pendente) — envios seguem para o
+              padrão da função (INTERNAL_EMAIL).
+            </p>
+          )}
+
+          {/* Prompt de qualificação (seções editáveis — qualificacao_prompt) */}
+          {promptEditavel && (
+            <section className="space-y-3">
+              <p className={SECTION_LABEL}>Prompt de qualificação (Gemini)</p>
+              <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                Edite as seções abaixo com cuidado — elas definem QUEM vira QUENTE/MORNO/FRIO
+                (e, portanto, quem entra no pipeline e recebe WhatsApp). Os rótulos{" "}
+                <code className="font-mono">QUENTE</code>/<code className="font-mono">MORNO</code>/
+                <code className="font-mono">FRIO</code> devem continuar presentes nos critérios. No
+                critério MORNO, <code className="font-mono">{"{criterio_endereco}"}</code> é
+                substituído pela variante BR/internacional. Apagar uma seção volta ao padrão do
+                sistema. O formato de saída (JSON) não é editável.
+              </p>
+              {(Object.keys(QUALIFICACAO_PROMPT_DEFAULTS) as (keyof QualificacaoPromptCfg)[]).map(
+                (chave) => {
+                  const valor = promptSecoes[chave] ?? "";
+                  const ehDefault =
+                    valor.trim() === "" || valor.trim() === QUALIFICACAO_PROMPT_DEFAULTS[chave];
+                  return (
+                    <div key={chave} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label
+                          htmlFor={`prompt-${chave}`}
+                          className="text-[11px] font-semibold text-foreground"
+                        >
+                          {QUALIFICACAO_PROMPT_LABELS[chave]}
+                          {!ehDefault && (
+                            <Badge tone="blue" size="sm" className="ml-1.5">
+                              Personalizada
+                            </Badge>
+                          )}
+                        </label>
+                        <span
+                          className={cn(
+                            "text-[11px] tabular-nums",
+                            valor.length > 4000 ? "text-sys-red" : "text-muted-foreground",
+                          )}
+                        >
+                          {valor.length}/4000
+                        </span>
+                      </div>
+                      <textarea
+                        id={`prompt-${chave}`}
+                        className={cn(FIELD_CLASS, "min-h-24 resize-y font-mono text-[11px] leading-relaxed")}
+                        value={valor}
+                        onChange={(e) =>
+                          setPromptSecoes((prev) => ({ ...prev, [chave]: e.target.value }))
+                        }
+                      />
+                    </div>
+                  );
+                },
+              )}
+            </section>
+          )}
+          {card.editaPrompt && !promptCfg && (
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              Prompt indisponível neste ambiente (seed{" "}
+              <code className="font-mono">qualificacao_prompt</code> pendente) — a qualificação
+              segue com o prompt padrão do sistema.
+            </p>
+          )}
+
           {/* Card 100% informativo: nada editável (sem UI falsa) */}
-          {!card.intervaloChave && !card.templates?.length && !card.editaReuniao && (
+          {!card.intervaloChave &&
+            !card.templates?.length &&
+            !card.editaReuniao &&
+            !card.toggles?.length &&
+            !card.editaEmailDestino &&
+            !card.editaPrompt && (
             <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Parâmetros editáveis: em breve.
             </p>
