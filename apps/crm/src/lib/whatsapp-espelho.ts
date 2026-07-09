@@ -15,6 +15,9 @@
 export interface EspelhoChat {
   /** Telefone só-dígitos com DDI — chave da conversa na Z-API. */
   phone: string;
+  /** LID (só-dígitos, sem @lid) — endereçamento novo do WhatsApp. O webhook às
+   *  vezes grava mensagens sob o LID; a conversa é casada por phone OU lid. */
+  lid: string | null;
   /** Nome do contato, quando a Z-API informa. */
   name: string | null;
   /** Nome do lead/responsável no CRM (de-para por telefone), quando houver. */
@@ -124,8 +127,11 @@ export function normalizeChat(raw: unknown): EspelhoChat | null {
     asNonEmptyString(rec.lastMessage) ??
     asNonEmptyString(rec.messagePreview);
 
+  const lid = cleanPhone((asNonEmptyString(rec.lid) ?? "").split("@")[0]);
+
   return {
     phone,
+    lid: lid || null,
     name: asNonEmptyString(rec.name),
     leadName: null, // enriquecido na API route (de-para com o CRM)
     lastMessageTime: toEpochMs(rec.lastMessageTime) ?? toEpochMs(rec.messageTime),
