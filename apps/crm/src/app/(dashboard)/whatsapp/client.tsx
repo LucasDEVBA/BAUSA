@@ -1,13 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import {
+  Archive,
+  ArchiveRestore,
   FileText,
   Loader2,
   MapPin,
   MessageCircle,
   Mic,
+  MoreVertical,
   Paperclip,
+  Pin,
+  PinOff,
   RefreshCw,
   Search,
   Send,
@@ -36,6 +49,9 @@ const CHATS_POLL_MS = 15_000;
 const THREAD_POLL_MS = 8_000;
 /** localStorage: última vez que o CEO abriu cada conversa (badge de não-lida). */
 const LAST_SEEN_KEY = "bausa_whatsapp_last_seen";
+/** localStorage: conversas fixadas e arquivadas (local, só nesta tela). */
+const PINNED_KEY = "bausa_whatsapp_pinned";
+const ARCHIVED_KEY = "bausa_whatsapp_archived";
 const MESSAGE_MAX_LENGTH = 4096;
 /** Teto de upload (foto/documento) — casa com a action e fica sob o bodySizeLimit. */
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -141,64 +157,138 @@ interface ChatListItemProps {
   contact: EspelhoContact | null;
   unread: boolean;
   selected: boolean;
+  pinned: boolean;
+  archived: boolean;
+  menuOpen: boolean;
   onSelect: (phone: string) => void;
+  onToggleMenu: (phone: string) => void;
+  onTogglePin: (phone: string) => void;
+  onToggleArchive: (phone: string) => void;
 }
 
-function ChatListItem({ chat, contact, unread, selected, onSelect }: ChatListItemProps) {
+function ChatListItem({
+  chat,
+  contact,
+  unread,
+  selected,
+  pinned,
+  archived,
+  menuOpen,
+  onSelect,
+  onToggleMenu,
+  onTogglePin,
+  onToggleArchive,
+}: ChatListItemProps) {
   // De-para: contato salvo no aparelho → nome do lead no CRM → telefone.
   const displayName =
     chat.name ?? contact?.name ?? chat.leadName ?? formatPhoneDisplay(chat.phone);
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(chat.phone)}
-      aria-current={selected ? "true" : undefined}
-      className={cn(
-        "flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-        selected ? "bg-primary/10" : "hover:bg-accent",
-      )}
-    >
-      <ChatAvatar name={displayName} imgUrl={contact?.imgUrl ?? null} />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline justify-between gap-2">
-          <span
-            className={cn(
-              "truncate text-sm text-foreground",
-              unread ? "font-bold" : "font-medium",
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={() => onSelect(chat.phone)}
+        aria-current={selected ? "true" : undefined}
+        className={cn(
+          "flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          selected ? "bg-primary/10" : "hover:bg-accent",
+        )}
+      >
+        <ChatAvatar name={displayName} imgUrl={contact?.imgUrl ?? null} />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-1">
+              {pinned && (
+                <Pin aria-label="Fixada" className="size-3 shrink-0 rotate-45 text-muted-foreground" />
+              )}
+              <span
+                className={cn(
+                  "truncate text-sm text-foreground",
+                  unread ? "font-bold" : "font-medium",
+                )}
+              >
+                {displayName}
+              </span>
+            </span>
+            {chat.lastMessageTime !== null && (
+              <span
+                className={cn(
+                  "shrink-0 text-[10px] tabular-nums transition-opacity group-hover:opacity-0",
+                  unread ? "font-semibold text-sys-green" : "text-muted-foreground",
+                )}
+              >
+                {formatChatTime(chat.lastMessageTime)}
+              </span>
             )}
-          >
-            {displayName}
           </span>
-          {chat.lastMessageTime !== null && (
+          <span className="mt-0.5 flex items-center justify-between gap-2">
             <span
               className={cn(
-                "shrink-0 text-[10px] tabular-nums",
-                unread ? "font-semibold text-sys-green" : "text-muted-foreground",
+                "truncate text-xs",
+                unread ? "font-medium text-foreground" : "text-muted-foreground",
               )}
             >
-              {formatChatTime(chat.lastMessageTime)}
+              {chat.lastMessagePreview ?? formatPhoneDisplay(chat.phone)}
             </span>
-          )}
-        </span>
-        <span className="mt-0.5 flex items-center justify-between gap-2">
-          <span
-            className={cn(
-              "truncate text-xs",
-              unread ? "font-medium text-foreground" : "text-muted-foreground",
+            {unread && (
+              <span
+                aria-label="Mensagem não lida"
+                className="size-2.5 shrink-0 rounded-full bg-sys-green"
+              />
             )}
-          >
-            {chat.lastMessagePreview ?? formatPhoneDisplay(chat.phone)}
           </span>
-          {unread && (
-            <span
-              aria-label="Mensagem não lida"
-              className="size-2.5 shrink-0 rounded-full bg-sys-green"
-            />
-          )}
         </span>
-      </span>
-    </button>
+      </button>
+
+      {/* Kebab de opções (fixar/arquivar) — aparece no hover/foco. */}
+      <button
+        type="button"
+        aria-label="Opções da conversa"
+        aria-expanded={menuOpen}
+        onClick={(e) => {
+          // stopImmediatePropagation (não só stopPropagation): no App Router o
+          // React delega no document, onde vive o listener de "fechar ao clicar
+          // fora" — sem isto, trocar direto de um menu p/ o kebab de outro item
+          // fecharia em vez de trocar.
+          e.stopPropagation();
+          e.nativeEvent.stopImmediatePropagation();
+          onToggleMenu(chat.phone);
+        }}
+        className={cn(
+          "absolute right-2 top-2 flex size-6 items-center justify-center rounded-md bg-card/90 text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100",
+          menuOpen && "opacity-100",
+        )}
+      >
+        <MoreVertical className="size-4" />
+      </button>
+
+      {menuOpen && (
+        <div className="absolute right-2 top-9 z-20 w-44 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin(chat.phone);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-foreground transition-colors hover:bg-accent"
+          >
+            {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+            {pinned ? "Desafixar" : "Fixar no topo"}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleArchive(chat.phone);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-foreground transition-colors hover:bg-accent"
+          >
+            {archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
+            {archived ? "Desarquivar" : "Arquivar"}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -469,6 +559,11 @@ export function WhatsAppEspelhoClient() {
   const [contacts, setContacts] = useState<Record<string, EspelhoContact | null>>({});
   /** phone → epoch ms da última vez que o CEO abriu a conversa (badge não-lida). */
   const [lastSeen, setLastSeen] = useState<Record<string, number>>({});
+  /** Conversas fixadas/arquivadas (local, por navegador do CEO). */
+  const [pinned, setPinned] = useState<Set<string>>(new Set());
+  const [archived, setArchived] = useState<Set<string>>(new Set());
+  const [menuPhone, setMenuPhone] = useState<string | null>(null);
+  const [viewArchived, setViewArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -524,6 +619,64 @@ export function WhatsAppEspelhoClient() {
       // localStorage indisponível/corrompido — segue sem histórico de leitura.
     }
   }, []);
+
+  // Carrega fixadas/arquivadas persistidas (local).
+  useEffect(() => {
+    const carregar = (key: string, apply: (s: Set<string>) => void) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) apply(new Set(JSON.parse(raw) as string[]));
+      } catch {
+        // ignora localStorage corrompido/indisponível
+      }
+    };
+    carregar(PINNED_KEY, setPinned);
+    carregar(ARCHIVED_KEY, setArchived);
+  }, []);
+
+  // Alterna fixar/arquivar (persiste) e fecha o menu.
+  const togglePhoneSet = useCallback(
+    (
+      key: string,
+      setState: Dispatch<SetStateAction<Set<string>>>,
+      phone: string,
+    ) => {
+      setState((prev) => {
+        const next = new Set(prev);
+        if (next.has(phone)) next.delete(phone);
+        else next.add(phone);
+        try {
+          localStorage.setItem(key, JSON.stringify([...next]));
+        } catch {
+          // ignora falha de persistência
+        }
+        return next;
+      });
+      setMenuPhone(null);
+    },
+    [],
+  );
+
+  const togglePin = useCallback(
+    (phone: string) => togglePhoneSet(PINNED_KEY, setPinned, phone),
+    [togglePhoneSet],
+  );
+  const toggleArchive = useCallback(
+    (phone: string) => togglePhoneSet(ARCHIVED_KEY, setArchived, phone),
+    [togglePhoneSet],
+  );
+
+  // Fecha o menu de opções ao clicar fora (listener adicionado no próximo tick
+  // p/ o clique que abriu não fechar imediatamente).
+  useEffect(() => {
+    if (!menuPhone) return;
+    const fechar = () => setMenuPhone(null);
+    const id = window.setTimeout(() => document.addEventListener("click", fechar), 0);
+    return () => {
+      window.clearTimeout(id);
+      document.removeEventListener("click", fechar);
+    };
+  }, [menuPhone]);
 
   // Marca a conversa como lida ATÉ `value` (epoch ms). Faz bail se já estiver
   // igual/maior — sem re-render/gravação à toa (o efeito de thread chama a cada
@@ -1100,14 +1253,26 @@ export function WhatsAppEspelhoClient() {
 
   const filteredChats = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (query.length === 0) return chats;
     const queryDigits = query.replace(/\D/g, "");
-    return chats.filter(
-      (chat) =>
-        (chat.name?.toLowerCase().includes(query) ?? false) ||
-        (queryDigits.length > 0 && chat.phone.includes(queryDigits)),
-    );
-  }, [chats, search]);
+    const buscados =
+      query.length === 0
+        ? chats
+        : chats.filter(
+            (chat) =>
+              (chat.name?.toLowerCase().includes(query) ?? false) ||
+              (queryDigits.length > 0 && chat.phone.includes(queryDigits)),
+          );
+    // Filtra por arquivadas (view atual) e sobe as fixadas ao topo (sort estável
+    // → mantém a ordem por lastMessageTime dentro de cada grupo).
+    return buscados
+      .filter((chat) => archived.has(chat.phone) === viewArchived)
+      .sort((a, b) => (pinned.has(b.phone) ? 1 : 0) - (pinned.has(a.phone) ? 1 : 0));
+  }, [chats, search, archived, viewArchived, pinned]);
+
+  const archivedCount = useMemo(
+    () => chats.reduce((n, c) => (archived.has(c.phone) ? n + 1 : n), 0),
+    [chats, archived],
+  );
 
   const selectedChat = useMemo(
     () => chats.find((chat) => chat.phone === selectedPhone) ?? null,
@@ -1157,7 +1322,7 @@ export function WhatsAppEspelhoClient() {
         <div className="grid gap-4 lg:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]">
           {/* Lista de conversas */}
           <Card padding="none" className={cn("flex flex-col overflow-hidden", PANEL_HEIGHT)}>
-            <div className="shrink-0 border-b border-border p-3">
+            <div className="shrink-0 space-y-2 border-b border-border p-3">
               <div className="relative">
                 <Search
                   aria-hidden
@@ -1171,6 +1336,22 @@ export function WhatsAppEspelhoClient() {
                   className="pl-8"
                 />
               </div>
+              {(archivedCount > 0 || viewArchived) && (
+                <button
+                  type="button"
+                  onClick={() => setViewArchived((v) => !v)}
+                  aria-pressed={viewArchived}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors",
+                    viewArchived
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  )}
+                >
+                  <Archive className="size-3.5 shrink-0" />
+                  {viewArchived ? "Voltar às conversas" : `Arquivadas (${archivedCount})`}
+                </button>
+              )}
             </div>
 
             {chatsStatus === "loading" ? (
@@ -1192,12 +1373,18 @@ export function WhatsAppEspelhoClient() {
             ) : filteredChats.length === 0 ? (
               <div className="flex flex-1 items-center justify-center">
                 <EmptyState
-                  icon={MessageCircle}
-                  title="Nenhuma conversa encontrada"
+                  icon={viewArchived ? Archive : MessageCircle}
+                  title={
+                    viewArchived
+                      ? "Nenhuma conversa arquivada"
+                      : "Nenhuma conversa encontrada"
+                  }
                   description={
-                    search.trim().length > 0
-                      ? "Ajuste a busca por nome ou telefone."
-                      : "As conversas do número comercial aparecem aqui."
+                    viewArchived
+                      ? "Conversas que você arquivar aparecem aqui."
+                      : search.trim().length > 0
+                        ? "Ajuste a busca por nome ou telefone."
+                        : "As conversas do número comercial aparecem aqui."
                   }
                 />
               </div>
@@ -1213,7 +1400,13 @@ export function WhatsAppEspelhoClient() {
                       (chat.lastInboundAt ?? 0) > (lastSeen[chat.phone] ?? 0)
                     }
                     selected={chat.phone === selectedPhone}
+                    pinned={pinned.has(chat.phone)}
+                    archived={archived.has(chat.phone)}
+                    menuOpen={menuPhone === chat.phone}
                     onSelect={handleSelect}
+                    onToggleMenu={(phone) => setMenuPhone((cur) => (cur === phone ? null : phone))}
+                    onTogglePin={togglePin}
+                    onToggleArchive={toggleArchive}
                   />
                 ))}
               </ScrollList>
