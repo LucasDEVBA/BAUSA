@@ -5,7 +5,7 @@ import { FileText, Loader2, Mail, MessageSquare, Send, Upload, User, X } from "l
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { Button, Input, BrandTabs } from "@/components/ui";
+import { Button, Input, BrandTabs, useConfirm } from "@/components/ui";
 import { MensagemPreview } from "@/components/automacoes/MensagemPreview";
 import { uploadAutomacaoImagem } from "@/lib/actions/automacoes-media";
 import { uploadMensagemArquivo } from "@/lib/actions/mensagem-media";
@@ -68,6 +68,7 @@ export function MensagemDiretaComposer({
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitulo, setLinkTitulo] = useState("");
   const [enviando, startEnvio] = useTransition();
+  const confirm = useConfirm();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -104,11 +105,14 @@ export function MensagemDiretaComposer({
     });
   };
 
-  const handleEnviar = () => {
+  const handleEnviar = async () => {
     if (!podeEnviar || !contato) return;
-    const confirmado = window.confirm(
-      `Enviar ${canal === "whatsapp" ? "WhatsApp" : "e-mail"} para ${destinatario.nome} (${contato})?`,
-    );
+    const canalLabel = canal === "whatsapp" ? "WhatsApp" : "e-mail";
+    const confirmado = await confirm({
+      title: `Enviar ${canalLabel}?`,
+      description: `A mensagem será enviada para ${destinatario.nome} (${contato}).`,
+      confirmLabel: `Enviar ${canalLabel}`,
+    });
     if (!confirmado) return;
 
     startEnvio(async () => {

@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { getUserProfile } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { ConfirmProvider } from "@/components/ui";
 
 export default async function DashboardLayout({
   children,
@@ -21,7 +22,9 @@ export default async function DashboardLayout({
       <Sidebar papel={profile.papel} nome={profile.nome} avatarUrl={profile.avatar_url} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header nome={profile.nome} avatarUrl={profile.avatar_url} />
-        <main className="app-aurora flex-1 overflow-y-auto p-4">{children}</main>
+        <main className="app-aurora flex-1 overflow-y-auto p-4">
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </main>
       </div>
       {/* Toaster global — sonner. richColors ativa verde/vermelho semântico. */}
       <Toaster

@@ -506,3 +506,19 @@
 @media (prefers-reduced-motion: reduce) {
   .deeplink-highlight { animation: none; background-color: var(--fill-2); }
 }
+
+/* Entrada de diálogo/overlay (ConfirmDialog) — keyframes reais (o Tailwind v4
+   deste projeto não tem animate-in/fade-in) + respeito a prefers-reduced-motion */
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-overlay-in { animation: overlay-in 0.16s ease-out; }
+.animate-dialog-in { animation: dialog-in 0.16s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-overlay-in, .animate-dialog-in { animation: none; }
+}
