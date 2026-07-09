@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileText,
+  Loader2,
   MapPin,
   MessageCircle,
+  Paperclip,
   RefreshCw,
   Search,
   Send,
@@ -13,6 +15,8 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+
+import { uploadMensagemArquivo } from "@/lib/actions/mensagem-media";
 
 import { Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
 import { cn, getInitials } from "@/lib/utils";
@@ -30,6 +34,10 @@ const THREAD_POLL_MS = 8_000;
 /** localStorage: última vez que o CEO abriu cada conversa (badge de não-lida). */
 const LAST_SEEN_KEY = "bausa_whatsapp_last_seen";
 const MESSAGE_MAX_LENGTH = 4096;
+/** Teto de upload (foto/documento) — casa com a action e fica sob o bodySizeLimit. */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+/** Aceitos ao anexar (foto ou PDF). */
+const ATTACH_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf";
 /** 100vh − header (4rem) − padding do main (2rem) − PageHeader denso + gap (~3.75rem). */
 const PANEL_HEIGHT = "h-[calc(100vh-9.75rem)] min-h-[26rem]";
 
@@ -62,6 +70,8 @@ const CONTACTS_CHUNK_SIZE = 4;
 interface SendResponse {
   success?: boolean;
   error?: string;
+  /** messageId da Z-API — id real da mensagem, usado p/ casar o eco 1:1. */
+  messageId?: string | null;
 }
 
 // ─── Helpers de formatação ───────────────────────────────────────
@@ -352,8 +362,10 @@ export function WhatsAppEspelhoClient() {
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [attaching, setAttaching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const attachRef = useRef<HTMLInputElement>(null);
   const chatsAbortRef = useRef<AbortController | null>(null);
   const messagesAbortRef = useRef<AbortController | null>(null);
   const contactsInflightRef = useRef<Set<string>>(new Set());
@@ -482,13 +494,23 @@ export function WhatsAppEspelhoClient() {
       // mesma mensagem 2x em <2min não pode sumir com as duas).
       const usadas = new Set<string>();
       const echoes = (sessionEchoesRef.current.get(phone) ?? []).filter((echo) => {
-        const match = server.find(
-          (msg) =>
-            !usadas.has(msg.id) &&
-            msg.fromMe &&
-            msg.text === echo.text &&
-            Math.abs((msg.timestamp ?? 0) - (echo.timestamp ?? 0)) < ECHO_MATCH_WINDOW_MS,
-        );
+        // Preferir casar pelo messageId REAL da Z-API (id do eco = messageId
+        // quando o envio o retornou) — determinístico, imune a texto null de
+        // mídia e a skew de relógio. Fallback: heurística fromMe + MESMO tipo
+        // (não cruza mídia com texto) + texto igual + janela.
+        const temIdReal = !echo.id.startsWith("local-");
+        const idMatch = temIdReal ? server.find((msg) => msg.id === echo.id) : undefined;
+        const heurMatch = idMatch
+          ? undefined
+          : server.find(
+              (msg) =>
+                !usadas.has(msg.id) &&
+                msg.fromMe &&
+                msg.tipo === echo.tipo &&
+                msg.text === echo.text &&
+                Math.abs((msg.timestamp ?? 0) - (echo.timestamp ?? 0)) < ECHO_MATCH_WINDOW_MS,
+            );
+        const match = idMatch ?? heurMatch;
         if (match) usadas.add(match.id);
         const expired = Date.now() - (echo.timestamp ?? 0) > ECHO_TTL_MS;
         return !match && !expired;
@@ -677,7 +699,8 @@ export function WhatsAppEspelhoClient() {
 
         setDraft("");
         const echo: EspelhoMessage = {
-          id: `local-${Date.now()}`,
+          // id = messageId real da Z-API → casa 1:1 com a linha do espelho.
+          id: data?.messageId ?? `local-${Date.now()}`,
           phone,
           fromMe: true,
           text: message,
@@ -704,6 +727,74 @@ export function WhatsAppEspelhoClient() {
       }
     },
     [draft, selectedPhone, sending, fetchMessages],
+  );
+
+  // Anexar e enviar foto/documento: upload → Z-API (/send-image ou
+  // /send-document) → eco de mídia. Guard de tamanho + try/catch (upload via
+  // Server Action; ver next-serveraction-bodysize).
+  const handleAttach = useCallback(
+    async (file: File) => {
+      if (!selectedPhone || attaching) return;
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast.error("Arquivo muito grande (máx 10MB).");
+        return;
+      }
+      const phone = selectedPhone;
+      const ehImagem = file.type.startsWith("image/");
+      setAttaching(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const up = await uploadMensagemArquivo(fd);
+        if (!up.success) {
+          toast.error(up.error);
+          return;
+        }
+        const corpo = ehImagem
+          ? { phone, imageUrl: up.url }
+          : { phone, documentUrl: up.url, fileName: up.nomeArquivo };
+        const res = await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(corpo),
+        });
+        const data = (await res.json().catch(() => null)) as SendResponse | null;
+        if (!res.ok) {
+          toast.error(
+            data?.error === "zapi_nao_configurado"
+              ? "Z-API não configurada no ambiente do Engine."
+              : "Falha ao enviar o arquivo. Tente novamente.",
+          );
+          return;
+        }
+        const echo: EspelhoMessage = {
+          // id = messageId real da Z-API → casa 1:1 com a linha do espelho
+          // (evita duplicar/misturar ecos de mídia, todos com text=null).
+          id: data?.messageId ?? `local-${Date.now()}`,
+          phone,
+          fromMe: true,
+          text: null,
+          timestamp: Date.now(),
+          tipo: ehImagem ? "image" : "document",
+          mediaUrl: up.url,
+          mimeType: file.type || null,
+          fileName: ehImagem ? null : up.nomeArquivo,
+        };
+        sessionEchoesRef.current.set(phone, [
+          ...(sessionEchoesRef.current.get(phone) ?? []),
+          echo,
+        ]);
+        toast.success(ehImagem ? "Imagem enviada" : "Documento enviado");
+        if (selectedPhoneRef.current !== phone) return;
+        setMessages((prev) => [...prev, echo]);
+        void fetchMessages(phone, { silent: true });
+      } catch {
+        toast.error("Falha ao enviar o arquivo. Verifique a conexão.");
+      } finally {
+        setAttaching(false);
+      }
+    },
+    [selectedPhone, attaching, fetchMessages],
   );
 
   // ── Derivados ──
@@ -919,6 +1010,27 @@ export function WhatsAppEspelhoClient() {
                   onSubmit={handleSend}
                   className="flex shrink-0 items-center gap-2 border-t border-border p-3"
                 >
+                  <input
+                    ref={attachRef}
+                    type="file"
+                    accept={ATTACH_ACCEPT}
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void handleAttach(file);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={attaching || sending}
+                    aria-label="Anexar foto ou documento"
+                    onClick={() => attachRef.current?.click()}
+                  >
+                    {attaching ? <Loader2 className="animate-spin" /> : <Paperclip />}
+                  </Button>
                   <Input
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
