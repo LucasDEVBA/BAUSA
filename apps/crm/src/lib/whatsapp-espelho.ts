@@ -32,14 +32,35 @@ export interface EspelhoChat {
   unread: number;
 }
 
+/** Tipo da mensagem no espelho (espelha o CHECK de whatsapp_mensagens). */
+export type MensagemTipo =
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+  | "document"
+  | "sticker"
+  | "location"
+  | "contact"
+  | "reaction"
+  | "other";
+
 export interface EspelhoMessage {
   id: string;
   phone: string;
   fromMe: boolean;
-  /** Texto da mensagem; `null` quando é mídia/tipo não-texto. */
+  /** Texto da mensagem; `null` quando é mídia sem legenda. */
   text: string | null;
   /** Epoch em ms, quando disponível. */
   timestamp: number | null;
+  /** Tipo — decide como renderizar (foto/áudio/vídeo/doc/…). */
+  tipo: MensagemTipo;
+  /** URL da mídia (foto/áudio/vídeo/doc), quando houver. */
+  mediaUrl: string | null;
+  /** MIME da mídia (ex.: image/jpeg, audio/ogg), quando informado. */
+  mimeType: string | null;
+  /** Nome do arquivo (documentos), quando informado. */
+  fileName: string | null;
 }
 
 const PHONE_MIN_DIGITS = 10;
@@ -162,6 +183,12 @@ export function normalizeMessage(raw: unknown, index: number): EspelhoMessage | 
     fromMe: toBool(rec.fromMe),
     text,
     timestamp,
+    // Fallback Z-API (multi-device raramente responde histórico) — sem mídia
+    // estruturada aqui; o espelho do banco é a fonte com mídia.
+    tipo: text ? "text" : "other",
+    mediaUrl: null,
+    mimeType: null,
+    fileName: null,
   };
 }
 

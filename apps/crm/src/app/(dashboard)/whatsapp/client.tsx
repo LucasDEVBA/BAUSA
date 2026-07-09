@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageCircle, RefreshCw, Search, Send, Settings2, TriangleAlert } from "lucide-react";
+import {
+  FileText,
+  MapPin,
+  MessageCircle,
+  RefreshCw,
+  Search,
+  Send,
+  Settings2,
+  TriangleAlert,
+  User as UserIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
@@ -166,22 +176,137 @@ function ChatListItem({ chat, contact, unread, selected, onSelect }: ChatListIte
   );
 }
 
+/** Rótulo textual por tipo (fallback quando não há URL de mídia). */
+const MIDIA_LABEL: Record<string, string> = {
+  image: "Foto",
+  audio: "Áudio",
+  video: "Vídeo",
+  document: "Documento",
+  sticker: "Figurinha",
+  location: "Localização",
+  contact: "Contato",
+  reaction: "Reação",
+  other: "Mídia",
+};
+
+/** Renderiza o conteúdo de mídia da mensagem (foto/áudio/vídeo/documento). */
+function MessageMedia({ message }: { message: EspelhoMessage }) {
+  const { tipo, mediaUrl, fileName } = message;
+  // URLs de mídia da Z-API podem expirar/exigir auth/ser bloqueadas (CSP,
+  // adblock). Sem onError, o browser mostra ícone quebrado — pior que texto.
+  // Ao falhar o carregamento, cai no mesmo rótulo textual (padrão do ChatAvatar).
+  const [failed, setFailed] = useState(false);
+
+  // Rótulo textual: mídia antiga (sem URL), tipo sem arquivo, ou carga falhou.
+  const rotuloTextual = () => {
+    if (tipo === "location") {
+      return (
+        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <MapPin className="size-4 shrink-0" /> Localização
+        </span>
+      );
+    }
+    if (tipo === "contact") {
+      return (
+        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <UserIcon className="size-4 shrink-0" /> Contato
+        </span>
+      );
+    }
+    return <p className="text-sm italic text-muted-foreground">[{MIDIA_LABEL[tipo] ?? "mídia"}]</p>;
+  };
+
+  if (!mediaUrl) return rotuloTextual();
+
+  if (tipo === "image" || tipo === "sticker") {
+    if (failed) return rotuloTextual();
+    return (
+      <a href={mediaUrl} target="_blank" rel="noreferrer" className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element -- mídia externa da Z-API; domínio dinâmico fora do next/image */}
+        <img
+          src={mediaUrl}
+          alt={MIDIA_LABEL[tipo] ?? "Imagem"}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+          className={cn(
+            "rounded-lg object-cover",
+            tipo === "sticker" ? "max-h-32 w-32" : "max-h-64 max-w-full",
+          )}
+        />
+      </a>
+    );
+  }
+
+  if (tipo === "audio") {
+    if (failed) return rotuloTextual();
+    return (
+      <audio
+        controls
+        preload="none"
+        src={mediaUrl}
+        onError={() => setFailed(true)}
+        className="w-56 max-w-full"
+      />
+    );
+  }
+
+  if (tipo === "video") {
+    if (failed) return rotuloTextual();
+    return (
+      <video
+        controls
+        preload="metadata"
+        src={mediaUrl}
+        onError={() => setFailed(true)}
+        className="max-h-64 max-w-full rounded-lg"
+      />
+    );
+  }
+
+  if (tipo === "document") {
+    return (
+      <a
+        href={mediaUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-2 transition-colors hover:bg-accent"
+      >
+        <FileText className="size-5 shrink-0 text-primary" />
+        <span className="min-w-0 truncate text-sm font-medium text-foreground">
+          {fileName ?? "Documento"}
+        </span>
+      </a>
+    );
+  }
+
+  return (
+    <a href={mediaUrl} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
+      Abrir {MIDIA_LABEL[tipo] ?? "mídia"}
+    </a>
+  );
+}
+
 function MessageBubble({ message }: { message: EspelhoMessage }) {
+  const isMedia = message.tipo !== "text";
   return (
     <div className={cn("flex", message.fromMe ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl px-3 py-2",
+          "max-w-[75%] space-y-1 rounded-2xl px-3 py-2",
           message.fromMe ? "rounded-br-md bg-primary/10" : "rounded-bl-md bg-secondary",
         )}
       >
-        {message.text !== null ? (
+        {isMedia && <MessageMedia message={message} />}
+        {/* Texto = mensagem (tipo text) OU legenda da mídia. */}
+        {message.text !== null && (
           <p className="whitespace-pre-wrap break-words text-sm text-foreground">{message.text}</p>
-        ) : (
+        )}
+        {!isMedia && message.text === null && (
           <p className="text-sm italic text-muted-foreground">[mídia]</p>
         )}
         {message.timestamp !== null && (
-          <p className="mt-0.5 text-right text-[10px] tabular-nums text-muted-foreground">
+          <p className="text-right text-[10px] tabular-nums text-muted-foreground">
             {TIME_FORMAT.format(new Date(message.timestamp))}
           </p>
         )}
@@ -557,6 +682,10 @@ export function WhatsAppEspelhoClient() {
           fromMe: true,
           text: message,
           timestamp: Date.now(),
+          tipo: "text",
+          mediaUrl: null,
+          mimeType: null,
+          fileName: null,
         };
         // Persiste o eco por conversa (sessão) — reaparece ao voltar ao chat.
         sessionEchoesRef.current.set(phone, [
