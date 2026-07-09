@@ -179,6 +179,54 @@ const sendLink = async (phone, message, linkUrl, title, linkDescription, image) 
   return { success: true, response: JSON.parse(result.body) };
 };
 
+// ─── Enviar imagem com legenda via Z-API (/send-image) ───────
+// image = URL pública. A imagem chega como mídia nativa do WhatsApp (não
+// como card de link), com o texto como legenda. Usado quando o CEO anexa uma
+// imagem SEM link no compositor de mensagem direta.
+const sendImage = async (phone, imageUrl, caption) => {
+  const formattedPhone = formatPhone(phone);
+
+  if (!formattedPhone) {
+    log('WARN', 'invalid_phone', { phone });
+    return { success: false, error: 'Número inválido' };
+  }
+
+  const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-image`;
+
+  const postData = JSON.stringify({
+    phone: formattedPhone,
+    image: imageUrl,
+    caption: caption || '',
+  });
+
+  log('INFO', 'zapi_sending', {
+    phone: formattedPhone,
+    type: 'image',
+    captionLength: (caption || '').length,
+  });
+
+  const result = await httpRequest(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Client-Token': ZAPI_CLIENT_TOKEN,
+    },
+  }, postData);
+
+  log('INFO', 'zapi_response', {
+    phone: formattedPhone,
+    type: 'image',
+    statusCode: result.statusCode,
+    body: result.body.substring(0, 300),
+  });
+
+  if (result.statusCode >= 400) {
+    return { success: false, error: `Z-API HTTP ${result.statusCode}: ${result.body}` };
+  }
+
+  return { success: true, response: JSON.parse(result.body) };
+};
+
 // ─── Link de agendamento ─────────────────────────────────────
 // V1: link fixo para Google Calendar via /agendar (redirect)
 // V2: buildScheduleUrl com token Base64 (quando página custom ativar)
@@ -592,6 +640,10 @@ functions.http('sendWhatsApp', async (req, res) => {
       }
       const isHttpUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v.trim());
       const customLinkUrl = isHttpUrl(payload.linkUrl) ? payload.linkUrl.trim() : null;
+      // Imagem SEM link → mídia nativa (/send-image) com o texto como legenda.
+      // Com link, a imagem segue como preview do card (linkImage) — não duplica.
+      const customImageUrl =
+        !customLinkUrl && isHttpUrl(payload.imageUrl) ? payload.imageUrl.trim() : null;
       let result;
       if (customLinkUrl) {
         // Z-API /send-link: o link precisa estar contido na mensagem para o
@@ -608,11 +660,18 @@ functions.http('sendWhatsApp', async (req, res) => {
           sanitize(payload.linkDescription) || '',
           isHttpUrl(payload.linkImage) ? payload.linkImage.trim() : ''
         );
+      } else if (customImageUrl) {
+        result = await sendImage(payload.phone, customImageUrl, payload.customMessage);
       } else {
         result = await sendMessage(payload.phone, payload.customMessage);
       }
       const durationMs = Date.now() - startTime;
-      log('INFO', 'custom_message_sent', { phone, durationMs, withLink: !!customLinkUrl });
+      log('INFO', 'custom_message_sent', {
+        phone,
+        durationMs,
+        withLink: !!customLinkUrl,
+        withImage: !!customImageUrl,
+      });
       return res.status(200).send({ success: true, results: [{ to: 'custom', ...result }], durationMs });
     }
 

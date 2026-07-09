@@ -10,6 +10,7 @@ import { MensagemPreview } from "@/components/automacoes/MensagemPreview";
 import { uploadAutomacaoImagem } from "@/lib/actions/automacoes-media";
 import { uploadMensagemArquivo } from "@/lib/actions/mensagem-media";
 import { enviarMensagemDireta } from "@/lib/actions/mensagem-direta";
+import { listarLinksCurtos, type LinkCurtoResumo } from "@/lib/actions/links-curtos";
 
 /**
  * MensagemDiretaComposer (I4) — o CEO envia mensagem automatizada (WhatsApp
@@ -23,7 +24,8 @@ import { enviarMensagemDireta } from "@/lib/actions/mensagem-direta";
 const MENSAGEM_MIN = 5;
 const MENSAGEM_MAX = 2000;
 const ASSUNTO_MAX = 150;
-const LINK_TITULO_MAX = 120;
+const LINK_TITULO_MAX = 200;
+const SHORT_LINK_BASE = "https://bolsaatletausa.com/l/";
 
 const FIELD_CLASS =
   "w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40";
@@ -68,9 +70,21 @@ export function MensagemDiretaComposer({
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitulo, setLinkTitulo] = useState("");
   const [enviando, startEnvio] = useTransition();
+  const [linksCurtos, setLinksCurtos] = useState<LinkCurtoResumo[]>([]);
   const confirm = useConfirm();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Links curtos do CEO (para o select do campo de link) — carrega uma vez.
+  useEffect(() => {
+    let ativo = true;
+    void listarLinksCurtos().then((links) => {
+      if (ativo) setLinksCurtos(links);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   // Esc fecha SÓ o compositor (capture + stopPropagation impede o listener
   // do modal de detalhe, registrado em bubble no window, de fechar tudo).
@@ -277,11 +291,29 @@ export function MensagemDiretaComposer({
             {/* Link + título */}
             <div className="space-y-1.5">
               <p className="text-[11px] font-semibold text-foreground">Link (opcional)</p>
+              {linksCurtos.length > 0 && (
+                <select
+                  aria-label="Usar um link curto"
+                  className={cn(FIELD_CLASS, "cursor-pointer")}
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) setLinkUrl(e.target.value);
+                  }}
+                >
+                  <option value="">Usar um link curto…</option>
+                  {linksCurtos.map((l) => (
+                    <option key={l.id} value={`${SHORT_LINK_BASE}${l.slug}`}>
+                      /l/{l.slug}
+                      {l.titulo ? ` — ${l.titulo}` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
               <div className="grid gap-2 sm:grid-cols-2">
                 <Input
                   type="url"
                   aria-label="URL do link (opcional)"
-                  placeholder="URL do link (https://…)"
+                  placeholder="URL do link (https://…) ou escolha acima"
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
                 />
@@ -306,7 +338,7 @@ export function MensagemDiretaComposer({
               onChange={setImagemUrl}
               hint={
                 canal === "whatsapp"
-                  ? "No WhatsApp, a imagem acompanha o card do link — exige o link acima."
+                  ? "No WhatsApp, a imagem é enviada como mídia (com o texto de legenda). Com um link acima, ela vira a capa do card."
                   : "No e-mail, a imagem entra no topo do corpo."
               }
             />

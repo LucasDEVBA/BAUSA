@@ -145,6 +145,7 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
   const [creating, startCreate] = useTransition();
   const [target, setTarget] = useState<"landing" | "forms">("landing");
   const [titulo, setTitulo] = useState("");
+  const [slug, setSlug] = useState("");
   const [shortSlug, setShortSlug] = useState<string | null>(null);
   const [copiedShortLink, setCopiedShortLink] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -188,6 +189,10 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
   }
 
   const hasParams = source || medium || campaign;
+  // Espelha o regex do servidor (e da rota pública /l/[slug]): 3-40 chars, sem
+  // hífen nas pontas. Vazio = automático. Bloqueia o botão se inválido.
+  const slugTrim = slug.trim();
+  const slugValido = slugTrim === "" || /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(slugTrim);
 
   const buildShort = useCallback(
     (slug: string) => `${baseUrl}/l/${slug}`,
@@ -200,6 +205,7 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
     startCreate(async () => {
       const result = await criarLinkCurto({
         destino,
+        slug: slug.trim() || undefined,
         titulo: titulo.trim() || undefined,
         utm_source: source || undefined,
         utm_medium: medium || undefined,
@@ -209,6 +215,7 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
       });
       if (result.success) {
         setShortSlug(result.slug);
+        setSlug("");
         toast.success("Link curto criado — as UTMs ficam escondidas");
         router.refresh();
       } else {
@@ -470,6 +477,33 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
             </div>
           </div>
 
+          <div className="min-w-[180px]">
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Código do link{" "}
+              <span className="text-label-tertiary">(opcional — automático se vazio)</span>
+            </label>
+            <div className="flex items-stretch overflow-hidden rounded-lg border border-border bg-secondary focus-within:border-primary">
+              <span className="flex items-center whitespace-nowrap border-r border-border bg-secondary/60 px-2.5 text-xs font-mono text-muted-foreground">
+                /l/
+              </span>
+              <input
+                value={slug}
+                onChange={(e) =>
+                  setSlug(
+                    e.target.value
+                      .toLowerCase()
+                      .replace(/\s+/g, "-")
+                      .replace(/[^a-z0-9-]/g, ""),
+                  )
+                }
+                maxLength={40}
+                placeholder="ex.: fall-stories"
+                aria-label="Código personalizado do link curto"
+                className="w-full bg-transparent px-3 py-2 text-sm font-mono text-foreground placeholder:text-placeholder outline-none"
+              />
+            </div>
+          </div>
+
           <div className="min-w-[180px] flex-1">
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
               Título{" "}
@@ -485,13 +519,18 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
 
           <button
             onClick={handleEncurtar}
-            disabled={!hasParams || creating}
+            disabled={!hasParams || creating || !slugValido}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Scissors className="h-4 w-4" />
             {creating ? "Gerando…" : "Gerar link curto"}
           </button>
         </div>
+        {!slugValido && (
+          <p className="mt-2 text-xs text-sys-orange">
+            O código deve ter 3-40 caracteres (letras, números ou hífen) e não começar nem terminar com hífen.
+          </p>
+        )}
 
         {shortSlug && (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-sys-green/30 bg-sys-green/10 p-3">
