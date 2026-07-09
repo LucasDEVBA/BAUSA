@@ -687,15 +687,25 @@ function ImagemUploadField({
   const [uploading, startUpload] = useTransition();
 
   const handleFile = (file: File) => {
+    // Guard de tamanho: acima do bodySizeLimit do Server Action o Next rejeita
+    // ANTES da action, estourando o error boundary. Trata como erro claro.
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máx 10MB).");
+      return;
+    }
     const fd = new FormData();
     fd.append("file", file);
     startUpload(async () => {
-      const r = await uploadAutomacaoImagem(fd);
-      if (r.success) {
-        onChange(r.url);
-        toast.success("Imagem enviada");
-      } else {
-        toast.error(r.error);
+      try {
+        const r = await uploadAutomacaoImagem(fd);
+        if (r.success) {
+          onChange(r.url);
+          toast.success("Imagem enviada");
+        } else {
+          toast.error(r.error);
+        }
+      } catch {
+        toast.error("Falha ao enviar a imagem. Verifique o tamanho (máx 10MB) e a conexão.");
       }
     });
   };
