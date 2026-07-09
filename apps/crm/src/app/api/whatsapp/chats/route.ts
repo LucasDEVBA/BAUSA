@@ -24,16 +24,19 @@ async function enriquecer(chats: EspelhoChat[]): Promise<EspelhoChat[]> {
   if (chats.length === 0) return chats;
   try {
     const supabase = await createServerSupabaseClient();
-    const phones = chats.map((c) => c.phone);
+    // Telefones + LIDs: o webhook grava mensagens sob qualquer um dos dois.
+    const chaves = [
+      ...new Set(chats.flatMap((c) => [c.phone, c.lid].filter((k): k is string => !!k))),
+    ];
 
     const [atletasRes, respRes, inboundRes] = await Promise.all([
       supabase.from("atletas").select("nome_completo, whatsapp, responsavel_id"),
       supabase.from("responsaveis").select("id, nome, whatsapp"),
-      // Última RECEBIDA por telefone (p/ badge de não-lida no Engine).
+      // Última RECEBIDA por chave (p/ badge de não-lida no Engine).
       supabase
         .from("whatsapp_mensagens")
         .select("phone, momment")
-        .in("phone", phones)
+        .in("phone", chaves)
         .eq("from_me", false)
         .order("momment", { ascending: false }),
     ]);
@@ -51,10 +54,18 @@ async function enriquecer(chats: EspelhoChat[]): Promise<EspelhoChat[]> {
       if (Number.isFinite(ts)) lastInbound.set(row.phone, ts);
     }
 
+    // Maior timestamp entre o telefone e o LID da conversa.
+    const inboundDoChat = (c: EspelhoChat): number | null => {
+      const porTelefone = lastInbound.get(c.phone);
+      const porLid = c.lid ? lastInbound.get(c.lid) : undefined;
+      const maior = Math.max(porTelefone ?? 0, porLid ?? 0);
+      return maior > 0 ? maior : null;
+    };
+
     return chats.map((c) => ({
       ...c,
       leadName: resolverNomeLead(mapaNomes, c.phone),
-      lastInboundAt: lastInbound.get(c.phone) ?? null,
+      lastInboundAt: inboundDoChat(c),
     }));
   } catch (error) {
     logZapi("warn", "chats_enrich_failed", {

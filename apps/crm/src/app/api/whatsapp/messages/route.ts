@@ -39,6 +39,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!isValidPhone(phone)) {
     return NextResponse.json({ error: "telefone_invalido" }, { status: 400 });
   }
+  // O WhatsApp novo endereça por LID: o webhook às vezes grava a mensagem sob o
+  // LID da conversa (não o telefone). A thread casa por telefone OU lid.
+  const lid = cleanPhone(request.nextUrl.searchParams.get("lid") ?? "");
+  const chaves = lid && lid !== phone ? [phone, lid] : [phone];
 
   // ── Fonte primária: espelho no banco ──
   try {
@@ -48,7 +52,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { data, error } = await supabase
       .from("whatsapp_mensagens")
       .select("message_id, phone, from_me, texto, momment")
-      .eq("phone", phone)
+      .in("phone", chaves)
       .order("momment", { ascending: false, nullsFirst: false })
       .limit(MIRROR_LIMIT);
 

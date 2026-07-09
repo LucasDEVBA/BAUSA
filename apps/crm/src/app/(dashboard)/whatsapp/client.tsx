@@ -235,6 +235,9 @@ export function WhatsAppEspelhoClient() {
   const contactsCacheRef = useRef<Record<string, EspelhoContact | null>>({});
   /** Conversa aberta AGORA — guard contra eco/refetch na thread errada após await. */
   const selectedPhoneRef = useRef<string | null>(null);
+  /** telefone → LID da conversa (WhatsApp novo endereça por LID; o webhook grava
+   *  mensagens sob o LID). fetchMessages busca por telefone OU lid. */
+  const phoneToLidRef = useRef<Record<string, string>>({});
   /** Ecos de envios da sessão, por conversa — sobrevivem à troca de chat (multi-device). */
   const sessionEchoesRef = useRef<Map<string, EspelhoMessage[]>>(new Map());
   const threadRef = useRef<HTMLDivElement>(null);
@@ -242,6 +245,14 @@ export function WhatsAppEspelhoClient() {
   useEffect(() => {
     selectedPhoneRef.current = selectedPhone;
   }, [selectedPhone]);
+
+  // Mapa telefone→LID sempre atualizado com a lista de chats (usado por
+  // fetchMessages para casar mensagens gravadas sob o LID da conversa).
+  useEffect(() => {
+    const map: Record<string, string> = {};
+    for (const c of chats) if (c.lid) map[c.phone] = c.lid;
+    phoneToLidRef.current = map;
+  }, [chats]);
 
   // Carrega o "visto por último" persistido (por navegador do CEO).
   useEffect(() => {
@@ -317,7 +328,11 @@ export function WhatsAppEspelhoClient() {
     if (!opts?.silent) setMessagesStatus("loading");
 
     try {
-      const res = await fetch(`/api/whatsapp/messages?phone=${encodeURIComponent(phone)}`, {
+      const lid = phoneToLidRef.current[phone];
+      const query = lid
+        ? `phone=${encodeURIComponent(phone)}&lid=${encodeURIComponent(lid)}`
+        : `phone=${encodeURIComponent(phone)}`;
+      const res = await fetch(`/api/whatsapp/messages?${query}`, {
         signal: controller.signal,
         cache: "no-store",
       });
