@@ -6,17 +6,19 @@ import {
   Loader2,
   MapPin,
   MessageCircle,
+  Mic,
   Paperclip,
   RefreshCw,
   Search,
   Send,
   Settings2,
+  Trash2,
   TriangleAlert,
   User as UserIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { uploadMensagemArquivo } from "@/lib/actions/mensagem-media";
+import { uploadMensagemArquivo, uploadMensagemAudio } from "@/lib/actions/mensagem-media";
 
 import { Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
 import { cn, getInitials } from "@/lib/utils";
@@ -364,8 +366,21 @@ export function WhatsAppEspelhoClient() {
   const [sending, setSending] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
 
   const attachRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** true = descartar o áudio ao parar (cancelado, não enviar). */
+  const cancelRecordRef = useRef(false);
+  /** Conversa-alvo capturada no início da gravação (troca de chat não muda o destino). */
+  const recordPhoneRef = useRef<string | null>(null);
+  /** Guard síncrono anti-duplo-clique: bloqueia iniciar 2 gravações durante o
+   *  await do getUserMedia (o estado `recording` só seta depois). */
+  const startingRef = useRef(false);
   const chatsAbortRef = useRef<AbortController | null>(null);
   const messagesAbortRef = useRef<AbortController | null>(null);
   const contactsInflightRef = useRef<Set<string>>(new Set());
@@ -797,6 +812,182 @@ export function WhatsAppEspelhoClient() {
     [selectedPhone, attaching, fetchMessages],
   );
 
+  // ── Gravação e envio de áudio (mensagem de voz) ──
+  // Grava via MediaRecorder → upload (bucket) → Z-API /send-audio → eco.
+  // O MediaRecorder do Chrome grava webm/opus; a Z-API transcodifica p/ WhatsApp.
+
+  const finalizarAudio = useCallback(async () => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    audioStreamRef.current?.getTracks().forEach((t) => t.stop());
+    audioStreamRef.current = null;
+
+    const phone = recordPhoneRef.current;
+    const chunks = audioChunksRef.current;
+    audioChunksRef.current = [];
+    // Cancelado, sem conversa, ou gravação vazia → descarta e fecha a barra.
+    if (cancelRecordRef.current || !phone || chunks.length === 0) {
+      setRecording(false);
+      return;
+    }
+
+    // MIME BASE (sem `;codecs=opus`): o storage-js ignora options.contentType
+    // para File/Blob e usa File.type — então o tipo TEM de vir limpo aqui para
+    // casar com o allowed_mime_types do bucket (senão o Storage rejeita).
+    const baseType =
+      (mediaRecorderRef.current?.mimeType || "audio/webm").split(";")[0].trim().toLowerCase() ||
+      "audio/webm";
+    const blob = new Blob(chunks, { type: baseType });
+    if (blob.size === 0) {
+      setRecording(false);
+      return;
+    }
+    if (blob.size > MAX_UPLOAD_BYTES) {
+      toast.error("Áudio muito longo (máx 10MB).");
+      setRecording(false);
+      return;
+    }
+    const ext = baseType.split("/")[1] || "webm";
+    const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: baseType });
+
+    // Mantém a barra visível com "Enviando áudio…" (recording=true) durante o
+    // upload; só fecha no finally — sem flicker do compositor normal.
+    setAttaching(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const up = await uploadMensagemAudio(fd);
+      if (!up.success) {
+        toast.error(up.error);
+        return;
+      }
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, audioUrl: up.url }),
+      });
+      const data = (await res.json().catch(() => null)) as SendResponse | null;
+      if (!res.ok) {
+        toast.error(
+          data?.error === "zapi_nao_configurado"
+            ? "Z-API não configurada no ambiente do Engine."
+            : "Falha ao enviar o áudio. Tente novamente.",
+        );
+        return;
+      }
+      const echo: EspelhoMessage = {
+        id: data?.messageId ?? `local-${Date.now()}`,
+        phone,
+        fromMe: true,
+        text: null,
+        timestamp: Date.now(),
+        tipo: "audio",
+        mediaUrl: up.url,
+        mimeType: baseType,
+        fileName: null,
+      };
+      sessionEchoesRef.current.set(phone, [
+        ...(sessionEchoesRef.current.get(phone) ?? []),
+        echo,
+      ]);
+      toast.success("Áudio enviado");
+      if (selectedPhoneRef.current === phone) {
+        setMessages((prev) => [...prev, echo]);
+        void fetchMessages(phone, { silent: true });
+      }
+    } catch {
+      toast.error("Falha ao enviar o áudio. Verifique a conexão.");
+    } finally {
+      setAttaching(false);
+      setRecording(false);
+    }
+  }, [fetchMessages]);
+
+  const handleStartRecording = useCallback(async () => {
+    // Guard síncrono (startingRef) além do estado `recording` — o estado só
+    // seta após o await do getUserMedia, então dois cliques rápidos criariam
+    // dois recorders (o 1º ficaria órfão → mic preso).
+    if (!selectedPhone || recording || attaching || startingRef.current) return;
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      toast.error("Gravação de áudio não suportada neste navegador.");
+      return;
+    }
+    startingRef.current = true;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      const mime =
+        ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"].find(
+          (t) => MediaRecorder.isTypeSupported(t),
+        ) ?? "";
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      audioChunksRef.current = [];
+      cancelRecordRef.current = false;
+      recordPhoneRef.current = selectedPhone;
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      rec.onstop = () => void finalizarAudio();
+      mediaRecorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      setRecordSeconds(0);
+      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch {
+      audioStreamRef.current?.getTracks().forEach((t) => t.stop());
+      audioStreamRef.current = null;
+      toast.error("Não foi possível acessar o microfone. Verifique a permissão.");
+    } finally {
+      startingRef.current = false;
+    }
+  }, [selectedPhone, recording, attaching, finalizarAudio]);
+
+  // Parar a gravação: só age se estiver realmente gravando (evita 2º stop() →
+  // InvalidStateError) e o state guard impede inverter enviar/cancelar.
+  const handleStopAndSend = useCallback(() => {
+    const rec = mediaRecorderRef.current;
+    if (!rec || rec.state === "inactive") return;
+    cancelRecordRef.current = false;
+    try {
+      rec.stop();
+    } catch {
+      /* já parado */
+    }
+  }, []);
+
+  const handleCancelRecording = useCallback(() => {
+    const rec = mediaRecorderRef.current;
+    if (!rec || rec.state === "inactive") return;
+    cancelRecordRef.current = true;
+    try {
+      rec.stop();
+    } catch {
+      /* já parado */
+    }
+  }, []);
+
+  // Trocar de conversa durante a gravação → cancela (evita a barra sob o chat
+  // errado e o áudio ir para o lead capturado no início — mis-send).
+  useEffect(() => {
+    if (recording && recordPhoneRef.current && selectedPhone !== recordPhoneRef.current) {
+      handleCancelRecording();
+    }
+  }, [selectedPhone, recording, handleCancelRecording]);
+
+  // Encerra gravação/stream ao desmontar (evita mic preso).
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      audioStreamRef.current?.getTracks().forEach((t) => t.stop());
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        cancelRecordRef.current = true;
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+
   // ── Derivados ──
 
   const filteredChats = useMemo(() => {
@@ -1006,48 +1197,92 @@ export function WhatsAppEspelhoClient() {
                   </>
                 )}
 
-                <form
-                  onSubmit={handleSend}
-                  className="flex shrink-0 items-center gap-2 border-t border-border p-3"
-                >
-                  <input
-                    ref={attachRef}
-                    type="file"
-                    accept={ATTACH_ACCEPT}
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void handleAttach(file);
-                      event.currentTarget.value = "";
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    disabled={attaching || sending}
-                    aria-label="Anexar foto ou documento"
-                    onClick={() => attachRef.current?.click()}
+                {recording ? (
+                  <div className="flex shrink-0 items-center gap-3 border-t border-border p-3">
+                    {attaching ? (
+                      <span className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="size-4 animate-spin" /> Enviando áudio…
+                      </span>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Cancelar gravação"
+                          onClick={handleCancelRecording}
+                        >
+                          <Trash2 className="text-sys-red" />
+                        </Button>
+                        <span className="flex flex-1 items-center gap-2 text-sm text-foreground">
+                          <span aria-hidden className="size-2.5 shrink-0 animate-pulse rounded-full bg-sys-red" />
+                          <span className="tabular-nums">
+                            {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, "0")}
+                          </span>
+                          <span className="text-muted-foreground">Gravando áudio…</span>
+                        </span>
+                        <Button
+                          type="button"
+                          size="icon"
+                          aria-label="Enviar áudio"
+                          onClick={handleStopAndSend}
+                        >
+                          <Send />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={handleSend}
+                    className="flex shrink-0 items-center gap-2 border-t border-border p-3"
                   >
-                    {attaching ? <Loader2 className="animate-spin" /> : <Paperclip />}
-                  </Button>
-                  <Input
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Escreva uma mensagem"
-                    aria-label="Mensagem"
-                    maxLength={MESSAGE_MAX_LENGTH}
-                    disabled={sending}
-                  />
-                  <Button
-                    type="submit"
-                    size="icon"
-                    disabled={sending || draft.trim().length === 0}
-                    aria-label="Enviar mensagem"
-                  >
-                    <Send />
-                  </Button>
-                </form>
+                    <input
+                      ref={attachRef}
+                      type="file"
+                      accept={ATTACH_ACCEPT}
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void handleAttach(file);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={attaching || sending}
+                      aria-label="Anexar foto ou documento"
+                      onClick={() => attachRef.current?.click()}
+                    >
+                      {attaching ? <Loader2 className="animate-spin" /> : <Paperclip />}
+                    </Button>
+                    <Input
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      placeholder="Escreva uma mensagem"
+                      aria-label="Mensagem"
+                      maxLength={MESSAGE_MAX_LENGTH}
+                      disabled={sending}
+                    />
+                    {draft.trim().length > 0 ? (
+                      <Button type="submit" size="icon" disabled={sending} aria-label="Enviar mensagem">
+                        <Send />
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="icon"
+                        disabled={attaching || sending}
+                        aria-label="Gravar áudio"
+                        onClick={handleStartRecording}
+                      >
+                        <Mic />
+                      </Button>
+                    )}
+                  </form>
+                )}
               </>
             )}
           </Card>

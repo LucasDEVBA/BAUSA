@@ -38,6 +38,10 @@ const documentSchema = z.object({
   documentUrl: urlHttp,
   fileName: z.string().max(FILENAME_MAX).optional(),
 });
+const audioSchema = z.object({
+  phone: phoneField,
+  audioUrl: urlHttp,
+});
 
 /** Extensão do arquivo p/ o path da Z-API /send-document/{ext}. Default: pdf. */
 function extensao(fileName: string | undefined): string {
@@ -77,6 +81,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     path = "/send-image";
     zbody = { phone, image: parsed.data.imageUrl, caption: parsed.data.caption ?? "" };
     logMeta = { kind: "image" };
+  } else if (body.audioUrl !== undefined) {
+    const parsed = audioSchema.safeParse(body);
+    if (!parsed.success) return invalido(parsed.error.issues[0]?.message);
+    phone = parsed.data.phone;
+    path = "/send-audio";
+    zbody = { phone, audio: parsed.data.audioUrl };
+    logMeta = { kind: "audio" };
   } else if (body.documentUrl !== undefined) {
     const parsed = documentSchema.safeParse(body);
     if (!parsed.success) return invalido(parsed.error.issues[0]?.message);
