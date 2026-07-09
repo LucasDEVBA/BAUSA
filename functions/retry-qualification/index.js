@@ -200,10 +200,14 @@ functions.http('retryQualification', async (req, res) => {
         const parsed = (() => { try { return JSON.parse(r.body); } catch { return null; } })();
 
         if (r.statusCode >= 200 && r.statusCode < 300) {
-          // 200 = qualificação OK; 202 = ainda pendente (Gemini falhou de novo)
+          // 200 = qualificação OK; 202 = ainda pendente (Gemini falhou de novo);
+          // skipped_disabled = automação desativada em /automacoes (não é sucesso)
           if (parsed?.action === 'pending_retry') {
             results.pending_again++;
             log('INFO', `${idx} still_pending`, { email: lead.email });
+          } else if (parsed?.action === 'skipped_disabled') {
+            results.skipped_disabled = (results.skipped_disabled || 0) + 1;
+            log('WARN', `${idx} skipped_disabled`, { email: lead.email });
           } else {
             results.success++;
             log('INFO', `${idx} qualified_ok`, {

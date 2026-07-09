@@ -159,9 +159,41 @@ const fetchIntervalos = async () => {
   }
 };
 
+// ─── Toggles on/off das automações de sistema (/automacoes) ────────────────
+// configuracoes_sistema.sistema_automacoes_ativas — campo ausente = ATIVA
+// (fail-open). Config indisponível JAMAIS para o scheduler — fallback {}.
+const fetchAtivas = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.sistema_automacoes_ativas&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET ativas: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor;
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch (e) {
+    log('WARN', 'ativas_fallback', { error: e.message });
+    return {};
+  }
+};
+
 // ─── Buscar leads pendentes de follow-up ───────────────────────
 const fetchFollowupLeads = async (followupNumber, executionStartTime) => {
   const isFollowup1 = followupNumber === 1;
+
+  // Toggle on/off em /automacoes (ausente = ativo); desligado → sem envio,
+  // leads seguem elegíveis e são pegos quando reativar.
+  const ativas = await fetchAtivas();
+  if (isFollowup1 ? ativas.followup_1 === false : ativas.followup_2 === false) {
+    log('WARN', 'followup_desativado_skip', { followupNumber });
+    return [];
+  }
 
   // Follow-up 1: Nh (default 48h) após whatsapp_sent_at, sem followup_1_sent_at
   // Follow-up 2: Nh (default 168h/7d) após whatsapp_sent_at, com followup_1_sent_at, sem followup_2_sent_at
@@ -190,7 +222,14 @@ const fetchFollowupLeads = async (followupNumber, executionStartTime) => {
     // Garante que followup_1 foi enviado em execução ANTERIOR, nunca na mesma execução.
     // Evita que um lead com whatsapp_sent_at > 168h receba followup_1 e followup_2 no mesmo ciclo.
     if (executionStartTime) {
-      baseFilters.push(`followup_1_sent_at=lt.${executionStartTime}`);
+      // Espaçamento mínimo de 24h entre fu1 e fu2 — estritamente mais forte
+      // que o guard original de "execução anterior" (executionStartTime ≈ now):
+      // além de impedir fu1+fu2 no mesmo ciclo, impede fu2 ~1h após um fu1
+      // tardio (ex.: followup_1 desligado por dias em /automacoes e reativado).
+      const fu1MinGapIso = new Date(
+        Math.min(new Date(executionStartTime).getTime(), Date.now() - 24 * 60 * 60 * 1000)
+      ).toISOString();
+      baseFilters.push(`followup_1_sent_at=lt.${fu1MinGapIso}`);
     }
   }
 
