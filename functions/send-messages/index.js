@@ -8,6 +8,11 @@ const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "Bolsa Atleta USA <contato@bolsaatletausa.com>";
 const INTERNAL_EMAIL = process.env.INTERNAL_EMAIL || "contato@bolsaatletausa.com";
 const LOGO_URL = process.env.LOGO_URL || "https://nikrlikwghqcxcjzthmc.supabase.co/storage/v1/object/public/public-assets/logo-bsa.jpg";
+// Config dinâmica (/automacoes) — OPCIONAIS: sem eles a CF se comporta
+// exatamente como hoje (toggles ativos + destino INTERNAL_EMAIL da env).
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || "public";
 
 // ─── Helpers ────────────────────────────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,7 +37,9 @@ const httpRequest = (options, postData) => {
       req.destroy();
       reject(new Error("Request timeout (10s)"));
     });
-    req.write(postData);
+    // Guard p/ GETs sem body (fetchEmailConfig) — write(undefined) lançaria
+    // ERR_INVALID_ARG_TYPE. Paridade com as demais CFs do repo.
+    if (postData) req.write(postData);
     req.end();
   });
 };
@@ -546,6 +553,42 @@ const getInternalTemplate = (data) => {
 };
 
 // ─── Cloud Function principal ───────────────────────────────────
+// ─── Config dinâmica das automações de sistema (/automacoes) ────
+// sistema_automacoes_ativas: toggles on/off (campo ausente = ATIVA).
+// email_config: destino_interno (ausente = env INTERNAL_EMAIL).
+// Config indisponível JAMAIS bloqueia o envio — fallback {} (fail-open).
+const fetchEmailConfig = async () => {
+  const out = { ativas: {}, emailCfg: {} };
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return out;
+  try {
+    const u = new URL(
+      `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=in.(sistema_automacoes_ativas,email_config)&select=chave,valor`
+    );
+    const result = await httpRequest({
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      method: "GET",
+      headers: {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+        "Accept-Profile": SUPABASE_SCHEMA,
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET config: ${result.statusCode}`);
+    for (const row of JSON.parse(result.body) || []) {
+      if (row.chave === "sistema_automacoes_ativas" && row.valor && typeof row.valor === "object") {
+        out.ativas = row.valor;
+      }
+      if (row.chave === "email_config" && row.valor && typeof row.valor === "object") {
+        out.emailCfg = row.valor;
+      }
+    }
+  } catch (e) {
+    console.log(JSON.stringify({ level: "WARN", action: "email_config_fallback", error: e.message }));
+  }
+  return out;
+};
+
 functions.http("sendMessages", async (req, res) => {
   const startTime = Date.now();
 
@@ -689,11 +732,31 @@ functions.http("sendMessages", async (req, res) => {
 
     const results = [];
 
+    // Config dinâmica (/automacoes): toggles + destino do e-mail interno.
+    // Fail-open: config indisponível = comportamento atual (tudo ativo).
+    const { ativas, emailCfg } = await fetchEmailConfig();
+    const confirmacaoAtiva = ativas.email_confirmacao !== false;
+    const internoAtivo = ativas.email_interno !== false;
+    const internalTo =
+      typeof emailCfg.destino_interno === "string" && emailCfg.destino_interno.trim()
+        ? emailCfg.destino_interno.trim()
+        : INTERNAL_EMAIL;
+
     // Verifica se email do atleta e responsável são o mesmo
     const sameEmail = data.guardian_email &&
       data.guardian_email.trim().toLowerCase() === data.email.trim().toLowerCase();
 
-    if (sameEmail) {
+    if (!confirmacaoAtiva) {
+      // Toggle email_confirmacao cobre TODOS os e-mails automáticos ao lead
+      // deste fluxo (initial + early_potential/late_timing/scheduled_return) —
+      // semântica documentada na UI. O interno (toggle próprio) sai abaixo;
+      // o caminho customEmail (envios manuais/billing) NÃO passa por aqui.
+      console.log(JSON.stringify({
+        level: "WARN", action: "email_confirmacao_desativado_skip",
+        athlete: data.athlete_name, messageType,
+      }));
+      results.push({ label: "CONFIRMACAO", success: true, skipped: true });
+    } else if (sameEmail) {
       // Mesmo email: envia apenas a copy do responsável (mais completa)
       console.log(JSON.stringify({ level: "INFO", action: "same_email_detected", email: data.email }));
 
@@ -742,17 +805,25 @@ functions.http("sendMessages", async (req, res) => {
 
     // 3. E-mail interno: apenas para fluxo 'initial' (avisa equipe sobre novo lead).
     // Mensagens de timing não geram aviso interno (são automações pós-qualificação).
-    if (messageType === 'initial') {
+    // Destino editável em /automacoes (email_config.destino_interno) + toggle próprio.
+    if (messageType === 'initial' && internoAtivo) {
       const internalResult = await sendEmailWithFallback(
-        INTERNAL_EMAIL,
+        internalTo,
         `🎯 Novo Lead: ${sanitize(data.athlete_name)}`,
         getInternalTemplate(data),
         "INTERNO"
       );
       results.push({ label: "INTERNO", ...internalResult });
+    } else if (messageType === 'initial') {
+      console.log(JSON.stringify({
+        level: "WARN", action: "email_interno_desativado_skip", athlete: data.athlete_name,
+      }));
+      results.push({ label: "INTERNO", success: true, skipped: true });
     }
 
-    const totalSent = results.filter((r) => r.success).length;
+    // Skips por toggle (/automacoes) não contam como enviados nem falhas.
+    const totalSkipped = results.filter((r) => r.skipped).length;
+    const totalSent = results.filter((r) => r.success && !r.skipped).length;
     const totalFailed = results.filter((r) => !r.success).length;
     const durationMs = Date.now() - startTime;
 
@@ -760,12 +831,12 @@ functions.http("sendMessages", async (req, res) => {
       level: totalFailed > 0 ? "WARN" : "INFO",
       action: "processing_complete",
       athlete: data.athlete_name,
-      totalSent, totalFailed, durationMs, results,
+      totalSent, totalSkipped, totalFailed, durationMs, results,
     }));
 
     res.status(200).send({
       success: true,
-      message: `Processado: ${totalSent} enviados, ${totalFailed} falharam`,
+      message: `Processado: ${totalSent} enviados, ${totalSkipped} pulados, ${totalFailed} falharam`,
       results, durationMs,
     });
 

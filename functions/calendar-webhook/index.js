@@ -356,6 +356,34 @@ const fetchMensagensCustom = async () => {
   }
 };
 
+// ─── Toggles on/off das automações de sistema (/automacoes) ────
+// configuracoes_sistema.sistema_automacoes_ativas — campo ausente = ATIVA
+// (fail-open). Config indisponível JAMAIS bloqueia o webhook — fallback {}.
+const fetchAtivas = async () => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return {};
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema` +
+      '?chave=eq.sistema_automacoes_ativas&select=valor&limit=1';
+    const result = await httpRequest(url, {
+      method: 'GET',
+      // 5s: config degradada não pode atrasar a confirmação instantânea.
+      timeoutMs: 5000,
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`Supabase HTTP ${result.statusCode}`);
+    const rows = JSON.parse(result.body);
+    const valor = Array.isArray(rows) ? rows[0]?.valor : null;
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch (error) {
+    log('WARN', 'ativas_fallback', { error: error.message });
+    return {};
+  }
+};
+
 // Renderiza um texto custom substituindo todos os placeholders (split/join —
 // nunca String.replace, que interpreta padrões com $). Retorna null (→ builder
 // hardcoded assume) se o texto não existir, não for string ou renderizar
@@ -562,26 +590,34 @@ functions.http('calendarWebhook', async (req, res) => {
       const confirmPhone = phone || lead.guardian_whatsapp || lead.athlete_whatsapp;
       const confirmName = lead.guardian_name || lead.athlete_name;
 
-      // Textos custom editáveis (meeting_confirmed) — buscados só quando um
-      // lead vai de fato receber a confirmação. Falha/ausência → builders.
-      const mensagensCustom = await fetchMensagensCustom();
-      const meetingVars = buildMeetingVars(lead, confirmName, confirmPhone, event);
-      const leadCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.lead, meetingVars);
-      const ceoCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.ceo, meetingVars);
+      // Toggle on/off em /automacoes (ausente = ativo). Gate SÓ nas
+      // notificações — a detecção da reunião, o meeting_scheduled, o move do
+      // deal e o sync Sheets acima/abaixo NUNCA são desativados (funil).
+      const ativas = await fetchAtivas();
+      if (ativas.confirmacao_reuniao === false) {
+        log('WARN', 'confirmacao_reuniao_desativada_skip', { athlete: lead.athlete_name });
+      } else {
+        // Textos custom editáveis (meeting_confirmed) — buscados só quando um
+        // lead vai de fato receber a confirmação. Falha/ausência → builders.
+        const mensagensCustom = await fetchMensagensCustom();
+        const meetingVars = buildMeetingVars(lead, confirmName, confirmPhone, event);
+        const leadCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.lead, meetingVars);
+        const ceoCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.ceo, meetingVars);
 
-      if (confirmPhone) {
-        await sendConfirmationWhatsApp(confirmPhone, confirmName, event, leadCustomMsg);
+        if (confirmPhone) {
+          await sendConfirmationWhatsApp(confirmPhone, confirmName, event, leadCustomMsg);
+        }
+
+        // 4. Notificar CEO
+        await notifyCeo(
+          lead.athlete_name,
+          lead.guardian_name || lead.athlete_name,
+          confirmPhone || 'N/A',
+          lead.email,
+          event,
+          ceoCustomMsg,
+        );
       }
-
-      // 4. Notificar CEO
-      await notifyCeo(
-        lead.athlete_name,
-        lead.guardian_name || lead.athlete_name,
-        confirmPhone || 'N/A',
-        lead.email,
-        event,
-        ceoCustomMsg,
-      );
 
       // 5. Sync Sheets
       await triggerSyncLeads({

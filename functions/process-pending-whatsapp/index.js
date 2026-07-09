@@ -93,8 +93,33 @@ const fetchIntervalos = async () => {
 //   B) Timing alternativo:  timing_status IN (muito_cedo, tarde_demais),
 //                            qualified_at > Nh (default 48h — mais tempo para
 //                            acomodar a comunicação sensível), sem whatsapp_sent_at
+// ─── Toggles on/off das automações de sistema (/automacoes) ────────────────
+// configuracoes_sistema.sistema_automacoes_ativas — campo ausente = ATIVA
+// (fail-open). Config indisponível JAMAIS para o scheduler — fallback {}.
+const fetchAtivas = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.sistema_automacoes_ativas&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET ativas: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor;
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch (e) {
+    log('WARN', 'ativas_fallback', { error: e.message });
+    return {};
+  }
+};
+
 const fetchPendingLeads = async () => {
   const intervalos = await fetchIntervalos();
+  const ativas = await fetchAtivas();
   log('INFO', 'intervalos_em_uso', intervalos);
   const twentyTwoHoursAgo = new Date(Date.now() - intervalos.inicialHoras * 60 * 60 * 1000).toISOString();
   const fortyEightHoursAgo = new Date(Date.now() - intervalos.timingAltHoras * 60 * 60 * 1000).toISOString();
@@ -117,25 +142,37 @@ const fetchPendingLeads = async () => {
   };
 
   // Bucket A: Timing ideal — 22h desde qualified_at
-  const idealLeads = await fetchByFilters([
-    'qualification_classification=in.(QUENTE,MORNO)',
-    `qualified_at=lt.${twentyTwoHoursAgo}`,
-    'qualified_at=not.is.null',
-    'whatsapp_sent_at=is.null',
-    'or=(timing_status.is.null,timing_status.eq.ideal)',
-  ]);
+  // Toggle on/off em /automacoes (ausente = ativo); desligado → bucket vazio,
+  // leads seguem acumulando e são pegos quando reativar.
+  let idealLeads = [];
+  if (ativas.whatsapp_inicial === false) {
+    log('WARN', 'whatsapp_inicial_desativado_skip');
+  } else {
+    idealLeads = await fetchByFilters([
+      'qualification_classification=in.(QUENTE,MORNO)',
+      `qualified_at=lt.${twentyTwoHoursAgo}`,
+      'qualified_at=not.is.null',
+      'whatsapp_sent_at=is.null',
+      'or=(timing_status.is.null,timing_status.eq.ideal)',
+    ]);
+  }
 
   // Bucket B: Timing alternativo — 48h desde qualified_at (early_potential ou late_timing)
   // Mantém o mesmo filtro de classificação Gemini do Bucket A: somente leads
   // QUENTE/MORNO recebem mensagens automáticas. Leads FRIO + timing alternativo
   // não entram no fluxo (paridade com leads FRIO + timing ideal, que já são excluídos).
-  const alternativeLeads = await fetchByFilters([
-    'qualification_classification=in.(QUENTE,MORNO)',
-    'timing_status=in.(muito_cedo,tarde_demais)',
-    `qualified_at=lt.${fortyEightHoursAgo}`,
-    'qualified_at=not.is.null',
-    'whatsapp_sent_at=is.null',
-  ]);
+  let alternativeLeads = [];
+  if (ativas.whatsapp_timing_alt === false) {
+    log('WARN', 'whatsapp_timing_alt_desativado_skip');
+  } else {
+    alternativeLeads = await fetchByFilters([
+      'qualification_classification=in.(QUENTE,MORNO)',
+      'timing_status=in.(muito_cedo,tarde_demais)',
+      `qualified_at=lt.${fortyEightHoursAgo}`,
+      'qualified_at=not.is.null',
+      'whatsapp_sent_at=is.null',
+    ]);
+  }
 
   // Deduplicação por id (defensivo, caso queries se sobreponham)
   const seen = new Set();

@@ -169,6 +169,30 @@ const triggerSyncLeads = async (lead) => {
   }
 };
 
+// ─── Toggles on/off das automações de sistema (/automacoes) ────────────────
+// configuracoes_sistema.sistema_automacoes_ativas — campo ausente = ATIVA
+// (fail-open). Config indisponível JAMAIS para o scheduler — fallback {}.
+const fetchAtivas = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.sistema_automacoes_ativas&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET ativas: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor;
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch (e) {
+    log('WARN', 'ativas_fallback', { error: e.message });
+    return {};
+  }
+};
+
 // ─── Cloud Function principal ──────────────────────────────────
 functions.http('processScheduledFollowups', async (req, res) => {
   // Permite chamadas do Cloud Scheduler (sem secret) e chamadas autenticadas
@@ -192,6 +216,18 @@ functions.http('processScheduledFollowups', async (req, res) => {
       now: new Date().toISOString(),
       maxPerRun: MAX_LEADS_PER_RUN,
     });
+
+    // Toggle on/off em /automacoes (ausente = ativo); desligado → sem envio,
+    // leads seguem elegíveis (scheduled_followup_sent_at NULL) até reativar.
+    const ativas = await fetchAtivas();
+    if (ativas.scheduled_return === false) {
+      log('WARN', 'scheduled_return_desativado_skip');
+      return res.status(200).send({
+        success: true,
+        processed: 0,
+        message: 'Retomada agendada desativada em /automacoes',
+      });
+    }
 
     const eligibleLeads = await fetchEligibleLeads();
     log('INFO', 'eligible_leads_found', { count: eligibleLeads.length });
