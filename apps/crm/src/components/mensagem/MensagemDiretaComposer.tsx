@@ -26,6 +26,9 @@ const MENSAGEM_MAX = 2000;
 const ASSUNTO_MAX = 150;
 const LINK_TITULO_MAX = 200;
 const SHORT_LINK_BASE = "https://bolsaatletausa.com/l/";
+/** Teto de upload (imagem/PDF) — casa com o limite das actions e fica abaixo
+ *  do bodySizeLimit do Server Action (12mb) para nunca estourar o framework. */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const FIELD_CLASS =
   "w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40";
@@ -397,15 +400,23 @@ function UploadImagemField({
   const [uploading, startUpload] = useTransition();
 
   const handleFile = (file: File) => {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("Imagem muito grande (máx 10MB).");
+      return;
+    }
     const fd = new FormData();
     fd.append("file", file);
     startUpload(async () => {
-      const r = await uploadAutomacaoImagem(fd);
-      if (r.success) {
-        onChange(r.url);
-        toast.success("Imagem enviada");
-      } else {
-        toast.error(r.error);
+      try {
+        const r = await uploadAutomacaoImagem(fd);
+        if (r.success) {
+          onChange(r.url);
+          toast.success("Imagem enviada");
+        } else {
+          toast.error(r.error);
+        }
+      } catch {
+        toast.error("Falha ao enviar a imagem. Verifique o tamanho (máx 10MB) e a conexão.");
       }
     });
   };
@@ -473,15 +484,23 @@ function UploadDocumentoField({
   const [uploading, startUpload] = useTransition();
 
   const handleFile = (file: File) => {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("Arquivo muito grande (máx 10MB).");
+      return;
+    }
     const fd = new FormData();
     fd.append("file", file);
     startUpload(async () => {
-      const r = await uploadMensagemArquivo(fd);
-      if (r.success) {
-        onUploaded(r.url, r.nomeArquivo);
-        toast.success("Documento enviado — adicionado como link da mensagem");
-      } else {
-        toast.error(r.error);
+      try {
+        const r = await uploadMensagemArquivo(fd);
+        if (r.success) {
+          onUploaded(r.url, r.nomeArquivo);
+          toast.success("Documento enviado — adicionado como link da mensagem");
+        } else {
+          toast.error(r.error);
+        }
+      } catch {
+        toast.error("Falha ao enviar o documento. Verifique o tamanho (máx 10MB) e a conexão.");
       }
     });
   };

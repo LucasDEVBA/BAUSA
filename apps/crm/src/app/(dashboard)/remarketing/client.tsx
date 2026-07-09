@@ -109,16 +109,26 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
   });
 
   function handleUploadImage(file: File, target: "imagem" | "link") {
+    // Guard de tamanho: acima do bodySizeLimit do Server Action o Next rejeita
+    // ANTES da action, estourando o error boundary. Trata como erro claro.
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máx 10MB).");
+      return;
+    }
     const fd = new FormData();
     fd.append("file", file);
     startTransition(async () => {
-      const r = await uploadRemarketingImage(fd);
-      if (r.success) {
-        if (target === "imagem") setImagemUrl(r.url);
-        else setLinkImagem(r.url);
-        toast.success("Imagem enviada");
-      } else {
-        toast.error(r.error);
+      try {
+        const r = await uploadRemarketingImage(fd);
+        if (r.success) {
+          if (target === "imagem") setImagemUrl(r.url);
+          else setLinkImagem(r.url);
+          toast.success("Imagem enviada");
+        } else {
+          toast.error(r.error);
+        }
+      } catch {
+        toast.error("Falha ao enviar a imagem. Verifique o tamanho (máx 10MB) e a conexão.");
       }
     });
   }
