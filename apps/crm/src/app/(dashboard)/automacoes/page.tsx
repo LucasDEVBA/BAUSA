@@ -1,6 +1,11 @@
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import type { SchedulerMensagens } from "@/lib/actions/automacoes-builder";
+import type {
+  SchedulerMensagens,
+  SistemaAtivas,
+  SistemaEmailConfig,
+} from "@/lib/actions/automacoes-builder";
+import type { QualificacaoPromptCfg } from "@/lib/automacoes/qualificacao-prompt-defaults";
 import type {
   Automacao,
   AutomacaoComStats,
@@ -73,8 +78,15 @@ export default async function AutomacoesPage() {
     }
   }
 
-  // Intervalos + textos das automações nativas (seção "Automações do sistema")
-  const [{ data: intervalosRow }, { data: mensagensRow }] = await Promise.all([
+  // Intervalos + textos + toggles/e-mail/prompt das automações nativas
+  // (seção "Automações do sistema")
+  const [
+    { data: intervalosRow },
+    { data: mensagensRow },
+    { data: ativasRow },
+    { data: emailCfgRow },
+    { data: promptCfgRow },
+  ] = await Promise.all([
     supabase
       .from("configuracoes_sistema")
       .select("valor")
@@ -84,6 +96,21 @@ export default async function AutomacoesPage() {
       .from("configuracoes_sistema")
       .select("valor")
       .eq("chave", "scheduler_mensagens")
+      .maybeSingle(),
+    supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "sistema_automacoes_ativas")
+      .maybeSingle(),
+    supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "email_config")
+      .maybeSingle(),
+    supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "qualificacao_prompt")
       .maybeSingle(),
   ]);
   // null = seed não aplicado neste ambiente → client desabilita a edição
@@ -95,6 +122,11 @@ export default async function AutomacoesPage() {
     followup_2_horas: 168,
     ...((intervalosRow?.valor as Record<string, number>) ?? {}),
   };
+  // Toggles/e-mail/prompt (Fase 2a): null = migration pendente → edição
+  // desabilitada no client (as CFs seguem fail-open com os defaults).
+  const ativas = (ativasRow?.valor as SistemaAtivas | undefined) ?? null;
+  const emailCfg = (emailCfgRow?.valor as SistemaEmailConfig | undefined) ?? null;
+  const promptCfg = (promptCfgRow?.valor as QualificacaoPromptCfg | undefined) ?? null;
 
   if (autoErr) console.error({ level: "error", action: "listar_automacoes", error: autoErr.message });
   if (runsErr) console.error({ level: "error", action: "listar_automacao_runs", error: runsErr.message });
@@ -121,6 +153,9 @@ export default async function AutomacoesPage() {
       leadNomes={leadNomes}
       intervalos={intervalos}
       mensagens={mensagens}
+      ativas={ativas}
+      emailCfg={emailCfg}
+      promptCfg={promptCfg}
       // Server Component dinâmico (force-dynamic): timestamp de request-time é
       // intencional — âncora da janela "últimos 7 dias" dos KPIs de execução.
       // eslint-disable-next-line react-hooks/purity
