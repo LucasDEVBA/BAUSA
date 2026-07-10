@@ -73,8 +73,14 @@ CREATE INDEX IF NOT EXISTS idx_tarefas_quadro ON public.tarefas (quadro_coluna) 
 CREATE INDEX IF NOT EXISTS idx_tarefas_sprint ON public.tarefas (sprint_id) WHERE sprint_id IS NOT NULL;
 
 -- ─── UAT ───
+-- Guard pela TABELA (não só pelo schema): os schemas uat/dev são incompletos —
+-- têm o schema mas não necessariamente a tabela `tarefas`. Sem este gate, o
+-- ALTER TABLE uat.tarefas quebra o deploy inteiro (SQLSTATE 42P01).
 DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'uat') THEN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'uat' AND table_name = 'tarefas'
+  ) THEN
     EXECUTE '
       CREATE TABLE IF NOT EXISTS uat.sprints (
         id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -117,7 +123,10 @@ END $$;
 
 -- ─── DEV ───
 DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'dev') THEN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'dev' AND table_name = 'tarefas'
+  ) THEN
     EXECUTE '
       CREATE TABLE IF NOT EXISTS dev.sprints (
         id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
