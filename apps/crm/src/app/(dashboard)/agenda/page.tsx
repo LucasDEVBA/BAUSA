@@ -43,6 +43,25 @@ export default async function AgendaPage() {
 
   const rows = (deals ?? []) as unknown as DealRow[];
 
+  // Deals ativos p/ o "Novo compromisso" (qualquer etapa exceto perdido)
+  const { data: agendaveis } = await supabase
+    .from("deals")
+    .select("id, etapa, atleta:atletas(nome_completo)")
+    .is("deleted_at", null)
+    .neq("etapa", "perdido")
+    .order("created_at", { ascending: false })
+    .limit(500);
+  const dealsAgendaveis = ((agendaveis ?? []) as unknown as Array<{
+    id: string;
+    etapa: DealStage;
+    atleta: { nome_completo: string } | { nome_completo: string }[] | null;
+  }>)
+    .map((d) => {
+      const a = Array.isArray(d.atleta) ? d.atleta[0] : d.atleta;
+      return { dealId: d.id, etapa: d.etapa, nome: a?.nome_completo ?? "" };
+    })
+    .filter((d) => d.nome);
+
   // Indicador de transcrição capturada por deal.
   const dealIds = rows.map((d) => d.id);
   const comTranscricao = new Set<string>();
@@ -84,5 +103,5 @@ export default async function AgendaPage() {
     day: "2-digit",
   }).format(agoraDate);
 
-  return <AgendaClient eventos={eventos} hoje={hoje} nowMs={nowMs} />;
+  return <AgendaClient eventos={eventos} hoje={hoje} nowMs={nowMs} dealsAgendaveis={dealsAgendaveis} />;
 }
