@@ -18,7 +18,12 @@ const { google } = require('googleapis');
 const WEBHOOK_SECRET        = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL          = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY;
-const SUPABASE_SCHEMA       = process.env.SUPABASE_SCHEMA || 'public';
+// SEMPRE 'public' (NÃO usar a env, que o deploy UAT injeta como 'uat'). As
+// reuniões/deals reais e o Calendar do CEO vivem em public, e o BAUSA Engine lê
+// as transcrições de public em todos os ambientes — mesmo padrão da zapi-inbox
+// (index.js:33). Sem isto, a função UAT busca uat.deals (inexistente → PGRST205)
+// e falha em toda execução.
+const SUPABASE_SCHEMA       = 'public';
 const SERVICE_ACCOUNT_EMAIL = process.env.SERVICE_ACCOUNT_EMAIL;
 const GOOGLE_CALENDAR_ID    = process.env.GOOGLE_CALENDAR_ID;
 const GEMINI_API_KEY        = process.env.GEMINI_API_KEY; // opcional (resumo)
