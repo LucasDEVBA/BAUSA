@@ -72,6 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
           "/analytics/atribuicao",
           "/analytics/cac",
           "/analytics/conversas",
+          "/analytics/reunioes",
           "/analytics/utm-builder",
         ],
       },

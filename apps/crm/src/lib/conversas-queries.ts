@@ -264,34 +264,7 @@ function preencherDias(ordenado: VolumeDia[]): VolumeDia[] {
 }
 const DIA_MS_LOCAL = 24 * 60 * 60 * 1000;
 
-// ─── Funil comercial — timings (dias) ────────────────────────────────────
-
-export interface FunilEtapa {
-  chave: string;
-  label: string;
-  medianaDias: number | null;
-  mediaDias: number | null;
-  amostra: number; // nº de leads/deals que passaram pela transição
-}
-
-export interface FunilTiming {
-  etapas: FunilEtapa[];
-  /** Ciclo total (1º contato → contrato assinado), dias. */
-  cicloMedianaDias: number | null;
-  cicloAmostra: number;
-}
-
-interface FormRow {
-  created_at: string;
-  whatsapp_sent_at: string | null;
-  meeting_scheduled_at: string | null;
-}
-
-interface DealRow {
-  created_at: string;
-  reuniao_realizada_at: string | null;
-  contrato_assinado_at: string | null;
-}
+// ─── Helpers de gap em dias (usados pelo funil avançado) ────────────────────
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
@@ -301,76 +274,6 @@ function gapDias(deIso: string | null, ateIso: string | null): number | null {
   const a = Date.parse(ateIso);
   if (!Number.isFinite(d) || !Number.isFinite(a) || a < d) return null;
   return (a - d) / DIA_MS;
-}
-
-export async function fetchFunilTiming(period: ConversaPeriod): Promise<FunilTiming> {
-  const supabase = await createServerSupabaseClient();
-  const inicio = startMs(period);
-  const inicioISO = inicio !== null ? new Date(inicio).toISOString() : null;
-
-  const formQuery = supabase
-    .from("form_submissions")
-    .select("created_at, whatsapp_sent_at, meeting_scheduled_at")
-    .order("created_at", { ascending: false })
-    .limit(FETCH_LIMIT);
-  const dealQuery = supabase
-    .from("deals")
-    .select("created_at, reuniao_realizada_at, contrato_assinado_at")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(FETCH_LIMIT);
-
-  const [{ data: formData }, { data: dealData }] = await Promise.all([
-    inicioISO ? formQuery.gte("created_at", inicioISO) : formQuery,
-    inicioISO ? dealQuery.gte("created_at", inicioISO) : dealQuery,
-  ]);
-
-  const forms = (formData as FormRow[] | null) ?? [];
-  const deals = (dealData as DealRow[] | null) ?? [];
-
-  // Transições (dias). Decisão = call → (assinado OU perdido via updated_at).
-  const contatoWhats: number[] = [];
-  const contatoAgenda: number[] = [];
-  const agendaCall: number[] = [];
-  const callDecisao: number[] = [];
-  const ciclo: number[] = [];
-
-  for (const f of forms) {
-    const g1 = gapDias(f.created_at, f.whatsapp_sent_at);
-    if (g1 !== null) contatoWhats.push(g1);
-    const g2 = gapDias(f.created_at, f.meeting_scheduled_at);
-    if (g2 !== null) contatoAgenda.push(g2);
-  }
-
-  for (const d of deals) {
-    const gAgendaCall = gapDias(d.created_at, d.reuniao_realizada_at);
-    // 1º contato → call usa created_at do deal como proxy de agendamento; a
-    // etapa reuniao_realizada seta o timestamp (trigger). Mede "entrada→call".
-    if (gAgendaCall !== null) agendaCall.push(gAgendaCall);
-
-    // Decisão (ganho): da call até assinar. NÃO usamos updated_at p/ perdidos —
-    // updated_at é qualquer edição posterior (ex.: nota meses depois), inflaria
-    // o tempo sem teto. Mede-se o tempo de FECHAMENTO (assinatura).
-    if (d.reuniao_realizada_at && d.contrato_assinado_at) {
-      const g = gapDias(d.reuniao_realizada_at, d.contrato_assinado_at);
-      if (g !== null) callDecisao.push(g);
-    }
-    const gCiclo = gapDias(d.created_at, d.contrato_assinado_at);
-    if (gCiclo !== null) ciclo.push(gCiclo);
-  }
-
-  const etapas: FunilEtapa[] = [
-    { chave: "contato_whats", label: "1º contato → WhatsApp", medianaDias: mediana(contatoWhats), mediaDias: media(contatoWhats), amostra: contatoWhats.length },
-    { chave: "contato_agenda", label: "1º contato → agendamento", medianaDias: mediana(contatoAgenda), mediaDias: media(contatoAgenda), amostra: contatoAgenda.length },
-    { chave: "entrada_call", label: "Entrada no pipeline → reunião", medianaDias: mediana(agendaCall), mediaDias: media(agendaCall), amostra: agendaCall.length },
-    { chave: "call_decisao", label: "Reunião → fechamento", medianaDias: mediana(callDecisao), mediaDias: media(callDecisao), amostra: callDecisao.length },
-  ];
-
-  return {
-    etapas,
-    cicloMedianaDias: mediana(ciclo),
-    cicloAmostra: ciclo.length,
-  };
 }
 
 // ─── Funil AVANÇADO: percentis + conversão entre etapas + cadência ──────────
@@ -394,7 +297,7 @@ function percentil(ordenado: number[], p: number): number | null {
   return ordenado[lo] + (ordenado[hi] - ordenado[lo]) * (idx - lo);
 }
 
-function distribuicao(v: number[]): Distribuicao {
+export function distribuicao(v: number[]): Distribuicao {
   const o = [...v].sort((a, b) => a - b);
   return {
     p25: percentil(o, 0.25),
@@ -471,7 +374,7 @@ export async function fetchFunilAvancado(period: ConversaPeriod): Promise<FunilA
     .from("deals")
     .select(
       "created_at, etapa, reuniao_realizada_at, contrato_enviado_at, contrato_assinado_at, sinal_pago_at, " +
-        "atletas ( form_submissions ( created_at, whatsapp_sent_at, meeting_scheduled_at ) )",
+        "atletas ( form_submissions ( created_at:submitted_at, whatsapp_sent_at, meeting_scheduled_at ) )",
     )
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
