@@ -14,6 +14,8 @@ export type StatusParcela = 'previsto' | 'recebido' | 'atrasado' | 'cancelado';
 export type TemperaturaFamilia = 'verde' | 'amarelo' | 'vermelho';
 export type PrioridadeTarefa = 'critica' | 'alta' | 'media' | 'baixa';
 export type StatusTarefa = 'pendente' | 'em_andamento' | 'concluida' | 'atrasada' | 'cancelada';
+export type QuadroColuna = 'backlog' | 'a_fazer' | 'fazendo' | 'feito';
+export type StatusSprint = 'planejada' | 'ativa' | 'concluida';
 export type DecisaoFamiliar = 'decidida' | 'em_discussao' | 'resistente';
 export type MotivoPerda = 'financeiro' | 'timing' | 'desistencia_familia' | 'atleta_nao_qualificado' | 'concorrencia' | 'outro';
 export type OrigemLead = 'formulario_web' | 'indicacao' | 'instagram' | 'meta_ads' | 'outro';
@@ -287,7 +289,21 @@ export interface Tarefa {
   modulo_origem: 'comercial' | 'experiencia' | 'financeiro' | 'admissao';
   criada_automaticamente: boolean;
   recorrencia: 'nenhuma' | 'diaria' | 'semanal' | 'mensal';
+  sprint_id: string | null;
+  quadro_coluna: QuadroColuna;
   completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface Sprint {
+  id: string;
+  nome: string;
+  objetivo: string | null;
+  data_inicio: string | null;
+  data_fim: string | null;
+  status: StatusSprint;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
