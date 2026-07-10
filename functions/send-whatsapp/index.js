@@ -1,5 +1,6 @@
 const functions = require('@google-cloud/functions-framework');
 const https = require('https');
+const crypto = require('crypto');
 
 // ─── Configuração via variáveis de ambiente ─────────────────────
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
@@ -229,9 +230,53 @@ const sendImage = async (phone, imageUrl, caption) => {
 
 // ─── Link de agendamento ─────────────────────────────────────
 // V1: link fixo para Google Calendar via /agendar (redirect)
-// V2: buildScheduleUrl com token Base64 (quando página custom ativar)
+// V2 (2026-07): SHORT LINK POR LEAD — slug determinístico do id do lead na
+// tabela links_curtos (mesma infra do Gerador UTM: rota pública /l/[slug]
+// do site conta o clique e redireciona p/ /agendar). Ganhos: rastrear
+// clique-por-lead no convite e link mais curto no WhatsApp.
+// FAIL-OPEN: qualquer falha usa o link fixo — o envio NUNCA depende disto.
+// Schema: SEMPRE public — quem resolve o slug é o SITE em produção (o /l/
+// lê public), mesmo padrão do "Engine lê public" (zapi-inbox/index.js:33).
 const SCHEDULE_URL = 'https://bolsaatletausa.com/agendar';
-const buildScheduleUrl = () => SCHEDULE_URL;
+const buildScheduleUrl = (data) => (data && data.schedule_url) || SCHEDULE_URL;
+
+const resolveScheduleUrl = async (data) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !data || !data.id) return SCHEDULE_URL;
+    // Slug determinístico e idempotente: 'a' + 7 hex do sha256 do id do lead
+    const slug = 'a' + crypto.createHash('sha256').update(String(data.id)).digest('hex').slice(0, 7);
+
+    const postData = JSON.stringify({
+      slug,
+      destino: SCHEDULE_URL,
+      titulo: `Agenda — ${data.athlete_name || 'lead'}`,
+      utm_source: 'whatsapp',
+      utm_medium: 'crm',
+      utm_content: String(data.id),
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/links_curtos`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': 'public',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+
+    // 201 criado | 409 já existe (idempotente) → usa o short link
+    if (result.statusCode === 201 || result.statusCode === 409) {
+      return `https://bolsaatletausa.com/l/${slug}`;
+    }
+    log('WARN', 'short_link_fallback', { statusCode: result.statusCode });
+    return SCHEDULE_URL;
+  } catch (error) {
+    log('WARN', 'short_link_fallback', { error: error.message });
+    return SCHEDULE_URL;
+  }
+};
 
 // ─── Metadados do link de agendamento ─────────────────────────
 const CALENDAR_LINK_URL = SCHEDULE_URL;
@@ -597,6 +642,8 @@ functions.http('sendWhatsApp', async (req, res) => {
     const payload = req.body;
     const data = payload.record || payload;
     const messageType = payload.messageType || 'initial';
+    // Short link por lead (fail-open; os builders leem via buildScheduleUrl)
+    data.schedule_url = await resolveScheduleUrl(data);
 
     if (!data || !data.athlete_name) {
       log('WARN', 'validation_failed', { hasData: !!data });

@@ -52,12 +52,49 @@ const httpRequest = (url, options, postData) => {
 };
 
 // ─── Buscar eventos recentes do Calendar ──────────────────────
+// Escopo calendar.events (leitura+escrita de eventos): o list continua igual
+// e habilita o patch do título com o nome do atleta (abaixo).
+const buildCalendarClient = () => {
+  const auth = new google.auth.JWT(
+    SERVICE_ACCOUNT_EMAIL,
+    undefined,
+    SERVICE_ACCOUNT_PRIVATE_KEY,
+    ['https://www.googleapis.com/auth/calendar.events'],
+  );
+  return google.calendar({ version: 'v3', auth });
+};
+
+// ─── Nome do atleta no título do evento ───────────────────────
+// O Google Booking cria o evento com título genérico ("Reunião Estratégica
+// Individual (Responsável)"). Depois do match, acrescentamos o nome do
+// atleta — o CEO enxerga QUEM é a reunião direto no Calendar/Agenda.
+// Fail-safe: falha (ex.: SA sem permissão de escrita) só loga e segue.
+const patchEventTitle = async (event, athleteName) => {
+  try {
+    const nome = String(athleteName || '').trim();
+    if (!event?.id || !nome) return false;
+    const summary = String(event.summary || '');
+    if (summary.toLowerCase().includes(nome.toLowerCase())) return false;
+    const calendar = buildCalendarClient();
+    await calendar.events.patch({
+      calendarId: GOOGLE_CALENDAR_ID,
+      eventId: event.id,
+      requestBody: { summary: `${summary} — ${nome}` },
+    });
+    log('INFO', 'event_title_patched', { eventId: event.id });
+    return true;
+  } catch (error) {
+    log('WARN', 'event_title_patch_failed', { eventId: event?.id, error: error.message });
+    return false;
+  }
+};
+
 const getRecentEvents = async (sinceMinutes = 10) => {
   const auth = new google.auth.JWT(
     SERVICE_ACCOUNT_EMAIL,
     undefined,
     SERVICE_ACCOUNT_PRIVATE_KEY,
-    ['https://www.googleapis.com/auth/calendar.readonly'],
+    ['https://www.googleapis.com/auth/calendar.events'],
   );
 
   const calendar = google.calendar({ version: 'v3', auth });
@@ -722,6 +759,9 @@ functions.http('calendarWebhook', async (req, res) => {
       } catch (err) {
         log('WARN', 'deal_move_error', { error: err.message });
       }
+
+      // 2b. Nome do atleta no título do evento (fail-safe, não-crítico)
+      await patchEventTitle(event, lead.athlete_name);
 
       // 3. Enviar WhatsApp de confirmação para o lead
       const confirmPhone = phone || lead.guardian_whatsapp || lead.athlete_whatsapp;
