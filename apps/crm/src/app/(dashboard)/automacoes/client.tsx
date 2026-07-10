@@ -71,6 +71,13 @@ import {
   QUALIFICACAO_PROMPT_LABELS,
   type QualificacaoPromptCfg,
 } from "@/lib/automacoes/qualificacao-prompt-defaults";
+import { atualizarInsightsConversaPrompt } from "@/lib/actions/whatsapp-insights";
+import { INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT } from "@/lib/automacoes/insights-conversa-prompt";
+
+/** Config do prompt de insights de conversa (chave insights_conversa_prompt). */
+interface InsightsPromptCfg {
+  instrucoes?: string;
+}
 import { cn } from "@/lib/utils";
 
 // ─── Componente principal ────────────────────────────────────────────────────
@@ -101,6 +108,7 @@ export function AutomacoesClient({
   ativas,
   emailCfg,
   promptCfg,
+  insightsCfg,
   agora,
 }: {
   automacoes: AutomacaoComStats[];
@@ -112,6 +120,7 @@ export function AutomacoesClient({
   ativas: SistemaAtivas | null;
   emailCfg: SistemaEmailConfig | null;
   promptCfg: QualificacaoPromptCfg | null;
+  insightsCfg: InsightsPromptCfg | null;
   agora: number;
 }) {
   const router = useRouter();
@@ -256,6 +265,7 @@ export function AutomacoesClient({
             ativas={ativas}
             emailCfg={emailCfg}
             promptCfg={promptCfg}
+            insightsCfg={insightsCfg}
             isPending={isPending}
             onMontarRegua={() => setBuilder({ ...emptyBuilder(), gatilho: "parcela_vencendo" })}
           />
@@ -444,6 +454,8 @@ interface SistemaCard {
   editaEmailDestino?: boolean;
   /** Card da qualificação: edita as seções do prompt Gemini. */
   editaPrompt?: boolean;
+  /** Card de insights de conversa: edita as instruções do prompt. */
+  editaInsightsPrompt?: boolean;
 }
 
 /** Automações nativas, na ordem dos cards: as 4 com intervalo editável
@@ -575,6 +587,16 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     ],
   },
   {
+    id: "insights_conversa",
+    nome: "Insights de IA (WhatsApp)",
+    descricao: "Análise da conversa sob demanda no espelho WhatsApp (Gemini).",
+    fluxo: [
+      "No espelho do WhatsApp, o botão \"Insights IA\" analisa a conversa aberta e devolve: resumo, sentimento, nível de interesse, próxima ação e sinais concretos.",
+      "É sob demanda (não dispara sozinho) e só o CEO usa. As instruções da análise são editáveis abaixo — vazio volta ao padrão do sistema.",
+    ],
+    editaInsightsPrompt: true,
+  },
+  {
     id: "sync_sheets",
     nome: "Sync Google Sheets",
     descricao: "Todo lead e atualização espelhados na planilha (cols A–BG).",
@@ -604,6 +626,8 @@ interface SistemaSavePayload {
   emailDestino?: string;
   /** Overrides das seções do prompt ('' numa seção volta ao padrão do código). */
   promptCfg?: QualificacaoPromptCfg;
+  /** Instruções do prompt de insights de conversa ('' volta ao padrão). */
+  insightsInstrucoes?: string;
 }
 
 /** Seção "Automações do sistema" em CARDS (apresentação H4): grid 2-col para
@@ -616,6 +640,7 @@ function SistemaAutomacoesSection({
   ativas,
   emailCfg,
   promptCfg,
+  insightsCfg,
   isPending,
   onMontarRegua,
 }: {
@@ -624,6 +649,7 @@ function SistemaAutomacoesSection({
   ativas: SistemaAtivas | null;
   emailCfg: SistemaEmailConfig | null;
   promptCfg: QualificacaoPromptCfg | null;
+  insightsCfg: InsightsPromptCfg | null;
   isPending: boolean;
   onMontarRegua: () => void;
 }) {
@@ -639,7 +665,8 @@ function SistemaAutomacoesSection({
     Boolean(card.editaReuniao && mensagens?.meeting_confirmed) ||
     Boolean(card.toggles?.length && ativas) ||
     Boolean(card.editaEmailDestino && emailCfg) ||
-    Boolean(card.editaPrompt && promptCfg);
+    Boolean(card.editaPrompt && promptCfg) ||
+    Boolean(card.editaInsightsPrompt && insightsCfg);
 
   /** Card está ativo? Ausente na config = ATIVA (fail-open, como nas CFs).
    *  Cards com vários toggles: desativado só se TODOS estiverem off. */
@@ -707,6 +734,16 @@ function SistemaAutomacoesSection({
         const result = await atualizarQualificacaoPrompt(payload.promptCfg);
         if (!result.success) {
           toast.error(result.error ?? "Erro ao salvar o prompt");
+          router.refresh();
+          return;
+        }
+      }
+      if (payload.insightsInstrucoes !== undefined) {
+        const result = await atualizarInsightsConversaPrompt({
+          instrucoes: payload.insightsInstrucoes,
+        });
+        if (!result.success) {
+          toast.error(result.error ?? "Erro ao salvar as instruções");
           router.refresh();
           return;
         }
@@ -833,6 +870,7 @@ function SistemaAutomacoesSection({
           ativas={ativas}
           emailCfg={emailCfg}
           promptCfg={promptCfg}
+          insightsCfg={insightsCfg}
           isPending={ocupado}
           onClose={() => setCardAberto(null)}
           onSave={salvar}
@@ -911,6 +949,7 @@ function SistemaModal({
   ativas,
   emailCfg,
   promptCfg,
+  insightsCfg,
   isPending,
   onClose,
   onSave,
@@ -921,6 +960,7 @@ function SistemaModal({
   ativas: SistemaAtivas | null;
   emailCfg: SistemaEmailConfig | null;
   promptCfg: QualificacaoPromptCfg | null;
+  insightsCfg: InsightsPromptCfg | null;
   isPending: boolean;
   onClose: () => void;
   onSave: (payload: SistemaSavePayload) => void;
@@ -931,6 +971,7 @@ function SistemaModal({
   const togglesEditaveis = ativas ? card.toggles ?? [] : [];
   const emailEditavel = Boolean(card.editaEmailDestino && emailCfg);
   const promptEditavel = Boolean(card.editaPrompt && promptCfg);
+  const insightsEditavel = Boolean(card.editaInsightsPrompt && insightsCfg);
   const [intervalo, setIntervalo] = useState<number>(
     card.intervaloChave ? intervalos[card.intervaloChave] : 0,
   );
@@ -967,6 +1008,12 @@ function SistemaModal({
     }
     return inicial;
   });
+  // Instruções do prompt de insights de conversa (config ?? default do código)
+  const [insightsInstrucoes, setInsightsInstrucoes] = useState<string>(() =>
+    card.editaInsightsPrompt && insightsCfg
+      ? insightsCfg.instrucoes ?? INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT
+      : "",
+  );
 
   const temEdicao =
     Boolean(card.intervaloChave) ||
@@ -974,7 +1021,8 @@ function SistemaModal({
     reuniao !== null ||
     togglesEditaveis.length > 0 ||
     emailEditavel ||
-    promptEditavel;
+    promptEditavel ||
+    insightsEditavel;
 
   const intervaloValido =
     !card.intervaloChave || (Number.isInteger(intervalo) && intervalo >= 1 && intervalo <= 720);
@@ -988,7 +1036,9 @@ function SistemaModal({
   // Prompt: seção pode ficar vazia (= volta ao padrão), mas não estourar 4000
   const promptValido =
     !promptEditavel || Object.values(promptSecoes).every((v) => v.length <= 4000);
-  const valido = intervaloValido && textosValidos && reuniaoValida && emailValido && promptValido;
+  const insightsValido = !insightsEditavel || insightsInstrucoes.length <= 4000;
+  const valido =
+    intervaloValido && textosValidos && reuniaoValida && emailValido && promptValido && insightsValido;
 
   const setTexto = (template: MensagemTemplate, campo: keyof MensagemPar, valor: string) => {
     setTextos((prev) => {
@@ -1019,6 +1069,15 @@ function SistemaModal({
       ...(togglesEditaveis.length > 0 ? { ativas: toggleValores } : {}),
       ...(emailEditavel ? { emailDestino: emailDestino.trim() } : {}),
       ...(promptOverrides ? { promptCfg: promptOverrides } : {}),
+      // Igual ao default → '' (limpa o override; o default do código evolui)
+      ...(insightsEditavel
+        ? {
+            insightsInstrucoes:
+              insightsInstrucoes.trim() === INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT.trim()
+                ? ""
+                : insightsInstrucoes.trim(),
+          }
+        : {}),
     });
   };
 
@@ -1267,13 +1326,60 @@ function SistemaModal({
             </p>
           )}
 
+          {/* Instruções do prompt de Insights de Conversa (WhatsApp) */}
+          {insightsEditavel && (
+            <section className="space-y-2">
+              <p className={SECTION_LABEL}>Instruções da análise (Gemini)</p>
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="insights-instrucoes"
+                  className="text-[11px] font-semibold text-foreground"
+                >
+                  O que a IA deve avaliar na conversa
+                  {insightsInstrucoes.trim() !== INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT.trim() &&
+                    insightsInstrucoes.trim() !== "" && (
+                      <Badge tone="blue" size="sm" className="ml-1.5">
+                        Personalizada
+                      </Badge>
+                    )}
+                </label>
+                <span
+                  className={cn(
+                    "text-[11px] tabular-nums",
+                    insightsInstrucoes.length > 4000 ? "text-sys-red" : "text-muted-foreground",
+                  )}
+                >
+                  {insightsInstrucoes.length}/4000
+                </span>
+              </div>
+              <textarea
+                id="insights-instrucoes"
+                className={cn(FIELD_CLASS, "min-h-40 resize-y font-mono text-[11px] leading-relaxed")}
+                value={insightsInstrucoes}
+                onChange={(e) => setInsightsInstrucoes(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                O transcript da conversa e o formato de saída (JSON) são fixos — só as instruções
+                acima são editáveis. Apagar tudo volta ao padrão do sistema.
+              </p>
+            </section>
+          )}
+          {card.editaInsightsPrompt && !insightsCfg && (
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              Instruções indisponíveis neste ambiente (seed{" "}
+              <code className="font-mono">insights_conversa_prompt</code> pendente) — a análise
+              segue com as instruções padrão do sistema.
+            </p>
+          )}
+
           {/* Card 100% informativo: nada editável (sem UI falsa) */}
           {!card.intervaloChave &&
             !card.templates?.length &&
             !card.editaReuniao &&
             !card.toggles?.length &&
             !card.editaEmailDestino &&
-            !card.editaPrompt && (
+            !card.editaPrompt &&
+            !card.editaInsightsPrompt && (
             <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Parâmetros editáveis: em breve.
             </p>

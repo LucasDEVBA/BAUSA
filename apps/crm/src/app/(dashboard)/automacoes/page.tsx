@@ -89,6 +89,7 @@ export default async function AutomacoesPage() {
     { data: ativasRow },
     { data: emailCfgRow },
     { data: promptCfgRow },
+    { data: insightsCfgRow },
   ] = await Promise.all([
     supabase
       .from("configuracoes_sistema")
@@ -115,6 +116,11 @@ export default async function AutomacoesPage() {
       .select("valor")
       .eq("chave", "qualificacao_prompt")
       .maybeSingle(),
+    supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "insights_conversa_prompt")
+      .maybeSingle(),
   ]);
   // null = seed não aplicado neste ambiente → client desabilita a edição
   const mensagens = (mensagensRow?.valor as SchedulerMensagens | undefined) ?? null;
@@ -130,6 +136,7 @@ export default async function AutomacoesPage() {
   const ativas = (ativasRow?.valor as SistemaAtivas | undefined) ?? null;
   const emailCfg = (emailCfgRow?.valor as SistemaEmailConfig | undefined) ?? null;
   const promptCfg = (promptCfgRow?.valor as QualificacaoPromptCfg | undefined) ?? null;
+  const insightsCfg = (insightsCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
 
   if (autoErr) console.error({ level: "error", action: "listar_automacoes", error: autoErr.message });
   if (runsErr) console.error({ level: "error", action: "listar_automacao_runs", error: runsErr.message });
@@ -159,6 +166,7 @@ export default async function AutomacoesPage() {
       ativas={ativas}
       emailCfg={emailCfg}
       promptCfg={promptCfg}
+      insightsCfg={insightsCfg}
       // Server Component dinâmico (force-dynamic): timestamp de request-time é
       // intencional — âncora da janela "últimos 7 dias" dos KPIs de execução.
       // eslint-disable-next-line react-hooks/purity
