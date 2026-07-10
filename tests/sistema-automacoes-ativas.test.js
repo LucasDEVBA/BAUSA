@@ -36,6 +36,8 @@ const GATES = {
   'process-scheduled-followups': ['ativas.scheduled_return === false'],
   'qualify-lead': ['ativas.qualificacao === false'],
   'calendar-webhook': ['ativas.confirmacao_reuniao === false'],
+  // Resumo de transcrição: desligar NÃO para a captura — só o resumo Gemini
+  'meeting-transcripts': ['resumo_transcricao === false'],
 };
 
 for (const [fn, gates] of Object.entries(GATES)) {

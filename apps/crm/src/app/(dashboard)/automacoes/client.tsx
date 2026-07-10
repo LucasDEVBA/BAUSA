@@ -75,6 +75,9 @@ import {
   type QualificacaoPromptCfg,
 } from "@/lib/automacoes/qualificacao-prompt-defaults";
 import { atualizarInsightsConversaPrompt } from "@/lib/actions/whatsapp-insights";
+import { atualizarInstrucoesIA } from "@/lib/actions/prompts-ia";
+import { TRANSCRICAO_RESUMO_INSTRUCOES_DEFAULT } from "@/lib/automacoes/transcricao-resumo-prompt";
+import { CAC_INSIGHTS_INSTRUCOES_DEFAULT } from "@/lib/automacoes/cac-insights-prompt";
 import { INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT } from "@/lib/automacoes/insights-conversa-prompt";
 
 /** Config do prompt de insights de conversa (chave insights_conversa_prompt). */
@@ -112,6 +115,8 @@ export function AutomacoesClient({
   emailCfg,
   promptCfg,
   insightsCfg,
+  transcricaoCfg,
+  cacCfg,
   agora,
 }: {
   automacoes: AutomacaoComStats[];
@@ -124,6 +129,8 @@ export function AutomacoesClient({
   emailCfg: SistemaEmailConfig | null;
   promptCfg: QualificacaoPromptCfg | null;
   insightsCfg: InsightsPromptCfg | null;
+  transcricaoCfg: InsightsPromptCfg | null;
+  cacCfg: InsightsPromptCfg | null;
   agora: number;
 }) {
   const router = useRouter();
@@ -269,6 +276,8 @@ export function AutomacoesClient({
             emailCfg={emailCfg}
             promptCfg={promptCfg}
             insightsCfg={insightsCfg}
+            transcricaoCfg={transcricaoCfg}
+            cacCfg={cacCfg}
             isPending={isPending}
             onMontarRegua={() => setBuilder({ ...emptyBuilder(), gatilho: "parcela_vencendo" })}
           />
@@ -459,6 +468,10 @@ interface SistemaCard {
   editaPrompt?: boolean;
   /** Card de insights de conversa: edita as instruções do prompt. */
   editaInsightsPrompt?: boolean;
+  /** Card do resumo de transcrição (Meet): edita as instruções do prompt. */
+  editaTranscricaoPrompt?: boolean;
+  /** Card de insights do CAC: edita as instruções do prompt. */
+  editaCacPrompt?: boolean;
 }
 
 /** Automações nativas, na ordem dos cards: as 4 com intervalo editável
@@ -600,6 +613,32 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     editaInsightsPrompt: true,
   },
   {
+    id: "transcricao_resumo",
+    nome: "Resumo de transcrição (Meet)",
+    descricao: "Transcrições de reunião capturadas e resumidas pelo Gemini (a cada 2h).",
+    fluxo: [
+      "A cada 2h, a função captura a transcrição nativa do Google Meet das reuniões realizadas (Doc anexado ao evento do Calendar) e grava no detalhe do lead/deal.",
+      "Com o resumo ligado, o Gemini condensa cada transcrição em 5–8 linhas (contexto, objeções, sinais, próximos passos). As instruções do resumo são editáveis abaixo — vazio volta ao padrão do sistema.",
+      "Desligar o resumo NÃO para a captura: a transcrição completa continua sendo salva.",
+    ],
+    editaTranscricaoPrompt: true,
+    toggles: [{
+      chave: "resumo_transcricao",
+      label: "Resumo automático via Gemini",
+      avisoDesligar: "A transcrição continua sendo capturada — só o resumo deixa de ser gerado.",
+    }],
+  },
+  {
+    id: "cac_insights",
+    nome: "Insights de IA (CAC)",
+    descricao: "Análise de aquisição sob demanda na tela de CAC/ROI (Gemini).",
+    fluxo: [
+      "Na tela Analytics → CAC, o botão de insights analisa gasto, CAC, ROI por canal e por campanha do período e devolve recomendações acionáveis.",
+      "É sob demanda (não dispara sozinho) e só o CEO usa. As instruções da análise são editáveis abaixo — vazio volta ao padrão do sistema.",
+    ],
+    editaCacPrompt: true,
+  },
+  {
     id: "sync_sheets",
     nome: "Sync Google Sheets",
     descricao: "Todo lead e atualização espelhados na planilha (cols A–BG).",
@@ -631,6 +670,10 @@ interface SistemaSavePayload {
   promptCfg?: QualificacaoPromptCfg;
   /** Instruções do prompt de insights de conversa ('' volta ao padrão). */
   insightsInstrucoes?: string;
+  /** Instruções do resumo de transcrição ('' volta ao padrão). */
+  transcricaoInstrucoes?: string;
+  /** Instruções dos insights de CAC ('' volta ao padrão). */
+  cacInstrucoes?: string;
 }
 
 /** Seção "Automações do sistema" em CARDS (apresentação H4): grid 2-col para
@@ -644,6 +687,8 @@ function SistemaAutomacoesSection({
   emailCfg,
   promptCfg,
   insightsCfg,
+  transcricaoCfg,
+  cacCfg,
   isPending,
   onMontarRegua,
 }: {
@@ -653,6 +698,8 @@ function SistemaAutomacoesSection({
   emailCfg: SistemaEmailConfig | null;
   promptCfg: QualificacaoPromptCfg | null;
   insightsCfg: InsightsPromptCfg | null;
+  transcricaoCfg: InsightsPromptCfg | null;
+  cacCfg: InsightsPromptCfg | null;
   isPending: boolean;
   onMontarRegua: () => void;
 }) {
@@ -669,7 +716,9 @@ function SistemaAutomacoesSection({
     Boolean(card.toggles?.length && ativas) ||
     Boolean(card.editaEmailDestino && emailCfg) ||
     Boolean(card.editaPrompt && promptCfg) ||
-    Boolean(card.editaInsightsPrompt && insightsCfg);
+    Boolean(card.editaInsightsPrompt && insightsCfg) ||
+    Boolean(card.editaTranscricaoPrompt && transcricaoCfg) ||
+    Boolean(card.editaCacPrompt && cacCfg);
 
   /** Card está ativo? Ausente na config = ATIVA (fail-open, como nas CFs).
    *  Cards com vários toggles: desativado só se TODOS estiverem off. */
@@ -744,6 +793,28 @@ function SistemaAutomacoesSection({
       if (payload.insightsInstrucoes !== undefined) {
         const result = await atualizarInsightsConversaPrompt({
           instrucoes: payload.insightsInstrucoes,
+        });
+        if (!result.success) {
+          toast.error(result.error ?? "Erro ao salvar as instruções");
+          router.refresh();
+          return;
+        }
+      }
+      if (payload.transcricaoInstrucoes !== undefined) {
+        const result = await atualizarInstrucoesIA({
+          chave: "transcricao_resumo_prompt",
+          instrucoes: payload.transcricaoInstrucoes,
+        });
+        if (!result.success) {
+          toast.error(result.error ?? "Erro ao salvar as instruções");
+          router.refresh();
+          return;
+        }
+      }
+      if (payload.cacInstrucoes !== undefined) {
+        const result = await atualizarInstrucoesIA({
+          chave: "cac_insights_prompt",
+          instrucoes: payload.cacInstrucoes,
         });
         if (!result.success) {
           toast.error(result.error ?? "Erro ao salvar as instruções");
@@ -874,6 +945,8 @@ function SistemaAutomacoesSection({
           emailCfg={emailCfg}
           promptCfg={promptCfg}
           insightsCfg={insightsCfg}
+          transcricaoCfg={transcricaoCfg}
+          cacCfg={cacCfg}
           isPending={ocupado}
           onClose={() => setCardAberto(null)}
           onSave={salvar}
@@ -945,6 +1018,58 @@ function VariaveisLegenda({ variaveis }: { variaveis: string[] }) {
 
 /** Modal único por card: descrição do fluxo + intervalo + TODOS os textos do
  *  card juntos. Cards sem nada editável viram "Detalhes" (só leitura). */
+/** Editor genérico de instruções de prompt de IA (textarea + contagem +
+ *  badge "Personalizada" quando difere do default do código). */
+function InstrucoesIAEditor({
+  id,
+  titulo,
+  rotulo,
+  valor,
+  onChange,
+  defaultTexto,
+  rodape,
+}: {
+  id: string;
+  titulo: string;
+  rotulo: string;
+  valor: string;
+  onChange: (v: string) => void;
+  defaultTexto: string;
+  rodape: string;
+}) {
+  const personalizada = valor.trim() !== defaultTexto.trim() && valor.trim() !== "";
+  return (
+    <section className="space-y-2">
+      <p className={SECTION_LABEL}>{titulo}</p>
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-[11px] font-semibold text-foreground">
+          {rotulo}
+          {personalizada && (
+            <Badge tone="blue" size="sm" className="ml-1.5">
+              Personalizada
+            </Badge>
+          )}
+        </label>
+        <span
+          className={cn(
+            "text-[11px] tabular-nums",
+            valor.length > 4000 ? "text-sys-red" : "text-muted-foreground",
+          )}
+        >
+          {valor.length}/4000
+        </span>
+      </div>
+      <textarea
+        id={id}
+        className={cn(FIELD_CLASS, "min-h-40 resize-y font-mono text-[11px] leading-relaxed")}
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <p className="text-[11px] text-muted-foreground">{rodape}</p>
+    </section>
+  );
+}
+
 function SistemaModal({
   card,
   intervalos,
@@ -953,6 +1078,8 @@ function SistemaModal({
   emailCfg,
   promptCfg,
   insightsCfg,
+  transcricaoCfg,
+  cacCfg,
   isPending,
   onClose,
   onSave,
@@ -964,6 +1091,8 @@ function SistemaModal({
   emailCfg: SistemaEmailConfig | null;
   promptCfg: QualificacaoPromptCfg | null;
   insightsCfg: InsightsPromptCfg | null;
+  transcricaoCfg: InsightsPromptCfg | null;
+  cacCfg: InsightsPromptCfg | null;
   isPending: boolean;
   onClose: () => void;
   onSave: (payload: SistemaSavePayload) => void;
@@ -975,6 +1104,8 @@ function SistemaModal({
   const emailEditavel = Boolean(card.editaEmailDestino && emailCfg);
   const promptEditavel = Boolean(card.editaPrompt && promptCfg);
   const insightsEditavel = Boolean(card.editaInsightsPrompt && insightsCfg);
+  const transcricaoEditavel = Boolean(card.editaTranscricaoPrompt && transcricaoCfg);
+  const cacEditavel = Boolean(card.editaCacPrompt && cacCfg);
   const [intervalo, setIntervalo] = useState<number>(
     card.intervaloChave ? intervalos[card.intervaloChave] : 0,
   );
@@ -1017,6 +1148,17 @@ function SistemaModal({
       ? insightsCfg.instrucoes ?? INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT
       : "",
   );
+  // Instruções do resumo de transcrição e dos insights de CAC (mesmo padrão)
+  const [transcricaoInstrucoes, setTranscricaoInstrucoes] = useState<string>(() =>
+    card.editaTranscricaoPrompt && transcricaoCfg
+      ? transcricaoCfg.instrucoes ?? TRANSCRICAO_RESUMO_INSTRUCOES_DEFAULT
+      : "",
+  );
+  const [cacInstrucoes, setCacInstrucoes] = useState<string>(() =>
+    card.editaCacPrompt && cacCfg
+      ? cacCfg.instrucoes ?? CAC_INSIGHTS_INSTRUCOES_DEFAULT
+      : "",
+  );
 
   const temEdicao =
     Boolean(card.intervaloChave) ||
@@ -1025,7 +1167,9 @@ function SistemaModal({
     togglesEditaveis.length > 0 ||
     emailEditavel ||
     promptEditavel ||
-    insightsEditavel;
+    insightsEditavel ||
+    transcricaoEditavel ||
+    cacEditavel;
 
   const intervaloValido =
     !card.intervaloChave || (Number.isInteger(intervalo) && intervalo >= 1 && intervalo <= 720);
@@ -1040,8 +1184,11 @@ function SistemaModal({
   const promptValido =
     !promptEditavel || Object.values(promptSecoes).every((v) => v.length <= 4000);
   const insightsValido = !insightsEditavel || insightsInstrucoes.length <= 4000;
+  const transcricaoValido = !transcricaoEditavel || transcricaoInstrucoes.length <= 4000;
+  const cacValido = !cacEditavel || cacInstrucoes.length <= 4000;
   const valido =
-    intervaloValido && textosValidos && reuniaoValida && emailValido && promptValido && insightsValido;
+    intervaloValido && textosValidos && reuniaoValida && emailValido && promptValido &&
+    insightsValido && transcricaoValido && cacValido;
 
   const setTexto = (template: MensagemTemplate, campo: keyof MensagemPar, valor: string) => {
     setTextos((prev) => {
@@ -1079,6 +1226,22 @@ function SistemaModal({
               insightsInstrucoes.trim() === INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT.trim()
                 ? ""
                 : insightsInstrucoes.trim(),
+          }
+        : {}),
+      ...(transcricaoEditavel
+        ? {
+            transcricaoInstrucoes:
+              transcricaoInstrucoes.trim() === TRANSCRICAO_RESUMO_INSTRUCOES_DEFAULT.trim()
+                ? ""
+                : transcricaoInstrucoes.trim(),
+          }
+        : {}),
+      ...(cacEditavel
+        ? {
+            cacInstrucoes:
+              cacInstrucoes.trim() === CAC_INSIGHTS_INSTRUCOES_DEFAULT.trim()
+                ? ""
+                : cacInstrucoes.trim(),
           }
         : {}),
     });
@@ -1375,6 +1538,46 @@ function SistemaModal({
             </p>
           )}
 
+          {/* Instruções do resumo de transcrição (Meet) */}
+          {transcricaoEditavel && (
+            <InstrucoesIAEditor
+              id="transcricao-instrucoes"
+              titulo="Instruções do resumo (Gemini)"
+              rotulo="Como a IA deve resumir a transcrição"
+              valor={transcricaoInstrucoes}
+              onChange={setTranscricaoInstrucoes}
+              defaultTexto={TRANSCRICAO_RESUMO_INSTRUCOES_DEFAULT}
+              rodape="A transcrição e o formato de saída (JSON) são fixos — só as instruções acima são editáveis. Apagar tudo volta ao padrão do sistema. Vale para as próximas capturas (a cada 2h)."
+            />
+          )}
+          {card.editaTranscricaoPrompt && !transcricaoCfg && (
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              Instruções indisponíveis neste ambiente (seed{" "}
+              <code className="font-mono">transcricao_resumo_prompt</code> pendente) — o resumo
+              segue com as instruções padrão do sistema.
+            </p>
+          )}
+
+          {/* Instruções dos insights de CAC */}
+          {cacEditavel && (
+            <InstrucoesIAEditor
+              id="cac-instrucoes"
+              titulo="Instruções da análise (Gemini)"
+              rotulo="O que a IA deve avaliar nos dados de aquisição"
+              valor={cacInstrucoes}
+              onChange={setCacInstrucoes}
+              defaultTexto={CAC_INSIGHTS_INSTRUCOES_DEFAULT}
+              rodape="Os dados (totais, ROI por canal/campanha, tendência) e o formato de saída (JSON) são fixos — só as instruções acima são editáveis. Apagar tudo volta ao padrão do sistema."
+            />
+          )}
+          {card.editaCacPrompt && !cacCfg && (
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              Instruções indisponíveis neste ambiente (seed{" "}
+              <code className="font-mono">cac_insights_prompt</code> pendente) — a análise
+              segue com as instruções padrão do sistema.
+            </p>
+          )}
+
           {/* Card 100% informativo: nada editável (sem UI falsa) */}
           {!card.intervaloChave &&
             !card.templates?.length &&
@@ -1382,7 +1585,9 @@ function SistemaModal({
             !card.toggles?.length &&
             !card.editaEmailDestino &&
             !card.editaPrompt &&
-            !card.editaInsightsPrompt && (
+            !card.editaInsightsPrompt &&
+            !card.editaTranscricaoPrompt &&
+            !card.editaCacPrompt && (
             <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Parâmetros editáveis: em breve.
             </p>

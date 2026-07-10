@@ -90,6 +90,8 @@ export default async function AutomacoesPage() {
     { data: emailCfgRow },
     { data: promptCfgRow },
     { data: insightsCfgRow },
+    { data: transcricaoCfgRow },
+    { data: cacCfgRow },
   ] = await Promise.all([
     supabase
       .from("configuracoes_sistema")
@@ -121,6 +123,16 @@ export default async function AutomacoesPage() {
       .select("valor")
       .eq("chave", "insights_conversa_prompt")
       .maybeSingle(),
+    supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "transcricao_resumo_prompt")
+      .maybeSingle(),
+    supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "cac_insights_prompt")
+      .maybeSingle(),
   ]);
   // null = seed não aplicado neste ambiente → client desabilita a edição
   const mensagens = (mensagensRow?.valor as SchedulerMensagens | undefined) ?? null;
@@ -137,6 +149,8 @@ export default async function AutomacoesPage() {
   const emailCfg = (emailCfgRow?.valor as SistemaEmailConfig | undefined) ?? null;
   const promptCfg = (promptCfgRow?.valor as QualificacaoPromptCfg | undefined) ?? null;
   const insightsCfg = (insightsCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
+  const transcricaoCfg = (transcricaoCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
+  const cacCfg = (cacCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
 
   if (autoErr) console.error({ level: "error", action: "listar_automacoes", error: autoErr.message });
   if (runsErr) console.error({ level: "error", action: "listar_automacao_runs", error: runsErr.message });
@@ -167,6 +181,8 @@ export default async function AutomacoesPage() {
       emailCfg={emailCfg}
       promptCfg={promptCfg}
       insightsCfg={insightsCfg}
+      transcricaoCfg={transcricaoCfg}
+      cacCfg={cacCfg}
       // Server Component dinâmico (force-dynamic): timestamp de request-time é
       // intencional — âncora da janela "últimos 7 dias" dos KPIs de execução.
       // eslint-disable-next-line react-hooks/purity

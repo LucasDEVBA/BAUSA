@@ -48,6 +48,14 @@ const MAX_GEMINI_INPUT_CHARS = 150000;  // teto do trecho enviado ao Gemini (2.5
 const TRANSCRIPT_TITLE_RE = /transcript|transcri[çc][ãa]o|notes by gemini|anota[çc][õo]es (do|de) gemini|notas (do|de) gemini/i;
 const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 
+// Instruções DEFAULT do resumo — editáveis em /automacoes (configuracoes_
+// sistema.transcricao_resumo_prompt.instrucoes; espelho em apps/crm/src/lib/
+// automacoes/transcricao-resumo-prompt.ts — manter em sincronia). Fail-open:
+// qualquer falha/ausência da config usa este texto.
+const RESUMO_INSTRUCOES_DEFAULT = `Você é assistente comercial da Bolsa Atleta USA (assessoria de bolsas esportivas em instituições americanas).
+
+Abaixo está a transcrição de uma reunião comercial entre o consultor e a família de um atleta (lead). Resuma em 5 a 8 linhas, em português, cobrindo: contexto da família, principais dúvidas/objeções, sinais de interesse ou risco, e próximos passos combinados. Seja objetivo e factual — não invente nada que não esteja na transcrição.`;
+
 // ─── Log estruturado ──────────────────────────────────────────
 const log = (level, action, details = {}) => {
   console.log(JSON.stringify({ level, action, ...details }));
@@ -143,19 +151,55 @@ const fetchCapturedEventIds = async (eventIds) => {
   return new Set((Array.isArray(rows) ? rows : []).map((r) => r.google_event_id));
 };
 
+// ─── Config editável do resumo (/automacoes) — fail-open ─────
+// Lê instrucoes + toggle num único fetch por tick. Qualquer falha devolve o
+// default (a captura de transcrição NUNCA depende disto).
+const fetchResumoConfig = async () => {
+  const fallback = { instrucoes: RESUMO_INSTRUCOES_DEFAULT, ativo: true };
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema` +
+      `?select=chave,valor&chave=in.(transcricao_resumo_prompt,sistema_automacoes_ativas)`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: supabaseHeaders('Accept-Profile'),
+    });
+    // HTTP de erro vira exceção → o catch loga (padrão *_fallback das CFs):
+    // sem isso, um 401/403 persistente deixaria edições da UI sem efeito e
+    // sem nenhum log para diagnosticar.
+    if (result.statusCode >= 400) {
+      throw new Error(`GET configuracoes_sistema HTTP ${result.statusCode}`);
+    }
+    const rows = JSON.parse(result.body);
+    if (!Array.isArray(rows)) throw new Error('config: resposta não-array');
+
+    const porChave = {};
+    for (const r of rows) porChave[r.chave] = r.valor || {};
+    const instrucoes = typeof porChave.transcricao_resumo_prompt?.instrucoes === 'string' &&
+      porChave.transcricao_resumo_prompt.instrucoes.trim()
+      ? porChave.transcricao_resumo_prompt.instrucoes.trim()
+      : RESUMO_INSTRUCOES_DEFAULT;
+    // Toggle fail-open: ausente = ativo; só `false` explícito desliga
+    // (padrão deny `=== false` — guard tests/sistema-automacoes-ativas).
+    const desligado = porChave.sistema_automacoes_ativas?.resumo_transcricao === false;
+    return { instrucoes, ativo: !desligado };
+  } catch (err) {
+    // Padrão do guard sistema-automacoes-ativas: log + degrada p/ default
+    log('WARN', 'sistema_config_fallback', { error: err.message });
+    return fallback;
+  }
+};
+
 // ─── Resumo via Gemini (bônus — só com GEMINI_API_KEY) ────────
 // Mesma config obrigatória do qualify-lead (temperature 0.2, JSON).
 // Qualquer falha → resumo null, sem quebrar a captura.
-const summarizeTranscript = async (transcriptText) => {
+const summarizeTranscript = async (transcriptText, instrucoes) => {
   if (!GEMINI_API_KEY || !transcriptText || !transcriptText.trim()) return null;
 
   // head+tail: os proximos passos combinados ficam no FIM da reuniao
   const excerpt = transcriptText.length <= MAX_GEMINI_INPUT_CHARS
     ? transcriptText
     : transcriptText.slice(0, MAX_GEMINI_INPUT_CHARS / 2) + "\n[...]\n" + transcriptText.slice(-MAX_GEMINI_INPUT_CHARS / 2);
-  const prompt = `Você é assistente comercial da Bolsa Atleta USA (assessoria de bolsas esportivas em instituições americanas).
-
-Abaixo está a transcrição de uma reunião comercial entre o consultor e a família de um atleta (lead). Resuma em 5 a 8 linhas, em português, cobrindo: contexto da família, principais dúvidas/objeções, sinais de interesse ou risco, e próximos passos combinados. Seja objetivo e factual — não invente nada que não esteja na transcrição.
+  const prompt = `${instrucoes || RESUMO_INSTRUCOES_DEFAULT}
 
 TRANSCRIÇÃO:
 ${excerpt}
@@ -280,6 +324,12 @@ functions.http('meetingTranscripts', async (req, res) => {
       pending: pending.length,
     });
 
+    // Config editável do resumo (1 fetch por tick; fail-open p/ default)
+    const resumoCfg = await fetchResumoConfig();
+    if (!resumoCfg.ativo) {
+      log('INFO', 'resumo_desativado_skip', { note: 'captura segue; só o resumo é pulado' });
+    }
+
     const auth = buildGoogleAuth();
     const calendar = google.calendar({ version: 'v3', auth });
     const drive = google.drive({ version: 'v3', auth });
@@ -369,7 +419,9 @@ functions.http('meetingTranscripts', async (req, res) => {
         }
 
         // 3. Resumo opcional via Gemini (falha → null, nunca aborta)
-        const resumo = await summarizeTranscript(transcriptText);
+        const resumo = resumoCfg.ativo
+          ? await summarizeTranscript(transcriptText, resumoCfg.instrucoes)
+          : null;
 
         // 4. INSERT idempotente
         const outcome = await insertTranscript({
