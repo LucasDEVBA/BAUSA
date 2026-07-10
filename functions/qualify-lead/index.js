@@ -9,6 +9,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 // Schema do Supabase: 'public' em PRD, 'uat' em UAT, 'dev' em DEV
 const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
+// Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
+const RUNS_SCHEMA = 'public';
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SERVICE_ACCOUNT_EMAIL = process.env.SERVICE_ACCOUNT_EMAIL;
 const RAW_KEY = process.env.SERVICE_ACCOUNT_PRIVATE_KEY || '';
@@ -852,7 +854,10 @@ const RUN_QUALIFICACAO_ID = 'a0000000-0000-4000-8000-000000000006';
 const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
   try {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
-    await supabaseRequest('POST', 'automacao_runs', {
+    // POST direto (não supabaseRequest): o helper força Content-Profile =
+    // SUPABASE_SCHEMA DEPOIS do spread e não dá p/ sobrepor; o run PRECISA ir
+    // p/ RUNS_SCHEMA ('public') para o Engine enxergar em todos os ambientes.
+    const postData = JSON.stringify({
       automacao_id: automacaoId,
       status: ok ? 'sucesso' : 'erro',
       tentativas: 1,
@@ -862,7 +867,21 @@ const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] })
       gatilho_origem_id: (lead && lead.id) || null,
       contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
       resultado: { acoes },
-    }, { 'Prefer': 'return=minimal' });
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': RUNS_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
   } catch (e) {
     log('WARN', 'run_sistema_fallback', { error: e.message });
   }
