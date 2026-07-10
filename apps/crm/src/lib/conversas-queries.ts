@@ -372,3 +372,288 @@ export async function fetchFunilTiming(period: ConversaPeriod): Promise<FunilTim
     cicloAmostra: ciclo.length,
   };
 }
+
+// ─── Funil AVANÇADO: percentis + conversão entre etapas + cadência ──────────
+
+export interface Distribuicao {
+  p25: number | null;
+  p50: number | null; // mediana
+  p75: number | null;
+  p90: number | null;
+  media: number | null;
+  amostra: number;
+}
+
+function percentil(ordenado: number[], p: number): number | null {
+  if (ordenado.length === 0) return null;
+  if (ordenado.length === 1) return ordenado[0];
+  const idx = (ordenado.length - 1) * p;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return ordenado[lo];
+  return ordenado[lo] + (ordenado[hi] - ordenado[lo]) * (idx - lo);
+}
+
+function distribuicao(v: number[]): Distribuicao {
+  const o = [...v].sort((a, b) => a - b);
+  return {
+    p25: percentil(o, 0.25),
+    p50: percentil(o, 0.5),
+    p75: percentil(o, 0.75),
+    p90: percentil(o, 0.9),
+    media: media(v),
+    amostra: v.length,
+  };
+}
+
+export interface TransicaoDist {
+  chave: string;
+  label: string;
+  dist: Distribuicao;
+}
+
+export interface EtapaFunil {
+  chave: string;
+  label: string;
+  total: number;
+  /** Taxa de passagem a partir da etapa anterior (0-1); null na 1ª. */
+  taxaDaAnterior: number | null;
+}
+
+export interface FunilAvancado {
+  transicoes: TransicaoDist[];
+  etapas: EtapaFunil[];
+  totalDeals: number;
+}
+
+interface DealFunilRow {
+  created_at: string;
+  etapa: string;
+  reuniao_realizada_at: string | null;
+  contrato_enviado_at: string | null;
+  contrato_assinado_at: string | null;
+  sinal_pago_at: string | null;
+  atletas: {
+    form_submissions: {
+      created_at: string | null;
+      whatsapp_sent_at: string | null;
+      meeting_scheduled_at: string | null;
+    } | null;
+  } | null;
+}
+
+// Ordem das etapas (espelha DEAL_STAGE_CONFIG). perdido/desconhecido = -1 (não
+// usa ordem — só timestamps dizem até onde o deal perdido chegou).
+const ORDEM_ETAPA: Record<string, number> = {
+  lead: 0,
+  aguardando_timing: 0.5,
+  reuniao_marcada: 1,
+  reuniao_realizada: 2,
+  diagnostico_fit: 3,
+  alinhamento_estrategico: 4,
+  proposta_enviada: 5,
+  followup_proposta: 6,
+  negociacao: 7,
+  contrato_enviado: 8,
+  contrato_assinado: 9,
+  sinal_pago: 10,
+  admission_process: 11,
+  concluido: 12,
+};
+const rankEtapa = (etapa: string): number => ORDEM_ETAPA[etapa] ?? -1;
+
+export async function fetchFunilAvancado(period: ConversaPeriod): Promise<FunilAvancado> {
+  const supabase = await createServerSupabaseClient();
+  const inicio = startMs(period);
+  const inicioISO = inicio !== null ? new Date(inicio).toISOString() : null;
+
+  let query = supabase
+    .from("deals")
+    .select(
+      "created_at, etapa, reuniao_realizada_at, contrato_enviado_at, contrato_assinado_at, sinal_pago_at, " +
+        "atletas ( form_submissions ( created_at, whatsapp_sent_at, meeting_scheduled_at ) )",
+    )
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(FETCH_LIMIT);
+  if (inicioISO) query = query.gte("created_at", inicioISO);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error({ level: "error", action: "fetch_funil_avancado", error: error.message });
+  }
+  const deals = (data as unknown as DealFunilRow[] | null) ?? [];
+
+  const contatoAgenda: number[] = [];
+  const agendaReuniao: number[] = [];
+  const reuniaoContrato: number[] = [];
+  const ciclo: number[] = [];
+  let comReuniao = 0;
+  let comContratoEnviado = 0;
+  let comAssinado = 0;
+  let comSinal = 0;
+
+  for (const d of deals) {
+    const form = d.atletas?.form_submissions ?? null;
+    const contato = form?.created_at ?? d.created_at;
+    const r = rankEtapa(d.etapa); // -1 se perdido/desconhecido
+
+    // Tempos (por timestamp) — inalterados
+    if (form?.meeting_scheduled_at) {
+      const g = gapDias(form.created_at, form.meeting_scheduled_at);
+      if (g !== null) contatoAgenda.push(g);
+      if (d.reuniao_realizada_at) {
+        const g2 = gapDias(form.meeting_scheduled_at, d.reuniao_realizada_at);
+        if (g2 !== null) agendaReuniao.push(g2);
+      }
+    }
+    if (d.reuniao_realizada_at && d.contrato_assinado_at) {
+      const g = gapDias(d.reuniao_realizada_at, d.contrato_assinado_at);
+      if (g !== null) reuniaoContrato.push(g);
+    }
+    if (d.contrato_assinado_at) {
+      const g = gapDias(contato, d.contrato_assinado_at);
+      if (g !== null) ciclo.push(g);
+    }
+
+    // Marcos CUMULATIVOS (monotônicos): timestamp downstream OU etapa alcançada.
+    // Garante comReuniao ≥ comContratoEnviado ≥ comAssinado ≥ comSinal (taxa ≤ 100%).
+    // O funil não é aninhado (deals pulam reuniao_realizada) — daí a implicação.
+    const alcSinal = !!d.sinal_pago_at || r >= 10;
+    const alcAssinado = !!d.contrato_assinado_at || alcSinal || r >= 9;
+    const alcEnviado = !!d.contrato_enviado_at || alcAssinado || r >= 8;
+    const alcReuniao = !!d.reuniao_realizada_at || alcEnviado || r >= 2;
+    if (alcReuniao) comReuniao++;
+    if (alcEnviado) comContratoEnviado++;
+    if (alcAssinado) comAssinado++;
+    if (alcSinal) comSinal++;
+  }
+
+  const total = deals.length;
+  const taxa = (num: number, den: number) => (den > 0 ? num / den : null);
+
+  return {
+    totalDeals: total,
+    transicoes: [
+      { chave: "contato_agenda", label: "1º contato → agendamento", dist: distribuicao(contatoAgenda) },
+      { chave: "agenda_reuniao", label: "Agendamento → reunião", dist: distribuicao(agendaReuniao) },
+      { chave: "reuniao_contrato", label: "Reunião → contrato assinado", dist: distribuicao(reuniaoContrato) },
+      { chave: "ciclo", label: "Ciclo total (contato → assinatura)", dist: distribuicao(ciclo) },
+    ],
+    etapas: [
+      { chave: "entrada", label: "Entrada no pipeline", total, taxaDaAnterior: null },
+      { chave: "reuniao", label: "Reunião realizada", total: comReuniao, taxaDaAnterior: taxa(comReuniao, total) },
+      { chave: "contrato_enviado", label: "Contrato enviado", total: comContratoEnviado, taxaDaAnterior: taxa(comContratoEnviado, comReuniao) },
+      { chave: "assinado", label: "Contrato assinado", total: comAssinado, taxaDaAnterior: taxa(comAssinado, comContratoEnviado) },
+      { chave: "sinal", label: "Sinal pago", total: comSinal, taxaDaAnterior: taxa(comSinal, comAssinado) },
+    ],
+  };
+}
+
+// ─── Cadência pós-reunião (deals ↔ whatsapp_mensagens por telefone) ─────────
+// Aproximado: casa o telefone do atleta com whatsapp_mensagens pelos últimos 10
+// dígitos (DDI/DDD variam). Cadência real depende do espelho ter as mensagens.
+
+export interface CadenciaPosReuniao {
+  /** Reunião → 1ª mensagem nossa (follow-up), em HORAS. */
+  primeiroFollowupHoras: Distribuicao;
+  /** Nº de mensagens nossas entre a reunião e o contrato assinado (ganhos). */
+  toquesAteDecisaoMediana: number | null;
+  toquesAmostra: number;
+  /** Deals com reunião realizada considerados. */
+  amostraReunioes: number;
+}
+
+interface DealCadenciaRow {
+  reuniao_realizada_at: string | null;
+  contrato_assinado_at: string | null;
+  atletas: { whatsapp: string | null } | null;
+}
+
+const tail10 = (s: string | null) => (s ?? "").replace(/\D/g, "").slice(-10);
+
+export async function fetchCadenciaPosReuniao(period: ConversaPeriod): Promise<CadenciaPosReuniao> {
+  const supabase = await createServerSupabaseClient();
+  const inicio = startMs(period);
+  const inicioISO = inicio !== null ? new Date(inicio).toISOString() : null;
+
+  let dealQuery = supabase
+    .from("deals")
+    .select("reuniao_realizada_at, contrato_assinado_at, atletas ( whatsapp )")
+    .is("deleted_at", null)
+    .not("reuniao_realizada_at", "is", null)
+    .order("reuniao_realizada_at", { ascending: false })
+    .limit(FETCH_LIMIT);
+  if (inicioISO) dealQuery = dealQuery.gte("reuniao_realizada_at", inicioISO);
+
+  const [{ data: dealData, error: dealErr }, { data: msgData, error: msgErr }] = await Promise.all([
+    dealQuery,
+    // Só mensagens NOSSAS (from_me) — DESC + limit p/ manter as recentes.
+    supabase
+      .from("whatsapp_mensagens")
+      .select("phone, momment, created_at")
+      .eq("from_me", true)
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+  ]);
+  if (dealErr || msgErr) {
+    console.error({
+      level: "error",
+      action: "fetch_cadencia_pos_reuniao",
+      error: dealErr?.message ?? msgErr?.message,
+    });
+  }
+
+  const deals = (dealData as unknown as DealCadenciaRow[] | null) ?? [];
+  const msgs = (msgData as { phone: string; momment: string | null; created_at: string }[] | null) ?? [];
+
+  // Índice: tail10(phone) → epochs (momment) das nossas mensagens (ordem não
+  // importa — usamos min/filter, não a posição).
+  const porTelefone = new Map<string, number[]>();
+  for (const m of msgs) {
+    const key = tail10(m.phone);
+    if (key.length < 8) continue;
+    const t = Date.parse(m.momment ?? m.created_at);
+    if (!Number.isFinite(t)) continue;
+    const lista = porTelefone.get(key);
+    if (lista) lista.push(t);
+    else porTelefone.set(key, [t]);
+  }
+
+  const followupHoras: number[] = [];
+  const toques: number[] = [];
+  // Conta TODAS as reuniões do período (a query já filtra reuniao_realizada_at
+  // not null) — independente de casar telefone; o gate de telefone só afeta os
+  // arrays de follow-up/toques.
+  const amostraReunioes = deals.length;
+
+  for (const d of deals) {
+    const tel = tail10(d.atletas?.whatsapp ?? null);
+    if (tel.length < 8 || !d.reuniao_realizada_at) continue;
+    const reuniaoMs = Date.parse(d.reuniao_realizada_at);
+    if (!Number.isFinite(reuniaoMs)) continue;
+    const epochs = porTelefone.get(tel);
+    if (!epochs || epochs.length === 0) continue;
+
+    // 1º follow-up após a reunião = MENOR momment > reunião (não a posição no
+    // array, que está em ordem de created_at, não de momment).
+    const posteriores = epochs.filter((t) => t > reuniaoMs);
+    if (posteriores.length > 0) {
+      followupHoras.push((Math.min(...posteriores) - reuniaoMs) / (60 * 60 * 1000));
+    }
+    // Toques (nossas msgs) entre a reunião e o contrato assinado (ganhos)
+    if (d.contrato_assinado_at) {
+      const assinadoMs = Date.parse(d.contrato_assinado_at);
+      if (Number.isFinite(assinadoMs) && assinadoMs > reuniaoMs) {
+        toques.push(epochs.filter((t) => t > reuniaoMs && t <= assinadoMs).length);
+      }
+    }
+  }
+
+  return {
+    primeiroFollowupHoras: distribuicao(followupHoras),
+    toquesAteDecisaoMediana: mediana(toques),
+    toquesAmostra: toques.length,
+    amostraReunioes,
+  };
+}
