@@ -230,6 +230,83 @@ const moveDealToReuniao = async (leadId, event) => {
   return updateRes.statusCode < 400;
 };
 
+// ─── Resync de reunião REMARCADA ──────────────────────────────
+// Quando o lead reagenda, o Meet cria um NOVO evento (com novo id/link) e é
+// nele que a transcrição/anotações do Gemini ficam anexadas. Se o deal
+// continuar apontando para o evento original, a CF meeting-transcripts procura
+// no evento errado e a transcrição nunca é capturada (incidente 2026-07-10).
+//
+// Este resync aponta o deal para o evento MAIS RECENTE, sem mover a etapa e
+// sem re-notificar (silencioso). Só atualiza para frente (event.start >= a
+// reunião atual) para não reverter a um evento antigo quando o webhook
+// reprocessa um evento passado. Nunca lança — não faz parte do funil crítico.
+const resyncDealMeeting = async (leadId, event) => {
+  const eventId = event.id;
+  if (!eventId) return false;
+
+  // Filtros ANTES de qualquer query (baratos + reduzem falso-positivo):
+  //  • exige reunião real do Meet (hangoutLink) — evento interno do CEO que
+  //    casa um e-mail/telefone por acaso não tem Meet e é ignorado;
+  //  • exige horário FUTURO — o deal aponta sempre para a PRÓXIMA reunião
+  //    (cobre remarcação p/ mais cedo OU mais tarde) e nunca reverte a um
+  //    evento passado quando o webhook reprocessa um evento antigo.
+  const meetDate = event.start?.dateTime || event.start?.date || null;
+  if (!meetDate) return false;
+  if (!event.hangoutLink) return false;
+  if (new Date(meetDate).getTime() <= Date.now()) return false;
+
+  const atletaUrl = `${SUPABASE_URL}/rest/v1/atletas?form_submission_id=eq.${leadId}&deleted_at=is.null&select=id`;
+  const atletaRes = await httpRequest(atletaUrl, {
+    method: 'GET',
+    headers: {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept-Profile': SUPABASE_SCHEMA,
+    },
+  });
+  const atletas = JSON.parse(atletaRes.body);
+  if (!Array.isArray(atletas) || atletas.length === 0) return false;
+  const atletaId = atletas[0].id;
+
+  // Deal ativo mais recente do atleta (já passou de 'lead' na remarcação).
+  // Exclui 'perdido' p/ não ressincronizar um deal encerrado.
+  const dealUrl = `${SUPABASE_URL}/rest/v1/deals?atleta_id=eq.${atletaId}&deleted_at=is.null` +
+    `&etapa=neq.perdido&select=id,google_calendar_event_id&order=created_at.desc&limit=1`;
+  const dealRes = await httpRequest(dealUrl, {
+    method: 'GET',
+    headers: {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept-Profile': SUPABASE_SCHEMA,
+    },
+  });
+  const deals = JSON.parse(dealRes.body);
+  if (!Array.isArray(deals) || deals.length === 0) return false;
+  const deal = deals[0];
+
+  // Já aponta para este evento → nada a fazer (idempotente entre ticks).
+  if (deal.google_calendar_event_id === eventId) return false;
+
+  const meetLink = event.hangoutLink || event.htmlLink || '';
+  const updateUrl = `${SUPABASE_URL}/rest/v1/deals?id=eq.${deal.id}`;
+  const updateRes = await httpRequest(updateUrl, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Profile': SUPABASE_SCHEMA,
+      'Content-Type': 'application/json',
+    },
+  }, JSON.stringify({
+    google_calendar_event_id: eventId,
+    reuniao_data: meetDate,
+    reuniao_link: meetLink,
+    reuniao_agendada_at: new Date().toISOString(),
+  }));
+
+  return updateRes.statusCode < 400;
+};
+
 // ─── Formatar telefone (E.164) ────────────────────────────────
 const formatPhone = (phone) => {
   if (!phone) return null;
@@ -602,9 +679,19 @@ functions.http('calendarWebhook', async (req, res) => {
         continue;
       }
 
-      // Já foi marcado? Pula
+      // Já foi marcado? Não re-notifica, mas RESSINCRONIZA o evento do deal:
+      // se o lead remarcou, o deal precisa apontar para o evento novo (onde a
+      // transcrição fica anexada). Silencioso e à prova de falha.
       if (lead.meeting_scheduled) {
-        log('INFO', 'already_scheduled', { email: lead.email });
+        try {
+          const resynced = await resyncDealMeeting(lead.id, event);
+          log('INFO', resynced ? 'deal_meeting_resynced' : 'already_scheduled', {
+            email: lead.email,
+            eventId: event.id,
+          });
+        } catch (err) {
+          log('WARN', 'deal_resync_error', { error: err.message, eventId: event.id });
+        }
         continue;
       }
 
