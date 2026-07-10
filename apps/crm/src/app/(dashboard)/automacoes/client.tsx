@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Workflow,
@@ -16,6 +17,8 @@ import {
   History,
   RotateCcw,
   Info,
+  ChevronDown,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1423,6 +1426,136 @@ function resumoResultado(run: AutomacaoRunDetalhado): string {
   return "—";
 }
 
+/** Tom do badge para o status de UMA ação (mais granular que o status do run). */
+function acaoStatusTone(status: string): BadgeTone {
+  const s = status.toLowerCase();
+  if (/(sucesso|enviad|ok|conclu|criad)/.test(s)) return "green";
+  if (/(erro|falh|reject)/.test(s)) return "red";
+  if (/(pulad|ignorad|skip|bloque)/.test(s)) return "neutral";
+  return "blue";
+}
+
+function DetalheLinha({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="w-28 shrink-0 text-eyebrow text-muted-foreground">{label}</span>
+      <span className="min-w-0 text-xs text-foreground/90">{children}</span>
+    </div>
+  );
+}
+
+/** Detalhe expandido de um run: ações (tipo·status·detalhe), motivo, contexto e link ao lead. */
+function RunDetalhe({
+  run,
+  leadNome,
+  leadHref,
+}: {
+  run: AutomacaoRunDetalhado;
+  leadNome?: string;
+  leadHref: string | null;
+}) {
+  const resultado = run.resultado as {
+    motivo?: string;
+    erro?: string;
+    acoes?: { tipo: string; status: string; detalhe?: string }[];
+  };
+  const contexto = run.contexto as {
+    atleta_id?: string;
+    periodo?: string;
+    athlete_name?: string;
+  };
+  const acoes = Array.isArray(resultado?.acoes) ? resultado.acoes : [];
+  const fmt = (iso: string | null) =>
+    iso
+      ? new Date(iso).toLocaleString("pt-BR", {
+          day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
+        })
+      : "—";
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
+      {/* Ações executadas */}
+      <div className="space-y-2">
+        <p className="text-eyebrow text-muted-foreground">Ações</p>
+        {acoes.length > 0 ? (
+          <ul className="space-y-1.5">
+            {acoes.map((a, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-2 rounded-md border border-border bg-card px-2.5 py-1.5"
+              >
+                <Badge tone={acaoStatusTone(a.status)} size="sm">
+                  {a.status}
+                </Badge>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground">
+                    {ACAO_CATALOG[a.tipo as AutomacaoAcaoTipo]?.label ?? a.tipo}
+                  </p>
+                  {a.detalhe && (
+                    <p className="text-[11px] leading-relaxed text-muted-foreground break-words">
+                      {a.detalhe}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : resultado?.motivo ? (
+          <p className="text-xs text-muted-foreground">{resultado.motivo}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">Sem ações registradas.</p>
+        )}
+        {resultado?.erro && (
+          <p className="rounded-md border border-sys-red/20 bg-sys-red/5 px-2.5 py-1.5 text-[11px] text-sys-red break-words">
+            {resultado.erro}
+          </p>
+        )}
+      </div>
+
+      {/* Contexto + link ao lead */}
+      <div className="space-y-1.5">
+        <p className="text-eyebrow text-muted-foreground">Contexto</p>
+        {leadNome && (
+          <DetalheLinha label="Lead">
+            {leadHref ? (
+              <Link
+                href={leadHref}
+                className="text-primary hover:underline inline-flex items-center gap-1 font-medium"
+              >
+                {leadNome}
+                <ExternalLink className="h-3 w-3 opacity-60" />
+              </Link>
+            ) : (
+              leadNome
+            )}
+          </DetalheLinha>
+        )}
+        {run.gatilho_origem_tabela && (
+          <DetalheLinha label="Origem">
+            <span className="font-mono text-[11px]">
+              {run.gatilho_origem_tabela}
+              {run.gatilho_origem_id ? ` · ${run.gatilho_origem_id.slice(0, 8)}` : ""}
+            </span>
+          </DetalheLinha>
+        )}
+        {contexto?.periodo && (
+          <DetalheLinha label="Período">
+            <span className="font-mono text-[11px]">{contexto.periodo}</span>
+          </DetalheLinha>
+        )}
+        <DetalheLinha label="Tentativas">{run.tentativas}</DetalheLinha>
+        {run.proxima_tentativa_at && (
+          <DetalheLinha label="Próx. tentativa">{fmt(run.proxima_tentativa_at)}</DetalheLinha>
+        )}
+        <DetalheLinha label="Executado">{fmt(run.executado_at)}</DetalheLinha>
+        <DetalheLinha label="Run ID">
+          <span className="font-mono text-[10px] text-muted-foreground">{run.id.slice(0, 8)}</span>
+        </DetalheLinha>
+      </div>
+    </div>
+  );
+}
+
 function ExecucoesView({
   runs,
   leadNomes,
@@ -1453,6 +1586,15 @@ function ExecucoesView({
     erro: recentes.filter((r) => r.status === "erro").length,
     fila: recentes.filter((r) => r.status === "pendente" || r.status === "executando").length,
   };
+
+  const [expandidos, setExpandidos] = useState<Set<string>>(() => new Set());
+  const toggleExpandido = (id: string) =>
+    setExpandidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <div className="space-y-5">
@@ -1526,60 +1668,102 @@ function ExecucoesView({
                   // Runs de SISTEMA gravam athlete_name direto no contexto
                   const leadNome =
                     (atletaId ? leadNomes[atletaId] : undefined) ?? contexto?.athlete_name;
+                  // Link para os dados do lead: por id (runs custom) ou por
+                  // busca de nome (runs de sistema não carregam atleta_id).
+                  const leadHref = atletaId
+                    ? `/leads?atleta=${atletaId}`
+                    : contexto?.athlete_name
+                      ? `/leads?q=${encodeURIComponent(contexto.athlete_name)}`
+                      : null;
+                  const aberto = expandidos.has(run.id);
                   return (
-                    <tr key={run.id} className="border-b border-border transition-colors hover:bg-accent">
-                      <td className="py-2.5 pl-4 pr-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(run.created_at).toLocaleString("pt-BR", {
-                          day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                        })}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <p className="text-xs font-medium text-foreground">
-                          {run.automacoes?.nome ?? "(removida)"}
-                        </p>
-                        {gatilho && (
-                          <p className="text-[11px] text-muted-foreground">{gatilho.label}</p>
+                    <Fragment key={run.id}>
+                      <tr
+                        className={cn(
+                          "border-b border-border transition-colors hover:bg-accent cursor-pointer",
+                          aberto && "bg-accent/60",
                         )}
-                      </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        {leadNome ? (
-                          <p className="text-xs font-medium text-foreground">{leadNome}</p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground font-mono">
-                            {run.gatilho_origem_tabela ?? contexto?.periodo ?? "—"}
-                            {run.gatilho_origem_id ? ` · ${run.gatilho_origem_id.slice(0, 8)}` : ""}
+                        onClick={() => toggleExpandido(run.id)}
+                      >
+                        <td className="py-2.5 pl-4 pr-3 text-xs text-muted-foreground whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5">
+                            <ChevronDown
+                              className={cn(
+                                "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                                aberto ? "rotate-0" : "-rotate-90",
+                              )}
+                            />
+                            {new Date(run.created_at).toLocaleString("pt-BR", {
+                              day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                            })}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <p className="text-xs font-medium text-foreground">
+                            {run.automacoes?.nome ?? "(removida)"}
                           </p>
-                        )}
-                        {leadNome && (
-                          <p className="text-[11px] text-muted-foreground">{run.gatilho_origem_tabela}</p>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Badge tone={RUN_STATUS_TONE[run.status]} size="sm">
-                          {RUN_STATUS_LABEL[run.status]}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground">{run.tentativas}</td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[320px] truncate">
-                        {resumoResultado(run)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        {/* Runs de SISTEMA não são reprocessáveis (a action
-                            também bloqueia server-side) — sem UI falsa. */}
-                        {run.status === "erro" && run.automacoes?.gatilho !== "sistema" && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={isPending}
-                            aria-label="Reprocessar run"
-                            onClick={() => onReplay(run.id)}
-                          >
-                            <RotateCcw className="h-3 w-3" />
-                            Reprocessar
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
+                          {gatilho && (
+                            <p className="text-[11px] text-muted-foreground">{gatilho.label}</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          {leadNome ? (
+                            leadHref ? (
+                              <Link
+                                href={leadHref}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
+                              >
+                                {leadNome}
+                                <ExternalLink className="h-3 w-3 opacity-60" />
+                              </Link>
+                            ) : (
+                              <p className="text-xs font-medium text-foreground">{leadNome}</p>
+                            )
+                          ) : (
+                            <p className="text-xs text-muted-foreground font-mono">
+                              {run.gatilho_origem_tabela ?? contexto?.periodo ?? "—"}
+                              {run.gatilho_origem_id ? ` · ${run.gatilho_origem_id.slice(0, 8)}` : ""}
+                            </p>
+                          )}
+                          {leadNome && (
+                            <p className="text-[11px] text-muted-foreground">{run.gatilho_origem_tabela}</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <Badge tone={RUN_STATUS_TONE[run.status]} size="sm">
+                            {RUN_STATUS_LABEL[run.status]}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-muted-foreground">{run.tentativas}</td>
+                        <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[320px] truncate">
+                          {resumoResultado(run)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          {/* Runs de SISTEMA não são reprocessáveis (a action
+                              também bloqueia server-side) — sem UI falsa. */}
+                          {run.status === "erro" && run.automacoes?.gatilho !== "sistema" && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={isPending}
+                              aria-label="Reprocessar run"
+                              onClick={() => onReplay(run.id)}
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                              Reprocessar
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                      {aberto && (
+                        <tr className="border-b border-border bg-accent/30">
+                          <td colSpan={7} className="px-4 py-3">
+                            <RunDetalhe run={run} leadNome={leadNome} leadHref={leadHref} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
