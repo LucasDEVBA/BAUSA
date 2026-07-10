@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   startOfMonth,
@@ -23,8 +23,13 @@ import {
   ExternalLink,
   Clock,
   CalendarClock,
+  Plus,
+  X,
+  Search,
 } from "lucide-react";
-import { PageHeader, Card, Badge, Button, StatCard } from "@/components/ui";
+import { toast } from "sonner";
+import { PageHeader, Card, Badge, Button, StatCard, Input } from "@/components/ui";
+import { criarCompromisso } from "@/lib/actions/agenda";
 import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
 import { cn } from "@/lib/utils";
 
@@ -64,15 +69,24 @@ function fmtValor(v: number | null): string | null {
   return `R$ ${v}`;
 }
 
+export interface DealAgendavel {
+  dealId: string;
+  etapa: DealStage;
+  nome: string;
+}
+
 export function AgendaClient({
   eventos,
   hoje,
   nowMs,
+  dealsAgendaveis,
 }: {
   eventos: AgendaEvento[];
   hoje: string; // yyyy-MM-dd em BRT (do servidor)
   nowMs: number; // instante do servidor
+  dealsAgendaveis: DealAgendavel[];
 }) {
+  const [novoAberto, setNovoAberto] = useState(false);
   const [mesAtual, setMesAtual] = useState<Date>(() => {
     const [y, m] = hoje.split("-").map(Number);
     return new Date(y, m - 1, 1);
@@ -122,6 +136,10 @@ export function AgendaClient({
         description="Reuniões do pipeline — clique num dia para ver os detalhes e abrir o lead."
         actions={
           <div className="flex items-center gap-1.5">
+            <Button size="sm" onClick={() => setNovoAberto(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Novo compromisso
+            </Button>
             <Button
               variant="secondary"
               size="sm"
@@ -322,6 +340,228 @@ export function AgendaClient({
           </div>
         </Card>
       </div>
+
+      {novoAberto && (
+        <NovoCompromissoModal
+          deals={dealsAgendaveis}
+          hoje={hoje}
+          onClose={() => setNovoAberto(false)}
+        />
+      )}
     </div>
   );
+}
+
+const DURACOES = [30, 45, 60, 90] as const;
+
+/** Modal "Novo compromisso": cria o evento no Google Calendar do CEO (com o
+ *  nome do atleta no título) e vincula ao deal. 1ª reunião → o webhook
+ *  notifica o lead sozinho; remarcação → checkbox de aviso por WhatsApp. */
+function NovoCompromissoModal({
+  deals,
+  hoje,
+  onClose,
+}: {
+  deals: DealAgendavel[];
+  hoje: string;
+  onClose: () => void;
+}) {
+  const [busca, setBusca] = useState("");
+  const [dealSel, setDealSel] = useState<DealAgendavel | null>(null);
+  const [dataStr, setDataStr] = useState(hoje);
+  const [horaStr, setHoraStr] = useState("10:00");
+  const [duracao, setDuracao] = useState<number>(60);
+  const [observacao, setObservacao] = useState("");
+  const [notificar, setNotificar] = useState(true);
+  const [isPending, startTransition] = useTransition();
+
+  const filtrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return deals.slice(0, 8);
+    return deals.filter((d) => d.nome.toLowerCase().includes(q)).slice(0, 8);
+  }, [deals, busca]);
+
+  const criar = () => {
+    if (!dealSel) return toastErro("Selecione o lead.");
+    if (!dataStr || !horaStr) return toastErro("Informe data e hora.");
+    // Offset FIXO -03:00 (BRT, sem DST desde 2019): o label diz "Hora (BRT)"
+    // e precisa valer mesmo com o CEO viajando (navegador em outro fuso).
+    const start = new Date(`${dataStr}T${horaStr}:00-03:00`);
+    if (Number.isNaN(start.getTime())) return toastErro("Data/hora inválida.");
+    if (start.getTime() <= Date.now()) return toastErro("O compromisso precisa ser no futuro.");
+
+    startTransition(async () => {
+      const r = await criarCompromisso({
+        dealId: dealSel.dealId,
+        startIso: start.toISOString(),
+        duracaoMin: duracao,
+        observacao: observacao.trim() || undefined,
+        notificarLead: notificar,
+      });
+      if (r.success) {
+        const aviso =
+          r.notificacao === "webhook"
+            ? "O lead receberá a confirmação automática por WhatsApp."
+            : r.notificacao === "enviado"
+              ? "Lead avisado por WhatsApp."
+              : "Lead não notificado.";
+        toast.success(`Compromisso criado${r.meetCriado ? " com Meet" : ""}.`, {
+          description: aviso,
+        });
+        onClose();
+      } else {
+        toast.error(r.error);
+      }
+    });
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="liquid-glass flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <h2 className="text-base font-semibold text-foreground">Novo compromisso</h2>
+            <button
+              onClick={onClose}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-fill-4 hover:text-foreground"
+              aria-label="Fechar"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="space-y-4 overflow-y-auto px-6 py-5">
+            {/* Lead/deal */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Lead *</label>
+              {dealSel ? (
+                <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{dealSel.nome}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {DEAL_STAGE_CONFIG[dealSel.etapa]?.shortLabel ?? dealSel.etapa}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setDealSel(null)}>
+                    Trocar
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      placeholder="Buscar pelo nome do atleta..."
+                      className="pl-9"
+                    />
+                  </div>
+                  <div className="max-h-40 overflow-y-auto rounded-md border border-border">
+                    {filtrados.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum lead encontrado.</p>
+                    ) : (
+                      filtrados.map((d) => (
+                        <button
+                          key={d.dealId}
+                          type="button"
+                          onClick={() => setDealSel(d)}
+                          className="flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-accent"
+                        >
+                          <span className="text-xs font-medium text-foreground">{d.nome}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {DEAL_STAGE_CONFIG[d.etapa]?.shortLabel ?? d.etapa}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Data/hora/duração */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Data *</label>
+                <Input type="date" value={dataStr} min={hoje} onChange={(e) => setDataStr(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Hora (BRT) *</label>
+                <Input type="time" value={horaStr} onChange={(e) => setHoraStr(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Duração</label>
+              <div className="flex gap-1.5">
+                {DURACOES.map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDuracao(d)}
+                    className={cn(
+                      "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                      duracao === d
+                        ? "border-primary/30 bg-primary/10 text-primary"
+                        : "border-border bg-card text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {d} min
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Observação */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Observação (vai na descrição do evento)</label>
+              <textarea
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                rows={2}
+                className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+                placeholder="Contexto da reunião..."
+              />
+            </div>
+
+            {/* Notificação */}
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={notificar}
+                onChange={(e) => setNotificar(e.target.checked)}
+                className="mt-0.5 accent-[var(--primary)]"
+              />
+              <span className="text-xs leading-relaxed text-muted-foreground">
+                Avisar o lead por WhatsApp. <span className="text-label-tertiary">1ª reunião é
+                confirmada automaticamente pelo sistema; em remarcação, o aviso usa esta opção.</span>
+              </span>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
+            <Button variant="ghost" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button onClick={criar} disabled={isPending || !dealSel}>
+              {isPending ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <CalendarDays className="h-4 w-4" />
+              )}
+              Criar no Calendar
+            </Button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function toastErro(msg: string) {
+  toast.error(msg);
 }
