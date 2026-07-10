@@ -1,102 +1,70 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
-  CheckSquare,
-  AlertTriangle,
-  Clock,
-  Search,
-  Zap,
-  Square,
-  CheckCircle2,
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
   Plus,
   X,
   Save,
+  Search,
+  Layers,
   Pencil,
-  MessageCircle,
   Send,
-  ChevronDown,
-  ChevronRight,
-  RefreshCw,
+  CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ScrollList, PageHeader, Card, Button, Badge, Input, EmptyState } from "@/components/ui";
-import { criarTarefa, marcarTarefaConcluida } from "@/lib/actions/automacoes";
+import { PageHeader, Card, Button, Badge, Input } from "@/components/ui";
+import { criarTarefa } from "@/lib/actions/automacoes";
 import { atualizarTarefa } from "@/lib/actions/tarefas";
+import { moverTarefaQuadro, atribuirSprintTarefa } from "@/lib/actions/tarefas-kanban";
 import { cn } from "@/lib/utils";
-import type { Tarefa, PrioridadeTarefa, StatusTarefa } from "@/types/crm";
-
-const STATUS_TABS: { value: StatusTarefa | "todas"; label: string }[] = [
-  { value: "todas", label: "Todas" },
-  { value: "pendente", label: "Pendente" },
-  { value: "em_andamento", label: "Em andamento" },
-  { value: "concluida", label: "Concluida" },
-  { value: "atrasada", label: "Atrasada" },
-];
+import type { Tarefa, Sprint, PrioridadeTarefa, QuadroColuna, StatusTarefa } from "@/types/crm";
+import { TarefaCard } from "@/components/tarefas/TarefaCard";
+import { TarefaColuna } from "@/components/tarefas/TarefaColuna";
+import { SprintModal } from "@/components/tarefas/SprintModal";
+import {
+  COLUNAS_CONFIG,
+  PRIORIDADE_ORDER,
+  type RecorrenciaTarefa,
+  parseComments,
+  getDescriptionWithoutComments,
+  getCommentLines,
+  buildCommentLine,
+} from "@/components/tarefas/tarefa-utils";
 
 const PRIORIDADE_TABS: { value: PrioridadeTarefa | "todas"; label: string }[] = [
   { value: "todas", label: "Todas" },
-  { value: "critica", label: "Critica" },
+  { value: "critica", label: "Crítica" },
   { value: "alta", label: "Alta" },
-  { value: "media", label: "Media" },
+  { value: "media", label: "Média" },
   { value: "baixa", label: "Baixa" },
 ];
 
 const MODULO_TABS: { value: string; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "comercial", label: "Comercial" },
-  { value: "experiencia", label: "Experiencia" },
+  { value: "experiencia", label: "Experiência" },
   { value: "financeiro", label: "Financeiro" },
-  { value: "admissao", label: "Admissao" },
+  { value: "admissao", label: "Admissão" },
 ];
 
-const PRIORIDADE_ORDER: Record<PrioridadeTarefa, number> = {
-  critica: 0,
-  alta: 1,
-  media: 2,
-  baixa: 3,
+const SPRINT_STATUS_TONE: Record<Sprint["status"], "neutral" | "green" | "blue"> = {
+  planejada: "neutral",
+  ativa: "blue",
+  concluida: "green",
 };
 
-const PRIORIDADE_CONFIG: Record<PrioridadeTarefa, { label: string; bg: string; text: string }> = {
-  critica: { label: "Critica", bg: "bg-sys-red/15", text: "text-sys-red" },
-  alta: { label: "Alta", bg: "bg-sys-orange/15", text: "text-sys-orange" },
-  media: { label: "Media", bg: "bg-sys-blue/15", text: "text-sys-blue" },
-  baixa: { label: "Baixa", bg: "bg-secondary", text: "text-muted-foreground" },
-};
-
-const MODULO_CONFIG: Record<string, { label: string; color: string }> = {
-  comercial: { label: "Comercial", color: "text-primary" },
-  experiencia: { label: "Experiencia", color: "text-plan-legacy" },
-  financeiro: { label: "Financeiro", color: "text-sys-green" },
-  admissao: { label: "Admissao", color: "text-sys-orange" },
-};
-
-function getRelativeTime(dateStr: string): string {
-  const now = new Date();
-  const date = new Date(dateStr);
-  const diffMs = date.getTime() - now.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays < -1) return `${Math.abs(diffDays)} dias atrasada`;
-  if (diffDays === -1) return "Ontem";
-  if (diffDays === 0) return "Hoje";
-  if (diffDays === 1) return "Amanha";
-  return `Em ${diffDays} dias`;
-}
-
-function isOverdue(tarefa: Tarefa): boolean {
-  if (tarefa.status === "concluida" || tarefa.status === "cancelada") return false;
-  return new Date(tarefa.prazo) < new Date();
-}
-
-type RecorrenciaTarefa = "nenhuma" | "diaria" | "semanal" | "mensal";
-
-const RECORRENCIA_LABELS: Record<RecorrenciaTarefa, string> = {
-  nenhuma: "Nenhuma",
-  diaria: "Diaria",
-  semanal: "Semanal",
-  mensal: "Mensal",
-};
+// Filtro de sprint: "todas" | "sem_sprint" | <sprintId>
+type SprintFiltro = string;
 
 interface TarefaFormData {
   titulo: string;
@@ -105,6 +73,7 @@ interface TarefaFormData {
   prioridade: PrioridadeTarefa;
   modulo_origem: "comercial" | "experiencia" | "financeiro" | "admissao";
   recorrencia: RecorrenciaTarefa;
+  sprint_id: string | "";
 }
 
 const EMPTY_FORM: TarefaFormData = {
@@ -114,158 +83,244 @@ const EMPTY_FORM: TarefaFormData = {
   prioridade: "media",
   modulo_origem: "comercial",
   recorrencia: "nenhuma",
+  sprint_id: "",
 };
+
+const inputClass =
+  "w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary focus:ring-1 focus:ring-primary/30";
+const labelClass = "text-xs font-medium text-muted-foreground";
+const selectClass = cn(inputClass, "appearance-none");
+
+function statusDaColuna(coluna: QuadroColuna): StatusTarefa {
+  if (coluna === "feito") return "concluida";
+  if (coluna === "fazendo") return "em_andamento";
+  return "pendente";
+}
+
+function fmtData(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
 
 interface TarefasClientProps {
   tarefasIniciais: Tarefa[];
+  sprintsIniciais: Sprint[];
   currentUserId: string;
+  isCeo: boolean;
   usuarios: { id: string; nome: string }[];
 }
 
-export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: TarefasClientProps) {
+export function TarefasClient({
+  tarefasIniciais,
+  sprintsIniciais,
+  currentUserId,
+  isCeo,
+  usuarios,
+}: TarefasClientProps) {
   const [tarefas, setTarefas] = useState<Tarefa[]>(tarefasIniciais);
-  const [statusFiltro, setStatusFiltro] = useState<StatusTarefa | "todas">("todas");
+  const [sprints, setSprints] = useState<Sprint[]>(sprintsIniciais);
+
+  const sprintAtivaId = useMemo(
+    () => sprints.find((s) => s.status === "ativa")?.id ?? null,
+    [sprints],
+  );
+  const [sprintFiltro, setSprintFiltro] = useState<SprintFiltro>(sprintAtivaId ?? "todas");
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<PrioridadeTarefa | "todas">("todas");
   const [moduloFiltro, setModuloFiltro] = useState<string>("todos");
   const [busca, setBusca] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  // Modal state
+  // Modal de tarefa
   const [showModal, setShowModal] = useState(false);
   const [editingTarefa, setEditingTarefa] = useState<Tarefa | null>(null);
   const [form, setForm] = useState<TarefaFormData>(EMPTY_FORM);
   const [responsavelId, setResponsavelId] = useState(currentUserId);
-
-  // Comment state
-  const [expandedTarefaId, setExpandedTarefaId] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
 
-  // Mapa de nomes de usuarios
-  const usuarioNomeMap = new Map(usuarios.map((u) => [u.id, u.nome]));
+  // Modal de sprint
+  const [showSprintModal, setShowSprintModal] = useState(false);
+  const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
 
-  const COMMENT_REGEX = /^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) - (.+?)\] (.+)$/;
+  // Drag
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  function parseComments(descricao: string | null): { date: string; author: string; text: string }[] {
-    if (!descricao) return [];
-    return descricao.split("\n").reduce<{ date: string; author: string; text: string }[]>((acc, line) => {
-      const match = line.match(COMMENT_REGEX);
-      if (match) {
-        acc.push({ date: match[1], author: match[2], text: match[3] });
-      }
-      return acc;
-    }, []);
-  }
+  const usuarioNomeMap = useMemo(() => new Map(usuarios.map((u) => [u.id, u.nome])), [usuarios]);
+  const sprintNomeMap = useMemo(() => new Map(sprints.map((s) => [s.id, s.nome])), [sprints]);
 
-  function getDescriptionWithoutComments(descricao: string | null): string {
-    if (!descricao) return "";
-    return descricao.split("\n").filter((line) => !COMMENT_REGEX.test(line)).join("\n").trim();
-  }
-
-  const handleAddComment = (tarefaId: string) => {
-    if (!newComment.trim()) return;
-    const currentUserName = usuarioNomeMap.get(currentUserId) ?? "Usuario";
-    const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    const commentLine = `[${dateStr} - ${currentUserName}] ${newComment.trim()}`;
-
-    const tarefa = tarefas.find((t) => t.id === tarefaId);
-    if (!tarefa) return;
-
-    const updatedDescricao = tarefa.descricao
-      ? `${tarefa.descricao}\n${commentLine}`
-      : commentLine;
-
-    startTransition(async () => {
-      const result = await atualizarTarefa(tarefaId, { descricao: updatedDescricao });
-      if (result.success) {
-        setTarefas((prev) =>
-          prev.map((t) => (t.id === tarefaId ? { ...t, descricao: updatedDescricao } : t)),
-        );
-        setNewComment("");
-        toast.success("Comentario adicionado");
-      } else {
-        toast.error(result.error ?? "Erro ao adicionar comentario");
-      }
-    });
-  };
-
-  useEffect(() => {
-    if (editingTarefa) {
-      setForm({
-        titulo: editingTarefa.titulo,
-        descricao: editingTarefa.descricao ?? "",
-        prazo: editingTarefa.prazo ? new Date(editingTarefa.prazo).toISOString().slice(0, 16) : "",
-        prioridade: editingTarefa.prioridade,
-        modulo_origem: editingTarefa.modulo_origem,
-        recorrencia: editingTarefa.recorrencia ?? "nenhuma",
-      });
-      setResponsavelId(editingTarefa.responsavel_id);
-    } else {
-      setForm(EMPTY_FORM);
-      setResponsavelId(currentUserId);
-    }
-  }, [editingTarefa, currentUserId]);
-
+  // Form inicializado no clique (evento) — não em effect.
   const openCreateModal = () => {
-    setEditingTarefa(null);
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      // Nova tarefa herda a sprint atualmente filtrada (se específica).
+      sprint_id: sprintFiltro !== "todas" && sprintFiltro !== "sem_sprint" ? sprintFiltro : "",
+    });
     setResponsavelId(currentUserId);
+    setNewComment("");
+    setEditingTarefa(null);
     setShowModal(true);
   };
-
   const openEditModal = (tarefa: Tarefa) => {
+    setForm({
+      titulo: tarefa.titulo,
+      descricao: getDescriptionWithoutComments(tarefa.descricao),
+      prazo: tarefa.prazo ? new Date(tarefa.prazo).toISOString().slice(0, 16) : "",
+      prioridade: tarefa.prioridade,
+      modulo_origem: tarefa.modulo_origem,
+      recorrencia: tarefa.recorrencia ?? "nenhuma",
+      sprint_id: tarefa.sprint_id ?? "",
+    });
+    setResponsavelId(tarefa.responsavel_id);
+    setNewComment("");
     setEditingTarefa(tarefa);
     setShowModal(true);
   };
-
   const closeModal = () => {
     setShowModal(false);
     setEditingTarefa(null);
   };
 
+  // ── Filtro + agrupamento por coluna ────────────────────────────────
+  const tarefasFiltradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return tarefas
+      .filter((t) => {
+        if (sprintFiltro === "todas") return true;
+        if (sprintFiltro === "sem_sprint") return !t.sprint_id;
+        return t.sprint_id === sprintFiltro;
+      })
+      .filter((t) => prioridadeFiltro === "todas" || t.prioridade === prioridadeFiltro)
+      .filter((t) => moduloFiltro === "todos" || t.modulo_origem === moduloFiltro)
+      .filter((t) => !q || t.titulo.toLowerCase().includes(q));
+  }, [tarefas, sprintFiltro, prioridadeFiltro, moduloFiltro, busca]);
+
+  const tarefasPorColuna = useMemo(() => {
+    const map: Record<QuadroColuna, Tarefa[]> = {
+      backlog: [],
+      a_fazer: [],
+      fazendo: [],
+      feito: [],
+    };
+    for (const t of tarefasFiltradas) map[t.quadro_coluna]?.push(t);
+    for (const col of Object.keys(map) as QuadroColuna[]) {
+      map[col].sort((a, b) => {
+        const pa = PRIORIDADE_ORDER[a.prioridade] ?? 2;
+        const pb = PRIORIDADE_ORDER[b.prioridade] ?? 2;
+        if (pa !== pb) return pa - pb;
+        return new Date(a.prazo).getTime() - new Date(b.prazo).getTime();
+      });
+    }
+    return map;
+  }, [tarefasFiltradas]);
+
+  const sprintSelecionada =
+    sprintFiltro !== "todas" && sprintFiltro !== "sem_sprint"
+      ? sprints.find((s) => s.id === sprintFiltro) ?? null
+      : null;
+
+  // Progresso da sprint selecionada (concluídas / total, ignorando filtros de prioridade/módulo).
+  const progressoSprint = useMemo(() => {
+    if (!sprintSelecionada) return null;
+    const daSprint = tarefas.filter((t) => t.sprint_id === sprintSelecionada.id);
+    const feito = daSprint.filter((t) => t.quadro_coluna === "feito").length;
+    return { feito, total: daSprint.length };
+  }, [sprintSelecionada, tarefas]);
+
+  // ── Drag & drop ────────────────────────────────────────────────────
+  const activeTarefa = activeId ? tarefas.find((t) => t.id === activeId) ?? null : null;
+
+  const handleDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string);
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = e;
+    if (!over) return;
+    const tarefaId = active.id as string;
+    const novaColuna = over.id as QuadroColuna;
+    const tarefa = tarefas.find((t) => t.id === tarefaId);
+    if (!tarefa || tarefa.quadro_coluna === novaColuna) return;
+
+    const snapshot = tarefa; // objeto anterior completo, p/ revert fiel
+    const agora = new Date().toISOString();
+    setTarefas((prev) =>
+      prev.map((t) =>
+        t.id === tarefaId
+          ? {
+              ...t,
+              quadro_coluna: novaColuna,
+              status: statusDaColuna(novaColuna),
+              completed_at: novaColuna === "feito" ? agora : null,
+            }
+          : t,
+      ),
+    );
+
+    startTransition(async () => {
+      const result = await moverTarefaQuadro(tarefaId, novaColuna);
+      if (result.success) {
+        toast.success(`Movida para ${COLUNAS_CONFIG.find((c) => c.key === novaColuna)?.label}`);
+      } else {
+        setTarefas((prev) => prev.map((t) => (t.id === tarefaId ? snapshot : t)));
+        toast.error(result.error ?? "Erro ao mover tarefa");
+      }
+    });
+  };
+
+  // ── Criar / editar tarefa ──────────────────────────────────────────
   const handleSubmit = () => {
-    if (!form.titulo.trim()) {
-      toast.error("Titulo e obrigatorio");
-      return;
-    }
-    if (!form.prazo) {
-      toast.error("Prazo e obrigatorio");
-      return;
-    }
+    if (!form.titulo.trim()) return toast.error("Título é obrigatório");
+    if (!form.prazo) return toast.error("Prazo é obrigatório");
+
+    const sprintId = form.sprint_id || null;
 
     startTransition(async () => {
       if (editingTarefa) {
+        // Preserva os comentários embutidos ao regravar a descrição.
+        const comentarios = getCommentLines(editingTarefa.descricao);
+        const descricaoFinal =
+          [form.descricao.trim(), ...comentarios].filter(Boolean).join("\n") || undefined;
+
         const result = await atualizarTarefa(editingTarefa.id, {
           titulo: form.titulo,
-          descricao: form.descricao || undefined,
+          descricao: descricaoFinal,
           prazo: new Date(form.prazo).toISOString(),
           prioridade: form.prioridade,
           modulo_origem: form.modulo_origem,
           responsavel_id: responsavelId,
           recorrencia: form.recorrencia,
         });
-        if (result.success) {
-          setTarefas((prev) =>
-            prev.map((t) =>
-              t.id === editingTarefa.id
-                ? {
-                    ...t,
-                    titulo: form.titulo,
-                    descricao: form.descricao || null,
-                    prazo: new Date(form.prazo).toISOString(),
-                    prioridade: form.prioridade,
-                    modulo_origem: form.modulo_origem,
-                    responsavel_id: responsavelId,
-                    recorrencia: form.recorrencia,
-                  }
-                : t,
-            ),
-          );
-          toast.success("Tarefa atualizada com sucesso");
-          closeModal();
-        } else {
+        if (!result.success) {
           toast.error(result.error ?? "Erro ao atualizar tarefa");
+          return;
         }
+
+        // Sprint é alterada por action própria (fora do atualizarTarefa).
+        if ((editingTarefa.sprint_id ?? null) !== sprintId) {
+          await atribuirSprintTarefa(editingTarefa.id, sprintId);
+        }
+
+        setTarefas((prev) =>
+          prev.map((t) =>
+            t.id === editingTarefa.id
+              ? {
+                  ...t,
+                  titulo: form.titulo,
+                  descricao: descricaoFinal ?? null,
+                  prazo: new Date(form.prazo).toISOString(),
+                  prioridade: form.prioridade,
+                  modulo_origem: form.modulo_origem,
+                  responsavel_id: responsavelId,
+                  recorrencia: form.recorrencia,
+                  sprint_id: sprintId,
+                }
+              : t,
+          ),
+        );
+        toast.success("Tarefa atualizada");
+        closeModal();
       } else {
         const result = await criarTarefa({
           titulo: form.titulo,
@@ -275,451 +330,290 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
           modulo_origem: form.modulo_origem,
           responsavel_id: responsavelId,
           recorrencia: form.recorrencia,
+          sprint_id: sprintId,
+          quadro_coluna: sprintId ? "a_fazer" : "backlog",
         });
-        if (result.success && result.tarefaId) {
-          const novaTarefa: Tarefa = {
-            id: result.tarefaId,
-            titulo: form.titulo,
-            descricao: form.descricao || null,
-            responsavel_id: responsavelId,
-            prazo: new Date(form.prazo).toISOString(),
-            prioridade: form.prioridade,
-            status: "pendente",
-            deal_id: null,
-            atleta_id: null,
-            experiencia_id: null,
-            modulo_origem: form.modulo_origem,
-            criada_automaticamente: false,
-            recorrencia: form.recorrencia,
-            completed_at: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            deleted_at: null,
-          };
-          setTarefas((prev) => [novaTarefa, ...prev]);
-          toast.success("Tarefa criada com sucesso");
-          closeModal();
-        } else {
+        if (!result.success || !result.tarefaId) {
           toast.error(result.error ?? "Erro ao criar tarefa");
+          return;
         }
+        const now = new Date().toISOString();
+        const nova: Tarefa = {
+          id: result.tarefaId,
+          titulo: form.titulo,
+          descricao: form.descricao || null,
+          responsavel_id: responsavelId,
+          prazo: new Date(form.prazo).toISOString(),
+          prioridade: form.prioridade,
+          status: "pendente",
+          deal_id: null,
+          atleta_id: null,
+          experiencia_id: null,
+          modulo_origem: form.modulo_origem,
+          criada_automaticamente: false,
+          recorrencia: form.recorrencia,
+          sprint_id: sprintId,
+          quadro_coluna: sprintId ? "a_fazer" : "backlog",
+          completed_at: null,
+          created_at: now,
+          updated_at: now,
+          deleted_at: null,
+        };
+        setTarefas((prev) => [nova, ...prev]);
+        toast.success("Tarefa criada");
+        closeModal();
       }
     });
   };
 
-  const handleConcluir = (tarefaId: string) => {
+  const handleAddComment = () => {
+    if (!editingTarefa || !newComment.trim()) return;
+    const autor = usuarioNomeMap.get(currentUserId) ?? "Usuário";
+    const linha = buildCommentLine(autor, newComment.trim());
+    const novaDescricao = editingTarefa.descricao
+      ? `${editingTarefa.descricao}\n${linha}`
+      : linha;
+
     startTransition(async () => {
-      const result = await marcarTarefaConcluida(tarefaId);
+      const result = await atualizarTarefa(editingTarefa.id, { descricao: novaDescricao });
       if (result.success) {
+        setEditingTarefa((prev) => (prev ? { ...prev, descricao: novaDescricao } : prev));
         setTarefas((prev) =>
-          prev.map((t) =>
-            t.id === tarefaId
-              ? { ...t, status: "concluida" as const, completed_at: new Date().toISOString() }
-              : t,
-          ),
+          prev.map((t) => (t.id === editingTarefa.id ? { ...t, descricao: novaDescricao } : t)),
         );
-        toast.success("Tarefa concluida com sucesso");
+        setNewComment("");
+        toast.success("Comentário adicionado");
       } else {
-        toast.error(result.error ?? "Erro ao concluir tarefa");
+        toast.error(result.error ?? "Erro ao adicionar comentário");
       }
     });
   };
 
-  const tarefasFiltradas = tarefas
-    .filter((t) => {
-      if (statusFiltro === "todas") return true;
-      if (statusFiltro === "atrasada") return isOverdue(t);
-      return t.status === statusFiltro;
-    })
-    .filter((t) => {
-      if (prioridadeFiltro === "todas") return true;
-      return t.prioridade === prioridadeFiltro;
-    })
-    .filter((t) => {
-      if (moduloFiltro === "todos") return true;
-      return t.modulo_origem === moduloFiltro;
-    })
-    .filter((t) => {
-      if (!busca.trim()) return true;
-      return t.titulo.toLowerCase().includes(busca.toLowerCase());
-    })
-    .sort((a, b) => {
-      const prioA = PRIORIDADE_ORDER[a.prioridade] ?? 2;
-      const prioB = PRIORIDADE_ORDER[b.prioridade] ?? 2;
-      if (prioA !== prioB) return prioA - prioB;
-      return new Date(a.prazo).getTime() - new Date(b.prazo).getTime();
+  // ── Sprint modal ───────────────────────────────────────────────────
+  const openNovaSprint = () => {
+    setEditingSprint(null);
+    setShowSprintModal(true);
+  };
+  const openEditSprint = (sprint: Sprint) => {
+    setEditingSprint(sprint);
+    setShowSprintModal(true);
+  };
+  const handleSprintSaved = (sprint: Sprint) => {
+    setSprints((prev) => {
+      const existe = prev.some((s) => s.id === sprint.id);
+      return existe ? prev.map((s) => (s.id === sprint.id ? sprint : s)) : [sprint, ...prev];
     });
-
-  const countByStatus = (status: StatusTarefa | "todas") => {
-    if (status === "todas") return tarefas.length;
-    if (status === "atrasada") return tarefas.filter(isOverdue).length;
-    return tarefas.filter((t) => t.status === status).length;
+    setSprintFiltro(sprint.id);
+    setShowSprintModal(false);
+  };
+  const handleSprintDeleted = (sprintId: string) => {
+    setSprints((prev) => prev.filter((s) => s.id !== sprintId));
+    setTarefas((prev) =>
+      prev.map((t) => (t.sprint_id === sprintId ? { ...t, sprint_id: null } : t)),
+    );
+    if (sprintFiltro === sprintId) setSprintFiltro("todas");
+    setShowSprintModal(false);
   };
 
-  const countByPrioridade = (prio: PrioridadeTarefa | "todas") => {
-    if (prio === "todas") return tarefas.length;
-    return tarefas.filter((t) => t.prioridade === prio).length;
-  };
-
-  const countByModulo = (modulo: string) => {
-    if (modulo === "todos") return tarefas.length;
-    return tarefas.filter((t) => t.modulo_origem === modulo).length;
-  };
-
-  const inputClass =
-    "w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary focus:ring-1 focus:ring-primary/30";
-  const labelClass = "text-xs font-medium text-muted-foreground";
-  const selectClass =
-    "w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 appearance-none";
+  const comentariosEdicao = editingTarefa ? parseComments(editingTarefa.descricao) : [];
 
   return (
-    <div className="flex h-full flex-col gap-5">
+    <div className="flex h-full flex-col gap-4">
       <PageHeader
         eyebrow="Sistema"
         title="Tarefas"
-        description="Gerencie tarefas manuais e automaticas do CRM"
+        description="Quadro Kanban por sprint — arraste os cartões entre as colunas."
         actions={
-          <Button onClick={openCreateModal}>
-            <Plus className="h-4 w-4" />
-            Nova Tarefa
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={openNovaSprint}>
+              <Layers className="h-4 w-4" />
+              Nova sprint
+            </Button>
+            <Button onClick={openCreateModal}>
+              <Plus className="h-4 w-4" />
+              Nova tarefa
+            </Button>
+          </div>
         }
       />
 
-      {/* Filtros */}
-      <Card padding="sm" className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1">
-            {STATUS_TABS.map((tab) => {
-              const count = countByStatus(tab.value);
-              return (
-                <button
-                  key={tab.value}
-                  onClick={() => setStatusFiltro(tab.value)}
-                  className={cn(
-                    "flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                    statusFiltro === tab.value
-                      ? "bg-primary/15 text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {tab.label}
-                  {count > 0 && (
-                    <Badge tone="neutral" size="sm">
-                      {count}
-                    </Badge>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="relative sm:w-64">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Buscar tarefa..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-        </div>
-
-        {/* Prioridade + Modulo Tabs */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-label-tertiary mr-1">Prioridade:</span>
-          <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5">
-            {PRIORIDADE_TABS.map((tab) => {
-              const count = countByPrioridade(tab.value);
-              return (
-                <button
-                  key={tab.value}
-                  onClick={() => setPrioridadeFiltro(tab.value)}
-                  className={cn(
-                    "flex items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
-                    prioridadeFiltro === tab.value
-                      ? "bg-primary/15 text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {tab.label}
-                  {count > 0 && (
-                    <Badge tone="neutral" size="sm">
-                      {count}
-                    </Badge>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <span className="text-[10px] font-medium uppercase tracking-wider text-label-tertiary ml-2 mr-1">Modulo:</span>
-          <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5">
-            {MODULO_TABS.map((tab) => {
-              const count = countByModulo(tab.value);
-              return (
-                <button
-                  key={tab.value}
-                  onClick={() => setModuloFiltro(tab.value)}
-                  className={cn(
-                    "flex items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
-                    moduloFiltro === tab.value
-                      ? "bg-primary/15 text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {tab.label}
-                  {count > 0 && (
-                    <Badge tone="neutral" size="sm">
-                      {count}
-                    </Badge>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </Card>
-
-      {/* Tarefa list */}
-      <ScrollList className="space-y-2">
-        {tarefasFiltradas.length === 0 && (
-          <EmptyState
-            icon={CheckSquare}
-            title="Nenhuma tarefa encontrada"
-            description="Ajuste os filtros ou crie uma nova tarefa para comecar."
+      {/* Barra de sprints */}
+      <Card padding="sm" className="flex flex-col gap-2.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          <SprintChip
+            ativo={sprintFiltro === "todas"}
+            onClick={() => setSprintFiltro("todas")}
+            label="Todas"
           />
-        )}
+          <SprintChip
+            ativo={sprintFiltro === "sem_sprint"}
+            onClick={() => setSprintFiltro("sem_sprint")}
+            label="Sem sprint"
+          />
+          {sprints.map((s) => (
+            <SprintChip
+              key={s.id}
+              ativo={sprintFiltro === s.id}
+              onClick={() => setSprintFiltro(s.id)}
+              label={s.nome}
+              tone={SPRINT_STATUS_TONE[s.status]}
+            />
+          ))}
+        </div>
 
-        {tarefasFiltradas.map((tarefa) => {
-          const overdue = isOverdue(tarefa);
-          const prio = PRIORIDADE_CONFIG[tarefa.prioridade];
-          const modulo = MODULO_CONFIG[tarefa.modulo_origem] ?? {
-            label: tarefa.modulo_origem,
-            color: "text-muted-foreground",
-          };
-          const done = tarefa.status === "concluida";
-          const responsavelNome = usuarioNomeMap.get(tarefa.responsavel_id);
-
-          return (
-            <div
-              key={tarefa.id}
-              className={cn(
-                "rounded-xl border transition-colors",
-                overdue
-                  ? "border-sys-red/30 bg-sys-red/5"
-                  : "border-border bg-card",
-                done && "opacity-60",
-              )}
-            >
-            <div className="flex items-start gap-3 px-4 py-3">
-              {/* Checkbox */}
-              <button
-                onClick={() => !done && handleConcluir(tarefa.id)}
-                disabled={done || isPending}
-                className={cn(
-                  "mt-0.5 flex-shrink-0 transition-colors",
-                  done ? "text-sys-green" : "text-label-tertiary hover:text-primary",
-                )}
-                aria-label={done ? "Tarefa concluida" : "Marcar como concluida"}
-              >
-                {done ? (
-                  <CheckCircle2 className="h-5 w-5" />
-                ) : (
-                  <Square className="h-5 w-5" />
-                )}
-              </button>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => openEditModal(tarefa)}
-                    className={cn(
-                      "text-sm font-medium text-left hover:text-primary transition-colors",
-                      done ? "text-muted-foreground line-through" : "text-foreground",
-                    )}
-                    title="Clique para editar"
-                  >
-                    {tarefa.titulo}
-                  </button>
-
-                  {/* Prioridade badge */}
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                      prio.bg,
-                      prio.text,
-                    )}
-                  >
-                    {prio.label}
-                  </span>
-
-                  {/* Auto badge */}
-                  {tarefa.criada_automaticamente && (
-                    <span className="flex items-center gap-0.5 rounded-full bg-plan-legacy/15 px-2 py-0.5 text-[10px] font-semibold text-plan-legacy">
-                      <Zap className="h-2.5 w-2.5" />
-                      Auto
-                    </span>
-                  )}
-
-                  {/* Recorrencia badge */}
-                  {tarefa.recorrencia && tarefa.recorrencia !== "nenhuma" && (
-                    <span className="flex items-center gap-0.5 rounded-full bg-sys-teal/15 px-2 py-0.5 text-[10px] font-semibold text-sys-teal">
-                      <RefreshCw className="h-2.5 w-2.5" />
-                      {RECORRENCIA_LABELS[tarefa.recorrencia as RecorrenciaTarefa] ?? tarefa.recorrencia}
-                    </span>
-                  )}
-                </div>
-
-                {/* Meta */}
-                <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
-                  {/* Prazo */}
-                  <span className={cn("flex items-center gap-1", overdue && "text-sys-red")}>
-                    {overdue ? (
-                      <AlertTriangle className="h-3 w-3" />
-                    ) : (
-                      <Clock className="h-3 w-3" />
-                    )}
-                    {getRelativeTime(tarefa.prazo)}
-                  </span>
-
-                  {/* Modulo */}
-                  <span className={modulo.color}>{modulo.label}</span>
-
-                  {/* Responsavel */}
-                  {responsavelNome && (
-                    <span className="text-muted-foreground">{responsavelNome}</span>
-                  )}
-                </div>
-
-                {tarefa.descricao && (
-                  <p className="mt-1 text-xs text-label-tertiary line-clamp-1">
-                    {getDescriptionWithoutComments(tarefa.descricao) || (parseComments(tarefa.descricao).length > 0 ? `${parseComments(tarefa.descricao).length} comentario(s)` : tarefa.descricao)}
-                  </p>
-                )}
-              </div>
-
-              {/* Comment toggle */}
-              <button
-                onClick={() => {
-                  setExpandedTarefaId(expandedTarefaId === tarefa.id ? null : tarefa.id);
-                  setNewComment("");
-                }}
-                className="mt-0.5 flex-shrink-0 text-label-tertiary hover:text-primary transition-colors"
-                aria-label="Comentarios"
-              >
-                <MessageCircle className="h-4 w-4" />
-              </button>
-
-              {/* Edit button */}
-              {!done && (
-                <button
-                  onClick={() => openEditModal(tarefa)}
-                  className="mt-0.5 flex-shrink-0 text-label-tertiary hover:text-primary transition-colors"
-                  aria-label="Editar tarefa"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
+        {sprintSelecionada && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border pt-2.5">
+            <div className="flex items-center gap-2">
+              <Badge tone={SPRINT_STATUS_TONE[sprintSelecionada.status]} size="sm">
+                {sprintSelecionada.status}
+              </Badge>
+              {sprintSelecionada.objetivo && (
+                <span className="text-xs text-muted-foreground">{sprintSelecionada.objetivo}</span>
               )}
             </div>
-
-            {/* Expanded comment section */}
-            {expandedTarefaId === tarefa.id && (
-              <div className="border-t border-border pt-3 pb-3 mx-4 ml-12">
-                {/* Existing comments */}
-                {(() => {
-                  const comments = parseComments(tarefa.descricao);
-                  if (comments.length === 0) {
-                    return (
-                      <p className="text-xs text-label-tertiary mb-3">Nenhum comentario ainda.</p>
-                    );
-                  }
-                  return (
-                    <div className="space-y-2 mb-3">
-                      {comments.map((c, i) => (
-                        <div key={i} className="rounded-md bg-background px-3 py-2">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-semibold text-primary">{c.author}</span>
-                            <span className="text-[10px] text-label-tertiary">{c.date}</span>
-                          </div>
-                          <p className="text-xs text-foreground">{c.text}</p>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-
-                {/* Add comment */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleAddComment(tarefa.id);
-                      }
+            {(sprintSelecionada.data_inicio || sprintSelecionada.data_fim) && (
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <CalendarDays className="h-3 w-3" />
+                {fmtData(sprintSelecionada.data_inicio)}
+                {sprintSelecionada.data_fim ? ` – ${fmtData(sprintSelecionada.data_fim)}` : ""}
+              </span>
+            )}
+            {progressoSprint && progressoSprint.total > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-28 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full rounded-full bg-sys-green"
+                    style={{
+                      width: `${Math.round((progressoSprint.feito / progressoSprint.total) * 100)}%`,
                     }}
-                    placeholder="Adicionar comentario..."
-                    className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40"
+                    aria-hidden
                   />
-                  <button
-                    onClick={() => handleAddComment(tarefa.id)}
-                    disabled={isPending || !newComment.trim()}
-                    className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
-                    aria-label="Enviar comentario"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                  </button>
                 </div>
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {progressoSprint.feito}/{progressoSprint.total} feito
+                </span>
               </div>
             )}
-            </div>
-          );
-        })}
-      </ScrollList>
+            <button
+              onClick={() => openEditSprint(sprintSelecionada)}
+              className="ml-auto flex items-center gap-1 text-[11px] text-primary hover:underline"
+            >
+              <Pencil className="h-3 w-3" />
+              Editar sprint
+            </button>
+          </div>
+        )}
+      </Card>
 
-      {/* Modal de criacao/edicao */}
+      {/* Filtros compactos */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-0.5 rounded-lg border border-border bg-card p-0.5">
+            {PRIORIDADE_TABS.map((tab) => (
+              <FiltroBtn
+                key={tab.value}
+                ativo={prioridadeFiltro === tab.value}
+                onClick={() => setPrioridadeFiltro(tab.value)}
+                label={tab.label}
+              />
+            ))}
+          </div>
+          <div className="flex gap-0.5 rounded-lg border border-border bg-card p-0.5">
+            {MODULO_TABS.map((tab) => (
+              <FiltroBtn
+                key={tab.value}
+                ativo={moduloFiltro === tab.value}
+                onClick={() => setModuloFiltro(tab.value)}
+                label={tab.label}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="relative lg:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Buscar tarefa..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
+      {/* Kanban */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2">
+          {COLUNAS_CONFIG.map((coluna) => (
+            <TarefaColuna
+              key={coluna.key}
+              coluna={coluna}
+              count={tarefasPorColuna[coluna.key].length}
+            >
+              {tarefasPorColuna[coluna.key].map((tarefa) => (
+                <TarefaCard
+                  key={tarefa.id}
+                  tarefa={tarefa}
+                  responsavelNome={usuarioNomeMap.get(tarefa.responsavel_id)}
+                  sprintNome={tarefa.sprint_id ? sprintNomeMap.get(tarefa.sprint_id) : null}
+                  onClick={() => openEditModal(tarefa)}
+                />
+              ))}
+            </TarefaColuna>
+          ))}
+        </div>
+        <DragOverlay>
+          {activeTarefa ? (
+            <TarefaCard
+              tarefa={activeTarefa}
+              responsavelNome={usuarioNomeMap.get(activeTarefa.responsavel_id)}
+              sprintNome={activeTarefa.sprint_id ? sprintNomeMap.get(activeTarefa.sprint_id) : null}
+              isDragging
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {/* Modal de tarefa */}
       {showModal && (
         <>
-          <div
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-            onClick={closeModal}
-          />
+          <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={closeModal} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
-              className="liquid-glass w-full max-w-md rounded-2xl shadow-2xl"
+              className="liquid-glass flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Modal header */}
               <div className="flex items-center justify-between border-b border-border px-6 py-4">
                 <h2 className="text-base font-semibold text-foreground">
-                  {editingTarefa ? "Editar Tarefa" : "Nova Tarefa"}
+                  {editingTarefa ? "Editar tarefa" : "Nova tarefa"}
                 </h2>
                 <button
                   onClick={closeModal}
                   className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-fill-4 hover:text-foreground"
+                  aria-label="Fechar"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* Modal body */}
-              <div className="space-y-4 px-6 py-5">
+              <div className="space-y-4 overflow-y-auto px-6 py-5">
                 <div className="space-y-1.5">
-                  <label className={labelClass}>Titulo *</label>
+                  <label className={labelClass}>Título *</label>
                   <input
                     value={form.titulo}
                     onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
-                    placeholder="Ex: Ligar para responsavel..."
+                    placeholder="Ex: Ligar para responsável..."
                     className={inputClass}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className={labelClass}>Descricao</label>
+                  <label className={labelClass}>Descrição</label>
                   <textarea
                     value={form.descricao}
                     onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
@@ -729,14 +623,31 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className={labelClass}>Prazo *</label>
-                  <input
-                    type="datetime-local"
-                    value={form.prazo}
-                    onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))}
-                    className={inputClass}
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className={labelClass}>Prazo *</label>
+                    <input
+                      type="datetime-local"
+                      value={form.prazo}
+                      onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className={labelClass}>Sprint</label>
+                    <select
+                      value={form.sprint_id}
+                      onChange={(e) => setForm((f) => ({ ...f, sprint_id: e.target.value }))}
+                      className={selectClass}
+                    >
+                      <option value="">Backlog (sem sprint)</option>
+                      {sprints.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -745,22 +656,18 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                     <select
                       value={form.prioridade}
                       onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          prioridade: e.target.value as PrioridadeTarefa,
-                        }))
+                        setForm((f) => ({ ...f, prioridade: e.target.value as PrioridadeTarefa }))
                       }
                       className={selectClass}
                     >
-                      <option value="critica">Critica</option>
+                      <option value="critica">Crítica</option>
                       <option value="alta">Alta</option>
-                      <option value="media">Media</option>
+                      <option value="media">Média</option>
                       <option value="baixa">Baixa</option>
                     </select>
                   </div>
-
                   <div className="space-y-1.5">
-                    <label className={labelClass}>Modulo</label>
+                    <label className={labelClass}>Módulo</label>
                     <select
                       value={form.modulo_origem}
                       onChange={(e) =>
@@ -772,51 +679,95 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                       className={selectClass}
                     >
                       <option value="comercial">Comercial</option>
-                      <option value="experiencia">Experiencia</option>
+                      <option value="experiencia">Experiência</option>
                       <option value="financeiro">Financeiro</option>
-                      <option value="admissao">Admissao</option>
+                      <option value="admissao">Admissão</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className={labelClass}>Recorrencia</label>
-                  <select
-                    value={form.recorrencia}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        recorrencia: e.target.value as RecorrenciaTarefa,
-                      }))
-                    }
-                    className={selectClass}
-                  >
-                    <option value="nenhuma">Nenhuma</option>
-                    <option value="diaria">Diaria</option>
-                    <option value="semanal">Semanal</option>
-                    <option value="mensal">Mensal</option>
-                  </select>
-                </div>
-
-                {usuarios.length > 1 && (
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className={labelClass}>Responsavel</label>
+                    <label className={labelClass}>Recorrência</label>
                     <select
-                      value={responsavelId}
-                      onChange={(e) => setResponsavelId(e.target.value)}
+                      value={form.recorrencia}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, recorrencia: e.target.value as RecorrenciaTarefa }))
+                      }
                       className={selectClass}
                     >
-                      {usuarios.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.nome}
-                        </option>
-                      ))}
+                      <option value="nenhuma">Nenhuma</option>
+                      <option value="diaria">Diária</option>
+                      <option value="semanal">Semanal</option>
+                      <option value="mensal">Mensal</option>
                     </select>
+                  </div>
+                  {usuarios.length > 1 && (
+                    <div className="space-y-1.5">
+                      <label className={labelClass}>Responsável</label>
+                      <select
+                        value={responsavelId}
+                        onChange={(e) => setResponsavelId(e.target.value)}
+                        className={selectClass}
+                      >
+                        {usuarios.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Comentários (só na edição) */}
+                {editingTarefa && (
+                  <div className="space-y-2 border-t border-border pt-4">
+                    <label className={labelClass}>Comentários</label>
+                    {comentariosEdicao.length === 0 ? (
+                      <p className="text-xs text-label-tertiary">Nenhum comentário ainda.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {comentariosEdicao.map((c, i) => (
+                          <div key={i} className="rounded-md bg-background px-3 py-2">
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-[11px] font-semibold text-primary">
+                                {c.author}
+                              </span>
+                              <span className="text-[10px] text-label-tertiary">{c.date}</span>
+                            </div>
+                            <p className="text-xs text-foreground">{c.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleAddComment();
+                          }
+                        }}
+                        placeholder="Adicionar comentário..."
+                        className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-placeholder outline-none focus:border-primary/40"
+                      />
+                      <button
+                        onClick={handleAddComment}
+                        disabled={isPending || !newComment.trim()}
+                        className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+                        aria-label="Enviar comentário"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Modal footer */}
               <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
                 <Button variant="ghost" onClick={closeModal}>
                   Cancelar
@@ -827,13 +778,82 @@ export function TarefasClient({ tarefasIniciais, currentUserId, usuarios }: Tare
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
-                  {editingTarefa ? "Salvar" : "Criar Tarefa"}
+                  {editingTarefa ? "Salvar" : "Criar tarefa"}
                 </Button>
               </div>
             </div>
           </div>
         </>
       )}
+
+      {/* Modal de sprint */}
+      {showSprintModal && (
+        <SprintModal
+          sprint={editingSprint}
+          canDelete={isCeo}
+          onClose={() => setShowSprintModal(false)}
+          onSaved={handleSprintSaved}
+          onDeleted={handleSprintDeleted}
+        />
+      )}
     </div>
+  );
+}
+
+function SprintChip({
+  ativo,
+  onClick,
+  label,
+  tone,
+}: {
+  ativo: boolean;
+  onClick: () => void;
+  label: string;
+  tone?: "neutral" | "green" | "blue";
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        ativo
+          ? "border-primary/30 bg-primary/10 text-primary"
+          : "border-border bg-card text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {tone && (
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            tone === "blue" && "bg-sys-blue",
+            tone === "green" && "bg-sys-green",
+            tone === "neutral" && "bg-label-tertiary",
+          )}
+        />
+      )}
+      {label}
+    </button>
+  );
+}
+
+function FiltroBtn({
+  ativo,
+  onClick,
+  label,
+}: {
+  ativo: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
+        ativo ? "bg-primary/15 text-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
   );
 }
