@@ -683,6 +683,21 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     editaCacPrompt: true,
   },
   {
+    id: "monitor_health",
+    nome: "Monitor de saúde (alertas)",
+    descricao: "Watchdog do funil a cada 30 min — avisa o CEO quando algo trava.",
+    fluxo: [
+      "A cada 30 minutos verifica: leads sem qualificação Gemini há 2h+, fila do WhatsApp inicial presa além do intervalo configurado, e 3+ erros de automação nas últimas 6h.",
+      "Problema detectado → WhatsApp ao CEO + notificação no Engine, com pausa de 6h entre alertas do mesmo tipo (sem spam).",
+      "Desligar cala só os ALERTAS — as verificações continuam rodando e aparecem no Monitor de automações.",
+    ],
+    toggles: [{
+      chave: "monitor_alertas",
+      label: "Alertas de saúde do funil (WhatsApp + in-app)",
+      avisoDesligar: "Sem alertas, uma falha silenciosa (ex.: qualificação parada) só será notada manualmente.",
+    }],
+  },
+  {
     id: "sync_sheets",
     nome: "Sync Google Sheets",
     descricao: "Todo lead e atualização espelhados na planilha (cols A–BG).",
