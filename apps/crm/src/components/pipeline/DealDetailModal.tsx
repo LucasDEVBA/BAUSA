@@ -158,6 +158,15 @@ function diasAtras(iso?: string | null): number | null {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 }
 
+/** Rótulo relativo de uma reunião: "hoje" / "em N dias" / "há N dias". */
+function relReuniao(iso?: string | null): { label: string; futura: boolean } | null {
+  if (!iso) return null;
+  const dif = Math.round((new Date(iso).getTime() - Date.now()) / 86400000);
+  if (dif === 0) return { label: "hoje", futura: new Date(iso).getTime() >= Date.now() };
+  if (dif > 0) return { label: `em ${dif} dia${dif > 1 ? "s" : ""}`, futura: true };
+  return { label: `há ${-dif} dia${dif < -1 ? "s" : ""}`, futura: false };
+}
+
 async function copyClipboard(value: string, label: string) {
   try {
     await navigator.clipboard.writeText(value);
@@ -947,27 +956,74 @@ function ComercialSection({ deal }: { deal: Deal }) {
 }
 
 function ReuniaoSection({ deal }: { deal: Deal }) {
+  const dataReuniao = deal.reuniao_data;
+  const rel = relReuniao(dataReuniao);
+  const temReuniao = !!(dataReuniao || deal.reuniao_agendada_at);
+  const realizada = rel ? !rel.futura : false;
+
+  const status = !temReuniao
+    ? { label: "Sem reunião", cls: "bg-secondary text-muted-foreground" }
+    : realizada
+      ? { label: "Realizada", cls: "bg-sys-green/12 text-sys-green" }
+      : { label: "Agendada", cls: "bg-sys-blue/12 text-sys-blue" };
+
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Card title="Reunião comercial" icon={CalendarDays} iconColor="text-sys-blue">
-          <dl className="grid grid-cols-1 gap-x-4">
-            <Field
-              label="Data/hora agendada"
-              value={fmtDateTime(deal.reuniao_agendada_at)}
-            />
-            <Field
-              label="Data realizada"
-              value={fmtDateTime(deal.reuniao_data)}
-            />
-            <Field
-              label="Link"
-              value={deal.reuniao_link ? "Acessar reunião" : null}
+      {/* Hero da reunião */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/[0.05] to-transparent">
+        <div className="flex items-start justify-between gap-3 px-4 py-3.5">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <CalendarDays className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
+                Reunião comercial
+              </p>
+              <p className="text-sm font-semibold text-foreground">
+                {dataReuniao ? fmtDateTime(dataReuniao) : "Não agendada"}
+              </p>
+              {rel && (
+                <p className={cn("text-[11px] font-medium", realizada ? "text-sys-green" : "text-sys-blue")}>
+                  {realizada ? "Ocorreu " : "Acontece "}
+                  {rel.label}
+                </p>
+              )}
+            </div>
+          </div>
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", status.cls)}>
+            {status.label}
+          </span>
+        </div>
+
+        {deal.reuniao_agendada_at && (
+          <div className="border-t border-border/60 px-4 py-2.5">
+            <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
+              Detectada em
+            </p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-foreground">
+              <Clock className="size-3 text-muted-foreground" />
+              {fmtDateTime(deal.reuniao_agendada_at)}
+            </p>
+          </div>
+        )}
+
+        {deal.reuniao_link && (
+          <div className="border-t border-border/60 px-4 py-3">
+            <a
               href={deal.reuniao_link}
-            />
-          </dl>
-        </Card>
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg bg-sys-green/12 px-3 py-2 text-xs font-semibold text-sys-green transition-colors hover:bg-sys-green/20"
+            >
+              <Video className="size-4" />
+              Entrar na reunião
+              <ExternalLink className="size-3 opacity-70" />
+            </a>
+          </div>
+        )}
       </div>
+
       {/* Transcrição do Meet (CF meeting-transcripts) — só renderiza se capturada */}
       <TranscricaoReuniaoCard dealId={deal.id} />
     </div>
