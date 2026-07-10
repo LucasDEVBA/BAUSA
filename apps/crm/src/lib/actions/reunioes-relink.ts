@@ -38,6 +38,8 @@ interface DealContatoRow {
       guardian_email: string | null;
       guardian_whatsapp: string | null;
       athlete_whatsapp: string | null;
+      athlete_name: string | null;
+      guardian_name: string | null;
     } | null;
   } | null;
 }
@@ -62,7 +64,7 @@ export async function listarReunioesLead(dealId: string): Promise<ListarReunioes
     const { data, error } = await supabase
       .from("deals")
       .select(
-        "google_calendar_event_id, atleta:atletas(form:form_submissions(email, guardian_email, guardian_whatsapp, athlete_whatsapp))",
+        "google_calendar_event_id, atleta:atletas(form:form_submissions(email, guardian_email, guardian_whatsapp, athlete_whatsapp, athlete_name, guardian_name))",
       )
       .eq("id", dealId)
       .is("deleted_at", null)
@@ -94,6 +96,8 @@ export async function listarReunioesLead(dealId: string): Promise<ListarReunioes
           email: form?.email ?? null,
           guardianEmail: form?.guardian_email ?? null,
           phones,
+          // Nomes p/ casar eventos remarcados criados manualmente (só título)
+          names: [form?.athlete_name, form?.guardian_name].filter(Boolean),
         }),
         signal: controller.signal,
       });
