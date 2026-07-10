@@ -111,7 +111,7 @@ export async function gerarInsightsCac(
 
     const raw = await gerarConteudoGemini(prompt, {
       temperature: 0.3,
-      // Teto folgado: o gemini-2.5-flash consome tokens de raciocínio no mesmo
+      // Teto folgado: o gemini-flash-latest consome tokens de raciocínio no mesmo
       // orçamento; o JSON de insights (até 6 itens + recomendações) é grande.
       maxOutputTokens: 8192,
     });

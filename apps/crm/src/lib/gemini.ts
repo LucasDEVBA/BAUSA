@@ -1,11 +1,11 @@
 /**
  * Client Gemini — SOMENTE servidor (server actions). Espelha a config usada na
- * Cloud Function qualify-lead (gemini-2.5-flash, temperature 0.2, JSON mode).
+ * Cloud Function qualify-lead (gemini-flash-latest, temperature 0.2, JSON mode).
  * A chave vem de GEMINI_API_KEY (não NEXT_PUBLIC_*) — nunca exposta ao browser.
  * Nunca logar a chave nem o prompt bruto.
  */
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-flash-latest";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const TIMEOUT_MS = 30_000;
 
@@ -78,7 +78,7 @@ export async function gerarConteudoGemini(
     const candidate = data.candidates?.[0];
     const text = candidate?.content?.parts?.[0]?.text;
     if (!text) {
-      // gemini-2.5-flash "pensa" no mesmo orçamento de saída; se estourar, o
+      // gemini-flash-latest "pensa" no mesmo orçamento de saída; se estourar, o
       // texto vem vazio — mensagem específica p/ diagnosticar (≠ resposta vazia).
       if (candidate?.finishReason === "MAX_TOKENS") {
         throw new GeminiError(

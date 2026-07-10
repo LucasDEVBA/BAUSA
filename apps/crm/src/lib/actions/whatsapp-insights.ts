@@ -157,7 +157,7 @@ FORMATO OBRIGATÓRIO DE RESPOSTA — retorne APENAS o JSON abaixo, sem markdown,
 
     const raw = await gerarConteudoGemini(prompt, {
       temperature: 0.3,
-      // gemini-2.5-flash consome tokens de raciocínio no mesmo orçamento
+      // gemini-flash-latest consome tokens de raciocínio no mesmo orçamento
       maxOutputTokens: 8192,
     });
 
