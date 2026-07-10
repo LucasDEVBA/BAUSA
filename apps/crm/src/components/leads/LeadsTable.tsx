@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
@@ -38,12 +39,30 @@ function SortIcon({ isSorted }: { isSorted: false | "asc" | "desc" }) {
 }
 
 export function LeadsTable({ leads }: LeadsTableProps) {
+  const searchParams = useSearchParams();
+  const atletaParam = searchParams.get("atleta");
+  const qParam = searchParams.get("q") ?? "";
+
   const [sorting, setSorting] = useState<SortingState>([
     { id: "submitted_at", desc: true },
   ]);
-  const [globalFilter, setGlobalFilter] = useState("");
+  // ?q= pré-filtra a tabela (ex.: link vindo das Execuções por nome).
+  const [globalFilter, setGlobalFilter] = useState(qParam);
   const [classificationFilter, setClassificationFilter] = useState<LeadClassification | "ALL">("ALL");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  // ?atleta=<id> abre direto o detalhe do lead correspondente (deep-link das
+  // Execuções). Casa pelo atleta do pipeline. Auto-abre UMA vez por valor de
+  // param — se o usuário fechar o sheet, um re-render dos `leads` não reabre.
+  const atletaAbertoRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!atletaParam || atletaAbertoRef.current === atletaParam) return;
+    const found = leads.find((l) => l.pipeline_atleta_id === atletaParam);
+    if (found) {
+      atletaAbertoRef.current = atletaParam;
+      setSelectedLead(found);
+    }
+  }, [atletaParam, leads]);
   const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(new Set());
   const [linkedSiblings, setLinkedSiblings] = useState<Set<string>>(() => {
     if (typeof window !== "undefined") {
