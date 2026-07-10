@@ -576,12 +576,94 @@ function fmtDataCurta(ms: number | null): string {
   });
 }
 
+function fmtPct(n: number | null): string {
+  if (n === null) return "—";
+  return `${Math.round(n)}%`;
+}
+
+function fmtDuracao(dias: number): string {
+  if (dias <= 0) return "Mesmo dia";
+  if (dias === 1) return "1 dia";
+  if (dias < 30) return `${dias} dias`;
+  const meses = dias / 30;
+  return `${meses.toFixed(meses < 10 ? 1 : 0)} meses`;
+}
+
+function fmtHoras(h: number | null): string {
+  if (h === null) return "—";
+  if (h < 1) return "<1h";
+  if (h < 24) return `${Math.round(h)}h`;
+  return `${(h / 24).toFixed(1)}d`;
+}
+
+const TIPO_MIDIA_LABEL: Record<string, string> = {
+  image: "Imagem",
+  audio: "Áudio",
+  ptt: "Áudio",
+  video: "Vídeo",
+  document: "Documento",
+  sticker: "Figurinha",
+  contact: "Contato",
+  location: "Local",
+};
+
+function fmtTipoMidia(tipo: string): string {
+  return TIPO_MIDIA_LABEL[tipo] ?? tipo.charAt(0).toUpperCase() + tipo.slice(1);
+}
+
 function MetricaMini({ label, value, sub }: { label: string; value: ReactNode; sub?: string }) {
   return (
     <div className="rounded-lg border border-border bg-card px-2.5 py-2">
       <p className="text-[10px] uppercase tracking-wide text-label-tertiary">{label}</p>
       <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">{value}</p>
       {sub && <p className="text-[10px] tabular-nums text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+/** Barra de proporção enviadas (nós) × recebidas (lead). */
+function BarraProporcao({ enviadas, recebidas }: { enviadas: number; recebidas: number }) {
+  const total = enviadas + recebidas;
+  if (total === 0) return null;
+  const pctEnv = (enviadas / total) * 100;
+  return (
+    <div className="space-y-1">
+      <div className="flex h-2 overflow-hidden rounded-full bg-secondary">
+        <div className="bg-primary" style={{ width: `${pctEnv}%` }} aria-hidden />
+        <div className="bg-sys-green" style={{ width: `${100 - pctEnv}%` }} aria-hidden />
+      </div>
+      <div className="flex justify-between text-[10px] text-muted-foreground">
+        <span className="text-primary">{enviadas} nós</span>
+        <span className="text-sys-green">{recebidas} lead</span>
+      </div>
+    </div>
+  );
+}
+
+/** Distribuição das mensagens do lead por faixa horária (BRT) — melhor horário. */
+function MiniFaixas({ faixas }: { faixas: { faixa: string; recebidas: number }[] }) {
+  const max = Math.max(1, ...faixas.map((f) => f.recebidas));
+  const totalRec = faixas.reduce((s, f) => s + f.recebidas, 0);
+  return (
+    <div className="space-y-1">
+      {faixas.map((f) => {
+        const destaque = totalRec > 0 && f.recebidas === max;
+        return (
+          <div key={f.faixa} className="flex items-center gap-2">
+            <span className="w-16 shrink-0 text-[10px] text-muted-foreground">{f.faixa}</span>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+              <div
+                className={cn("h-full rounded-full", destaque ? "bg-primary" : "bg-primary/40")}
+                style={{ width: `${(f.recebidas / max) * 100}%` }}
+                aria-hidden
+              />
+            </div>
+            <span className="w-5 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+              {f.recebidas}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -611,29 +693,116 @@ function ConversaPanel({
             <Loader2 className="size-4 animate-spin text-muted-foreground" />
           </div>
         ) : metricas && metricas.total > 0 ? (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <MetricaMini
-                label="Mensagens"
-                value={metricas.total.toLocaleString("pt-BR")}
-                sub={`${metricas.enviadas} enviadas · ${metricas.recebidas} recebidas`}
-              />
-              <MetricaMini
-                label="Mídias"
-                value={(metricas.midiaEnviadas + metricas.midiaRecebidas).toLocaleString("pt-BR")}
-                sub={`${metricas.midiaEnviadas}↑ · ${metricas.midiaRecebidas}↓`}
-              />
-              <MetricaMini label="Nossa resposta" value={fmtRespMin(metricas.nossaRespostaMedianaMin)} sub="mediana" />
-              <MetricaMini label="Resposta do lead" value={fmtRespMin(metricas.leadRespostaMedianaMin)} sub="mediana" />
-              <MetricaMini label="Primeira msg" value={fmtDataCurta(metricas.primeiraMs)} />
-              <MetricaMini label="Última msg" value={fmtDataCurta(metricas.ultimaMs)} />
-            </div>
-            {metricas.aguardando && (
-              <p className="rounded-md bg-sys-orange/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-sys-orange">
-                O lead falou por último — aguardando sua resposta.
+          <div className="space-y-3">
+            {/* Engajamento — velocidade e reciprocidade da conversa */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-label-tertiary/80">
+                Engajamento
               </p>
+              <div className="grid grid-cols-2 gap-2">
+                <MetricaMini
+                  label="Nossa resposta"
+                  value={fmtRespMin(metricas.nossaRespostaMedianaMin)}
+                  sub={
+                    metricas.nossaRespostaP90Min !== null
+                      ? `p90 ${fmtRespMin(metricas.nossaRespostaP90Min)}`
+                      : "mediana"
+                  }
+                />
+                <MetricaMini
+                  label="Resposta do lead"
+                  value={fmtRespMin(metricas.leadRespostaMedianaMin)}
+                  sub={
+                    metricas.leadRespostaP90Min !== null
+                      ? `p90 ${fmtRespMin(metricas.leadRespostaP90Min)}`
+                      : "mediana"
+                  }
+                />
+                <MetricaMini
+                  label="Taxa de resposta"
+                  value={fmtPct(metricas.taxaRespostaLeadPct)}
+                  sub="lead responde"
+                />
+                <MetricaMini
+                  label="1ª resposta"
+                  value={fmtRespMin(metricas.tempoPrimeiraRespostaMin)}
+                  sub="nosso 1º retorno"
+                />
+              </div>
+            </div>
+
+            {/* Atividade — volume, longevidade e status */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-label-tertiary/80">
+                Atividade
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <MetricaMini
+                  label="Mensagens"
+                  value={metricas.total.toLocaleString("pt-BR")}
+                  sub={`${metricas.diasAtivos} dia(s) ativo(s)`}
+                />
+                <MetricaMini
+                  label="Duração"
+                  value={fmtDuracao(metricas.duracaoDias)}
+                  sub={metricas.iniciadoPeloLead ? "lead iniciou" : "nós iniciamos"}
+                />
+                <MetricaMini
+                  label="Primeira msg"
+                  value={fmtDataCurta(metricas.primeiraMs)}
+                />
+                <MetricaMini
+                  label="Última msg"
+                  value={fmtDataCurta(metricas.ultimaMs)}
+                  sub={metricas.ultimaFromMe ? "nossa" : "do lead"}
+                />
+              </div>
+              <BarraProporcao enviadas={metricas.enviadas} recebidas={metricas.recebidas} />
+              {metricas.aguardando && (
+                <p className="rounded-md bg-sys-orange/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-sys-orange">
+                  Lead aguarda resposta há {fmtHoras(metricas.aguardandoHoras)}.
+                </p>
+              )}
+              {metricas.janelaTruncada && (
+                <p className="text-[10px] leading-relaxed text-label-tertiary">
+                  Duração, início e dias ativos consideram as {metricas.total.toLocaleString("pt-BR")} mensagens
+                  mais recentes.
+                </p>
+              )}
+            </div>
+
+            {/* Mídia — só quando houve troca de mídia */}
+            {metricas.midiaEnviadas + metricas.midiaRecebidas > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-label-tertiary/80">
+                  Mídia trocada
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {metricas.midiaEnviadas}↑ · {metricas.midiaRecebidas}↓
+                  </span>
+                  {metricas.midiaPorTipo.map((m) => (
+                    <span
+                      key={m.tipo}
+                      className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] tabular-nums text-foreground"
+                    >
+                      {fmtTipoMidia(m.tipo)} {m.total}
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
-          </>
+
+            {/* Melhor horário — quando o lead costuma responder (BRT) */}
+            {metricas.recebidas > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-label-tertiary/80">
+                  Quando o lead responde
+                </p>
+                <MiniFaixas faixas={metricas.faixasHorario} />
+              </div>
+            )}
+          </div>
         ) : (
           <p className="text-xs text-muted-foreground">Sem mensagens registradas nesta conversa.</p>
         )}
