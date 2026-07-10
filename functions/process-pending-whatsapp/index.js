@@ -10,6 +10,8 @@ const SEND_MESSAGES_URL = process.env.SEND_MESSAGES_URL; // messenger-service (e
 const SYNC_LEADS_URL = process.env.SYNC_LEADS_URL;
 // Schema do Supabase: 'public' em PRD, 'uat' em UAT, 'dev' em DEV
 const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
+// Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
+const RUNS_SCHEMA = 'public';
 
 // ─── Log estruturado ───────────────────────────────────────────
 const log = (level, action, details = {}) => {
@@ -371,7 +373,7 @@ const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] })
         'Content-Length': Buffer.byteLength(postData),
         'apikey': SUPABASE_SERVICE_KEY,
         'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'Content-Profile': SUPABASE_SCHEMA,
+        'Content-Profile': RUNS_SCHEMA,
         'Prefer': 'return=minimal',
       },
     }, postData);

@@ -6,6 +6,8 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
+// Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
+const RUNS_SCHEMA = 'public';
 const SEND_WHATSAPP_URL = process.env.SEND_WHATSAPP_URL;
 const SEND_MESSAGES_URL = process.env.SEND_MESSAGES_URL;
 const SYNC_LEADS_URL = process.env.SYNC_LEADS_URL;
@@ -201,7 +203,7 @@ const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] })
         'Content-Length': Buffer.byteLength(postData),
         'apikey': SUPABASE_SERVICE_KEY,
         'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'Content-Profile': SUPABASE_SCHEMA,
+        'Content-Profile': RUNS_SCHEMA,
         'Prefer': 'return=minimal',
       },
     }, postData);
