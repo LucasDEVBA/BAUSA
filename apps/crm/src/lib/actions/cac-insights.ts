@@ -12,6 +12,8 @@ import {
   gerarConteudoGemini,
   GeminiNotConfiguredError,
 } from "@/lib/gemini";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { CAC_INSIGHTS_INSTRUCOES_DEFAULT } from "@/lib/automacoes/cac-insights-prompt";
 
 // ════════════════════════════════════════════════════════════════════════
 // Insights de IA (Gemini) para o CAC/ROI — sob demanda, apenas CEO.
@@ -102,12 +104,25 @@ export async function gerarInsightsCac(
     : "90d";
 
   try {
-    const [cac, campanhas] = await Promise.all([
+    // Instruções editáveis (/automacoes, card Insights de CAC) — fail-open
+    // p/ o default do código em qualquer falha/ausência.
+    const supabase = await createServerSupabaseClient();
+    const [{ data: cfgRow }, cac, campanhas] = await Promise.all([
+      supabase
+        .from("configuracoes_sistema")
+        .select("valor")
+        .eq("chave", "cac_insights_prompt")
+        .maybeSingle(),
       fetchCacMetrics(period),
       fetchCampanhaMetrics(period),
     ]);
+    const cfg = (cfgRow?.valor ?? {}) as { instrucoes?: string };
+    const instrucoes =
+      typeof cfg.instrucoes === "string" && cfg.instrucoes.trim()
+        ? cfg.instrucoes.trim()
+        : CAC_INSIGHTS_INSTRUCOES_DEFAULT;
 
-    const prompt = montarPrompt(period, cac, campanhas);
+    const prompt = montarPrompt(period, cac, campanhas, instrucoes);
 
     const raw = await gerarConteudoGemini(prompt, {
       temperature: 0.3,
@@ -145,6 +160,7 @@ function montarPrompt(
   period: Period,
   cac: CacData,
   campanhas: CampanhaData,
+  instrucoes: string,
 ): string {
   const canais = cac.roiPorCanal.length
     ? cac.roiPorCanal
@@ -165,7 +181,7 @@ function montarPrompt(
     ? cac.porMes.map((m) => `- ${m.mes}: ${money(m.gasto)}`).join("\n")
     : "- (sem série mensal)";
 
-  return `Você é um analista de growth/marketing sênior da Bolsa Atleta USA (assessoria de bolsas esportivas em universidades dos EUA). Analise os dados de aquisição abaixo e gere insights ACIONÁVEIS e ESPECÍFICOS para o CEO. Cite números e nomes de campanha — nada de conselhos genéricos.
+  return `${instrucoes}
 
 PERÍODO: ${PERIOD_LABEL[period]}
 
