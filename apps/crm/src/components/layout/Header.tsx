@@ -18,6 +18,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/analytics": { label: "Analytics", parent: "Executivo" },
   "/analytics/atribuicao": { label: "Atribuição", parent: "Analytics" },
   "/analytics/cac": { label: "CAC/ROI", parent: "Analytics" },
+  "/analytics/conversas": { label: "Conversas", parent: "Analytics" },
   "/analytics/utm-builder": { label: "Gerador UTM", parent: "Analytics" },
   "/messages": { label: "Mensagens" },
   "/minha-area": { label: "Minha Área" },
