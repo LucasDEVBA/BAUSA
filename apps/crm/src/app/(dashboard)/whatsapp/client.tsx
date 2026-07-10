@@ -25,6 +25,7 @@ import {
   Search,
   Send,
   Settings2,
+  Sparkles,
   Trash2,
   TriangleAlert,
   User as UserIcon,
@@ -33,6 +34,10 @@ import {
 import { toast } from "sonner";
 
 import { uploadMensagemArquivo, uploadMensagemAudio } from "@/lib/actions/mensagem-media";
+import {
+  gerarInsightsConversa,
+  type InsightsConversa,
+} from "@/lib/actions/whatsapp-insights";
 
 import { Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
 import { cn, getInitials } from "@/lib/utils";
@@ -572,6 +577,9 @@ export function WhatsAppEspelhoClient() {
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
+  /** Insights de IA da conversa aberta (sob demanda; limpa ao trocar de chat). */
+  const [insights, setInsights] = useState<InsightsConversa | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
 
   const attachRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -883,6 +891,7 @@ export function WhatsAppEspelhoClient() {
     // não devolve histórico — sem isso, trocar de chat apagaria os envios).
     setMessages(sessionEchoesRef.current.get(selectedPhone) ?? []);
     setHistoryUnavailable(false);
+    setInsights(null); // insights são da conversa anterior
     void fetchMessages(selectedPhone);
 
     const interval = setInterval(() => {
@@ -928,6 +937,26 @@ export function WhatsAppEspelhoClient() {
   }, [messages]);
 
   // ── Ações ──
+
+  // Insights de IA da conversa (sob demanda; guard contra troca de chat em voo)
+  const handleInsights = useCallback(async () => {
+    if (!selectedPhone || insightsLoading) return;
+    const phone = selectedPhone;
+    setInsightsLoading(true);
+    try {
+      const r = await gerarInsightsConversa({ phone, lid: phoneToLidRef.current[phone] ?? null });
+      if (selectedPhoneRef.current !== phone) return; // trocou de conversa
+      if (r.success) {
+        setInsights(r.insights);
+      } else {
+        toast.error(r.error);
+      }
+    } catch {
+      toast.error("Não foi possível gerar os insights agora.");
+    } finally {
+      setInsightsLoading(false);
+    }
+  }, [selectedPhone, insightsLoading]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -1430,7 +1459,7 @@ export function WhatsAppEspelhoClient() {
                     name={selectedDisplayName || null}
                     imgUrl={selectedContact?.imgUrl ?? null}
                   />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">{selectedDisplayName}</p>
                     <p className="truncate text-xs tabular-nums text-muted-foreground">
                       {formatPhoneDisplay(selectedPhone)}
@@ -1441,7 +1470,75 @@ export function WhatsAppEspelhoClient() {
                       ) : null}
                     </p>
                   </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={insightsLoading}
+                    aria-label="Gerar insights de IA desta conversa"
+                    onClick={() => void handleInsights()}
+                  >
+                    {insightsLoading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                    Insights IA
+                  </Button>
                 </div>
+
+                {/* Painel de insights (sob demanda; prompt editável em /automacoes) */}
+                {insights && (
+                  <div className="shrink-0 space-y-2 border-b border-border bg-primary/5 px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                        <Sparkles className="size-3.5 text-primary" />
+                        Insights da conversa
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-px text-[10px] font-semibold",
+                            insights.sentimento === "positivo" && "bg-sys-green/12 text-sys-green",
+                            insights.sentimento === "negativo" && "bg-sys-red/12 text-sys-red",
+                            (insights.sentimento === "neutro" || insights.sentimento === "indeciso") &&
+                              "bg-sys-orange/12 text-sys-orange",
+                          )}
+                        >
+                          {insights.sentimento}
+                        </span>
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-px text-[10px] font-semibold",
+                            insights.interesse === "alto" && "bg-sys-green/12 text-sys-green",
+                            insights.interesse === "medio" && "bg-sys-orange/12 text-sys-orange",
+                            insights.interesse === "baixo" && "bg-sys-red/12 text-sys-red",
+                          )}
+                        >
+                          interesse {insights.interesse}
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setInsights(null)}
+                        aria-label="Fechar insights"
+                        className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-xs leading-relaxed text-foreground">{insights.resumo}</p>
+                    <p className="text-xs leading-relaxed text-foreground">
+                      <span className="font-semibold text-primary">Próxima ação:</span>{" "}
+                      {insights.proxima_acao}
+                    </p>
+                    {insights.sinais.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {insights.sinais.map((sinal, i) => (
+                          <li
+                            key={`${i}-${sinal.slice(0, 24)}`}
+                            className="text-[11px] leading-relaxed text-muted-foreground"
+                          >
+                            • {sinal}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
 
                 {messagesStatus === "loading" ? (
                   <ThreadSkeleton />
