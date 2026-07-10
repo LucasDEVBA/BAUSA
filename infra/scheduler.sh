@@ -254,4 +254,31 @@ gcloud scheduler jobs update http "${JOB_BR}" \
   --attempt-deadline=600s
 
 echo "✓ ${JOB_BR} configurado"
+
+# ─── Job 10: Monitor de saúde do funil (a cada 30 min) ────────────────
+# Watchdog: qualificação travada, fila WhatsApp presa, erros de automação.
+# Alerta o CEO (WhatsApp + in-app) com cooldown de 6h por check. A instância
+# UAT roda em modo dry (só a PRD alerta) — seguro criar o job nos 2 ambientes.
+JOB_MH="monitor-health-job${SUFFIX}"
+MONITOR_HEALTH_URL="${MONITOR_HEALTH_URL:-https://monitor-health${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_MH}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/30 * * * *" \
+  --uri="${MONITOR_HEALTH_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_MH}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/30 * * * *" \
+  --uri="${MONITOR_HEALTH_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s
+
+echo "✓ ${JOB_MH} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"

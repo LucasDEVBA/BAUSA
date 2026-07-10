@@ -38,6 +38,8 @@ const GATES = {
   'calendar-webhook': ['ativas.confirmacao_reuniao === false'],
   // Resumo de transcrição: desligar NÃO para a captura — só o resumo Gemini
   'meeting-transcripts': ['resumo_transcricao === false'],
+  // Monitor: desligar só cala os ALERTAS — os checks continuam rodando/logando
+  'monitor-health': ['monitor_alertas === false'],
 };
 
 for (const [fn, gates] of Object.entries(GATES)) {

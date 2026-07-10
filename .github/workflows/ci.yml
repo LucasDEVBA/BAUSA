@@ -192,6 +192,7 @@ jobs:
           - zapi-inbox
           - calendar-lead-events
           - calendar-create-event
+          - monitor-health
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

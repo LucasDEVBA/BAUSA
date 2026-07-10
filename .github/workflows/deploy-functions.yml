@@ -99,6 +99,7 @@ jobs:
             zapi-inbox)                  echo "entry=zapiInbox"                >> "$GITHUB_OUTPUT"; echo "name=zapi-inbox"            >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
             calendar-lead-events)        echo "entry=calendarLeadEvents"       >> "$GITHUB_OUTPUT"; echo "name=calendar-lead-events"  >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
             calendar-create-event)       echo "entry=calendarCreateEvent"      >> "$GITHUB_OUTPUT"; echo "name=calendar-create-event" >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
+            monitor-health)              echo "entry=monitorHealth"            >> "$GITHUB_OUTPUT"; echo "name=monitor-health"        >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Deploy
         run: |
