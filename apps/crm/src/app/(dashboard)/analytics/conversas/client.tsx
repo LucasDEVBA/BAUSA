@@ -35,8 +35,11 @@ import {
 import type {
   ConversaMetrics,
   ConversaPeriod,
-  FunilTiming,
+  FunilAvancado,
+  CadenciaPosReuniao,
+  Distribuicao,
 } from "@/lib/conversas-queries";
+import { cn } from "@/lib/utils";
 
 const PERIOD_OPTIONS = [
   { value: "7d" as const, label: "7 dias" },
@@ -82,21 +85,96 @@ function pct(v: number | null): string {
   return v === null ? "—" : `${Math.round(v * 100)}%`;
 }
 
+function fmtHoras(h: number | null): string {
+  if (h === null) return "—";
+  if (h < 1) return `${Math.round(h * 60)}min`;
+  if (h < 48) return `${h.toFixed(1)}h`;
+  return `${(h / 24).toFixed(1)}d`;
+}
+
+function MetricaBox({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card px-2.5 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-label-tertiary">{label}</p>
+      <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">{value}</p>
+      {sub && <p className="text-[10px] tabular-nums text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+/** Barra de distribuição em HORAS (cadência) — p25–p75 + mediana. */
+function BarraDistribuicaoHoras({ dist }: { dist: Distribuicao }) {
+  if (dist.amostra === 0) return <span className="text-xs text-muted-foreground">sem dados</span>;
+  const max = dist.p90 ?? dist.p75 ?? dist.p50 ?? 0;
+  if (max <= 0) return <span className="text-xs text-muted-foreground">imediato (n={dist.amostra})</span>;
+  const pos = (v: number | null) => (v === null ? 0 : Math.min(100, (v / max) * 100));
+  return (
+    <div className="space-y-1">
+      <div className="relative h-2 rounded-full bg-secondary">
+        <div
+          className="absolute top-0 h-2 rounded-full bg-sys-green/30"
+          style={{ left: `${pos(dist.p25)}%`, width: `${Math.max(2, pos(dist.p75) - pos(dist.p25))}%` }}
+        />
+        <div className="absolute top-[-2px] h-3 w-[2px] rounded bg-sys-green" style={{ left: `${pos(dist.p50)}%` }} />
+      </div>
+      <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
+        <span>p25 {fmtHoras(dist.p25)}</span>
+        <span className="font-semibold text-foreground">med {fmtHoras(dist.p50)}</span>
+        <span>p75 {fmtHoras(dist.p75)}</span>
+        <span>p90 {fmtHoras(dist.p90)}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Barra de distribuição (p25–p90) para uma transição de tempo. */
+function BarraDistribuicao({ dist }: { dist: Distribuicao }) {
+  if (dist.amostra === 0) return <span className="text-xs text-muted-foreground">sem dados</span>;
+  const max = dist.p90 ?? dist.p75 ?? dist.p50 ?? 0;
+  if (max <= 0) {
+    return <span className="text-xs text-muted-foreground">todas no mesmo dia (n={dist.amostra})</span>;
+  }
+  const pos = (v: number | null) => (v === null ? 0 : Math.min(100, (v / max) * 100));
+  return (
+    <div className="space-y-1">
+      <div className="relative h-2 rounded-full bg-secondary">
+        {/* faixa p25–p75 */}
+        <div
+          className="absolute top-0 h-2 rounded-full bg-primary/25"
+          style={{ left: `${pos(dist.p25)}%`, width: `${Math.max(2, pos(dist.p75) - pos(dist.p25))}%` }}
+        />
+        {/* mediana */}
+        <div
+          className="absolute top-[-2px] h-3 w-[2px] rounded bg-primary"
+          style={{ left: `${pos(dist.p50)}%` }}
+        />
+      </div>
+      <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
+        <span>p25 {fmtDias(dist.p25)}</span>
+        <span className="font-semibold text-foreground">med {fmtDias(dist.p50)}</span>
+        <span>p75 {fmtDias(dist.p75)}</span>
+        <span>p90 {fmtDias(dist.p90)}</span>
+      </div>
+    </div>
+  );
+}
+
 export function ConversasClient({
   period,
   conversa,
   funil,
+  cadencia,
 }: {
   period: ConversaPeriod;
   conversa: ConversaMetrics;
-  funil: FunilTiming;
+  funil: FunilAvancado;
+  cadencia: CadenciaPosReuniao;
 }) {
   const router = useRouter();
   const semDados = conversa.totalMensagens === 0 && conversa.conversasAtivas === 0;
 
-  const funilData = funil.etapas
-    .filter((e) => e.medianaDias !== null)
-    .map((e) => ({ label: e.label, dias: e.medianaDias as number, amostra: e.amostra }));
+  const transicoesComDados = funil.transicoes.filter((t) => t.dist.amostra > 0);
+  const maxEtapa = funil.etapas[0]?.total ?? 0;
 
   return (
     <div className="space-y-4">
@@ -212,63 +290,32 @@ export function ConversasClient({
           </ChartCard>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Funil — tempos */}
+            {/* Funil — tempos com distribuição (percentis) */}
             <ChartCard
               title="Tempos do funil"
-              subtitle="Mediana de dias por transição"
+              subtitle="Distribuição por transição — barra = p25–p75, traço = mediana"
             >
-              {funilData.length === 0 ? (
+              {transicoesComDados.length === 0 ? (
                 <EmptyState
                   icon={Timer}
                   title="Sem transições no período"
                   description="Os tempos aparecem quando leads avançam pelas etapas."
                 />
               ) : (
-                <div className="h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={funilData}
-                      layout="vertical"
-                      margin={{ top: 4, right: 12, left: 8, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} horizontal={false} />
-                      <XAxis
-                        type="number"
-                        tick={chartAxisTick}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(v: number) => `${v}d`}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="label"
-                        tick={chartAxisTick}
-                        axisLine={false}
-                        tickLine={false}
-                        width={150}
-                      />
-                      <Tooltip
-                        cursor={{ fill: "var(--secondary)" }}
-                        content={
-                          <ChartTooltip
-                            valueFormatter={(v) =>
-                              typeof v === "number" ? `${v.toFixed(1)} dias` : String(v)
-                            }
-                          />
-                        }
-                      />
-                      <Bar dataKey="dias" name="Mediana" fill="var(--bau-blue)" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="space-y-3">
+                  {transicoesComDados.map((t) => (
+                    <div key={t.chave} className="space-y-1">
+                      <div className="flex items-baseline justify-between">
+                        <p className="text-xs font-medium text-foreground">{t.label}</p>
+                        <span className="text-[10px] tabular-nums text-muted-foreground">
+                          n={t.dist.amostra}
+                        </span>
+                      </div>
+                      <BarraDistribuicao dist={t.dist} />
+                    </div>
+                  ))}
                 </div>
               )}
-              <p className="mt-2 text-[11px] text-muted-foreground">
-                Ciclo total (1º contato → contrato):{" "}
-                <span className="font-semibold text-foreground">
-                  {fmtDias(funil.cicloMedianaDias)}
-                </span>{" "}
-                {funil.cicloAmostra > 0 && `(${funil.cicloAmostra} contrato${funil.cicloAmostra > 1 ? "s" : ""})`}
-              </p>
             </ChartCard>
 
             {/* Mídia trocada */}
@@ -298,6 +345,103 @@ export function ConversasClient({
                       <Bar dataKey="Recebidas" fill="var(--sys-green)" radius={[3, 3, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Conversão entre etapas do pipeline */}
+            <ChartCard
+              title="Conversão entre etapas"
+              subtitle="Deals que alcançaram cada marco + taxa de passagem"
+            >
+              {maxEtapa === 0 ? (
+                <EmptyState
+                  icon={TrendingUp}
+                  title="Sem deals no período"
+                  description="A conversão aparece conforme os deals avançam."
+                />
+              ) : (
+                <div className="space-y-2">
+                  {funil.etapas.map((e) => {
+                    const largura = maxEtapa > 0 ? Math.max(3, (e.total / maxEtapa) * 100) : 0;
+                    return (
+                      <div key={e.chave}>
+                        <div className="mb-0.5 flex items-baseline justify-between text-xs">
+                          <span className="font-medium text-foreground">{e.label}</span>
+                          <span className="tabular-nums text-muted-foreground">
+                            <span className="font-semibold text-foreground">{e.total}</span>
+                            {e.taxaDaAnterior !== null && (
+                              <span
+                                className={cn(
+                                  "ml-1.5",
+                                  e.taxaDaAnterior >= 0.5
+                                    ? "text-sys-green"
+                                    : e.taxaDaAnterior >= 0.25
+                                      ? "text-sys-orange"
+                                      : "text-sys-red",
+                                )}
+                              >
+                                {pct(e.taxaDaAnterior)}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className="h-full rounded-full bg-gradient-brand"
+                            style={{ width: `${largura}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </ChartCard>
+
+            {/* Cadência pós-reunião */}
+            <ChartCard
+              title="Cadência pós-reunião"
+              subtitle="Follow-up do time após a reunião realizada"
+            >
+              {cadencia.amostraReunioes === 0 ? (
+                <EmptyState
+                  icon={Reply}
+                  title="Sem reuniões no período"
+                  description="Aparece quando há reuniões realizadas com follow-up registrado no espelho."
+                />
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-foreground">
+                      Reunião → 1º follow-up nosso (horas)
+                    </p>
+                    {cadencia.primeiroFollowupHoras.amostra > 0 ? (
+                      <BarraDistribuicaoHoras dist={cadencia.primeiroFollowupHoras} />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Sem follow-up casado no espelho (telefone não encontrado).
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <MetricaBox
+                      label="Toques até fechar"
+                      value={
+                        cadencia.toquesAteDecisaoMediana !== null
+                          ? `${Math.round(cadencia.toquesAteDecisaoMediana)}`
+                          : "—"
+                      }
+                      sub={`mensagens · ${cadencia.toquesAmostra} contratos`}
+                    />
+                    <MetricaBox
+                      label="Reuniões"
+                      value={cadencia.amostraReunioes.toLocaleString("pt-BR")}
+                      sub="no período"
+                    />
+                  </div>
                 </div>
               )}
             </ChartCard>
@@ -344,6 +488,14 @@ export function ConversasClient({
             CEO é excluído. Conversas são contadas por número — o WhatsApp novo pode dividir uma
             conversa em duas chaves (LID), então contagens de conversa são aproximadas. Histórico
             desde a ativação do espelho (sem dados anteriores).
+            {(period === "7d" || period === "30d") && (
+              <>
+                {" "}
+                Em janelas curtas os tempos/conversão do funil consideram só deals já concluídos na
+                janela (coorte pode estar imatura) — veja o <span className="font-medium">n=</span> de
+                cada transição. A cadência casa telefone por aproximação.
+              </>
+            )}
           </p>
         </>
       )}

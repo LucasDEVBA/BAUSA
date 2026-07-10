@@ -1,7 +1,8 @@
 import { requirePapel } from "@/lib/auth";
 import {
   fetchConversaMetrics,
-  fetchFunilTiming,
+  fetchFunilAvancado,
+  fetchCadenciaPosReuniao,
   type ConversaPeriod,
 } from "@/lib/conversas-queries";
 
@@ -23,10 +24,13 @@ export default async function ConversasPage({
     ? (periodo as ConversaPeriod)
     : "30d";
 
-  const [conversa, funil] = await Promise.all([
+  const [conversa, funil, cadencia] = await Promise.all([
     fetchConversaMetrics(period),
-    fetchFunilTiming(period),
+    fetchFunilAvancado(period),
+    fetchCadenciaPosReuniao(period),
   ]);
 
-  return <ConversasClient period={period} conversa={conversa} funil={funil} />;
+  return (
+    <ConversasClient period={period} conversa={conversa} funil={funil} cadencia={cadencia} />
+  );
 }
