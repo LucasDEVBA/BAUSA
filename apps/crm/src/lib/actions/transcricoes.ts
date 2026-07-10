@@ -53,3 +53,38 @@ export async function getTranscricaoReuniao(
 
   return (data?.[0] as ReuniaoTranscricao | undefined) ?? null;
 }
+
+/**
+ * Lista TODAS as transcrições de um deal/lead — uma por reunião (um lead pode
+ * ter várias reuniões: remarcações, follow-ups). Acumula o contexto ao longo
+ * do tempo. Ordenado da mais recente para a mais antiga. RLS = CEO.
+ */
+export async function listarTranscricoesReuniao(
+  params: GetTranscricaoParams,
+): Promise<ReuniaoTranscricao[]> {
+  if (!params.dealId && !params.formSubmissionId) return [];
+
+  const supabase = await createServerSupabaseClient();
+
+  let query = supabase
+    .from("reunioes_transcricoes")
+    .select(
+      "id, deal_id, form_submission_id, google_event_id, doc_url, transcript_text, resumo, capturada_at",
+    )
+    .order("capturada_at", { ascending: false });
+
+  if (params.dealId) {
+    query = query.eq("deal_id", params.dealId);
+  } else if (params.formSubmissionId) {
+    query = query.eq("form_submission_id", params.formSubmissionId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("listarTranscricoesReuniao:", error.message);
+    return [];
+  }
+
+  return (data as ReuniaoTranscricao[] | null) ?? [];
+}
