@@ -94,6 +94,7 @@ jobs:
             meeting-transcripts)         echo "entry=meetingTranscripts"       >> "$GITHUB_OUTPUT"; echo "name=meeting-transcripts-uat" >> "$GITHUB_OUTPUT"; echo "timeout=300s" >> "$GITHUB_OUTPUT" ;;
             billing-reminders)           echo "entry=billingReminders"         >> "$GITHUB_OUTPUT"; echo "name=billing-reminders-uat" >> "$GITHUB_OUTPUT"; echo "timeout=600s" >> "$GITHUB_OUTPUT" ;;
             zapi-inbox)                  echo "entry=zapiInbox"                >> "$GITHUB_OUTPUT"; echo "name=zapi-inbox-uat"        >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
+            calendar-lead-events)        echo "entry=calendarLeadEvents"       >> "$GITHUB_OUTPUT"; echo "name=calendar-lead-events-uat" >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Deploy
         run: |

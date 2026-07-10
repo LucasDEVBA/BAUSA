@@ -57,6 +57,11 @@ import { DealContratoTab } from "./DealContratoTab";
 import { VisaoExecutivaPanel } from "./panels/VisaoExecutivaPanel";
 import { AcompanhamentoHeadPanel } from "./panels/AcompanhamentoHeadPanel";
 import { TranscricaoReuniaoCard } from "@/components/shared/TranscricaoReuniaoCard";
+import {
+  listarReunioesLead,
+  relinkReuniaoDeal,
+  type ReuniaoCalendar,
+} from "@/lib/actions/reunioes-relink";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
@@ -1024,8 +1029,154 @@ function ReuniaoSection({ deal }: { deal: Deal }) {
         )}
       </div>
 
+      {/* Todas as reuniões do lead no Calendar (relink em caso de remarcação) */}
+      <ReunioesCalendarBlock deal={deal} />
+
       {/* Transcrição do Meet (CF meeting-transcripts) — só renderiza se capturada */}
       <TranscricaoReuniaoCard dealId={deal.id} />
+    </div>
+  );
+}
+
+/**
+ * Lista TODAS as reuniões do lead no Calendar do CEO (via CF read-only) e
+ * permite religar o deal ao evento correto — cobre remarcações passadas em
+ * que o deal ficou preso no evento antigo (transcrição no evento novo).
+ */
+function ReunioesCalendarBlock({ deal }: { deal: Deal }) {
+  const [eventos, setEventos] = useState<ReuniaoCalendar[] | null>(null);
+  const [atual, setAtual] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const buscar = async () => {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const r = await listarReunioesLead(deal.id);
+      if (r.success) {
+        setEventos(r.eventos);
+        setAtual(r.atual);
+      } else {
+        setErro(r.error);
+      }
+    } catch {
+      setErro("Não foi possível consultar o Calendar agora.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const vincular = (ev: ReuniaoCalendar) => {
+    startTransition(async () => {
+      const r = await relinkReuniaoDeal(deal.id, {
+        id: ev.id,
+        start: ev.start,
+        hangoutLink: ev.hangoutLink,
+        htmlLink: ev.htmlLink,
+      });
+      if (r.success) {
+        setAtual(ev.id);
+        toast.success("Reunião vinculada ao deal", {
+          description:
+            "A transcrição será procurada neste evento no próximo ciclo (a cada 2h).",
+        });
+      } else {
+        toast.error(r.error);
+      }
+    });
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card/60">
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+        <div className="flex items-center gap-1.5">
+          <Calendar className="size-3.5 text-muted-foreground" />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Reuniões no Calendar
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => void buscar()}
+          disabled={carregando}
+          className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+        >
+          {carregando ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Calendar className="size-3" />
+          )}
+          {eventos === null ? "Buscar reuniões" : "Atualizar"}
+        </button>
+      </div>
+
+      {erro && (
+        <p className="border-t border-border/60 px-3 py-2 text-[11px] text-sys-red">{erro}</p>
+      )}
+
+      {eventos !== null && !erro && (
+        <div className="border-t border-border/60">
+          {eventos.length === 0 ? (
+            <p className="px-3 py-2.5 text-[11px] text-muted-foreground">
+              Nenhum evento do Calendar casa com o e-mail/telefone deste lead na janela
+              (últimos 180 dias + próximos 120).
+            </p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {eventos.map((ev) => {
+                const vinculada = ev.id === atual;
+                const cancelada = ev.status === "cancelled";
+                return (
+                  <li key={ev.id} className="flex items-center gap-2 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "text-xs font-medium tabular-nums",
+                            cancelada ? "text-muted-foreground line-through" : "text-foreground",
+                          )}
+                        >
+                          {ev.start ? fmtDateTime(ev.start) : "sem data"}
+                        </span>
+                        {cancelada && (
+                          <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
+                            Cancelada
+                          </span>
+                        )}
+                        {ev.temTranscricaoAnexada && (
+                          <span className="flex items-center gap-0.5 rounded-full bg-sys-green/12 px-1.5 py-0.5 text-[9px] font-semibold text-sys-green">
+                            <FileText className="size-2.5" />
+                            Transcrição
+                          </span>
+                        )}
+                        {vinculada && (
+                          <span className="flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                            <CheckCircle2 className="size-2.5" />
+                            Vinculada
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-[10px] text-muted-foreground">{ev.summary}</p>
+                    </div>
+                    {!vinculada && !cancelada && (
+                      <button
+                        type="button"
+                        onClick={() => vincular(ev)}
+                        disabled={isPending}
+                        className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+                      >
+                        Vincular
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }

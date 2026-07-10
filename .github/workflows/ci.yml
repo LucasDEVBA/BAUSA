@@ -190,6 +190,7 @@ jobs:
           - meeting-transcripts
           - billing-reminders
           - zapi-inbox
+          - calendar-lead-events
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
