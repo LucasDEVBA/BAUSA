@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 import {
@@ -38,6 +39,10 @@ import {
   gerarInsightsConversa,
   type InsightsConversa,
 } from "@/lib/actions/whatsapp-insights";
+import {
+  fetchMetricasConversa,
+  type MetricasConversa,
+} from "@/lib/actions/whatsapp-conversa-metricas";
 
 import { Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
 import { cn, getInitials } from "@/lib/utils";
@@ -551,6 +556,177 @@ function MediaPreviewModal({
   );
 }
 
+// ─── Painel direito: métricas da conversa + insights de IA ──────────────────
+
+function fmtRespMin(min: number | null): string {
+  if (min === null) return "—";
+  if (min < 1) return "<1m";
+  if (min < 60) return `${Math.round(min)}m`;
+  const h = min / 60;
+  if (h < 24) return `${h.toFixed(1)}h`;
+  return `${(h / 24).toFixed(1)}d`;
+}
+
+function fmtDataCurta(ms: number | null): string {
+  if (ms === null) return "—";
+  return new Date(ms).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+function MetricaMini({ label, value, sub }: { label: string; value: ReactNode; sub?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card px-2.5 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-label-tertiary">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">{value}</p>
+      {sub && <p className="text-[10px] tabular-nums text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+function ConversaPanel({
+  metricas,
+  metricasLoading,
+  insights,
+  insightsLoading,
+  onGerarInsights,
+  onFecharInsights,
+}: {
+  metricas: MetricasConversa | null;
+  metricasLoading: boolean;
+  insights: InsightsConversa | null;
+  insightsLoading: boolean;
+  onGerarInsights: () => void;
+  onFecharInsights: () => void;
+}) {
+  return (
+    <div className="crm-scroll flex h-full flex-col gap-3 overflow-y-auto p-3">
+      {/* Métricas desta conversa */}
+      <section className="space-y-2">
+        <p className="text-eyebrow text-label-tertiary">Métricas da conversa</p>
+        {metricasLoading && !metricas ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : metricas && metricas.total > 0 ? (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <MetricaMini
+                label="Mensagens"
+                value={metricas.total.toLocaleString("pt-BR")}
+                sub={`${metricas.enviadas} enviadas · ${metricas.recebidas} recebidas`}
+              />
+              <MetricaMini
+                label="Mídias"
+                value={(metricas.midiaEnviadas + metricas.midiaRecebidas).toLocaleString("pt-BR")}
+                sub={`${metricas.midiaEnviadas}↑ · ${metricas.midiaRecebidas}↓`}
+              />
+              <MetricaMini label="Nossa resposta" value={fmtRespMin(metricas.nossaRespostaMedianaMin)} sub="mediana" />
+              <MetricaMini label="Resposta do lead" value={fmtRespMin(metricas.leadRespostaMedianaMin)} sub="mediana" />
+              <MetricaMini label="Primeira msg" value={fmtDataCurta(metricas.primeiraMs)} />
+              <MetricaMini label="Última msg" value={fmtDataCurta(metricas.ultimaMs)} />
+            </div>
+            {metricas.aguardando && (
+              <p className="rounded-md bg-sys-orange/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-sys-orange">
+                O lead falou por último — aguardando sua resposta.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">Sem mensagens registradas nesta conversa.</p>
+        )}
+      </section>
+
+      {/* Insights de IA (sob demanda; prompt editável em /automacoes) */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-eyebrow text-label-tertiary">Insights de IA</p>
+          {insights && (
+            <button
+              type="button"
+              onClick={onFecharInsights}
+              className="text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              limpar
+            </button>
+          )}
+        </div>
+
+        {insights ? (
+          <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Sparkles className="size-3.5 text-primary" />
+              <span
+                className={cn(
+                  "rounded px-1.5 py-px text-[10px] font-semibold",
+                  insights.sentimento === "positivo" && "bg-sys-green/12 text-sys-green",
+                  insights.sentimento === "negativo" && "bg-sys-red/12 text-sys-red",
+                  (insights.sentimento === "neutro" || insights.sentimento === "indeciso") &&
+                    "bg-sys-orange/12 text-sys-orange",
+                )}
+              >
+                {insights.sentimento}
+              </span>
+              <span
+                className={cn(
+                  "rounded px-1.5 py-px text-[10px] font-semibold",
+                  insights.interesse === "alto" && "bg-sys-green/12 text-sys-green",
+                  insights.interesse === "medio" && "bg-sys-orange/12 text-sys-orange",
+                  insights.interesse === "baixo" && "bg-sys-red/12 text-sys-red",
+                )}
+              >
+                interesse {insights.interesse}
+              </span>
+            </div>
+            <p className="text-xs leading-relaxed text-foreground">{insights.resumo}</p>
+            <p className="text-xs leading-relaxed text-foreground">
+              <span className="font-semibold text-primary">Próxima ação:</span> {insights.proxima_acao}
+            </p>
+            {insights.sinais.length > 0 && (
+              <ul className="space-y-0.5 border-t border-primary/15 pt-2">
+                {insights.sinais.map((sinal, i) => (
+                  <li key={`${i}-${sinal.slice(0, 24)}`} className="text-[11px] leading-relaxed text-muted-foreground">
+                    • {sinal}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              disabled={insightsLoading}
+              onClick={onGerarInsights}
+            >
+              {insightsLoading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+              Regenerar
+            </Button>
+          </div>
+        ) : (
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+              disabled={insightsLoading}
+              onClick={onGerarInsights}
+            >
+              {insightsLoading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+              Gerar insights da conversa
+            </Button>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              A IA resume o clima da conversa, o interesse e sugere a próxima ação. Edite o prompt
+              em Automações.
+            </p>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
 // ─── Tela ────────────────────────────────────────────────────────
 
 export function WhatsAppEspelhoClient() {
@@ -580,6 +756,9 @@ export function WhatsAppEspelhoClient() {
   /** Insights de IA da conversa aberta (sob demanda; limpa ao trocar de chat). */
   const [insights, setInsights] = useState<InsightsConversa | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  /** Métricas da conversa aberta (painel direito; recarrega ao trocar de chat). */
+  const [metricas, setMetricas] = useState<MetricasConversa | null>(null);
+  const [metricasLoading, setMetricasLoading] = useState(false);
 
   const attachRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -893,6 +1072,22 @@ export function WhatsAppEspelhoClient() {
     setHistoryUnavailable(false);
     setInsights(null); // insights são da conversa anterior
     void fetchMessages(selectedPhone);
+
+    // Métricas da conversa (painel direito) — guard contra troca em voo
+    const phoneMetricas = selectedPhone;
+    setMetricas(null);
+    setMetricasLoading(true);
+    void fetchMetricasConversa({
+      phone: phoneMetricas,
+      lid: phoneToLidRef.current[phoneMetricas] ?? null,
+    })
+      .then((r) => {
+        if (selectedPhoneRef.current !== phoneMetricas) return;
+        if (r.success) setMetricas(r.metricas);
+      })
+      .finally(() => {
+        if (selectedPhoneRef.current === phoneMetricas) setMetricasLoading(false);
+      });
 
     const interval = setInterval(() => {
       if (document.hidden) return;
@@ -1348,7 +1543,12 @@ export function WhatsAppEspelhoClient() {
           />
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]">
+        <div
+          className={cn(
+            "grid gap-4 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]",
+            selectedPhone && "xl:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)_19rem]",
+          )}
+        >
           {/* Lista de conversas */}
           <Card padding="none" className={cn("flex flex-col overflow-hidden", PANEL_HEIGHT)}>
             <div className="shrink-0 space-y-2 border-b border-border p-3">
@@ -1470,75 +1670,7 @@ export function WhatsAppEspelhoClient() {
                       ) : null}
                     </p>
                   </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={insightsLoading}
-                    aria-label="Gerar insights de IA desta conversa"
-                    onClick={() => void handleInsights()}
-                  >
-                    {insightsLoading ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                    Insights IA
-                  </Button>
                 </div>
-
-                {/* Painel de insights (sob demanda; prompt editável em /automacoes) */}
-                {insights && (
-                  <div className="shrink-0 space-y-2 border-b border-border bg-primary/5 px-4 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                        <Sparkles className="size-3.5 text-primary" />
-                        Insights da conversa
-                        <span
-                          className={cn(
-                            "rounded px-1.5 py-px text-[10px] font-semibold",
-                            insights.sentimento === "positivo" && "bg-sys-green/12 text-sys-green",
-                            insights.sentimento === "negativo" && "bg-sys-red/12 text-sys-red",
-                            (insights.sentimento === "neutro" || insights.sentimento === "indeciso") &&
-                              "bg-sys-orange/12 text-sys-orange",
-                          )}
-                        >
-                          {insights.sentimento}
-                        </span>
-                        <span
-                          className={cn(
-                            "rounded px-1.5 py-px text-[10px] font-semibold",
-                            insights.interesse === "alto" && "bg-sys-green/12 text-sys-green",
-                            insights.interesse === "medio" && "bg-sys-orange/12 text-sys-orange",
-                            insights.interesse === "baixo" && "bg-sys-red/12 text-sys-red",
-                          )}
-                        >
-                          interesse {insights.interesse}
-                        </span>
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setInsights(null)}
-                        aria-label="Fechar insights"
-                        className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                      >
-                        <X className="size-3.5" />
-                      </button>
-                    </div>
-                    <p className="text-xs leading-relaxed text-foreground">{insights.resumo}</p>
-                    <p className="text-xs leading-relaxed text-foreground">
-                      <span className="font-semibold text-primary">Próxima ação:</span>{" "}
-                      {insights.proxima_acao}
-                    </p>
-                    {insights.sinais.length > 0 && (
-                      <ul className="space-y-0.5">
-                        {insights.sinais.map((sinal, i) => (
-                          <li
-                            key={`${i}-${sinal.slice(0, 24)}`}
-                            className="text-[11px] leading-relaxed text-muted-foreground"
-                          >
-                            • {sinal}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
 
                 {messagesStatus === "loading" ? (
                   <ThreadSkeleton />
@@ -1677,6 +1809,24 @@ export function WhatsAppEspelhoClient() {
               </>
             )}
           </Card>
+
+          {/* Painel: métricas da conversa + insights. 3ª coluna em xl; abaixo
+              disso empilha em largura total sob o thread (não some). */}
+          {selectedPhone && (
+            <Card
+              padding="none"
+              className="flex flex-col overflow-hidden lg:col-span-2 xl:col-span-1 h-[30rem] xl:h-[calc(100vh-9.75rem)] xl:min-h-[26rem]"
+            >
+              <ConversaPanel
+                metricas={metricas}
+                metricasLoading={metricasLoading}
+                insights={insights}
+                insightsLoading={insightsLoading}
+                onGerarInsights={() => void handleInsights()}
+                onFecharInsights={() => setInsights(null)}
+              />
+            </Card>
+          )}
         </div>
       )}
 
