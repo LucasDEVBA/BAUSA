@@ -12,6 +12,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/dashboard": { label: "Dashboard", parent: "Leads" },
   "/leads": { label: "Lista", parent: "Leads" },
   "/pipeline": { label: "Pipeline" },
+  "/agenda": { label: "Agenda", parent: "Comercial" },
   "/war-room": { label: "War Room" },
   "/war-room/familias": { label: "Famílias (gerencial)", parent: "War Room" },
   "/war-room/familias-onboarding": { label: "Onboarding Famílias", parent: "War Room" },

@@ -21,6 +21,7 @@ import {
   Megaphone,
   MessageCircle,
   Workflow,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
@@ -89,6 +90,7 @@ const NAV_GROUPS: NavGroup[] = [
         activeRoutes: ["/dashboard", "/leads", "/leads/novo"],
         subItems: [{ href: "/leads/novo", label: "+ Novo Lead" }],
       },
+      { href: "/agenda", label: "Agenda", icon: CalendarDays, roles: ["ceo"] },
       { href: "/financeiro", label: "Financeiro", icon: DollarSign, roles: ["ceo"] },
       { href: "/remarketing", label: "Re-marketing", icon: Megaphone, roles: ["ceo"] },
       { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["ceo"] },
