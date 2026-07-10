@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getUserPapel } from "@/lib/auth";
+import { phoneKey } from "@/lib/whatsapp-lead-lookup";
 
 // ════════════════════════════════════════════════════════════════════════
 // Métricas granulares de UMA conversa do espelho WhatsApp (painel direito,
@@ -74,6 +75,26 @@ export interface MetricasConversa {
 
   /** A conversa excede o limite lido: histórico/duração refletem só a janela recente. */
   janelaTruncada: boolean;
+
+  /** Agendamento do lead casado a esta conversa (null = telefone não casa com nenhum lead). */
+  agendamento: AgendamentoConversa | null;
+}
+
+export interface AgendamentoConversa {
+  atletaNome: string;
+  /** Lead já agendou reunião? */
+  agendou: boolean;
+  /** 1ª mensagem enviada → agendamento (horas). null = ainda não agendou ou sem msg. */
+  msgAteAgendarHoras: number | null;
+  /** Sem agendamento: há quantas horas a 1ª mensagem espera resposta de agenda. */
+  aguardandoAgendaHoras: number | null;
+  /** Data marcada da reunião atual (estado do deal). */
+  reuniaoData: string | null;
+  reuniaoFutura: boolean;
+  /** Nº de remarcações (audit trail do deal). */
+  remarcacoes: number;
+  /** 1º agendamento → 1ª remarcação (horas), quando houve remarcação. */
+  agendamentoAteRemarcarHoras: number | null;
 }
 
 export type MetricasConversaResult =
@@ -128,7 +149,141 @@ function metricasVazias(): MetricasConversa {
     midiaPorTipo: [],
     faixasHorario: FAIXA_LABELS.map((faixa) => ({ faixa, recebidas: 0 })),
     janelaTruncada: false,
+    agendamento: null,
   };
+}
+
+type SupabaseServer = Awaited<ReturnType<typeof createServerSupabaseClient>>;
+
+/**
+ * Casa o telefone da conversa com um lead (atleta OU responsável, via
+ * phoneKey) e computa os tempos de agendamento: msg→agendou, remarcações
+ * (audit trail do deal) e reunião atual. Enriquecimento não-crítico: qualquer
+ * falha devolve null sem quebrar as métricas da conversa.
+ */
+async function buscarAgendamento(
+  supabase: SupabaseServer,
+  phone: string,
+): Promise<AgendamentoConversa | null> {
+  const chave = phoneKey(phone);
+  if (!chave) return null;
+
+  try {
+    // Limit explícito: acima disso o PostgREST truncaria silencioso (cap 1000)
+    // e o lead poderia não casar. Volume atual: centenas.
+    const [{ data: atletas }, { data: responsaveis }] = await Promise.all([
+      supabase
+        .from("atletas")
+        .select("id, nome_completo, whatsapp, responsavel_id, form_submission_id, created_at")
+        .is("deleted_at", null)
+        .limit(3000),
+      supabase.from("responsaveis").select("id, whatsapp").limit(3000),
+    ]);
+
+    type AtletaRow = {
+      id: string;
+      nome_completo: string;
+      whatsapp: string | null;
+      responsavel_id: string | null;
+      form_submission_id: string | null;
+      created_at: string;
+    };
+    const listaAtletas = (atletas as AtletaRow[] | null) ?? [];
+    const listaResp = (responsaveis as { id: string; whatsapp: string | null }[] | null) ?? [];
+
+    // Match direto pelo número do atleta; senão, pelo número do responsável
+    // (atleta mais recente vinculado a ele).
+    let atleta = listaAtletas.find((a) => a.whatsapp && phoneKey(a.whatsapp) === chave) ?? null;
+    if (!atleta) {
+      const resp = listaResp.find((r) => r.whatsapp && phoneKey(r.whatsapp) === chave);
+      if (resp) {
+        atleta =
+          listaAtletas
+            .filter((a) => a.responsavel_id === resp.id)
+            .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0] ?? null;
+      }
+    }
+    if (!atleta) return null;
+
+    const [formRes, dealRes] = await Promise.all([
+      atleta.form_submission_id
+        ? supabase
+            .from("form_submissions")
+            .select("whatsapp_sent_at, meeting_scheduled_at")
+            .eq("id", atleta.form_submission_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("deals")
+        .select("id, reuniao_data")
+        .eq("atleta_id", atleta.id)
+        .is("deleted_at", null)
+        .neq("etapa", "perdido")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const form = (formRes.data ?? null) as {
+      whatsapp_sent_at: string | null;
+      meeting_scheduled_at: string | null;
+    } | null;
+    const deal = (dealRes.data ?? null) as { id: string; reuniao_data: string | null } | null;
+
+    // Remarcações: histórico de mudanças de reuniao_data no audit trail
+    let remarcacoes = 0;
+    let agendamentoAteRemarcarHoras: number | null = null;
+    if (deal) {
+      const { data: auditRows } = await supabase
+        .from("audit_logs")
+        .select("created_at")
+        .eq("tabela", "deals")
+        .eq("registro_id", deal.id)
+        .contains("campos_alterados", ["reuniao_data"])
+        .order("created_at", { ascending: true })
+        .limit(50);
+      const eventos = (auditRows as { created_at: string }[] | null) ?? [];
+      if (eventos.length > 1) {
+        remarcacoes = eventos.length - 1;
+        const gap =
+          (Date.parse(eventos[1].created_at) - Date.parse(eventos[0].created_at)) / 3_600_000;
+        if (Number.isFinite(gap) && gap >= 0) agendamentoAteRemarcarHoras = gap;
+      }
+    }
+
+    const enviadaEm = form?.whatsapp_sent_at ?? null;
+    const agendadoEm = form?.meeting_scheduled_at ?? null;
+    const agendou = Boolean(agendadoEm);
+
+    let msgAteAgendarHoras: number | null = null;
+    if (enviadaEm && agendadoEm) {
+      const h = (Date.parse(agendadoEm) - Date.parse(enviadaEm)) / 3_600_000;
+      if (Number.isFinite(h) && h >= 0) msgAteAgendarHoras = h;
+    }
+    let aguardandoAgendaHoras: number | null = null;
+    if (!agendou && enviadaEm) {
+      const h = (Date.now() - Date.parse(enviadaEm)) / 3_600_000;
+      if (Number.isFinite(h) && h >= 0) aguardandoAgendaHoras = h;
+    }
+
+    return {
+      atletaNome: atleta.nome_completo,
+      agendou,
+      msgAteAgendarHoras,
+      aguardandoAgendaHoras,
+      reuniaoData: deal?.reuniao_data ?? null,
+      reuniaoFutura: Boolean(deal?.reuniao_data && Date.parse(deal.reuniao_data) > Date.now()),
+      remarcacoes,
+      agendamentoAteRemarcarHoras,
+    };
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "buscar_agendamento_conversa",
+      error: err instanceof Error ? err.name : "unknown",
+    });
+    return null;
+  }
 }
 
 export async function fetchMetricasConversa(input: {
@@ -147,17 +302,20 @@ export async function fetchMetricasConversa(input: {
     const supabase = await createServerSupabaseClient();
     // DESC + limit: se a conversa passar de MAX_MENSAGENS, mantém as RECENTES
     // (última msg / "aguardando" corretos) — reordena p/ cronológico em JS.
-    const { data, error } = await supabase
-      .from("whatsapp_mensagens")
-      .select("from_me, momment, created_at, tipo")
-      .in("phone", chaves)
-      .order("created_at", { ascending: false })
-      .limit(MAX_MENSAGENS);
+    const [{ data, error }, agendamento] = await Promise.all([
+      supabase
+        .from("whatsapp_mensagens")
+        .select("from_me, momment, created_at, tipo")
+        .in("phone", chaves)
+        .order("created_at", { ascending: false })
+        .limit(MAX_MENSAGENS),
+      buscarAgendamento(supabase, phone),
+    ]);
 
     if (error) return { success: false, error: "Não foi possível carregar as métricas." };
     const rows = (data as Row[] | null) ?? [];
     if (rows.length === 0) {
-      return { success: true, metricas: metricasVazias() };
+      return { success: true, metricas: { ...metricasVazias(), agendamento } };
     }
 
     const tempoMs = (r: Row) => Date.parse(r.momment ?? r.created_at);
@@ -293,6 +451,7 @@ export async function fetchMetricasConversa(input: {
         midiaPorTipo,
         faixasHorario: FAIXA_LABELS.map((faixa, i) => ({ faixa, recebidas: faixas[i] })),
         janelaTruncada: rows.length >= MAX_MENSAGENS,
+        agendamento,
       },
     };
   } catch (err) {

@@ -771,6 +771,65 @@ function ConversaPanel({
               )}
             </div>
 
+            {/* Agendamento — lead casado a esta conversa (telefone → atleta/responsável) */}
+            {metricas.agendamento && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-label-tertiary/80">
+                  Agendamento
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <MetricaMini
+                    label="Msg → agendou"
+                    value={
+                      metricas.agendamento.agendou
+                        ? fmtHoras(metricas.agendamento.msgAteAgendarHoras)
+                        : "—"
+                    }
+                    sub={
+                      metricas.agendamento.agendou
+                        ? "da 1ª msg ao agendamento"
+                        : metricas.agendamento.aguardandoAgendaHoras !== null
+                          ? `sem agenda há ${fmtHoras(metricas.agendamento.aguardandoAgendaHoras)}`
+                          : "ainda não agendou"
+                    }
+                  />
+                  <MetricaMini
+                    label="Reunião"
+                    value={fmtDataCurta(
+                      metricas.agendamento.reuniaoData
+                        ? Date.parse(metricas.agendamento.reuniaoData)
+                        : null,
+                    )}
+                    sub={
+                      metricas.agendamento.reuniaoData
+                        ? metricas.agendamento.reuniaoFutura
+                          ? "próxima"
+                          : "já ocorreu"
+                        : "sem data"
+                    }
+                  />
+                  <MetricaMini
+                    label="Remarcações"
+                    value={metricas.agendamento.remarcacoes}
+                    sub={
+                      metricas.agendamento.agendamentoAteRemarcarHoras !== null
+                        ? `1ª após ${fmtHoras(metricas.agendamento.agendamentoAteRemarcarHoras)}`
+                        : "nenhuma"
+                    }
+                  />
+                  <MetricaMini
+                    label="Lead"
+                    value={
+                      <span className="block truncate text-xs">
+                        {metricas.agendamento.atletaNome}
+                      </span>
+                    }
+                    sub={metricas.agendamento.agendou ? "reunião agendada" : "sem reunião"}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Mídia — só quando houve troca de mídia */}
             {metricas.midiaEnviadas + metricas.midiaRecebidas > 0 && (
               <div className="space-y-1.5">
