@@ -19,6 +19,7 @@ import {
   Info,
   ChevronDown,
   ExternalLink,
+  Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -138,6 +139,8 @@ export function AutomacoesClient({
   const [isPending, startTransition] = useTransition();
   const [builder, setBuilder] = useState<BuilderState | null>(null);
   const [activeTab, setActiveTab] = useState<"automacoes" | "execucoes">("automacoes");
+  // Modal das automações de SISTEMA — içado: abre pelos cards E pela lista.
+  const [sistemaAberto, setSistemaAberto] = useState<SistemaCard | null>(null);
   // Filtro da aba Execuções — setado ao clicar "Ver execuções" numa automação
   const [filtroAutomacaoId, setFiltroAutomacaoId] = useState<string | null>(null);
 
@@ -270,6 +273,8 @@ export function AutomacoesClient({
       {activeTab === "automacoes" && (
         <div className="space-y-4">
           <SistemaAutomacoesSection
+            cardAberto={sistemaAberto}
+            onCardAberto={setSistemaAberto}
             intervalos={intervalos}
             mensagens={mensagens}
             ativas={ativas}
@@ -387,6 +392,45 @@ export function AutomacoesClient({
                 );
               })
             )}
+
+            {/* Automações de SISTEMA na mesma lista (badge Sistema) — a gestão
+                completa (toggles/prompts/textos) abre o mesmo modal dos cards. */}
+            {SISTEMA_AUTOMACOES.map((card) => {
+              const ativa =
+                !card.toggles?.length || !ativas
+                  ? true
+                  : card.toggles.some((t) => ativas[t.chave] !== false);
+              return (
+                <Card key={`sistema-${card.id}`} padding="md" accent={ativa ? "green" : "neutral"}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-foreground">{card.nome}</p>
+                        <Badge tone={ativa ? "green" : "neutral"} size="sm">
+                          {ativa ? "Ativa" : "Desativada"}
+                        </Badge>
+                        <Badge tone="purple" size="sm">
+                          <Shield className="h-2.5 w-2.5" />
+                          Sistema
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{card.descricao}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`Configurar ${card.nome}`}
+                        onClick={() => setSistemaAberto(card)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Configurar
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
           </section>
         </div>
       )}
@@ -691,6 +735,8 @@ function SistemaAutomacoesSection({
   cacCfg,
   isPending,
   onMontarRegua,
+  cardAberto,
+  onCardAberto,
 }: {
   intervalos: SchedulerIntervalos;
   mensagens: SchedulerMensagens | null;
@@ -702,10 +748,11 @@ function SistemaAutomacoesSection({
   cacCfg: InsightsPromptCfg | null;
   isPending: boolean;
   onMontarRegua: () => void;
+  cardAberto: SistemaCard | null;
+  onCardAberto: (card: SistemaCard | null) => void;
 }) {
   const router = useRouter();
   const [salvando, startTransition] = useTransition();
-  const [cardAberto, setCardAberto] = useState<SistemaCard | null>(null);
   const ocupado = isPending || salvando;
 
   /** Algo do card é editável neste ambiente? Sem seed → só "Detalhes". */
@@ -823,7 +870,7 @@ function SistemaAutomacoesSection({
         }
       }
       toast.success("Automação atualizada — vale a partir do próximo tick/envio");
-      setCardAberto(null);
+      onCardAberto(null);
       router.refresh();
     });
   };
@@ -873,7 +920,7 @@ function SistemaAutomacoesSection({
                   size="sm"
                   disabled={ocupado}
                   aria-label={`Editar ${card.nome}`}
-                  onClick={() => setCardAberto(card)}
+                  onClick={() => onCardAberto(card)}
                 >
                   <Pencil className="h-3 w-3" />
                   Editar
@@ -910,7 +957,7 @@ function SistemaAutomacoesSection({
                   size="sm"
                   disabled={ocupado}
                   aria-label={editavel ? `Editar ${card.nome}` : `Detalhes de ${card.nome}`}
-                  onClick={() => setCardAberto(card)}
+                  onClick={() => onCardAberto(card)}
                 >
                   {editavel ? <Pencil className="h-3 w-3" /> : <Info className="h-3 w-3" />}
                   {editavel ? "Editar" : "Detalhes"}
@@ -948,7 +995,7 @@ function SistemaAutomacoesSection({
           transcricaoCfg={transcricaoCfg}
           cacCfg={cacCfg}
           isPending={ocupado}
-          onClose={() => setCardAberto(null)}
+          onClose={() => onCardAberto(null)}
           onSave={salvar}
         />
       )}
