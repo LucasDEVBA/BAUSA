@@ -1,33 +1,138 @@
 import { Suspense } from "react";
-import { Target, TrendingUp, Layers, DollarSign, AlertTriangle, BarChart2, Users, Zap, CheckCircle } from "lucide-react";
+import {
+  Target,
+  TrendingUp,
+  Layers,
+  DollarSign,
+  AlertTriangle,
+  BarChart2,
+  Users,
+  CheckCircle,
+  Ticket,
+  ChevronRight,
+  ClipboardList,
+  type LucideIcon,
+} from "lucide-react";
 import { requirePapel } from "@/lib/auth";
 import {
   fetchWarRoomMetrics,
   fetchMetaRevenue,
   fetchCommercialFunnel,
+  fetchConversionFunnel,
   fetchCashFlow,
+  fetchRevenueMonths,
   fetchRevenueAtRisk,
   fetchPositioning,
-  fetchFamilyV2Metrics,
+  fetchFamilyExperience,
+  fetchFamiliesFromExperiencia,
   fetchAlerts,
-  fetchDealsWithoutNextAction,
+  fetchBottlenecks,
+  fetchPriorityLeads,
+  fetchUpcomingActions,
+  fetchWarRoomFinancialSummary,
   fetchDistinctSafras,
+  fetchCriticalAlertCounts,
+  fetchFamilyV2Metrics,
+  fetchDealsWithoutNextAction,
   fetchPendingQualifications,
   fetchTimingAlternatives,
 } from "@/lib/war-room-queries";
-import { WarRoomSectionCard } from "@/components/war-room/WarRoomSectionCard";
+import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/ui";
+import { WarRoomRevenueHero } from "@/components/war-room/WarRoomRevenueHero";
 import { SafraFilter } from "@/components/war-room/SafraFilter";
+import { WarRoomExportButtons } from "@/components/war-room/WarRoomExportButtons";
+import { CriticalAlertsBanner } from "@/components/war-room/CriticalAlertsBanner";
 import { PendingQualificationsAlert } from "@/components/war-room/PendingQualificationsAlert";
 import { TimingAlternativesCard } from "@/components/war-room/TimingAlternativesCard";
-import { cn } from "@/lib/utils";
+import { PriorityLeadsSection } from "@/components/war-room/PriorityLeadsSection";
+import { UpcomingActionsSection } from "@/components/war-room/UpcomingActionsSection";
+import { GoalProgressCard } from "@/components/war-room/GoalProgressCard";
+import { CommercialFunnelSection } from "@/components/war-room/CommercialFunnelSection";
+import { ConversionFunnel } from "@/components/war-room/ConversionFunnel";
+import { CashFlowSection } from "@/components/war-room/CashFlowSection";
+import { RevenueBarChart } from "@/components/war-room/RevenueBarChart";
+import { WarRoomFinancialSection } from "@/components/war-room/WarRoomFinancialSection";
+import { RiskRevenueSection } from "@/components/war-room/RiskRevenueSection";
+import { AlertsPanel } from "@/components/war-room/AlertsPanel";
+import { PositioningSection } from "@/components/war-room/PositioningSection";
+import { FamilyExperienceSection } from "@/components/war-room/FamilyExperienceSection";
+import { FamilyRiskDonut } from "@/components/war-room/FamilyRiskDonut";
+import { FamilyStageChart } from "@/components/war-room/FamilyStageChart";
+import { WarRoomTabs, type WarRoomTab } from "./WarRoomTabs";
 
-// Metas estrategicas BAUSA
+// Metas estrategicas BAUSA (referencia para os medidores da Visao Geral)
 const METAS_BAUSA = {
   meta_anual_brl: 1_500_000,
   meta_mensal_brl: 125_000,
-  ticket_medio_brl: 23_000,
   contratos_por_mes: 6,
 };
+
+const k = (v: number) => `R$ ${(v / 1000).toFixed(0)}k`;
+
+// ─── Card de drill da Visao Geral: ancora nativa (#aba) → troca instantanea ───
+type DrillVariant = "success" | "indigo" | "blue" | "danger" | "warning" | "purple";
+
+const DRILL_ACCENT: Record<DrillVariant, { bar: string; icon: string; ring: string }> = {
+  success: { bar: "bg-sys-green", icon: "bg-sys-green/10 text-sys-green", ring: "hover:border-sys-green/40" },
+  indigo: { bar: "bg-primary", icon: "bg-primary/10 text-primary", ring: "hover:border-primary/40" },
+  blue: { bar: "bg-sys-blue", icon: "bg-sys-blue/10 text-sys-blue", ring: "hover:border-sys-blue/40" },
+  danger: { bar: "bg-sys-red", icon: "bg-sys-red/10 text-sys-red", ring: "hover:border-sys-red/40" },
+  warning: { bar: "bg-sys-orange", icon: "bg-sys-orange/10 text-sys-orange", ring: "hover:border-sys-orange/40" },
+  purple: { bar: "bg-plan-legacy", icon: "bg-plan-legacy/10 text-plan-legacy", ring: "hover:border-plan-legacy/40" },
+};
+
+const BADGE_STYLES: Record<"danger" | "warning" | "success" | "neutral", string> = {
+  danger: "bg-sys-red/15 text-sys-red border border-sys-red/30",
+  warning: "bg-sys-orange/15 text-sys-orange border border-sys-orange/30",
+  success: "bg-sys-green/15 text-sys-green border border-sys-green/30",
+  neutral: "bg-secondary text-muted-foreground border border-border",
+};
+
+interface DrillCardProps {
+  target: string; // id da aba (sem #)
+  title: string;
+  icon: LucideIcon;
+  lines: string[];
+  variant: DrillVariant;
+  badge?: { label: string; variant: "danger" | "warning" | "success" | "neutral" };
+}
+
+function DrillCard({ target, title, icon: Icon, lines, variant, badge }: DrillCardProps) {
+  const a = DRILL_ACCENT[variant];
+  return (
+    <a
+      href={`#${target}`}
+      className={cn(
+        "group relative flex flex-col gap-3 rounded-lg border border-border/70 bg-card/60 p-3 transition-all hover:shadow-md",
+        a.ring,
+      )}
+    >
+      <span className={cn("absolute left-0 top-4 h-8 w-0.5 rounded-r-full", a.bar)} />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <div className={cn("flex size-8 flex-shrink-0 items-center justify-center rounded-lg", a.icon)}>
+            <Icon className="size-4" />
+          </div>
+          <p className="text-eyebrow text-muted-foreground">{title}</p>
+        </div>
+        <ChevronRight className="size-4 text-label-tertiary transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+      </div>
+      <div className="space-y-1 pl-0.5">
+        {lines.map((line, i) => (
+          <p key={i} className={cn("text-sm font-medium", i === 0 ? "text-foreground" : "text-muted-foreground")}>
+            {line}
+          </p>
+        ))}
+      </div>
+      {badge && (
+        <span className={cn("self-start rounded-full px-2 py-0.5 text-[10px] font-semibold", BADGE_STYLES[badge.variant])}>
+          {badge.label}
+        </span>
+      )}
+    </a>
+  );
+}
 
 interface PageProps {
   searchParams: Promise<{ safra?: string }>;
@@ -37,117 +142,120 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
   await requirePapel("ceo");
 
   const params = await searchParams;
-  const _safra = params.safra || undefined;
+  const safra = params.safra || undefined;
 
-  const [m, meta, funil, caixa, risco, pos, familyMetrics, alerts, dealsWithoutNextAction, safras, pendingQualifications, timingAlternatives] = await Promise.all([
+  const [
+    m,
+    meta,
+    funil,
+    conversionFunnel,
+    caixa,
+    revenueMonths,
+    risco,
+    pos,
+    familyExperience,
+    families,
+    alerts,
+    bottlenecks,
+    priorityLeads,
+    upcomingActions,
+    financialSummary,
+    safras,
+    criticalCounts,
+    familyMetrics,
+    dealsWithoutNextAction,
+    pendingQualifications,
+    timingAlternatives,
+  ] = await Promise.all([
     fetchWarRoomMetrics(),
     fetchMetaRevenue(),
     fetchCommercialFunnel(),
+    fetchConversionFunnel(),
     fetchCashFlow(),
+    fetchRevenueMonths(),
     fetchRevenueAtRisk(),
     fetchPositioning(),
-    fetchFamilyV2Metrics(),
+    fetchFamilyExperience(),
+    fetchFamiliesFromExperiencia(),
     fetchAlerts(),
-    fetchDealsWithoutNextAction(),
+    fetchBottlenecks(),
+    fetchPriorityLeads(safra),
+    fetchUpcomingActions(safra),
+    fetchWarRoomFinancialSummary(),
     fetchDistinctSafras(),
+    fetchCriticalAlertCounts(),
+    fetchFamilyV2Metrics(),
+    fetchDealsWithoutNextAction(),
     fetchPendingQualifications(),
     fetchTimingAlternatives(),
   ]);
 
   const criticalAlerts = alerts.filter((a) => a.type === "critical");
   const warningAlerts = alerts.filter((a) => a.type === "warning");
-
   const totalRiskBrl =
-    risco.contracts_without_signature_brl +
-    risco.unpaid_signals_brl +
-    risco.pending_remaining_brl;
-
-  const funnelConversionPct = funil.leads_qualified > 0
-    ? Math.round((funil.contracts_signed / funil.leads_qualified) * 100)
-    : 0;
-  const metaPct = meta.monthly_target_brl > 0
-    ? Math.round((meta.net_revenue_month_brl / meta.monthly_target_brl) * 100)
-    : 0;
-  const metaAnualPct = METAS_BAUSA.meta_anual_brl > 0
-    ? Math.round((m.revenue_ytd_brl / METAS_BAUSA.meta_anual_brl) * 100)
-    : 0;
-
-  // Pipeline health (ideal: 3-5x meta mensal)
+    risco.contracts_without_signature_brl + risco.unpaid_signals_brl + risco.pending_remaining_brl;
+  const funnelConversionPct =
+    funil.leads_qualified > 0 ? Math.round((funil.contracts_signed / funil.leads_qualified) * 100) : 0;
+  const metaPct =
+    meta.monthly_target_brl > 0 ? Math.round((meta.net_revenue_month_brl / meta.monthly_target_brl) * 100) : 0;
+  const metaAnualPct =
+    METAS_BAUSA.meta_anual_brl > 0 ? Math.round((m.revenue_ytd_brl / METAS_BAUSA.meta_anual_brl) * 100) : 0;
   const pipelineRatio = (m.pipeline_total_brl / METAS_BAUSA.meta_mensal_brl).toFixed(1);
   const isPipelineHealthy = parseFloat(pipelineRatio) >= 3;
+  const contratosPct = Math.round((funil.contracts_signed / METAS_BAUSA.contratos_por_mes) * 100);
 
-  return (
-    <div className="flex h-full flex-col gap-5 overflow-y-auto">
-      {/* Page header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <Zap className="h-5 w-5 text-primary" />
-            <h1 className="text-title-2 text-foreground">War Room Executivo</h1>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Painel central do CEO — clique em qualquer secao para detalhar
-          </p>
+  const metas = [
+    { label: "Meta Anual", value: "R$ 1,5M", sub: `${metaAnualPct}% atingido`, pct: metaAnualPct, color: "text-primary", bar: "bg-primary" },
+    { label: "Meta Mensal", value: "R$ 125k", sub: `${metaPct}% do mes`, pct: metaPct, color: metaPct >= 80 ? "text-sys-green" : metaPct >= 50 ? "text-sys-orange" : "text-sys-red", bar: metaPct >= 80 ? "bg-sys-green" : metaPct >= 50 ? "bg-sys-orange" : "bg-sys-red" },
+    { label: "Ticket Medio (ref)", value: "R$ 23k", sub: "base de referencia", pct: null as number | null, color: "text-plan-legacy", bar: "bg-plan-legacy" },
+    { label: "Contratos/Mes", value: `${METAS_BAUSA.contratos_por_mes}`, sub: `${funil.contracts_signed} fechados`, pct: contratosPct, color: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "text-sys-green" : "text-sys-orange", bar: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "bg-sys-green" : "bg-sys-orange" },
+  ];
+
+  // ─── Aba: Visao Geral (command center) ───
+  const visaoGeral = (
+    <div className="flex flex-col gap-4">
+      <CriticalAlertsBanner counts={criticalCounts} />
+      <PendingQualificationsAlert data={pendingQualifications} />
+
+      {/* Hero de receita + faixa de KPIs (foco visual) */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <WarRoomRevenueHero
+            mrrBrl={m.mrr_brl}
+            trendPct={m.mrr_trend_pct}
+            months={revenueMonths}
+            monthlyTargetBrl={meta.monthly_target_brl}
+            netRevenueMonthBrl={meta.net_revenue_month_brl}
+          />
         </div>
-        <div className="flex items-center gap-3">
-          <Suspense fallback={null}>
-            <SafraFilter safras={safras} />
-          </Suspense>
-          <div className="flex items-center gap-1.5 rounded-full border border-sys-green/20 bg-sys-green/10 px-3 py-1.5">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sys-green" />
-            <span className="text-[11px] font-medium text-sys-green">Ao vivo</span>
-          </div>
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+          <StatCard
+            label="Pipeline total"
+            value={k(m.pipeline_total_brl)}
+            icon={Layers}
+            accent={isPipelineHealthy ? "blue" : "orange"}
+            context={`${pipelineRatio}x a meta`}
+          />
+          <StatCard label="Conversão" value={`${m.conversion_rate}%`} icon={BarChart2} accent="brand" />
+          <StatCard
+            label="Famílias ativas"
+            value={familyMetrics.total}
+            icon={Users}
+            accent={familyMetrics.crise > 0 ? "red" : "purple"}
+            context={familyMetrics.crise > 0 ? `${familyMetrics.crise} em crise` : undefined}
+          />
         </div>
       </div>
 
-      {/* Alerta de leads pendentes de qualificação (Gemini falhou) */}
-      <PendingQualificationsAlert data={pendingQualifications} />
-
-      {/* Cards de timing alternativo (cedo demais / tarde demais) */}
-      <TimingAlternativesCard data={timingAlternatives} />
-
-      {/* Metas BAUSA strip */}
-      <div className="border border-border/70 bg-card/60 rounded-xl border-primary/20 px-5 py-4">
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-primary">Metas Estrategicas 2026</p>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            {
-              label: "Meta Anual",
-              value: "R$ 1,5M",
-              sub: `${metaAnualPct}% atingido`,
-              pct: metaAnualPct,
-              color: "text-primary",
-              bar: "bg-primary",
-            },
-            {
-              label: "Meta Mensal",
-              value: "R$ 125k",
-              sub: `${metaPct}% do mes`,
-              pct: metaPct,
-              color: metaPct >= 80 ? "text-sys-green" : metaPct >= 50 ? "text-sys-orange" : "text-sys-red",
-              bar: metaPct >= 80 ? "bg-sys-green" : metaPct >= 50 ? "bg-sys-orange" : "bg-sys-red",
-            },
-            {
-              label: "Ticket Medio (pix)",
-              value: "R$ 23k",
-              sub: `base de referencia`,
-              pct: null as number | null,
-              color: "text-plan-legacy",
-              bar: "bg-plan-legacy",
-            },
-            {
-              label: "Contratos/Mes",
-              value: `${METAS_BAUSA.contratos_por_mes}`,
-              sub: `${funil.contracts_signed} fechados`,
-              pct: Math.round((funil.contracts_signed / METAS_BAUSA.contratos_por_mes) * 100),
-              color: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "text-sys-green" : "text-sys-orange",
-              bar: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "bg-sys-green" : "bg-sys-orange",
-            },
-          ].map((kpi) => (
+      {/* Metas estratégicas (card único, glass) */}
+      <div className="glass-card relative rounded-2xl p-4">
+        <p className="mb-3 text-eyebrow text-muted-foreground">Metas Estratégicas 2026</p>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
+          {metas.map((kpi) => (
             <div key={kpi.label}>
-              <p className="text-[10px] text-label-tertiary">{kpi.label}</p>
-              <p className={cn("text-lg font-bold", kpi.color)}>{kpi.value}</p>
-              <p className="text-[10px] text-muted-foreground mb-1.5">{kpi.sub}</p>
+              <p className="text-eyebrow text-label-tertiary">{kpi.label}</p>
+              <p className={cn("mt-0.5 text-xl font-bold tabular-nums", kpi.color)}>{kpi.value}</p>
+              <p className="mb-1.5 text-[10px] text-muted-foreground">{kpi.sub}</p>
               {kpi.pct !== null && (
                 <div className="h-1 rounded-full bg-secondary">
                   <div className={cn("h-full rounded-full", kpi.bar)} style={{ width: `${Math.min(100, kpi.pct)}%` }} />
@@ -158,148 +266,70 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-green/10">
-            <DollarSign className="h-4 w-4 text-sys-green" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Receita mes</p>
-            <p className="text-sm font-bold text-sys-green">
-              R$ {(m.mrr_brl / 1000).toFixed(0)}k
-            </p>
-          </div>
-        </div>
-        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/10">
-            <Layers className="h-4 w-4 text-sys-blue" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Pipeline total</p>
-            <p className={cn("text-sm font-bold", isPipelineHealthy ? "text-sys-blue" : "text-sys-orange")}>
-              R$ {(m.pipeline_total_brl / 1000).toFixed(0)}k
-            </p>
-            <p className="text-[10px] text-label-tertiary">{pipelineRatio}x meta (ideal 3-5x)</p>
-          </div>
-        </div>
-        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <BarChart2 className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Conversao</p>
-            <p className="text-sm font-bold text-foreground">{m.conversion_rate}%</p>
-          </div>
-        </div>
-        <div className="border border-border/70 bg-card/60 flex items-center gap-3 rounded-xl px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-plan-legacy/10">
-            <Users className="h-4 w-4 text-plan-legacy" />
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Familias</p>
-            <p className="text-sm font-bold text-plan-legacy">{familyMetrics.total} ativas</p>
-            {familyMetrics.crise > 0 && (
-              <p className="text-[10px] text-sys-red">{familyMetrics.crise} em crise!</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Section cards */}
-      <div className="grid flex-1 grid-cols-3 grid-rows-2 gap-3">
-        <WarRoomSectionCard
-          href="/war-room/meta"
+      {/* Drill cards → abas */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <DrillCard
+          target="meta"
           title="Meta e Receita"
           icon={Target}
           variant="success"
-          lines={[
-            `R$ ${(meta.net_revenue_month_brl / 1000).toFixed(0)}k recebido / R$ ${(meta.monthly_target_brl / 1000).toFixed(0)}k meta (${metaPct}%)`,
-            `Projecao: R$ ${(meta.projected_revenue_brl / 1000).toFixed(0)}k ate fim do mes`,
-          ]}
-          badge={{
-            label: `Gap ${meta.gap_to_target_brl < 0 ? "-" : "+"}R$ ${Math.abs(meta.gap_to_target_brl / 1000).toFixed(0)}k`,
-            variant: meta.gap_to_target_brl < 0 ? "danger" : "success",
-          }}
+          lines={[`${k(meta.net_revenue_month_brl)} / ${k(meta.monthly_target_brl)} meta (${metaPct}%)`, `Projecao ${k(meta.projected_revenue_brl)} ate fim do mes`]}
+          badge={{ label: `Gap ${meta.gap_to_target_brl < 0 ? "-" : "+"}${k(Math.abs(meta.gap_to_target_brl))}`, variant: meta.gap_to_target_brl < 0 ? "danger" : "success" }}
         />
-
-        <WarRoomSectionCard
-          href="/war-room/funil"
+        <DrillCard
+          target="funil"
           title="Funil Comercial"
           icon={TrendingUp}
           variant="indigo"
-          lines={[
-            `${funil.leads_qualified} leads -> ${funil.contracts_signed} contratos (${funnelConversionPct}% conv.)`,
-            `${funil.meetings_done} reunioes . ${funil.proposals_sent} propostas . ${funil.signals_paid} sinais pagos`,
-            `Proxima acao definida em ${m.next_action_compliance_pct}% dos ${m.active_deals_count} deals ativos`,
-          ]}
-          badge={{
-            label: `${funil.auto_conversions} concluido${funil.auto_conversions !== 1 ? "s" : ""}`,
-            variant: funil.auto_conversions > 0 ? "success" : "neutral",
-          }}
+          lines={[`${funil.leads_qualified} leads -> ${funil.contracts_signed} contratos (${funnelConversionPct}%)`, `${funil.meetings_done} reunioes . ${funil.proposals_sent} propostas . ${funil.signals_paid} sinais`]}
+          badge={{ label: `${funil.auto_conversions} concluido${funil.auto_conversions !== 1 ? "s" : ""}`, variant: funil.auto_conversions > 0 ? "success" : "neutral" }}
         />
-
-        <WarRoomSectionCard
-          href="/war-room/caixa"
+        <DrillCard
+          target="caixa"
           title="Caixa"
           icon={DollarSign}
           variant="blue"
-          lines={[
-            `Recebido: R$ ${(caixa.net_received_brl / 1000).toFixed(0)}k`,
-            `Proj. 30d: R$ ${(caixa.projected_30d_brl / 1000).toFixed(0)}k . 90d: R$ ${(caixa.projected_90d_brl / 1000).toFixed(0)}k`,
-          ]}
+          lines={[`Recebido ${k(caixa.net_received_brl)}`, `Proj. 30d ${k(caixa.projected_30d_brl)} . 90d ${k(caixa.projected_90d_brl)}`]}
         />
-
-        <WarRoomSectionCard
-          href="/war-room/risco"
+        <DrillCard
+          target="risco"
           title="Receita em Risco"
           icon={AlertTriangle}
           variant={totalRiskBrl > 50000 ? "danger" : "warning"}
-          lines={[
-            `R$ ${(totalRiskBrl / 1000).toFixed(0)}k em risco total`,
-            `${risco.contracts_without_signature_count} sem assinatura . ${risco.unpaid_signals_count} sinais . ${risco.pending_remaining_count} remanescentes`,
-          ]}
-          badge={{
-            label: `${criticalAlerts.length} critico${criticalAlerts.length !== 1 ? "s" : ""}`,
-            variant: criticalAlerts.length > 0 ? "danger" : "success",
-          }}
+          lines={[`${k(totalRiskBrl)} em risco total`, `${risco.contracts_without_signature_count} sem assinatura . ${risco.unpaid_signals_count} sinais . ${risco.pending_remaining_count} remanesc.`]}
+          badge={{ label: `${criticalAlerts.length} critico${criticalAlerts.length !== 1 ? "s" : ""}`, variant: criticalAlerts.length > 0 ? "danger" : "success" }}
         />
-
-        <WarRoomSectionCard
-          href="/war-room/posicionamento"
+        <DrillCard
+          target="posicionamento"
           title="Posicionamento"
           icon={BarChart2}
           variant="purple"
-          lines={[
-            `Legacy ${pos.pct_legacy}% . Journey ${pos.pct_journey}% . Start ${pos.pct_start}%`,
-            `Ticket medio R$ ${(pos.avg_ticket_brl / 1000).toFixed(0)}k . ${pos.pct_discounted}% com desconto`,
-          ]}
+          lines={[`Legacy ${pos.pct_legacy}% . Journey ${pos.pct_journey}% . Start ${pos.pct_start}%`, `Ticket ${k(pos.avg_ticket_brl)} . ${pos.pct_discounted}% com desconto`]}
         />
-
-        <WarRoomSectionCard
-          href="/familias-crm"
+        <DrillCard
+          target="familias"
           title="Experiencia das Familias"
           icon={Users}
           variant={familyMetrics.crise > 0 ? "danger" : familyMetrics.atencao > 0 ? "warning" : "success"}
-          lines={[
-            `${familyMetrics.total} ativas . ${familyMetrics.satisfeita} satisfeitas . ${familyMetrics.atencao} atencao`,
-            `${familyMetrics.crise} crise${familyMetrics.crise !== 1 ? "s" : ""} . Satisfacao media ${familyMetrics.avg_satisfaction}/5`,
-            m.nps_respondentes > 0
-              ? `NPS ${m.nps_average} (${m.nps_respondentes} resp.)`
-              : "NPS — (sem respostas ainda)",
-          ]}
-          badge={{
-            label: familyMetrics.crise > 0 ? `${familyMetrics.crise} em crise!` : `Sat. ${familyMetrics.avg_satisfaction}/5`,
-            variant: familyMetrics.crise > 0 ? "danger" : familyMetrics.avg_satisfaction >= 4 ? "success" : "warning",
-          }}
+          lines={[`${familyMetrics.total} ativas . ${familyMetrics.satisfeita} satisfeitas . ${familyMetrics.atencao} atencao`, `${familyMetrics.crise} crise . Satisfacao ${familyMetrics.avg_satisfaction}/5`]}
+          badge={{ label: familyMetrics.crise > 0 ? `${familyMetrics.crise} em crise!` : `Sat. ${familyMetrics.avg_satisfaction}/5`, variant: familyMetrics.crise > 0 ? "danger" : familyMetrics.avg_satisfaction >= 4 ? "success" : "warning" }}
         />
       </div>
 
-      {/* Alertas + acoes */}
+      {/* Timing alternativo (card único) — logo acima das listas operacionais */}
+      <TimingAlternativesCard data={timingAlternatives} />
+
+      {/* Operacional */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <PriorityLeadsSection leads={priorityLeads} />
+        <UpcomingActionsSection actions={upcomingActions} />
+      </div>
+
+      {/* Alertas + deals sem proxima acao */}
       <div className="grid gap-3 lg:grid-cols-2">
         {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (
-          <div className="border border-border/70 bg-card/60 rounded-xl border-sys-red/20 px-4 py-3">
-            <div className="flex items-center justify-between mb-2">
+          <div className="rounded-xl border border-sys-red/20 bg-card/60 px-4 py-3">
+            <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-sys-red" />
                 <p className="text-xs font-semibold text-sys-red">
@@ -307,9 +337,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
                   {warningAlerts.length > 0 && ` . ${warningAlerts.length} atencao`}
                 </p>
               </div>
-              <a href="/war-room/risco" className="text-[11px] font-semibold text-sys-red hover:underline">
-                Ver todos &rarr;
-              </a>
+              <a href="#risco" className="text-[11px] font-semibold text-sys-red hover:underline">Ver todos &rarr;</a>
             </div>
             <div className="space-y-1">
               {[...criticalAlerts, ...warningAlerts].slice(0, 3).map((alert) => (
@@ -323,13 +351,12 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             </div>
           </div>
         )}
-
         {dealsWithoutNextAction.length > 0 ? (
-          <div className="border border-border/70 bg-card/60 rounded-xl border-sys-orange/20 px-4 py-3">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="rounded-xl border border-sys-orange/20 bg-card/60 px-4 py-3">
+            <div className="mb-2 flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-sys-orange" />
               <p className="text-xs font-semibold text-sys-orange">
-                {dealsWithoutNextAction.length} deal{dealsWithoutNextAction.length !== 1 ? "s" : ""} sem proxima acao definida
+                {dealsWithoutNextAction.length} deal{dealsWithoutNextAction.length !== 1 ? "s" : ""} sem proxima acao
               </p>
             </div>
             {dealsWithoutNextAction.slice(0, 3).map((deal) => (
@@ -337,7 +364,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             ))}
           </div>
         ) : (
-          <div className="border border-border/70 bg-card/60 rounded-xl border-sys-green/20 px-4 py-3">
+          <div className="rounded-xl border border-sys-green/20 bg-card/60 px-4 py-3">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-sys-green" />
               <p className="text-xs font-semibold text-sys-green">Todos os deals tem proxima acao definida</p>
@@ -347,4 +374,95 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
       </div>
     </div>
   );
+
+  const tabs: WarRoomTab[] = [
+    { id: "visao", label: "Visao Geral", content: visaoGeral },
+    {
+      id: "meta",
+      label: "Meta & Receita",
+      content: (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <GoalProgressCard data={meta} />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <StatCard label="MRR" value={`R$ ${(m.mrr_brl / 1000).toFixed(1)}k`} context="receita mensal recorrente" delta={m.mrr_trend_pct} icon={DollarSign} accent="green" />
+            <StatCard label="ARR" value={`R$ ${(m.arr_brl / 1000).toFixed(0)}k`} context="receita anual recorrente" icon={TrendingUp} accent="brand" />
+          </div>
+          <StatCard label="Pipeline total" value={k(m.pipeline_total_brl)} context="em negociação ativa" icon={Layers} accent="blue" />
+          <StatCard label="Ticket médio" value={k(m.avg_ticket_brl)} context="por contrato fechado" icon={Ticket} accent="purple" />
+        </div>
+      ),
+    },
+    {
+      id: "funil",
+      label: "Funil",
+      content: (
+        <div className="flex flex-col gap-4">
+          <CommercialFunnelSection data={funil} />
+          <ConversionFunnel data={conversionFunnel} />
+        </div>
+      ),
+    },
+    {
+      id: "caixa",
+      label: "Caixa",
+      content: (
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <CashFlowSection data={caixa} />
+            <RevenueBarChart data={revenueMonths} />
+          </div>
+          <WarRoomFinancialSection data={financialSummary} />
+        </div>
+      ),
+    },
+    {
+      id: "risco",
+      label: "Risco",
+      content: (
+        <div className="flex flex-col gap-4">
+          <RiskRevenueSection data={risco} />
+          <AlertsPanel alerts={alerts} bottlenecks={bottlenecks} />
+        </div>
+      ),
+    },
+    { id: "posicionamento", label: "Posicionamento", content: <PositioningSection data={pos} /> },
+    {
+      id: "familias",
+      label: "Familias",
+      content: (
+        <div className="flex flex-col gap-4">
+          <div>
+            <a
+              href="/war-room/familias"
+              className="group inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+            >
+              <span className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ClipboardList className="size-3.5" />
+              </span>
+              Visão gerencial completa
+              <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </a>
+          </div>
+          <FamilyExperienceSection data={familyExperience} />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <FamilyRiskDonut families={families} />
+            <FamilyStageChart families={families} />
+          </div>
+        </div>
+      ),
+    },
+  ];
+
+  const header = (
+    <div className="flex items-center gap-3">
+      <Suspense fallback={null}>
+        <SafraFilter safras={safras} />
+      </Suspense>
+      <WarRoomExportButtons />
+    </div>
+  );
+
+  return <WarRoomTabs tabs={tabs} header={header} />;
 }

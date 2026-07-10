@@ -166,23 +166,57 @@ export async function listarOnboardingsAtivos(): Promise<OnboardingResumo[]> {
     new Set(list.map((i) => i.responsavel_id).filter((x): x is string => !!x)),
   );
 
+  // Busca explícita por id (o embed aninhado atletas→responsaveis retornava null,
+  // exibindo "Atleta" sem nome). Mesmo padrão robusto do familias-pipeline.
   const [{ data: experiencias }, { data: heads }] = await Promise.all([
-    supabase
-      .from("crm_experiencia")
-      .select("id, atleta:atletas(nome_completo, responsavel:responsaveis(nome))")
-      .in("id", expIds),
+    supabase.from("crm_experiencia").select("id, atleta_id").in("id", expIds),
     headIds.length
       ? supabase.from("user_profiles").select("id, nome").in("id", headIds)
       : Promise.resolve({ data: [] }),
   ]);
 
-  type ExpRow = {
+  const expList = (experiencias ?? []) as Array<{
     id: string;
-    atleta: { nome_completo?: string; responsavel?: { nome?: string } } | null;
-  };
-  const expMap = new Map<string, ExpRow>(
-    ((experiencias ?? []) as unknown as ExpRow[]).map((e) => [e.id, e]),
+    atleta_id: string | null;
+  }>;
+  const expToAtleta = new Map(expList.map((e) => [e.id, e.atleta_id]));
+
+  const atletaIds = Array.from(
+    new Set(expList.map((e) => e.atleta_id).filter((x): x is string => !!x)),
   );
+  const { data: atletasData } = atletaIds.length
+    ? await supabase
+        .from("atletas")
+        .select("id, nome_completo, responsavel_id")
+        .in("id", atletaIds)
+    : { data: [] };
+  const atletaById = new Map(
+    (
+      (atletasData ?? []) as Array<{
+        id: string;
+        nome_completo: string | null;
+        responsavel_id: string | null;
+      }>
+    ).map((a) => [a.id, a]),
+  );
+
+  const respIds = Array.from(
+    new Set(
+      ((atletasData ?? []) as Array<{ responsavel_id: string | null }>)
+        .map((a) => a.responsavel_id)
+        .filter((x): x is string => !!x),
+    ),
+  );
+  const { data: respData } = respIds.length
+    ? await supabase.from("responsaveis").select("id, nome").in("id", respIds)
+    : { data: [] };
+  const respById = new Map(
+    ((respData ?? []) as Array<{ id: string; nome: string | null }>).map((r) => [
+      r.id,
+      r.nome,
+    ]),
+  );
+
   const headMap = new Map(
     (heads ?? []).map((h) => [h.id as string, h.nome as string]),
   );
@@ -190,12 +224,12 @@ export async function listarOnboardingsAtivos(): Promise<OnboardingResumo[]> {
   // Para cada instância, busca progresso
   const results: OnboardingResumo[] = [];
   for (const inst of list) {
-    const exp = expMap.get(inst.experiencia_id);
-    const atletaRaw = exp?.atleta;
-    const atletaNome =
-      (Array.isArray(atletaRaw) ? atletaRaw[0]?.nome_completo : atletaRaw?.nome_completo) ?? "Atleta";
-    const respRaw = (Array.isArray(atletaRaw) ? atletaRaw[0]?.responsavel : atletaRaw?.responsavel);
-    const respNome = (Array.isArray(respRaw) ? respRaw[0]?.nome : respRaw?.nome) ?? "Responsável";
+    const atletaId = expToAtleta.get(inst.experiencia_id) ?? null;
+    const atleta = atletaId ? atletaById.get(atletaId) : null;
+    const atletaNome = atleta?.nome_completo ?? "Atleta";
+    const respNome =
+      (atleta?.responsavel_id ? respById.get(atleta.responsavel_id) : null) ??
+      "Responsável";
 
     const { data: progressoRaw } = await supabase.rpc("progresso_onboarding", {
       p_experiencia_id: inst.experiencia_id,

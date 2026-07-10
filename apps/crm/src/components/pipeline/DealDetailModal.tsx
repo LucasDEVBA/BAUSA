@@ -48,10 +48,20 @@ import { type Deal, DEAL_STAGE_CONFIG } from "@/types/deal";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { DealDetailSheet } from "./DealDetailSheet";
-import { DealDocumentsTab } from "./DealDocumentsTab";
+import {
+  DocumentosChecklist,
+  DocumentosUrgentesBadge,
+  useDocumentosAtleta,
+} from "@/components/documentos/DocumentosChecklist";
 import { DealContratoTab } from "./DealContratoTab";
 import { VisaoExecutivaPanel } from "./panels/VisaoExecutivaPanel";
 import { AcompanhamentoHeadPanel } from "./panels/AcompanhamentoHeadPanel";
+import { TranscricaoReuniaoCard } from "@/components/shared/TranscricaoReuniaoCard";
+import {
+  listarReunioesLead,
+  relinkReuniaoDeal,
+  type ReuniaoCalendar,
+} from "@/lib/actions/reunioes-relink";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
@@ -153,6 +163,15 @@ function diasAtras(iso?: string | null): number | null {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 }
 
+/** Rótulo relativo de uma reunião: "hoje" / "em N dias" / "há N dias". */
+function relReuniao(iso?: string | null): { label: string; futura: boolean } | null {
+  if (!iso) return null;
+  const dif = Math.round((new Date(iso).getTime() - Date.now()) / 86400000);
+  if (dif === 0) return { label: "hoje", futura: new Date(iso).getTime() >= Date.now() };
+  if (dif > 0) return { label: `em ${dif} dia${dif > 1 ? "s" : ""}`, futura: true };
+  return { label: `há ${-dif} dia${dif < -1 ? "s" : ""}`, futura: false };
+}
+
 async function copyClipboard(value: string, label: string) {
   try {
     await navigator.clipboard.writeText(value);
@@ -181,7 +200,7 @@ function Field({
     value !== null && value !== undefined && value !== "" && value !== "—";
   return (
     <div className="py-1">
-      <dt className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
+      <dt className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
         {label}
       </dt>
       <dd
@@ -299,6 +318,7 @@ function StatPill({
 export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
   const [section, setSection] = useState<SectionId>("executiva");
   const [showLateralEditor, setShowLateralEditor] = useState(false);
+  const documentos = useDocumentosAtleta(deal?.atleta_id);
 
   // Body scroll lock + Esc to close
   useEffect(() => {
@@ -356,7 +376,7 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
-                <h1 className="truncate text-[13px] font-semibold leading-tight text-foreground">
+                <h1 className="truncate text-[11px] font-semibold leading-tight text-foreground">
                   {deal.athlete_name}
                 </h1>
                 <span
@@ -436,7 +456,7 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
             <aside className="hidden w-[184px] shrink-0 overflow-y-auto border-r border-border bg-secondary/10 px-1.5 py-2 md:block">
               {(Object.keys(groupedNav) as Array<NavItem["group"]>).map((g) => (
                 <div key={g} className="mb-2 last:mb-0">
-                  <p className="px-2 pb-0.5 text-[9px] font-medium uppercase tracking-widest text-muted-foreground/60">
+                  <p className="px-2 pb-0.5 text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
                     {GROUP_LABEL[g]}
                   </p>
                   {groupedNav[g].map((it) => {
@@ -455,6 +475,11 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
                       >
                         <Icon className="h-3 w-3 shrink-0" />
                         <span className="truncate">{it.label}</span>
+                        {it.id === "documentos" && (
+                          <span className="ml-auto">
+                            <DocumentosUrgentesBadge count={documentos.urgentes} />
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -480,6 +505,9 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
                   >
                     <Icon className="h-3 w-3" />
                     {it.label}
+                    {it.id === "documentos" && (
+                      <DocumentosUrgentesBadge count={documentos.urgentes} />
+                    )}
                   </button>
                 );
               })}
@@ -504,7 +532,12 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
               )}
               {section === "documentos" &&
                 (deal.atleta_id ? (
-                  <DealDocumentsTab atletaId={deal.atleta_id} />
+                  <DocumentosChecklist
+                    atletaId={deal.atleta_id}
+                    docs={documentos.docs}
+                    loading={documentos.loading}
+                    onRefetch={documentos.refetch}
+                  />
                 ) : (
                   <EmptyState text="Atleta ainda não vinculado ao deal." />
                 ))}
@@ -928,25 +961,222 @@ function ComercialSection({ deal }: { deal: Deal }) {
 }
 
 function ReuniaoSection({ deal }: { deal: Deal }) {
+  const dataReuniao = deal.reuniao_data;
+  const rel = relReuniao(dataReuniao);
+  const temReuniao = !!(dataReuniao || deal.reuniao_agendada_at);
+  const realizada = rel ? !rel.futura : false;
+
+  const status = !temReuniao
+    ? { label: "Sem reunião", cls: "bg-secondary text-muted-foreground" }
+    : realizada
+      ? { label: "Realizada", cls: "bg-sys-green/12 text-sys-green" }
+      : { label: "Agendada", cls: "bg-sys-blue/12 text-sys-blue" };
+
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      <Card title="Reunião comercial" icon={CalendarDays} iconColor="text-sys-blue">
-        <dl className="grid grid-cols-1 gap-x-4">
-          <Field
-            label="Data/hora agendada"
-            value={fmtDateTime(deal.reuniao_agendada_at)}
-          />
-          <Field
-            label="Data realizada"
-            value={fmtDateTime(deal.reuniao_data)}
-          />
-          <Field
-            label="Link"
-            value={deal.reuniao_link ? "Acessar reunião" : null}
-            href={deal.reuniao_link}
-          />
-        </dl>
-      </Card>
+    <div className="space-y-3">
+      {/* Hero da reunião */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/[0.05] to-transparent">
+        <div className="flex items-start justify-between gap-3 px-4 py-3.5">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <CalendarDays className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
+                Reunião comercial
+              </p>
+              <p className="text-sm font-semibold text-foreground">
+                {dataReuniao ? fmtDateTime(dataReuniao) : "Não agendada"}
+              </p>
+              {rel && (
+                <p className={cn("text-[11px] font-medium", realizada ? "text-sys-green" : "text-sys-blue")}>
+                  {realizada ? "Ocorreu " : "Acontece "}
+                  {rel.label}
+                </p>
+              )}
+            </div>
+          </div>
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", status.cls)}>
+            {status.label}
+          </span>
+        </div>
+
+        {deal.reuniao_agendada_at && (
+          <div className="border-t border-border/60 px-4 py-2.5">
+            <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
+              Detectada em
+            </p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-foreground">
+              <Clock className="size-3 text-muted-foreground" />
+              {fmtDateTime(deal.reuniao_agendada_at)}
+            </p>
+          </div>
+        )}
+
+        {deal.reuniao_link && (
+          <div className="border-t border-border/60 px-4 py-3">
+            <a
+              href={deal.reuniao_link}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg bg-sys-green/12 px-3 py-2 text-xs font-semibold text-sys-green transition-colors hover:bg-sys-green/20"
+            >
+              <Video className="size-4" />
+              Entrar na reunião
+              <ExternalLink className="size-3 opacity-70" />
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* Todas as reuniões do lead no Calendar (relink em caso de remarcação) */}
+      <ReunioesCalendarBlock deal={deal} />
+
+      {/* Transcrição do Meet (CF meeting-transcripts) — só renderiza se capturada */}
+      <TranscricaoReuniaoCard dealId={deal.id} />
+    </div>
+  );
+}
+
+/**
+ * Lista TODAS as reuniões do lead no Calendar do CEO (via CF read-only) e
+ * permite religar o deal ao evento correto — cobre remarcações passadas em
+ * que o deal ficou preso no evento antigo (transcrição no evento novo).
+ */
+function ReunioesCalendarBlock({ deal }: { deal: Deal }) {
+  const [eventos, setEventos] = useState<ReuniaoCalendar[] | null>(null);
+  const [atual, setAtual] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const buscar = async () => {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const r = await listarReunioesLead(deal.id);
+      if (r.success) {
+        setEventos(r.eventos);
+        setAtual(r.atual);
+      } else {
+        setErro(r.error);
+      }
+    } catch {
+      setErro("Não foi possível consultar o Calendar agora.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const vincular = (ev: ReuniaoCalendar) => {
+    startTransition(async () => {
+      const r = await relinkReuniaoDeal(deal.id, {
+        id: ev.id,
+        start: ev.start,
+        hangoutLink: ev.hangoutLink,
+        htmlLink: ev.htmlLink,
+      });
+      if (r.success) {
+        setAtual(ev.id);
+        toast.success("Reunião vinculada ao deal", {
+          description:
+            "A transcrição será procurada neste evento no próximo ciclo (a cada 2h).",
+        });
+      } else {
+        toast.error(r.error);
+      }
+    });
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card/60">
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+        <div className="flex items-center gap-1.5">
+          <Calendar className="size-3.5 text-muted-foreground" />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Reuniões no Calendar
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => void buscar()}
+          disabled={carregando}
+          className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+        >
+          {carregando ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Calendar className="size-3" />
+          )}
+          {eventos === null ? "Buscar reuniões" : "Atualizar"}
+        </button>
+      </div>
+
+      {erro && (
+        <p className="border-t border-border/60 px-3 py-2 text-[11px] text-sys-red">{erro}</p>
+      )}
+
+      {eventos !== null && !erro && (
+        <div className="border-t border-border/60">
+          {eventos.length === 0 ? (
+            <p className="px-3 py-2.5 text-[11px] text-muted-foreground">
+              Nenhum evento do Calendar casa com o e-mail/telefone deste lead na janela
+              (últimos 180 dias + próximos 120).
+            </p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {eventos.map((ev) => {
+                const vinculada = ev.id === atual;
+                const cancelada = ev.status === "cancelled";
+                return (
+                  <li key={ev.id} className="flex items-center gap-2 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "text-xs font-medium tabular-nums",
+                            cancelada ? "text-muted-foreground line-through" : "text-foreground",
+                          )}
+                        >
+                          {ev.start ? fmtDateTime(ev.start) : "sem data"}
+                        </span>
+                        {cancelada && (
+                          <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
+                            Cancelada
+                          </span>
+                        )}
+                        {ev.temTranscricaoAnexada && (
+                          <span className="flex items-center gap-0.5 rounded-full bg-sys-green/12 px-1.5 py-0.5 text-[9px] font-semibold text-sys-green">
+                            <FileText className="size-2.5" />
+                            Transcrição
+                          </span>
+                        )}
+                        {vinculada && (
+                          <span className="flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                            <CheckCircle2 className="size-2.5" />
+                            Vinculada
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-[10px] text-muted-foreground">{ev.summary}</p>
+                    </div>
+                    {!vinculada && !cancelada && (
+                      <button
+                        type="button"
+                        onClick={() => vincular(ev)}
+                        disabled={isPending}
+                        className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+                      >
+                        Vincular
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1090,8 +1320,7 @@ function ComunicacoesSection({ deal }: { deal: Deal }) {
 
 function AtribuicaoSection({ deal }: { deal: Deal }) {
   // Esses campos vêm do form_submissions mas não estão no tipo Deal.
-  // Mostramos um aviso se vier vazio — sinalizando ao CEO que a captura
-  // foi feita no LeadFullDetail.
+  // Mostramos um aviso se vier vazio.
   return (
     <div className="space-y-3">
       <Card

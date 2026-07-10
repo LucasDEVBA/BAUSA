@@ -12,6 +12,8 @@ const SERVICE_ACCOUNT_EMAIL  = process.env.SERVICE_ACCOUNT_EMAIL;
 const GOOGLE_CALENDAR_ID     = process.env.GOOGLE_CALENDAR_ID;
 // Schema do Supabase: 'public' em PRD, 'uat' em UAT, 'dev' em DEV
 const SUPABASE_SCHEMA        = process.env.SUPABASE_SCHEMA || 'public';
+// Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
+const RUNS_SCHEMA = 'public';
 const RAW_KEY                = process.env.SERVICE_ACCOUNT_PRIVATE_KEY || '';
 const SERVICE_ACCOUNT_PRIVATE_KEY = RAW_KEY
   .replace(/^["']|["']$/g, '')
@@ -41,9 +43,15 @@ const httpRequest = (url, options, postData) => {
     });
 
     req.on('error', (e) => reject(e));
-    req.setTimeout(30000, () => {
+    // Timeout 90s (paridade com process-pending-whatsapp): o send-whatsapp
+    // leva rotineiramente 22-35s quando atleta e responsável têm números
+    // distintos (envio + delay anti-ban de 20-30s + envio, com retry Z-API).
+    // O timeout antigo de 30s abortava o caller e logava
+    // followup_X_send_failed espúrio mesmo com o envio concluído (o CAS marca
+    // followup_N_sent_at ANTES do call — sem duplicação, mas status falso).
+    req.setTimeout(90000, () => {
       req.destroy();
-      reject(new Error('Request timeout (30s)'));
+      reject(new Error('Request timeout (90s)'));
     });
 
     if (postData) req.write(postData);
@@ -53,6 +61,51 @@ const httpRequest = (url, options, postData) => {
 
 // ─── Delay entre leads (anti-ban) ──────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ─── Âncoras das automações de SISTEMA (aba Execuções de /automacoes) ──────
+// IDs fixos semeados pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_FOLLOWUP_1_ID = 'a0000000-0000-4000-8000-000000000003';
+const RUN_FOLLOWUP_2_ID = 'a0000000-0000-4000-8000-000000000004';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': RUNS_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
+  }
+};
 
 // ─── Verificar se lead agendou reunião via Google Calendar API ─
 // Busca eventos no calendário do Leandro onde o e-mail do responsável
@@ -114,13 +167,86 @@ const checkMeetingScheduled = async (guardianEmail, whatsappSentAt) => {
   }
 };
 
+// ─── Intervalos configuráveis (editáveis pelo CEO em /automacoes) ──────────
+// Lidos de configuracoes_sistema.scheduler_intervalos com fallback nos
+// defaults históricos. INVARIANTE (guard de CI): clamp 1h–720h — a config
+// jamais pode zerar o delay (envio imediato) nem congelar o fluxo >30 dias.
+const DEFAULT_FU1_HORAS = 48;
+const DEFAULT_FU2_HORAS = 168;
+
+const clampHoras = (valor, fallback) => {
+  // parseFloat (não Number): null/''/false viram NaN → fallback, em vez de 0→1h
+  const n = typeof valor === 'number' ? valor : Number.parseFloat(valor);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(n, 1), 720);
+};
+
+const fetchIntervalos = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.scheduler_intervalos&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET intervalos: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor || {};
+    return {
+      fu1Horas: clampHoras(valor.followup_1_horas, DEFAULT_FU1_HORAS),
+      fu2Horas: clampHoras(valor.followup_2_horas, DEFAULT_FU2_HORAS),
+    };
+  } catch (e) {
+    // Config indisponível JAMAIS para o scheduler — usa os defaults históricos
+    log('WARN', 'intervalos_fallback', { error: e.message });
+    return { fu1Horas: DEFAULT_FU1_HORAS, fu2Horas: DEFAULT_FU2_HORAS };
+  }
+};
+
+// ─── Toggles on/off das automações de sistema (/automacoes) ────────────────
+// configuracoes_sistema.sistema_automacoes_ativas — campo ausente = ATIVA
+// (fail-open). Config indisponível JAMAIS para o scheduler — fallback {}.
+const fetchAtivas = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.sistema_automacoes_ativas&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET ativas: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor;
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch (e) {
+    log('WARN', 'ativas_fallback', { error: e.message });
+    return {};
+  }
+};
+
 // ─── Buscar leads pendentes de follow-up ───────────────────────
 const fetchFollowupLeads = async (followupNumber, executionStartTime) => {
   const isFollowup1 = followupNumber === 1;
 
-  // Follow-up 1: 48h após whatsapp_sent_at, sem followup_1_sent_at
-  // Follow-up 2: 7 dias (168h) após whatsapp_sent_at, com followup_1_sent_at, sem followup_2_sent_at
-  const hoursThreshold = isFollowup1 ? 48 : 168;
+  // Toggle on/off em /automacoes (ausente = ativo); desligado → sem envio,
+  // leads seguem elegíveis e são pegos quando reativar.
+  const ativas = await fetchAtivas();
+  if (isFollowup1 ? ativas.followup_1 === false : ativas.followup_2 === false) {
+    log('WARN', 'followup_desativado_skip', { followupNumber });
+    return [];
+  }
+
+  // Follow-up 1: Nh (default 48h) após whatsapp_sent_at, sem followup_1_sent_at
+  // Follow-up 2: Nh (default 168h/7d) após whatsapp_sent_at, com followup_1_sent_at, sem followup_2_sent_at
+  const intervalos = await fetchIntervalos();
+  const hoursThreshold = isFollowup1 ? intervalos.fu1Horas : intervalos.fu2Horas;
+  log('INFO', 'intervalos_em_uso', { followupNumber, hoursThreshold });
   const cutoffTime = new Date(Date.now() - hoursThreshold * 60 * 60 * 1000).toISOString();
 
   const baseFilters = [
@@ -143,7 +269,14 @@ const fetchFollowupLeads = async (followupNumber, executionStartTime) => {
     // Garante que followup_1 foi enviado em execução ANTERIOR, nunca na mesma execução.
     // Evita que um lead com whatsapp_sent_at > 168h receba followup_1 e followup_2 no mesmo ciclo.
     if (executionStartTime) {
-      baseFilters.push(`followup_1_sent_at=lt.${executionStartTime}`);
+      // Espaçamento mínimo de 24h entre fu1 e fu2 — estritamente mais forte
+      // que o guard original de "execução anterior" (executionStartTime ≈ now):
+      // além de impedir fu1+fu2 no mesmo ciclo, impede fu2 ~1h após um fu1
+      // tardio (ex.: followup_1 desligado por dias em /automacoes e reativado).
+      const fu1MinGapIso = new Date(
+        Math.min(new Date(executionStartTime).getTime(), Date.now() - 24 * 60 * 60 * 1000)
+      ).toISOString();
+      baseFilters.push(`followup_1_sent_at=lt.${fu1MinGapIso}`);
     }
   }
 
@@ -454,6 +587,19 @@ const processFollowupBatch = async (followupNumber, executionStartTime) => {
       log('INFO', `followup_${followupNumber}_whatsapp_result`, {
         email: lead.email,
         statusCode: whatsappResult.statusCode,
+      });
+
+      // Registro em automacao_runs (aba Execuções) — estado TERMINAL, APÓS o
+      // resultado real do envio (CAS perdido/meeting_scheduled não registram).
+      await registrarRunSistema({
+        automacaoId: followupNumber === 1 ? RUN_FOLLOWUP_1_ID : RUN_FOLLOWUP_2_ID,
+        ok: whatsappResult.statusCode < 400,
+        lead,
+        acoes: [{
+          tipo: followupNumber === 1 ? 'followup_1' : 'followup_2',
+          status: whatsappResult.statusCode < 400 ? 'ok' : 'falha',
+          detalhe: `template followup_${followupNumber} (HTTP ${whatsappResult.statusCode})`,
+        }],
       });
 
       // Sync Sheets: DB já foi marcado pelo CAS — sincroniza independente do resultado do WhatsApp

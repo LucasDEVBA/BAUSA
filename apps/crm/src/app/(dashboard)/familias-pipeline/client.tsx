@@ -10,6 +10,11 @@ import {
   ArrowLeftRight,
   UserPlus,
   Pencil,
+  Inbox,
+  Users,
+  Flame,
+  CircleAlert,
+  Clock,
 } from "lucide-react";
 import {
   JOURNEY_STAGE_CONFIG,
@@ -26,6 +31,8 @@ import {
 } from "@/components/familias-shared/FamilyDetailModal";
 import { NovaFamiliaModal } from "@/components/familias-shared/NovaFamiliaModal";
 import { HealthBadge } from "@/components/familias-shared/HealthBadge";
+import { FamiliasNav } from "@/components/familias/FamiliasNav";
+import { PageHeader, StatCard, Button, EmptyState } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -39,6 +46,7 @@ import { FamiliasPipelineTable } from "./FamiliasPipelineTable";
 export interface FamiliaPipelineCard {
   id: string;
   atleta_id: string;
+  deal_id: string | null;
   athlete_name: string;
   guardian_name: string;
   whatsapp: string;
@@ -83,11 +91,19 @@ function PipelineCard({
   return (
     <div
       draggable
+      role="button"
+      tabIndex={0}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", card.id);
         onDragStart(card.id);
       }}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
         "group relative rounded-xl border bg-card p-3 cursor-grab active:cursor-grabbing transition-colors hover:border-primary/40",
         card.status === "crise"
@@ -263,6 +279,32 @@ export function FamiliasPipelineClient({
     setCards(initialCards);
   }, [initialCards]);
 
+  // Deep-link: abre a modal da família ao chegar com ?openExperiencia / ?deal /
+  // ?atleta na URL (vindo de notificações ou da tela gerencial de famílias).
+  // Client-only (window.location) — sem Suspense e sem reabrir após limpar.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const openExp = params.get("openExperiencia");
+    const openDeal = params.get("deal");
+    const openAtleta = params.get("atleta");
+    if (!openExp && !openDeal && !openAtleta) return;
+    const match = cards.find(
+      (c) =>
+        (openExp && c.id === openExp) ||
+        (openDeal && c.deal_id === openDeal) ||
+        (openAtleta && c.atleta_id === openAtleta),
+    );
+    if (match) {
+      setSelectedCard(match);
+    } else {
+      toast.error("Família não encontrada nesta visão.");
+    }
+    // Remove o param sem navegar (não reabre em refresh nem polui o histórico),
+    // inclusive quando não há match — a URL não fica com param preso.
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [cards]);
+
   const filteredCards = useMemo(() => {
     const search = filters.search.trim().toLowerCase();
     return cards.filter((c) => {
@@ -277,6 +319,16 @@ export function FamiliasPipelineClient({
       return true;
     });
   }, [cards, filters]);
+
+  const kpis = useMemo(() => {
+    const total = initialCards.length;
+    const crise = initialCards.filter((c) => c.status === "crise").length;
+    const atencao = initialCards.filter((c) => c.status === "atencao").length;
+    const semContato = initialCards.filter(
+      (c) => (c.dias_sem_contato ?? 0) > 30,
+    ).length;
+    return { total, crise, atencao, semContato };
+  }, [initialCards]);
 
   const handleDrop = (fase: FamilyJourneyStage) => {
     const id = dragId;
@@ -328,31 +380,55 @@ export function FamiliasPipelineClient({
   );
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-title-2 text-foreground">Pipeline da Família</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground flex items-center gap-1.5">
-            <ArrowLeftRight className="h-3.5 w-3.5 text-label-tertiary" />
-            Arraste cards entre fases em qualquer direção. Clique em um card
-            para editar.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowNovaModal(true)}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors"
-          >
-            <UserPlus className="h-4 w-4" />
-            Nova Família
-          </button>
-          <a
-            href="/familias-crm"
-            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground hover:border-primary/30 hover:text-primary"
-          >
-            Voltar à lista
-          </a>
-        </div>
+    <div className="space-y-5">
+      <PageHeader dense
+        eyebrow="Famílias"
+        title="Pipeline da Família"
+        description="Arraste cards entre fases em qualquer direção. Clique em um card para editar."
+        actions={
+          <>
+            <Button onClick={() => setShowNovaModal(true)}>
+              <UserPlus className="h-4 w-4" />
+              Nova Família
+            </Button>
+            <Button variant="secondary" asChild>
+              <a href="/familias-crm">
+                <ArrowLeftRight className="h-4 w-4" />
+                Voltar à lista
+              </a>
+            </Button>
+          </>
+        }
+      />
+
+      <FamiliasNav />
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Total de famílias"
+          value={kpis.total}
+          icon={Users}
+          accent="brand"
+        />
+        <StatCard
+          label="Em crise"
+          value={kpis.crise}
+          icon={Flame}
+          accent="red"
+        />
+        <StatCard
+          label="Em atenção"
+          value={kpis.atencao}
+          icon={CircleAlert}
+          accent="orange"
+        />
+        <StatCard
+          label="Sem contato > 30d"
+          value={kpis.semContato}
+          icon={Clock}
+          accent="blue"
+        />
       </div>
 
       {isPending && (
@@ -427,9 +503,11 @@ export function FamiliasPipelineClient({
                   />
                 ))}
                 {list.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-border py-6 text-center text-[10px] text-label-tertiary">
-                    Vazio
-                  </div>
+                  <EmptyState
+                    icon={Inbox}
+                    title="Vazio"
+                    className="rounded-xl border border-dashed border-border px-3 py-6"
+                  />
                 )}
               </div>
             </div>

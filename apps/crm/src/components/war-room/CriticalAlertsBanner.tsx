@@ -65,31 +65,42 @@ export function CriticalAlertsBanner({ counts }: CriticalAlertsBannerProps) {
   }
 
   return (
-    <div className="sticky top-0 z-30 rounded-xl border border-sys-red/30 bg-sys-red/10 px-5 py-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sys-red/20">
-            <AlertTriangle className="h-4 w-4 text-sys-red" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-sys-red">
-              {totalCritical} alerta{totalCritical !== 1 ? "s" : ""} critico{totalCritical !== 1 ? "s" : ""}
-            </p>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+    <div className="glass-card relative overflow-hidden rounded-2xl !border-sys-red/25 p-4">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute left-0 top-4 h-5 w-[3px] rounded-r-full bg-sys-red"
+      />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sys-red/12 text-sys-red">
+            <AlertTriangle className="size-[18px]" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-bold tabular-nums text-sys-red">{totalCritical}</span>
+              <span className="text-sm font-semibold text-foreground">
+                alerta{totalCritical !== 1 ? "s" : ""} crítico{totalCritical !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {items.map((item) => (
-                <p key={item.label} className="text-xs text-sys-red/80">
+                <span
+                  key={item.label}
+                  className="inline-flex items-center gap-1 rounded-full bg-sys-red/8 px-2 py-0.5 text-[11px] font-medium text-sys-red/90"
+                >
+                  <span aria-hidden className="size-1 rounded-full bg-sys-red" />
                   {item.label}
-                </p>
+                </span>
               ))}
             </div>
           </div>
         </div>
         <button
           onClick={() => setDismissed(true)}
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sys-red hover:bg-sys-red/20 hover:text-sys-red/70 transition-colors"
+          className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sys-red/10 hover:text-sys-red"
           aria-label="Dispensar alertas"
         >
-          <X className="h-4 w-4" />
+          <X className="size-4" />
         </button>
       </div>
     </div>

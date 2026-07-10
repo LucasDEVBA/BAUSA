@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import {
-  DollarSign,
   TrendingUp,
   AlertTriangle,
   CheckCircle,
@@ -14,18 +13,23 @@ import {
   PLAN_CONFIG,
   RECEIVABLE_STATUS_CONFIG,
   type Receivable,
-  type FixedCost,
-  type VariableCost,
   type FinancialSummary,
   type PlanType,
 } from "@/types/financial";
-import { fetchCancellations, type CancellationDeal } from "@/lib/war-room-queries";
+import { fetchCancellations } from "@/lib/war-room-queries";
 import { cn } from "@/lib/utils";
-import { NfBadge } from "@/components/financeiro/NfBadge";
 import { NfEditRow } from "@/components/financeiro/NfEditRow";
 import { FinanceiroTabs } from "@/components/financeiro/FinanceiroTabs";
+import { FinanceiroDeepLink } from "@/components/financeiro/FinanceiroDeepLink";
+import { PageHeader, ScrollList, StatCard } from "@/components/ui";
 import { CancelamentoActions } from "@/components/financeiro/CancelamentoActions";
+import { SaidasView } from "@/components/financeiro/SaidasView";
+import { FolhaView } from "@/components/financeiro/FolhaView";
+import { ResultadoView } from "@/components/financeiro/ResultadoView";
+import { getFinanceiroMetrics, type FinanceiroMetrics } from "@/lib/financeiro-metrics";
+import { dedupInvestimentos, type InvestimentoRow } from "@/lib/marketing-spend";
 import { PLANO_VALORES } from "@/types/crm";
+import { DESPESA_CATEGORIA_LABEL, type Despesa, type Colaborador, type EmpresaDados } from "@/types/financeiro";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
 
 function formatBRL(val: number) {
@@ -66,14 +70,17 @@ function mapParcelaToReceivable(
   };
 }
 
-function ReceivableRow({ rec }: { rec: Receivable }) {
+function ReceivableRow({ rec, dealId }: { rec: Receivable; dealId?: string | null }) {
   const statusCfg = RECEIVABLE_STATUS_CONFIG[rec.status];
   const planCfg = PLAN_CONFIG[rec.plan];
   const dueDate = new Date(rec.due_date);
   const isOverdue = rec.status === "atrasado";
 
   return (
-    <tr className={cn("border-b border-border transition-colors hover:bg-accent", isOverdue && "bg-sys-red/5")}>
+    <tr
+      data-deal-id={dealId ?? undefined}
+      className={cn("border-b border-border transition-colors hover:bg-accent", isOverdue && "bg-sys-red/5")}
+    >
       <td className="py-3 pl-4 pr-3">
         <p className="text-sm font-medium text-foreground">{rec.client_name}</p>
         <p className="text-xs text-muted-foreground">{rec.description}</p>
@@ -98,22 +105,6 @@ function ReceivableRow({ rec }: { rec: Receivable }) {
     </tr>
   );
 }
-
-// Custos fixos definidos pela regra de negocio (configuracoes_sistema ou hardcoded)
-const FIXED_COSTS: FixedCost[] = [
-  { id: "fc1", name: "Head de Sucesso e Experiencia da Familia", amount_monthly: 4500, active: true },
-  { id: "fc2", name: "IA (ferramentas e licencas)", amount_monthly: 800, active: true },
-  { id: "fc3", name: "Designer", amount_monthly: 2200, active: true },
-  { id: "fc4", name: "Infraestrutura (sistema, dominio, cloud)", amount_monthly: 350, active: true },
-  { id: "fc5", name: "Marketing e Trafego Pago", amount_monthly: 3000, active: true },
-  { id: "fc6", name: "Outros custos fixos", amount_monthly: 1200, active: true },
-];
-
-const VARIABLE_COSTS: VariableCost[] = [
-  { id: "vc1", plan: "Journey", name: "Psicologa Intercultural", amount: 1200 },
-  { id: "vc2", plan: "Legacy", name: "Psicologa Intercultural", amount: 1200 },
-  { id: "vc3", plan: "Legacy", name: "Suporte VIP Adicional", amount: 800 },
-];
 
 const MOTIVO_PERDA_LABELS: Record<string, string> = {
   financeiro: "Financeiro",
@@ -167,7 +158,7 @@ interface ContractWithNf {
 }
 
 interface PageProps {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; deal?: string }>;
 }
 
 export default async function FinanceiroPage({ searchParams }: PageProps) {
@@ -175,7 +166,6 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const activeTab = params.tab || "geral";
   const mesAtual = new Date().toISOString().slice(0, 7);
-  const hoje = new Date().toISOString().split("T")[0];
 
   // Buscar contratos com deal + atleta para pegar nomes
   const { data: rawContratos } = await supabase
@@ -184,8 +174,11 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  // Mapa contrato_id -> { plano, atletaNome }
-  const contratoMap = new Map<string, { plano: string; atletaNome: string }>();
+  // Mapa contrato_id -> { plano, atletaNome, deal_id }
+  const contratoMap = new Map<
+    string,
+    { plano: string; atletaNome: string; deal_id: string | null }
+  >();
   const contractsWithNf: ContractWithNf[] = [];
 
   for (const c of rawContratos ?? []) {
@@ -198,6 +191,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     contratoMap.set(c.id as string, {
       plano: (c.plano as string) ?? "",
       atletaNome,
+      deal_id: (c.deal_id as string) ?? null,
     });
 
     contractsWithNf.push({
@@ -242,8 +236,37 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   const totalOverdue = overdueReceivables.reduce((s, r) => s + r.amount, 0);
   const totalReceived = receivables.filter((r) => r.status === "recebido").reduce((s, r) => s + r.amount, 0);
 
-  const totalFixedCosts = FIXED_COSTS.filter((c) => c.active).reduce((s, c) => s + c.amount_monthly, 0);
-  const variableCostsTotal = VARIABLE_COSTS.reduce((s, c) => s + c.amount, 0);
+  // Custos fixos REAIS (folha ativa + despesas recorrentes ativas + marketing) — Visão Geral.
+  // Substitui os arrays hardcoded; fonte única. Marketing vem de
+  // investimentos_marketing (mesma fonte do CAC e do DRE), NÃO de despesas.
+  let folhaMensal = 0;
+  let marketingMensal = 0;
+  const custosRecorrentes: { nome: string; valor: number; categoria: string }[] = [];
+  if (activeTab === "geral") {
+    const [colabRes, recorrRes, mktRes] = await Promise.all([
+      supabase.from("colaboradores").select("custo_mensal_brl").eq("ativo", true).is("deleted_at", null),
+      supabase
+        .from("despesas")
+        .select("descricao, valor_brl, categoria")
+        .eq("recorrente", true)
+        .eq("recorrencia_ativa", true)
+        .neq("categoria", "marketing")
+        .is("deleted_at", null),
+      supabase
+        .from("investimentos_marketing")
+        .select("mes, canal, valor_gasto, source")
+        .eq("mes", `${mesAtual}-01`)
+        .is("deleted_at", null),
+    ]);
+    folhaMensal = (colabRes.data ?? []).reduce((s, c) => s + Number(c.custo_mensal_brl), 0);
+    marketingMensal = dedupInvestimentos((mktRes.data as InvestimentoRow[] | null) ?? [])
+      .reduce((s, m) => s + Number(m.valor_gasto), 0);
+    for (const r of recorrRes.data ?? []) {
+      custosRecorrentes.push({ nome: r.descricao as string, valor: Number(r.valor_brl), categoria: r.categoria as string });
+    }
+  }
+  const totalRecorrentes = custosRecorrentes.reduce((s, c) => s + c.valor, 0) + marketingMensal;
+  const totalFixedCosts = folhaMensal + totalRecorrentes;
 
   const netMarginPct = receitaRecebidaMes > 0
     ? Math.round(((receitaRecebidaMes - totalFixedCosts) / receitaRecebidaMes) * 100)
@@ -263,7 +286,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     total_receivable_brl: totalReceivable,
     overdue_brl: totalOverdue,
     fixed_costs_monthly: totalFixedCosts,
-    variable_costs_monthly: variableCostsTotal,
+    variable_costs_monthly: 0,
     net_margin_pct: netMarginPct,
   };
 
@@ -273,24 +296,70 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   // Cancelamentos
   const cancellations = activeTab === "cancelamentos" ? await fetchCancellations() : [];
 
+  // Saídas / Folha (abas novas — só busca quando a aba está ativa)
+  const despesas: Despesa[] =
+    activeTab === "saidas"
+      ? (((
+          await supabase
+            .from("despesas")
+            .select("*")
+            .is("deleted_at", null)
+            .order("competencia", { ascending: false })
+            .order("created_at", { ascending: false })
+        ).data as Despesa[] | null) ?? [])
+      : [];
+
+  const colaboradores: Colaborador[] =
+    activeTab === "folha"
+      ? (((
+          await supabase
+            .from("colaboradores")
+            .select("*")
+            .is("deleted_at", null)
+            .order("ativo", { ascending: false })
+            .order("nome", { ascending: true })
+        ).data as Colaborador[] | null) ?? [])
+      : [];
+
+  // Resultado (DRE + fluxo de caixa) — só busca quando a aba está ativa
+  const metrics: FinanceiroMetrics | null =
+    activeTab === "resultado" ? await getFinanceiroMetrics() : null;
+
+  // Dados da empresa (pagador) para recibos — usado nas abas Saídas e Folha
+  const EMPRESA_FALLBACK: EmpresaDados = { razao_social: "Bolsa Atleta USA", cnpj: "", cidade: "" };
+  const empresa: EmpresaDados =
+    activeTab === "folha" || activeTab === "saidas"
+      ? (((
+          await supabase
+            .from("configuracoes_sistema")
+            .select("valor")
+            .eq("chave", "empresa_dados")
+            .maybeSingle()
+        ).data?.valor as EmpresaDados | undefined) ?? EMPRESA_FALLBACK)
+      : EMPRESA_FALLBACK;
+
   return (
-    <div className="p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-title-2 text-foreground">Gestao Financeira</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Contratos, recebiveis e analise de custos</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Suspense fallback={null}>
-            <FinanceiroTabs />
-          </Suspense>
-          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90">
-            <FileText className="h-4 w-4" />
-            Novo contrato
-          </button>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader dense
+        eyebrow="Comercial"
+        title="Gestão Financeira"
+        description="Entradas, saídas, folha e resultado (DRE)"
+      />
+
+      <FinanceiroDeepLink targetDeal={params.deal} />
+
+      <Suspense fallback={null}>
+        <FinanceiroTabs />
+      </Suspense>
+
+      {/* Tab: Resultado (DRE + Fluxo de caixa) */}
+      {activeTab === "resultado" && metrics && <ResultadoView metrics={metrics} />}
+
+      {/* Tab: Saídas */}
+      {activeTab === "saidas" && <SaidasView despesas={despesas} empresa={empresa} />}
+
+      {/* Tab: Folha */}
+      {activeTab === "folha" && <FolhaView colaboradores={colaboradores} empresa={empresa} />}
 
       {/* Tab: NFs Pendentes */}
       {activeTab === "nf_pendentes" && (
@@ -379,7 +448,11 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
               </thead>
               <tbody>
                 {cancellations.map((c) => (
-                  <tr key={c.id} className="border-b border-border transition-colors hover:bg-accent">
+                  <tr
+                    key={c.id}
+                    data-deal-id={c.id}
+                    className="border-b border-border transition-colors hover:bg-accent"
+                  >
                     <td className="py-3 pl-4 pr-3">
                       <p className="text-sm font-medium text-foreground">{c.athlete_name}</p>
                     </td>
@@ -445,59 +518,41 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
         <>
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              {
-                label: "Receita recebida",
-                value: formatBRL(summary.total_received_brl),
-                sub: "total acumulado",
-                icon: CheckCircle,
-                color: "text-sys-green",
-                bg: "bg-sys-green/10",
-              },
-              {
-                label: "A receber",
-                value: formatBRL(summary.total_receivable_brl),
-                sub: "em aberto",
-                icon: Clock,
-                color: "text-sys-blue",
-                bg: "bg-sys-blue/10",
-              },
-              {
-                label: "Em atraso",
-                value: formatBRL(summary.overdue_brl),
-                sub: `${overdueReceivables.length} parcela${overdueReceivables.length !== 1 ? "s" : ""}`,
-                icon: AlertTriangle,
-                color: "text-sys-red",
-                bg: "bg-sys-red/10",
-              },
-              {
-                label: "Margem liquida",
-                value: `${summary.net_margin_pct}%`,
-                sub: "apos custos fixos",
-                icon: TrendingUp,
-                color: "text-plan-legacy",
-                bg: "bg-plan-legacy/10",
-              },
-            ].map((kpi) => {
-              const Icon = kpi.icon;
-              return (
-                <div key={kpi.label} className="rounded-lg border border-border/70 bg-card/60 p-3">
-                  <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", kpi.bg)}>
-                    <Icon className={cn("h-4 w-4", kpi.color)} />
-                  </div>
-                  <p className="text-xl font-bold text-foreground">{kpi.value}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
-                  <p className="text-[10px] text-label-tertiary">{kpi.sub}</p>
-                </div>
-              );
-            })}
+            <StatCard
+              label="Receita recebida"
+              value={formatBRL(summary.total_received_brl)}
+              icon={CheckCircle}
+              accent="green"
+              context="total acumulado"
+            />
+            <StatCard
+              label="A receber"
+              value={formatBRL(summary.total_receivable_brl)}
+              icon={Clock}
+              accent="blue"
+              context="em aberto"
+            />
+            <StatCard
+              label="Em atraso"
+              value={formatBRL(summary.overdue_brl)}
+              icon={AlertTriangle}
+              accent="red"
+              context={`${overdueReceivables.length} parcela${overdueReceivables.length !== 1 ? "s" : ""}`}
+            />
+            <StatCard
+              label="Margem líquida"
+              value={`${summary.net_margin_pct}%`}
+              icon={TrendingUp}
+              accent="burgundy"
+              context="após custos fixos"
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
             {/* Planos contratados */}
-            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-              <h2 className="mb-4 text-sm font-semibold text-foreground">Planos Ativos</h2>
-              <div className="space-y-3">
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[18rem]">
+              <h2 className="mb-4 text-sm font-semibold text-foreground shrink-0">Planos Ativos</h2>
+              <ScrollList className="space-y-3">
                 {(["Legacy", "Journey", "Start"] as const).map((plan) => {
                   const cfg = PLAN_CONFIG[plan];
                   const count = contractsByPlan[plan];
@@ -521,79 +576,92 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                     </div>
                   );
                 })}
-              </div>
+              </ScrollList>
             </div>
 
-            {/* Custos fixos */}
-            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-              <div className="mb-4 flex items-center justify-between">
+            {/* Custos fixos mensais — dados reais (folha + despesas recorrentes) */}
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[20rem]">
+              <div className="mb-4 flex items-center justify-between shrink-0">
                 <h2 className="text-sm font-semibold text-foreground">Custos Fixos Mensais</h2>
                 <span className="text-sm font-bold text-sys-red">{formatBRL(totalFixedCosts)}</span>
               </div>
-              <div className="space-y-2">
-                {FIXED_COSTS.filter((c) => c.active).map((cost) => (
-                  <div key={cost.id} className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-muted-foreground flex-1 min-w-0 truncate">{cost.name}</p>
-                    <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(cost.amount_monthly)}</p>
+              <ScrollList className="space-y-2">
+                {folhaMensal > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Folha (equipe)</p>
+                    <p className="flex-shrink-0 text-xs font-semibold text-foreground">{formatBRL(folhaMensal)}</p>
                   </div>
-                ))}
-              </div>
-              <div className="mt-4 border-t border-border pt-3">
-                <h3 className="mb-2 text-xs font-semibold text-muted-foreground">Custos Variaveis (por contrato)</h3>
-                {VARIABLE_COSTS.map((vc) => (
-                  <div key={vc.id} className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className={cn("rounded-md border px-1.5 py-0.5 text-[9px] font-bold", PLAN_CONFIG[vc.plan].bg, PLAN_CONFIG[vc.plan].color)}>
-                        {vc.plan}
+                )}
+                {marketingMensal > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                      Marketing (mídia)
+                      <span className="ml-1.5 text-[10px] text-label-tertiary">de Analytics/CAC</span>
+                    </p>
+                    <p className="flex-shrink-0 text-xs font-semibold text-foreground">{formatBRL(marketingMensal)}</p>
+                  </div>
+                )}
+                {custosRecorrentes.map((c) => (
+                  <div key={c.nome} className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                      {c.nome}
+                      <span className="ml-1.5 text-[10px] text-label-tertiary">
+                        {(DESPESA_CATEGORIA_LABEL as Record<string, string>)[c.categoria] ?? c.categoria}
                       </span>
-                      <p className="text-xs text-muted-foreground truncate">{vc.name}</p>
-                    </div>
-                    <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(vc.amount)}</p>
+                    </p>
+                    <p className="flex-shrink-0 text-xs font-semibold text-foreground">{formatBRL(c.valor)}</p>
                   </div>
                 ))}
-              </div>
+                {totalFixedCosts === 0 && (
+                  <p className="text-xs text-label-tertiary">
+                    Nenhum custo fixo cadastrado. Adicione na aba <strong>Saídas</strong> e <strong>Folha</strong>.
+                  </p>
+                )}
+              </ScrollList>
             </div>
 
             {/* Alertas de recebiveis */}
-            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
-              <h2 className="mb-4 text-sm font-semibold text-foreground">Alertas de Recebimento</h2>
+            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5 flex flex-col h-[24rem]">
+              <h2 className="mb-4 text-sm font-semibold text-foreground shrink-0">Alertas de Recebimento</h2>
 
-              {overdueReceivables.length > 0 && (
-                <div className="mb-4">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-sys-red">
-                    Em Atraso ({overdueReceivables.length})
+              <ScrollList>
+                {overdueReceivables.length > 0 && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-sys-red">
+                      Em Atraso ({overdueReceivables.length})
+                    </p>
+                    <div className="space-y-2">
+                      {overdueReceivables.map((r) => (
+                        <div key={r.id} className="rounded-lg border border-sys-red/20 bg-sys-red/5 p-2.5">
+                          <p className="text-xs font-medium text-foreground">{r.client_name}</p>
+                          <p className="text-[10px] text-muted-foreground">{r.description}</p>
+                          <p className="mt-1 text-xs font-semibold text-sys-red">{formatBRL(r.amount)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
+                    Proximos vencimentos
                   </p>
                   <div className="space-y-2">
-                    {overdueReceivables.map((r) => (
-                      <div key={r.id} className="rounded-lg border border-sys-red/20 bg-sys-red/5 p-2.5">
-                        <p className="text-xs font-medium text-foreground">{r.client_name}</p>
-                        <p className="text-[10px] text-muted-foreground">{r.description}</p>
-                        <p className="mt-1 text-xs font-semibold text-sys-red">{formatBRL(r.amount)}</p>
+                    {upcomingReceivables.slice(0, 5).map((r) => (
+                      <div key={r.id} className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">{r.client_name}</p>
+                          <p className="text-[10px] text-label-tertiary">{new Date(r.due_date).toLocaleDateString("pt-BR")}</p>
+                        </div>
+                        <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(r.amount)}</p>
                       </div>
                     ))}
+                    {upcomingReceivables.length === 0 && (
+                      <p className="text-xs text-label-tertiary">Nenhum vencimento proximo.</p>
+                    )}
                   </div>
                 </div>
-              )}
-
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
-                  Proximos vencimentos
-                </p>
-                <div className="space-y-2">
-                  {upcomingReceivables.slice(0, 5).map((r) => (
-                    <div key={r.id} className="flex items-center justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">{r.client_name}</p>
-                        <p className="text-[10px] text-label-tertiary">{new Date(r.due_date).toLocaleDateString("pt-BR")}</p>
-                      </div>
-                      <p className="text-xs font-semibold text-foreground flex-shrink-0">{formatBRL(r.amount)}</p>
-                    </div>
-                  ))}
-                  {upcomingReceivables.length === 0 && (
-                    <p className="text-xs text-label-tertiary">Nenhum vencimento proximo.</p>
-                  )}
-                </div>
-              </div>
+              </ScrollList>
             </div>
           </div>
 
@@ -754,7 +822,11 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                     .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
                     .slice(0, 30)
                     .map((rec) => (
-                      <ReceivableRow key={rec.id} rec={rec} />
+                      <ReceivableRow
+                        key={rec.id}
+                        rec={rec}
+                        dealId={contratoMap.get(rec.contract_id)?.deal_id ?? null}
+                      />
                     ))}
                 </tbody>
               </table>

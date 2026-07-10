@@ -24,6 +24,7 @@ import {
 } from "@/types/family";
 import type { Tarefa } from "@/types/crm";
 import type { OnboardingResumo } from "@/lib/actions/onboarding";
+import { Card, EmptyState, PageHeader, ScrollList, StatCard } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 // --- Tipos ---
@@ -133,8 +134,8 @@ function UrgentActionsSection({
   const totalUrgent = urgentFamilies.length + overdueTasks.length;
 
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[24rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-red/10">
           <Flame className="h-4 w-4 text-sys-red" />
         </div>
@@ -149,12 +150,12 @@ function UrgentActionsSection({
       </div>
 
       {totalUrgent === 0 && (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
-          <p className="text-sm text-muted-foreground">Tudo em dia! Nenhuma acao urgente.</p>
-        </div>
+        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
+          <EmptyState icon={Flame} title="Tudo em dia! Nenhuma acao urgente." />
+        </Card>
       )}
 
-      <div className="space-y-2">
+      <ScrollList className="space-y-2">
         {urgentFamilies.map((f) => {
           const statusCfg = FAMILY_STATUS_CONFIG[f.family_status];
           return (
@@ -216,7 +217,7 @@ function UrgentActionsSection({
             </span>
           </div>
         ))}
-      </div>
+      </ScrollList>
     </section>
   );
 }
@@ -235,7 +236,7 @@ function FamilyCard({
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-lg border border-border/70 bg-card/60 p-3 text-left transition-colors hover:border-border hover:bg-accent"
+      className="w-full rounded-2xl border border-border bg-card p-3.5 text-left shadow-sm transition-all hover:bg-accent hover:shadow-md"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -312,11 +313,9 @@ function MyFamiliesSection({
       </div>
 
       {families.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Nenhuma familia atribuida ainda.
-          </p>
-        </div>
+        <Card variant="ghost" padding="none">
+          <EmptyState icon={Users} title="Nenhuma familia atribuida ainda." />
+        </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {sorted.map((f) => (
@@ -356,12 +355,13 @@ function OnboardingsSection({
       </div>
 
       {onboardings.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Nenhum onboarding em andamento. Famílias entrarão aqui quando o deal
-            atingir <code>admission_process</code>.
-          </p>
-        </div>
+        <Card variant="ghost" padding="none">
+          <EmptyState
+            icon={Sparkles}
+            title="Nenhum onboarding em andamento"
+            description="Famílias entrarão aqui quando o deal atingir admission_process."
+          />
+        </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {onboardings.map((o) => {
@@ -376,7 +376,7 @@ function OnboardingsSection({
               <a
                 key={o.instancia_id}
                 href={`/familias-crm?familia=${o.experiencia_id}`}
-                className="rounded-lg border border-border/70 bg-card/60 p-3 transition-colors hover:bg-accent block"
+                className="block rounded-2xl border border-border bg-card p-3.5 shadow-sm transition-all hover:bg-accent hover:shadow-md"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="min-w-0 flex-1">
@@ -446,8 +446,8 @@ function ProximasReunioesSection({
   reunioes: ProximaReuniao[];
 }) {
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[20rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/10">
           <Video className="h-4 w-4 text-sys-blue" />
         </div>
@@ -464,13 +464,11 @@ function ProximasReunioesSection({
       </div>
 
       {reunioes.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Nenhuma reunião agendada nos próximos dias.
-          </p>
-        </div>
+        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
+          <EmptyState icon={Video} title="Nenhuma reunião agendada nos próximos dias." />
+        </Card>
       ) : (
-        <div className="space-y-2">
+        <ScrollList className="space-y-2">
           {reunioes.map((r) => {
             const data = new Date(r.data_hora);
             const isToday = data.toDateString() === new Date().toDateString();
@@ -527,7 +525,7 @@ function ProximasReunioesSection({
               </div>
             );
           })}
-        </div>
+        </ScrollList>
       )}
     </section>
   );
@@ -535,8 +533,8 @@ function ProximasReunioesSection({
 
 function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[20rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-plan-legacy/10">
           <Calendar className="h-4 w-4 text-plan-legacy" />
         </div>
@@ -551,13 +549,11 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
       </div>
 
       {contacts.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Nenhum contato agendado para os proximos 7 dias.
-          </p>
-        </div>
+        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
+          <EmptyState icon={Calendar} title="Nenhum contato agendado para os proximos 7 dias." />
+        </Card>
       ) : (
-        <div className="space-y-2">
+        <ScrollList className="space-y-2">
           {contacts.map((c, i) => {
             const statusCfg = FAMILY_STATUS_CONFIG[c.status];
             const dateObj = new Date(c.date);
@@ -610,7 +606,7 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
               </div>
             );
           })}
-        </div>
+        </ScrollList>
       )}
     </section>
   );
@@ -642,8 +638,8 @@ function NeedContactSection({
     .sort((a, b) => b.days_without_contact - a.days_without_contact);
 
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[24rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-orange/10">
           <Phone className="h-4 w-4 text-sys-orange" />
         </div>
@@ -660,13 +656,11 @@ function NeedContactSection({
       </div>
 
       {needContact.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Todas as familias estao dentro do prazo de contato.
-          </p>
-        </div>
+        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
+          <EmptyState icon={Phone} title="Todas as familias estao dentro do prazo de contato." />
+        </Card>
       ) : (
-        <div className="space-y-2">
+        <ScrollList className="space-y-2">
           {needContact.map((f) => {
             const threshold = INACTIVITY_THRESHOLD[f.journey_stage] ?? 7;
             const isOverThreshold = f.days_without_contact >= threshold;
@@ -702,7 +696,7 @@ function NeedContactSection({
               </button>
             );
           })}
-        </div>
+        </ScrollList>
       )}
     </section>
   );
@@ -720,8 +714,8 @@ function AdmissaoSection({
   );
 
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
+    <section className="flex flex-col h-[20rem]">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/15">
           <GraduationCap className="h-4 w-4 text-sys-blue" />
         </div>
@@ -738,13 +732,11 @@ function AdmissaoSection({
       </div>
 
       {admissaoFamilies.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-card/60 p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Nenhum processo de admissao ativo no momento.
-          </p>
-        </div>
+        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
+          <EmptyState icon={GraduationCap} title="Nenhum processo de admissao ativo no momento." />
+        </Card>
       ) : (
-        <div className="space-y-2">
+        <ScrollList className="space-y-2">
           {admissaoFamilies.map((f) => {
             const stageCfg = JOURNEY_STAGE_CONFIG[f.journey_stage];
             const hasSchool = Boolean(f.escola_confirmada_id);
@@ -777,7 +769,7 @@ function AdmissaoSection({
               </button>
             );
           })}
-        </div>
+        </ScrollList>
       )}
     </section>
   );
@@ -796,37 +788,31 @@ function PerformanceSection({ performance }: { performance: PerformanceMetrics }
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3 text-center">
-          <p className="text-base font-semibold text-foreground">{performance.totalFamilias}</p>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
-            Total familias
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3 text-center">
-          <p className="text-base font-semibold text-sys-green">
-            {performance.mediaSatisfacao}
-          </p>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
-            Media satisfacao
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3 text-center">
-          <p className="text-base font-semibold text-sys-orange">
-            {performance.mediaAnsiedade}
-          </p>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
-            Media ansiedade
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3 text-center">
-          <p className="text-base font-semibold text-primary">
-            {performance.contatosSemana}
-          </p>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">
-            Contatos semana
-          </p>
-        </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard
+          label="Total familias"
+          value={performance.totalFamilias}
+          icon={Users}
+          accent="brand"
+        />
+        <StatCard
+          label="Media satisfacao"
+          value={performance.mediaSatisfacao}
+          icon={Activity}
+          accent="green"
+        />
+        <StatCard
+          label="Media ansiedade"
+          value={performance.mediaAnsiedade}
+          icon={AlertTriangle}
+          accent="orange"
+        />
+        <StatCard
+          label="Contatos semana"
+          value={performance.contatosSemana}
+          icon={Phone}
+          accent="blue"
+        />
       </div>
     </section>
   );
@@ -893,51 +879,37 @@ export function MinhaAreaClient({
   ).length;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-foreground">
-          {greeting}, {userName.split(" ")[0]}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Voce tem {families.length}{" "}
-          {families.length === 1 ? "familia" : "familias"} sob seu
-          acompanhamento
-        </p>
-      </div>
+      <PageHeader dense
+        eyebrow={`${greeting}, ${userName.split(" ")[0]}`}
+        title="Sua Area"
+        description={`Voce tem ${families.length} ${
+          families.length === 1 ? "familia" : "familias"
+        } sob seu acompanhamento`}
+      />
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider">
-            Total
-          </p>
-          <p className="text-base font-semibold text-foreground mt-1">
-            {families.length}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <p className="text-[11px] text-sys-green uppercase tracking-wider">
-            Satisfeitas
-          </p>
-          <p className="text-base font-semibold text-sys-green mt-1">
-            {satisfeitaCount}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <p className="text-[11px] text-sys-orange uppercase tracking-wider">
-            Atencao
-          </p>
-          <p className="text-base font-semibold text-sys-orange mt-1">
-            {atencaoCount}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/60 p-3">
-          <p className="text-[11px] text-sys-red uppercase tracking-wider">
-            Crise
-          </p>
-          <p className="text-base font-semibold text-sys-red mt-1">{criseCount}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Total" value={families.length} icon={Users} accent="brand" />
+        <StatCard
+          label="Satisfeitas"
+          value={satisfeitaCount}
+          icon={Activity}
+          accent="green"
+        />
+        <StatCard
+          label="Atencao"
+          value={atencaoCount}
+          icon={Clock}
+          accent="orange"
+        />
+        <StatCard
+          label="Crise"
+          value={criseCount}
+          icon={AlertTriangle}
+          accent="red"
+        />
       </div>
 
       {/* Section 1: Fazer Agora */}

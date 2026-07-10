@@ -51,9 +51,9 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
           : undefined
       }
       className={cn(
-        "group relative cursor-grab rounded-md border border-border bg-card p-2 transition-all hover:border-primary/30 hover:shadow-sm active:cursor-grabbing",
-        isDragging && "rotate-1 scale-105 opacity-60 shadow-lg",
-        isUnconfigured && !isLost && "border-sys-red/30",
+        "group relative cursor-grab rounded-xl border border-border bg-card p-2.5 shadow-xs transition-all hover:-translate-y-px hover:border-primary/40 hover:shadow-md active:cursor-grabbing",
+        isDragging && "rotate-1 scale-105 opacity-70 shadow-lg",
+        isUnconfigured && !isLost && "border-sys-red/40",
       )}
     >
       {/* Sinal de incompleto */}
@@ -68,7 +68,7 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
 
       {/* Linha 1: nome */}
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-[12px] font-semibold leading-tight text-foreground">
+        <p className="truncate text-[10px] font-semibold leading-tight text-foreground">
           {deal.athlete_name}
         </p>
       </div>
@@ -156,7 +156,7 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
 
       {/* Motivo de perda */}
       {deal.lost_reason && (
-        <p className="mt-1 truncate text-[10px] italic text-sys-red/70">
+        <p className="mt-1 truncate text-[10px] italic text-sys-red">
           {deal.lost_reason}
         </p>
       )}

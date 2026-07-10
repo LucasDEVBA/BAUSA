@@ -8,6 +8,13 @@ const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "Bolsa Atleta USA <contato@bolsaatletausa.com>";
 const INTERNAL_EMAIL = process.env.INTERNAL_EMAIL || "contato@bolsaatletausa.com";
 const LOGO_URL = process.env.LOGO_URL || "https://nikrlikwghqcxcjzthmc.supabase.co/storage/v1/object/public/public-assets/logo-bsa.jpg";
+// Config dinâmica (/automacoes) — OPCIONAIS: sem eles a CF se comporta
+// exatamente como hoje (toggles ativos + destino INTERNAL_EMAIL da env).
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || "public";
+// Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
+const RUNS_SCHEMA = "public";
 
 // ─── Helpers ────────────────────────────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,7 +39,9 @@ const httpRequest = (options, postData) => {
       req.destroy();
       reject(new Error("Request timeout (10s)"));
     });
-    req.write(postData);
+    // Guard p/ GETs sem body (fetchEmailConfig) — write(undefined) lançaria
+    // ERR_INVALID_ARG_TYPE. Paridade com as demais CFs do repo.
+    if (postData) req.write(postData);
     req.end();
   });
 };
@@ -187,6 +196,62 @@ const renderEmailShell = ({ badge, title, bodyHtml, ctaHref = 'https://bolsaatle
         <a href="${ctaHref}" style="display:inline-block;background:linear-gradient(90deg, ${colors.primary} 0%, #2C5282 100%);color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(26,54,93,0.2);">${ctaLabel}</a>
       </td></tr>
       <tr><td style="padding:30px 40px;background-color:#F7FAFC;border-radius:0 0 12px 12px;border-top:1px solid #E2E8F0;">
+        <p style="margin:0;font-size:13px;color:#718096;text-align:center;line-height:1.6;">&copy; ${new Date().getFullYear()} Bolsa Atleta USA. Todos os direitos reservados.<br><span style="font-size:11px;">Este é um e-mail automático, por favor não responda.</span></p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+};
+
+// ─── Wrapper HTML do e-mail CUSTOM (automation-engine) ─────────
+// Intencionalmente leve: logo + parágrafos do texto + footer — sem o
+// template pesado dos e-mails de confirmação. O texto chega PLAIN
+// (placeholders já renderizados pela engine); é sanitizado aqui e as
+// quebras de linha viram parágrafos.
+// Mídia opcional (I2): media.imageUrl embutida no topo do corpo;
+// media.linkUrl vira botão/CTA (rótulo media.linkTitle, default "Saiba
+// mais"). URLs já validadas http(s) no handler; aqui são HTML-escapadas
+// (sanitize) para o contexto de atributo — sem mídia, o HTML é idêntico
+// ao histórico.
+const getCustomEmailHtml = (text, media = {}) => {
+  const paragraphs = String(text)
+    .split(/\r?\n+/)
+    .map((linha) => linha.trim())
+    .filter((linha) => linha.length > 0)
+    .map((linha) => `<p style="margin:0 0 16px 0;">${sanitize(linha)}</p>`)
+    .join("");
+  // Guarda de scheme DENTRO do render (defesa em profundidade além da
+  // validação do handler): URL fora de http(s) — ex.: javascript: — jamais
+  // vira src/href, mesmo se um caller futuro pular a validação de entrada.
+  const safeUrl = (u) =>
+    typeof u === "string" && /^https?:\/\//i.test(u.trim()) ? sanitize(u.trim()) : null;
+  const safeImageUrl = safeUrl(media.imageUrl);
+  const safeLinkUrl = safeUrl(media.linkUrl);
+  const imageHtml = safeImageUrl
+    ? `<tr><td style="padding:28px 40px 0 40px;">
+        <img src="${safeImageUrl}" alt="" style="width:100%;height:auto;display:block;border-radius:8px;">
+      </td></tr>`
+    : "";
+  const buttonHtml = safeLinkUrl
+    ? `<tr><td style="padding:0 40px 32px 40px;text-align:center;">
+        <a href="${safeLinkUrl}" style="display:inline-block;background:linear-gradient(90deg, #1A365D 0%, #2C5282 100%);color:#ffffff;padding:13px 30px;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;box-shadow:0 2px 4px rgba(26,54,93,0.2);">${sanitize(media.linkTitle) || "Saiba mais"}</a>
+      </td></tr>`
+    : "";
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Bolsa Atleta USA</title></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" style="width:100%;border-collapse:collapse;background-color:#f4f4f4;" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 20px;">
+    <table role="presentation" style="max-width:600px;width:100%;border-collapse:collapse;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.1);" cellpadding="0" cellspacing="0">
+      <tr><td style="padding:32px 40px 24px 40px;text-align:center;border-bottom:1px solid #E2E8F0;">
+        <img src="${LOGO_URL}" alt="Bolsa Atleta USA" style="max-width:180px;height:auto;display:block;margin:0 auto;">
+      </td></tr>
+      ${imageHtml}
+      <tr><td style="padding:32px 40px;">
+        <div style="color:#2D3748;font-size:16px;line-height:1.7;">${paragraphs}</div>
+      </td></tr>
+      ${buttonHtml}
+      <tr><td style="padding:24px 40px;background-color:#F7FAFC;border-radius:0 0 12px 12px;border-top:1px solid #E2E8F0;">
         <p style="margin:0;font-size:13px;color:#718096;text-align:center;line-height:1.6;">&copy; ${new Date().getFullYear()} Bolsa Atleta USA. Todos os direitos reservados.<br><span style="font-size:11px;">Este é um e-mail automático, por favor não responda.</span></p>
       </td></tr>
     </table>
@@ -490,6 +555,89 @@ const getInternalTemplate = (data) => {
 };
 
 // ─── Cloud Function principal ───────────────────────────────────
+// ─── Config dinâmica das automações de sistema (/automacoes) ────
+// sistema_automacoes_ativas: toggles on/off (campo ausente = ATIVA).
+// email_config: destino_interno (ausente = env INTERNAL_EMAIL).
+// Config indisponível JAMAIS bloqueia o envio — fallback {} (fail-open).
+const fetchEmailConfig = async () => {
+  const out = { ativas: {}, emailCfg: {} };
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return out;
+  try {
+    const u = new URL(
+      `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=in.(sistema_automacoes_ativas,email_config)&select=chave,valor`
+    );
+    const result = await httpRequest({
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      method: "GET",
+      headers: {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+        "Accept-Profile": SUPABASE_SCHEMA,
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET config: ${result.statusCode}`);
+    for (const row of JSON.parse(result.body) || []) {
+      if (row.chave === "sistema_automacoes_ativas" && row.valor && typeof row.valor === "object") {
+        out.ativas = row.valor;
+      }
+      if (row.chave === "email_config" && row.valor && typeof row.valor === "object") {
+        out.emailCfg = row.valor;
+      }
+    }
+  } catch (e) {
+    console.log(JSON.stringify({ level: "WARN", action: "email_config_fallback", error: e.message }));
+  }
+  return out;
+};
+
+// ─── Âncora da automação de SISTEMA (aba Execuções de /automacoes) ─────────
+// ID fixo semeado pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_EMAIL_CONFIRMACAO_ID = "a0000000-0000-4000-8000-000000000008";
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const u = new URL(`${SUPABASE_URL}/rest/v1/automacao_runs`);
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? "sucesso" : "erro",
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? "form_submissions" : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest({
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(postData),
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+        "Content-Profile": RUNS_SCHEMA,
+        "Prefer": "return=minimal",
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || "").substring(0, 200)}`);
+    }
+  } catch (e) {
+    console.log(JSON.stringify({ level: "WARN", action: "run_sistema_fallback", error: e.message }));
+  }
+};
+
 functions.http("sendMessages", async (req, res) => {
   const startTime = Date.now();
 
@@ -503,6 +651,71 @@ functions.http("sendMessages", async (req, res) => {
   }
 
   try {
+    // ─── Caminho CUSTOM (automation-engine → ação enviar_email_custom) ───
+    // Payload: { customEmail: { to, subject, text } }. Early-return ANTES do
+    // fluxo de confirmação por INSERT — com customEmail ausente, o caminho
+    // existente segue byte-intacto (zero impacto no webhook do formulário).
+    const customEmail = req.body?.customEmail;
+    if (customEmail) {
+      const errors = [];
+      if (!customEmail.to || typeof customEmail.to !== "string" || !customEmail.to.includes("@")) {
+        errors.push("Campo 'to' ausente ou inválido");
+      }
+      if (!customEmail.subject || typeof customEmail.subject !== "string" || customEmail.subject.trim().length === 0) {
+        errors.push("Campo 'subject' ausente ou vazio");
+      }
+      if (!customEmail.text || typeof customEmail.text !== "string" || customEmail.text.trim().length === 0) {
+        errors.push("Campo 'text' ausente ou vazio");
+      }
+      // Mídia opcional (I2): quando presente, URLs precisam ser http(s)
+      // (defesa em profundidade — o Zod do builder já valida na entrada;
+      // aqui protege contra scheme injection em href/src, ex.: javascript:).
+      const isHttpUrl = (v) => typeof v === "string" && /^https?:\/\//i.test(v.trim());
+      if (customEmail.imageUrl !== undefined && !isHttpUrl(customEmail.imageUrl)) {
+        errors.push("Campo 'imageUrl' inválido (URL http/https)");
+      }
+      if (customEmail.linkUrl !== undefined && !isHttpUrl(customEmail.linkUrl)) {
+        errors.push("Campo 'linkUrl' inválido (URL http/https)");
+      }
+      if (customEmail.linkTitle !== undefined && typeof customEmail.linkTitle !== "string") {
+        errors.push("Campo 'linkTitle' inválido");
+      }
+      if (errors.length > 0) {
+        console.log(JSON.stringify({
+          level: "WARN", action: "custom_email_validation_failed", errors,
+        }));
+        return res.status(400).send({ success: false, message: "customEmail inválido", errors });
+      }
+
+      console.log(JSON.stringify({
+        level: "INFO", action: "custom_email_start", to: customEmail.to,
+        withImage: !!customEmail.imageUrl, withLink: !!customEmail.linkUrl,
+      }));
+      const result = await sendEmailWithFallback(
+        customEmail.to,
+        customEmail.subject.trim(),
+        getCustomEmailHtml(customEmail.text, {
+          imageUrl: customEmail.imageUrl ? customEmail.imageUrl.trim() : undefined,
+          linkUrl: customEmail.linkUrl ? customEmail.linkUrl.trim() : undefined,
+          linkTitle: typeof customEmail.linkTitle === "string" ? customEmail.linkTitle.trim() : undefined,
+        }),
+        "CUSTOM"
+      );
+      const durationMs = Date.now() - startTime;
+      console.log(JSON.stringify({
+        level: result.success ? "INFO" : "ERROR",
+        action: "custom_email_complete",
+        to: customEmail.to, success: result.success, durationMs,
+      }));
+      // Falha de envio responde 502 — o chamador (automation-engine) trata
+      // >=400 como erro e faz retry com backoff.
+      return res.status(result.success ? 200 : 502).send({
+        success: result.success,
+        ...(result.success ? { provider: result.provider } : { error: result.reason }),
+        durationMs,
+      });
+    }
+
     const data = req.body.record || req.body;
 
     const validation = validatePayload(data);
@@ -568,11 +781,31 @@ functions.http("sendMessages", async (req, res) => {
 
     const results = [];
 
+    // Config dinâmica (/automacoes): toggles + destino do e-mail interno.
+    // Fail-open: config indisponível = comportamento atual (tudo ativo).
+    const { ativas, emailCfg } = await fetchEmailConfig();
+    const confirmacaoAtiva = ativas.email_confirmacao !== false;
+    const internoAtivo = ativas.email_interno !== false;
+    const internalTo =
+      typeof emailCfg.destino_interno === "string" && emailCfg.destino_interno.trim()
+        ? emailCfg.destino_interno.trim()
+        : INTERNAL_EMAIL;
+
     // Verifica se email do atleta e responsável são o mesmo
     const sameEmail = data.guardian_email &&
       data.guardian_email.trim().toLowerCase() === data.email.trim().toLowerCase();
 
-    if (sameEmail) {
+    if (!confirmacaoAtiva) {
+      // Toggle email_confirmacao cobre TODOS os e-mails automáticos ao lead
+      // deste fluxo (initial + early_potential/late_timing/scheduled_return) —
+      // semântica documentada na UI. O interno (toggle próprio) sai abaixo;
+      // o caminho customEmail (envios manuais/billing) NÃO passa por aqui.
+      console.log(JSON.stringify({
+        level: "WARN", action: "email_confirmacao_desativado_skip",
+        athlete: data.athlete_name, messageType,
+      }));
+      results.push({ label: "CONFIRMACAO", success: true, skipped: true });
+    } else if (sameEmail) {
       // Mesmo email: envia apenas a copy do responsável (mais completa)
       console.log(JSON.stringify({ level: "INFO", action: "same_email_detected", email: data.email }));
 
@@ -621,17 +854,25 @@ functions.http("sendMessages", async (req, res) => {
 
     // 3. E-mail interno: apenas para fluxo 'initial' (avisa equipe sobre novo lead).
     // Mensagens de timing não geram aviso interno (são automações pós-qualificação).
-    if (messageType === 'initial') {
+    // Destino editável em /automacoes (email_config.destino_interno) + toggle próprio.
+    if (messageType === 'initial' && internoAtivo) {
       const internalResult = await sendEmailWithFallback(
-        INTERNAL_EMAIL,
+        internalTo,
         `🎯 Novo Lead: ${sanitize(data.athlete_name)}`,
         getInternalTemplate(data),
         "INTERNO"
       );
       results.push({ label: "INTERNO", ...internalResult });
+    } else if (messageType === 'initial') {
+      console.log(JSON.stringify({
+        level: "WARN", action: "email_interno_desativado_skip", athlete: data.athlete_name,
+      }));
+      results.push({ label: "INTERNO", success: true, skipped: true });
     }
 
-    const totalSent = results.filter((r) => r.success).length;
+    // Skips por toggle (/automacoes) não contam como enviados nem falhas.
+    const totalSkipped = results.filter((r) => r.skipped).length;
+    const totalSent = results.filter((r) => r.success && !r.skipped).length;
     const totalFailed = results.filter((r) => !r.success).length;
     const durationMs = Date.now() - startTime;
 
@@ -639,12 +880,28 @@ functions.http("sendMessages", async (req, res) => {
       level: totalFailed > 0 ? "WARN" : "INFO",
       action: "processing_complete",
       athlete: data.athlete_name,
-      totalSent, totalFailed, durationMs, results,
+      totalSent, totalSkipped, totalFailed, durationMs, results,
     }));
+
+    // Registro em automacao_runs (aba Execuções) — UM run por request do
+    // fluxo `record` (o caminho customEmail NÃO chega aqui: early-return).
+    // PII: detalhe usa só os labels (ATLETA/RESPONSAVEL/INTERNO), sem e-mail.
+    await registrarRunSistema({
+      automacaoId: RUN_EMAIL_CONFIRMACAO_ID,
+      ok: totalFailed === 0,
+      lead: data,
+      acoes: results.map((r) => ({
+        tipo: "email_confirmacao",
+        status: r.success ? "ok" : "falha",
+        detalhe: r.skipped
+          ? `${r.label}: pulado (toggle)`
+          : `${r.label}: ${r.success ? "enviado" : "falhou"}${r.provider ? ` via ${r.provider}` : ""}`,
+      })),
+    });
 
     res.status(200).send({
       success: true,
-      message: `Processado: ${totalSent} enviados, ${totalFailed} falharam`,
+      message: `Processado: ${totalSent} enviados, ${totalSkipped} pulados, ${totalFailed} falharam`,
       results, durationMs,
     });
 

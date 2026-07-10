@@ -42,7 +42,11 @@ import type { NotaInterna, AuditLog } from "@/types/crm";
 import { formatInvestmentRange, getInitials, formatDateTime, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { DealDocumentsTab } from "./DealDocumentsTab";
+import {
+  DocumentosChecklist,
+  DocumentosUrgentesBadge,
+  useDocumentosAtleta,
+} from "@/components/documentos/DocumentosChecklist";
 import { DealContratoTab } from "./DealContratoTab";
 
 interface DealDetailSheetProps {
@@ -483,7 +487,7 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
                       <p key={campo} className="text-xs text-muted-foreground">
                         <span className="font-medium text-foreground">{label}</span>
                         {anterior != null && (
-                          <span className="text-label-tertiary"> de <span className="text-sys-red/70">{String(anterior)}</span></span>
+                          <span className="text-label-tertiary"> de <span className="text-sys-red">{String(anterior)}</span></span>
                         )}
                         <span className="text-label-tertiary"> para </span>
                         <span className={color}>{String(novo ?? "—")}</span>
@@ -510,6 +514,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<TabId>("resumo");
+  const documentos = useDocumentosAtleta(deal?.atleta_id);
 
   // Resumo tab state
   const [nextAction, setNextAction] = useState(deal?.next_action ?? "");
@@ -718,7 +723,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
         {/* Header */}
         <div className="flex-shrink-0 border-b border-border px-6 py-5">
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-base font-bold text-white">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-brand text-base font-bold text-white">
               {getInitials(deal.athlete_name)}
             </div>
             <div className="flex-1 min-w-0">
@@ -780,13 +785,16 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors",
+                  "flex flex-1 items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-medium transition-colors",
                   activeTab === tab.id
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-fill-4",
                 )}
               >
                 {tab.label}
+                {tab.id === "documentos" && (
+                  <DocumentosUrgentesBadge count={documentos.urgentes} />
+                )}
               </button>
             ))}
           </div>
@@ -1587,7 +1595,12 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
 
           {/* TAB: DOCUMENTOS */}
           {activeTab === "documentos" && deal.atleta_id && (
-            <DealDocumentsTab atletaId={deal.atleta_id} />
+            <DocumentosChecklist
+              atletaId={deal.atleta_id}
+              docs={documentos.docs}
+              loading={documentos.loading}
+              onRefetch={documentos.refetch}
+            />
           )}
           {activeTab === "documentos" && !deal.atleta_id && (
             <div className="flex flex-col items-center gap-3 py-8">

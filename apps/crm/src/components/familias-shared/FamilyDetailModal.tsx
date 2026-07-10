@@ -46,6 +46,7 @@ import {
 import { getFileSignedUrl } from "@/lib/actions/uploads";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import type { NotaInterna } from "@/types/crm";
+import { ScrollList } from "@/components/ui";
 import { QuickActionsBar } from "./QuickActionsBar";
 import { FileUploader, AttachmentList, type UploadedFile } from "./FileUploader";
 import { HealthScoreCard } from "./HealthBadge";
@@ -199,6 +200,15 @@ export function FamilyDetailModal({
   const tempCfg = TEMPERATURE_CONFIG[family.temperatura];
   const stageCfg = JOURNEY_STAGE_CONFIG[family.fase];
 
+  // Fecha com Escape (padrão dos demais modais: DealDetailModal, FormModal…).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const handleSaved = () => {
     onChanged?.();
     router.refresh();
@@ -210,6 +220,9 @@ export function FamilyDetailModal({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Detalhe da família ${family.athlete_name}`}
         className="w-full max-w-4xl max-h-[92vh] rounded-2xl flex flex-col overflow-hidden liquid-glass"
         onClick={(e) => e.stopPropagation()}
       >
@@ -851,9 +864,9 @@ function TabRegistros({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col h-[18rem] space-y-5">
       {/* Form */}
-      <div className="rounded-xl border border-sys-green/20 bg-sys-green/5 p-3 space-y-3">
+      <div className="shrink-0 rounded-xl border border-sys-green/20 bg-sys-green/5 p-3 space-y-3">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-sys-green">
           Novo registro de contato
         </p>
@@ -922,8 +935,8 @@ function TabRegistros({
       </div>
 
       {/* Lista */}
-      <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
+      <div className="flex flex-1 flex-col min-h-0">
+        <p className="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
           Histórico de contatos
         </p>
         {loadPending ? (
@@ -936,7 +949,7 @@ function TabRegistros({
             Nenhum contato registrado ainda.
           </p>
         ) : (
-          <div className="space-y-2 max-h-72 overflow-y-auto">
+          <ScrollList className="space-y-2">
             {contatos.map((c) => (
               <div
                 key={c.id}
@@ -967,7 +980,7 @@ function TabRegistros({
                 )}
               </div>
             ))}
-          </div>
+          </ScrollList>
         )}
       </div>
     </div>
@@ -1041,6 +1054,7 @@ function TabDocumentos({
   const [novoObs, setNovoObs] = useState("");
 
   useEffect(() => {
+    if (!atletaId) return;
     let cancelled = false;
     startLoadTransition(async () => {
       const data = (await listarDocumentos(atletaId)) as DocumentoRow[];
@@ -1104,10 +1118,20 @@ function TabDocumentos({
     });
   };
 
+  if (!atletaId) {
+    return (
+      <div className="rounded-xl border border-dashed border-border py-10 text-center">
+        <p className="text-xs text-muted-foreground">
+          Atleta não vinculado a esta família — documentos indisponíveis.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col h-[20rem] space-y-5">
       {/* Form de novo doc */}
-      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-3">
+      <div className="shrink-0 rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-3">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
           Adicionar documento
         </p>
@@ -1185,8 +1209,8 @@ function TabDocumentos({
       </div>
 
       {/* Lista */}
-      <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
+      <div className="flex flex-1 flex-col min-h-0">
+        <p className="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
           Documentos do atleta ({docs.length})
         </p>
         {loadPending ? (
@@ -1199,7 +1223,7 @@ function TabDocumentos({
             Nenhum documento cadastrado.
           </p>
         ) : (
-          <div className="space-y-2">
+          <ScrollList className="space-y-2">
             {docs.map((d) => {
               const statusCfg =
                 STATUS_DOC_LABELS[d.status] ?? STATUS_DOC_LABELS.pendente;
@@ -1270,7 +1294,7 @@ function TabDocumentos({
                 </div>
               );
             })}
-          </div>
+          </ScrollList>
         )}
       </div>
     </div>
@@ -1544,8 +1568,8 @@ function TabNotas({ experienciaId }: { experienciaId: string }) {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex gap-2">
+    <div className="flex flex-col h-[20rem] space-y-3">
+      <div className="flex shrink-0 gap-2">
         <input
           type="text"
           value={newNote}
@@ -1573,9 +1597,11 @@ function TabNotas({ experienciaId }: { experienciaId: string }) {
       </div>
 
       {notes.length === 0 ? (
-        <p className="text-[11px] text-label-tertiary italic">Nenhuma nota ainda.</p>
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-[11px] text-label-tertiary italic">Nenhuma nota ainda.</p>
+        </div>
       ) : (
-        <div className="space-y-2 max-h-80 overflow-y-auto">
+        <ScrollList className="space-y-2">
           {notes.map((n) => (
             <div
               key={n.id}
@@ -1597,7 +1623,7 @@ function TabNotas({ experienciaId }: { experienciaId: string }) {
               <p className="text-xs text-foreground/80">{n.conteudo}</p>
             </div>
           ))}
-        </div>
+        </ScrollList>
       )}
     </div>
   );

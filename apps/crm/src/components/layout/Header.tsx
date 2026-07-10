@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { NotificationCenter } from "./NotificationCenter";
 import { ThemeToggle } from "./ThemeToggle";
 import { getInitials } from "@/lib/utils";
@@ -12,18 +12,15 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/dashboard": { label: "Dashboard", parent: "Leads" },
   "/leads": { label: "Lista", parent: "Leads" },
   "/pipeline": { label: "Pipeline" },
-  "/families": { label: "Famílias Ativas" },
+  "/agenda": { label: "Agenda", parent: "Comercial" },
   "/war-room": { label: "War Room" },
-  "/war-room/dashboard": { label: "Dashboard", parent: "War Room" },
-  "/war-room/meta": { label: "Meta e Receita", parent: "War Room" },
-  "/war-room/funil": { label: "Funil Comercial", parent: "War Room" },
-  "/war-room/caixa": { label: "Caixa", parent: "War Room" },
-  "/war-room/risco": { label: "Receita em Risco", parent: "War Room" },
-  "/war-room/posicionamento": { label: "Posicionamento", parent: "War Room" },
-  "/war-room/familias": { label: "Famílias", parent: "War Room" },
+  "/war-room/familias": { label: "Famílias (gerencial)", parent: "War Room" },
+  "/war-room/familias-onboarding": { label: "Onboarding Famílias", parent: "War Room" },
   "/analytics": { label: "Analytics", parent: "Executivo" },
   "/analytics/atribuicao": { label: "Atribuição", parent: "Analytics" },
   "/analytics/cac": { label: "CAC/ROI", parent: "Analytics" },
+  "/analytics/conversas": { label: "Conversas", parent: "Analytics" },
+  "/analytics/reunioes": { label: "Reuniões", parent: "Analytics" },
   "/analytics/utm-builder": { label: "Gerador UTM", parent: "Analytics" },
   "/messages": { label: "Mensagens" },
   "/minha-area": { label: "Minha Área" },
@@ -42,8 +39,20 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/matching": { label: "Motor de Match", parent: "Inteligencia" },
   "/financeiro": { label: "Financeiro", parent: "Comercial" },
   "/remarketing": { label: "Re-marketing", parent: "Comercial" },
-  "/documentos": { label: "Documentos", parent: "Sistema" },
-  "/automacoes-monitor": { label: "Automacoes", parent: "Sistema" },
+  "/whatsapp": { label: "WhatsApp", parent: "Comercial" },
+  "/automacoes": { label: "Automações", parent: "Comercial" },
+  "/automacoes-monitor": { label: "Monitor de filas", parent: "Sistema" },
+  "/sistema": { label: "Sistema" },
+};
+
+// Crumbs que mapeiam para uma rota real (viram links). Grupos sem rota própria
+// (Executivo, Comercial, Inteligência…) ficam como texto.
+const CRUMB_HREF: Record<string, string> = {
+  "BAU Engine": "/war-room",
+  Leads: "/leads",
+  "War Room": "/war-room",
+  Analytics: "/analytics",
+  Sistema: "/sistema",
 };
 
 interface HeaderProps {
@@ -53,49 +62,44 @@ interface HeaderProps {
 
 export function Header({ nome, avatarUrl }: HeaderProps) {
   const pathname = usePathname();
-
   const currentPage = BREADCRUMB_MAP[pathname] ?? BREADCRUMB_MAP["/" + pathname.split("/")[1]];
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-xl">
-      {/* Breadcrumb */}
-      <div className="flex flex-1 items-center gap-2 text-sm">
-        <span className="text-muted-foreground">BAU Global</span>
-        <span className="text-label-tertiary">/</span>
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/70 px-5 backdrop-blur-xl">
+      {/* Breadcrumb navegável */}
+      <nav aria-label="Trilha de navegação" className="flex min-w-0 flex-1 items-center gap-1.5">
+        <Link
+          href="/war-room"
+          className="hidden text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline"
+        >
+          BAU Engine
+        </Link>
+        <ChevronRight aria-hidden className="hidden size-3 text-label-tertiary sm:inline" />
         {currentPage?.parent && (
           <>
-            <span className="text-muted-foreground">{currentPage.parent}</span>
-            <span className="text-label-tertiary">/</span>
+            {CRUMB_HREF[currentPage.parent] ? (
+              <Link
+                href={CRUMB_HREF[currentPage.parent]}
+                className="hidden text-xs text-muted-foreground transition-colors hover:text-foreground md:inline"
+              >
+                {currentPage.parent}
+              </Link>
+            ) : (
+              <span className="hidden text-xs text-muted-foreground md:inline">{currentPage.parent}</span>
+            )}
+            <ChevronRight aria-hidden className="hidden size-3 text-label-tertiary md:inline" />
           </>
         )}
-        <span className="font-medium text-foreground">
+        <span aria-current="page" className="truncate text-base font-semibold tracking-tight text-foreground">
           {currentPage?.label ?? "Página"}
         </span>
-      </div>
+      </nav>
 
       {/* Ações */}
       <div className="flex items-center gap-2">
-        {/* Search */}
-        <button className="flex h-8 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-          <Search className="h-3.5 w-3.5" />
-          <span>Buscar...</span>
-          <kbd className="ml-2 rounded border border-border px-1 text-[10px] text-muted-foreground">⌘K</kbd>
-        </button>
-
-        {/* Alternar tema claro/escuro */}
         <ThemeToggle />
-
-        {/* Notificações */}
         <NotificationCenter />
-
-        {/* Indicador Realtime */}
-        <div className="flex items-center gap-1.5 rounded-full border border-sys-green/20 bg-sys-green/15 px-2.5 py-1">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sys-green" />
-          <span className="text-[10px] font-medium text-sys-green">Ao vivo</span>
-        </div>
-
-        {/* Avatar → Meu Perfil */}
-        <Link href="/perfil" title="Meu perfil" className="ml-1 flex-shrink-0">
+        <Link href="/perfil" title="Meu perfil" className="ml-0.5 shrink-0">
           {avatarUrl ? (
             <Image
               src={avatarUrl}
@@ -103,10 +107,10 @@ export function Header({ nome, avatarUrl }: HeaderProps) {
               width={32}
               height={32}
               unoptimized
-              className="h-8 w-8 rounded-full object-cover ring-1 ring-border transition-opacity hover:opacity-80"
+              className="size-8 rounded-full object-cover ring-1 ring-border transition-opacity hover:opacity-80"
             />
           ) : (
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sys-purple text-xs font-bold text-primary-foreground transition-opacity hover:opacity-80">
+            <span className="flex size-8 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white transition-opacity hover:opacity-80">
               {nome ? getInitials(nome) : "U"}
             </span>
           )}

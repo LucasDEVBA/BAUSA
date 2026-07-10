@@ -1,22 +1,6 @@
-import { requirePapel } from "@/lib/auth";
-import { fetchPositioning } from "@/lib/war-room-queries";
-import { PositioningSection } from "@/components/war-room/PositioningSection";
+import { redirect } from "next/navigation";
 
-export default async function WarRoomPosicionamentoPage() {
-  await requirePapel("ceo");
-
-  const positioning = await fetchPositioning();
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-title-2 text-foreground">Posicionamento</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Mix de produto por tier (Legacy, Journey, Start), ticket medio e politica de desconto.
-        </p>
-      </div>
-
-      <PositioningSection data={positioning} />
-    </div>
-  );
+// Consolidado no War Room unificado (F1) — agora é a aba "Posicionamento".
+export default function WarRoomPosicionamentoRedirect() {
+  redirect("/war-room?tab=posicionamento");
 }

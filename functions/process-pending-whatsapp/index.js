@@ -10,6 +10,8 @@ const SEND_MESSAGES_URL = process.env.SEND_MESSAGES_URL; // messenger-service (e
 const SYNC_LEADS_URL = process.env.SYNC_LEADS_URL;
 // Schema do Supabase: 'public' em PRD, 'uat' em UAT, 'dev' em DEV
 const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
+// Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
+const RUNS_SCHEMA = 'public';
 
 // ─── Log estruturado ───────────────────────────────────────────
 const log = (level, action, details = {}) => {
@@ -48,15 +50,81 @@ const httpRequest = (url, options, postData) => {
   });
 };
 
+// ─── Intervalos configuráveis (editáveis pelo CEO em /automacoes) ──────────
+// Lidos de configuracoes_sistema.scheduler_intervalos com fallback nos
+// defaults históricos. INVARIANTE (guard de CI): clamp 1h–720h — a config
+// jamais pode zerar o delay (envio imediato) nem congelar o fluxo >30 dias.
+const DEFAULT_INICIAL_HORAS = 22;
+const DEFAULT_TIMING_ALT_HORAS = 48;
+
+const clampHoras = (valor, fallback) => {
+  // parseFloat (não Number): null/''/false viram NaN → fallback, em vez de 0→1h
+  const n = typeof valor === 'number' ? valor : Number.parseFloat(valor);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(n, 1), 720);
+};
+
+const fetchIntervalos = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.scheduler_intervalos&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET intervalos: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor || {};
+    return {
+      inicialHoras: clampHoras(valor.whatsapp_inicial_horas, DEFAULT_INICIAL_HORAS),
+      timingAltHoras: clampHoras(valor.whatsapp_timing_alt_horas, DEFAULT_TIMING_ALT_HORAS),
+    };
+  } catch (e) {
+    // Config indisponível JAMAIS para o scheduler — usa os defaults históricos
+    log('WARN', 'intervalos_fallback', { error: e.message });
+    return { inicialHoras: DEFAULT_INICIAL_HORAS, timingAltHoras: DEFAULT_TIMING_ALT_HORAS };
+  }
+};
+
 // ─── Buscar leads pendentes de WhatsApp ────────────────────────
 // 2 critérios distintos:
-//   A) Timing ideal:        QUENTE/MORNO, qualified_at > 22h, sem whatsapp_sent_at
+//   A) Timing ideal:        QUENTE/MORNO, qualified_at > Nh (default 22h), sem whatsapp_sent_at
 //   B) Timing alternativo:  timing_status IN (muito_cedo, tarde_demais),
-//                            qualified_at > 48h (mais tempo para acomodar
-//                            a comunicação sensível), sem whatsapp_sent_at
+//                            qualified_at > Nh (default 48h — mais tempo para
+//                            acomodar a comunicação sensível), sem whatsapp_sent_at
+// ─── Toggles on/off das automações de sistema (/automacoes) ────────────────
+// configuracoes_sistema.sistema_automacoes_ativas — campo ausente = ATIVA
+// (fail-open). Config indisponível JAMAIS para o scheduler — fallback {}.
+const fetchAtivas = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.sistema_automacoes_ativas&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET ativas: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor;
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch (e) {
+    log('WARN', 'ativas_fallback', { error: e.message });
+    return {};
+  }
+};
+
 const fetchPendingLeads = async () => {
-  const twentyTwoHoursAgo = new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString();
-  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const intervalos = await fetchIntervalos();
+  const ativas = await fetchAtivas();
+  log('INFO', 'intervalos_em_uso', intervalos);
+  const twentyTwoHoursAgo = new Date(Date.now() - intervalos.inicialHoras * 60 * 60 * 1000).toISOString();
+  const fortyEightHoursAgo = new Date(Date.now() - intervalos.timingAltHoras * 60 * 60 * 1000).toISOString();
 
   const fetchByFilters = async (filters) => {
     const url = `${SUPABASE_URL}/rest/v1/form_submissions?${filters.join('&')}&select=*&order=qualified_at.asc&limit=20`;
@@ -76,25 +144,37 @@ const fetchPendingLeads = async () => {
   };
 
   // Bucket A: Timing ideal — 22h desde qualified_at
-  const idealLeads = await fetchByFilters([
-    'qualification_classification=in.(QUENTE,MORNO)',
-    `qualified_at=lt.${twentyTwoHoursAgo}`,
-    'qualified_at=not.is.null',
-    'whatsapp_sent_at=is.null',
-    'or=(timing_status.is.null,timing_status.eq.ideal)',
-  ]);
+  // Toggle on/off em /automacoes (ausente = ativo); desligado → bucket vazio,
+  // leads seguem acumulando e são pegos quando reativar.
+  let idealLeads = [];
+  if (ativas.whatsapp_inicial === false) {
+    log('WARN', 'whatsapp_inicial_desativado_skip');
+  } else {
+    idealLeads = await fetchByFilters([
+      'qualification_classification=in.(QUENTE,MORNO)',
+      `qualified_at=lt.${twentyTwoHoursAgo}`,
+      'qualified_at=not.is.null',
+      'whatsapp_sent_at=is.null',
+      'or=(timing_status.is.null,timing_status.eq.ideal)',
+    ]);
+  }
 
   // Bucket B: Timing alternativo — 48h desde qualified_at (early_potential ou late_timing)
   // Mantém o mesmo filtro de classificação Gemini do Bucket A: somente leads
   // QUENTE/MORNO recebem mensagens automáticas. Leads FRIO + timing alternativo
   // não entram no fluxo (paridade com leads FRIO + timing ideal, que já são excluídos).
-  const alternativeLeads = await fetchByFilters([
-    'qualification_classification=in.(QUENTE,MORNO)',
-    'timing_status=in.(muito_cedo,tarde_demais)',
-    `qualified_at=lt.${fortyEightHoursAgo}`,
-    'qualified_at=not.is.null',
-    'whatsapp_sent_at=is.null',
-  ]);
+  let alternativeLeads = [];
+  if (ativas.whatsapp_timing_alt === false) {
+    log('WARN', 'whatsapp_timing_alt_desativado_skip');
+  } else {
+    alternativeLeads = await fetchByFilters([
+      'qualification_classification=in.(QUENTE,MORNO)',
+      'timing_status=in.(muito_cedo,tarde_demais)',
+      `qualified_at=lt.${fortyEightHoursAgo}`,
+      'qualified_at=not.is.null',
+      'whatsapp_sent_at=is.null',
+    ]);
+  }
 
   // Deduplicação por id (defensivo, caso queries se sobreponham)
   const seen = new Set();
@@ -260,6 +340,51 @@ const triggerEmail = async (lead) => {
   };
 };
 
+// ─── Âncoras das automações de SISTEMA (aba Execuções de /automacoes) ──────
+// IDs fixos semeados pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_WHATSAPP_INICIAL_ID = 'a0000000-0000-4000-8000-000000000001';
+const RUN_WHATSAPP_TIMING_ALT_ID = 'a0000000-0000-4000-8000-000000000002';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': RUNS_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
+  }
+};
+
 // ─── Delay entre leads (anti-ban) ──────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -360,6 +485,19 @@ functions.http('processPendingWhatsApp', async (req, res) => {
             log('WARN', 'email_send_failed', { email: lead.email, error: emailErr.message });
           }
         }
+
+        // Registro em automacao_runs (aba Execuções) — estado TERMINAL, APÓS
+        // o resultado real do envio (CAS perdido/skip acima não registra).
+        await registrarRunSistema({
+          automacaoId: isAlternativeTiming ? RUN_WHATSAPP_TIMING_ALT_ID : RUN_WHATSAPP_INICIAL_ID,
+          ok: whatsappResult.statusCode < 400,
+          lead,
+          acoes: [{
+            tipo: isAlternativeTiming ? 'whatsapp_timing_alt' : 'whatsapp_inicial',
+            status: whatsappResult.statusCode < 400 ? 'ok' : 'falha',
+            detalhe: `template ${whatsappResult.messageType} (HTTP ${whatsappResult.statusCode})`,
+          }],
+        });
 
         // 2c. Sync Sheets independente do resultado do envio (DB já foi
         // marcado pelo CAS — refletir mesmo se Z-API der erro/timeout).

@@ -10,17 +10,15 @@ import {
   Target,
   MessageSquare,
   BarChart3,
+  FileText,
   History,
   Phone,
   Mail,
-  Send,
   AlertTriangle,
   CalendarClock,
   Hash,
   Layers,
   Trophy,
-  Video,
-  Instagram,
 } from "lucide-react";
 import { type Lead } from "@/types/lead";
 import { cn } from "@/lib/utils";
@@ -29,6 +27,13 @@ import {
   MinimalField,
   MinimalStat,
 } from "@/components/shared/MinimalUI";
+import {
+  DocumentosChecklist,
+  DocumentosUrgentesBadge,
+  useDocumentosAtleta,
+} from "@/components/documentos/DocumentosChecklist";
+import { AcoesRapidasCard } from "@/components/mensagem/AcoesRapidasCard";
+import { TranscricaoReuniaoCard } from "@/components/shared/TranscricaoReuniaoCard";
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -45,6 +50,7 @@ type SectionId =
   | "atribuicao"
   | "comunicacoes"
   | "timing"
+  | "documentos"
   | "historico"
   | "sistema";
 
@@ -65,6 +71,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "comunicacoes", label: "Comunicações", icon: MessageSquare, group: "operacao" },
   { id: "atribuicao", label: "Atribuição & UTM", icon: BarChart3, group: "operacao" },
   { id: "timing", label: "Timing", icon: CalendarClock, group: "operacao" },
+  { id: "documentos", label: "Documentos", icon: FileText, group: "operacao" },
   { id: "historico", label: "Histórico", icon: History, group: "auditoria" },
   { id: "sistema", label: "Sistema", icon: Hash, group: "auditoria" },
 ];
@@ -106,6 +113,7 @@ function diasAtras(iso?: string | null): number | null {
 
 export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
   const [section, setSection] = useState<SectionId>("executiva");
+  const documentos = useDocumentosAtleta(lead?.pipeline_atleta_id);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -148,7 +156,7 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
-                <h1 className="truncate text-[13px] font-semibold leading-tight text-foreground">
+                <h1 className="truncate text-[11px] font-semibold leading-tight text-foreground">
                   {lead.athlete_name}
                 </h1>
                 {lead.qualification_classification && (
@@ -222,7 +230,7 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
             <aside className="hidden w-[184px] shrink-0 overflow-y-auto border-r border-border bg-secondary/10 px-1.5 py-2 md:block">
               {(Object.keys(groupedNav) as Array<NavItem["group"]>).map((g) => (
                 <div key={g} className="mb-2 last:mb-0">
-                  <p className="px-2 pb-0.5 text-[9px] font-medium uppercase tracking-widest text-muted-foreground/60">
+                  <p className="px-2 pb-0.5 text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
                     {GROUP_LABEL[g]}
                   </p>
                   {groupedNav[g].map((it) => {
@@ -241,6 +249,11 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
                       >
                         <Icon className="h-3 w-3 shrink-0" />
                         <span className="truncate">{it.label}</span>
+                        {it.id === "documentos" && (
+                          <span className="ml-auto">
+                            <DocumentosUrgentesBadge count={documentos.urgentes} />
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -266,6 +279,9 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
                   >
                     <Icon className="h-3 w-3" />
                     {it.label}
+                    {it.id === "documentos" && (
+                      <DocumentosUrgentesBadge count={documentos.urgentes} />
+                    )}
                   </button>
                 );
               })}
@@ -281,6 +297,17 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
               {section === "atribuicao" && <AtribuicaoSection lead={lead} />}
               {section === "comunicacoes" && <ComunicacoesSection lead={lead} />}
               {section === "timing" && <TimingSection lead={lead} />}
+              {section === "documentos" &&
+                (lead.pipeline_atleta_id ? (
+                  <DocumentosChecklist
+                    atletaId={lead.pipeline_atleta_id}
+                    docs={documentos.docs}
+                    loading={documentos.loading}
+                    onRefetch={documentos.refetch}
+                  />
+                ) : (
+                  <DocumentosEmptySection lead={lead} />
+                ))}
               {section === "historico" && <HistoricoSection lead={lead} />}
               {section === "sistema" && <SistemaSection lead={lead} />}
             </main>
@@ -325,6 +352,19 @@ function ExecutivaSection({ lead }: { lead: Lead }) {
         />
       </div>
 
+      {/* Ações rápidas — mensagem direta (I4). Contato re-resolvido no server. */}
+      <AcoesRapidasCard
+        destinatario={{
+          nome: lead.athlete_name,
+          responsavelNome: lead.guardian_name,
+          telefone: lead.guardian_whatsapp ?? lead.athlete_whatsapp ?? null,
+          email: lead.guardian_email ?? lead.email ?? null,
+          classificacao: lead.qualification_classification,
+          leadId: lead.id,
+        }}
+        highlightsUrl={lead.video_highlights}
+      />
+
       {lead.qualification_reason && (
         <MinimalCard
           title="Justificativa Gemini"
@@ -348,42 +388,6 @@ function ExecutivaSection({ lead }: { lead: Lead }) {
           )}
         </MinimalCard>
       )}
-
-      <MinimalCard title="Ações rápidas" icon={Send} iconColor="text-sys-green">
-        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
-          {(lead.guardian_whatsapp || lead.athlete_whatsapp) && (
-            <a
-              href={`https://wa.me/${(lead.guardian_whatsapp ?? lead.athlete_whatsapp ?? "").replace(/\D/g, "")}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sys-green/30 bg-sys-green/10 px-3 py-1.5 text-xs font-medium text-sys-green transition-colors hover:bg-sys-green/20"
-            >
-              <Send className="h-3.5 w-3.5" />
-              WhatsApp
-            </a>
-          )}
-          {lead.guardian_email && (
-            <a
-              href={`mailto:${lead.guardian_email}`}
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sys-blue/30 bg-sys-blue/10 px-3 py-1.5 text-xs font-medium text-sys-blue transition-colors hover:bg-sys-blue/20"
-            >
-              <Mail className="h-3.5 w-3.5" />
-              E-mail
-            </a>
-          )}
-          {lead.video_highlights && (
-            <a
-              href={lead.video_highlights}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
-            >
-              <Video className="h-3.5 w-3.5" />
-              Highlights
-            </a>
-          )}
-        </div>
-      </MinimalCard>
 
       {lead.siblings && lead.siblings.length > 0 && (
         <MinimalCard
@@ -496,7 +500,7 @@ function EsporteSection({ lead }: { lead: Lead }) {
           <div className="space-y-2">
             {lead.club_history && (
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
+                <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
                   Histórico de clubes
                 </p>
                 <p className="mt-0.5 whitespace-pre-wrap text-xs text-foreground/90">
@@ -506,7 +510,7 @@ function EsporteSection({ lead }: { lead: Lead }) {
             )}
             {lead.achievements && (
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
+                <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
                   Conquistas
                 </p>
                 <p className="mt-0.5 whitespace-pre-wrap text-xs text-foreground/90">
@@ -663,46 +667,51 @@ function ComunicacoesSection({ lead }: { lead: Lead }) {
   ];
 
   return (
-    <MinimalCard title="Timeline" icon={MessageSquare}>
-      <ol className="space-y-1">
-        {eventos.map((e, i) => {
-          const ok = !!e.quando;
-          return (
-            <li
-              key={`${e.label}-${i}`}
-              className="flex items-start gap-2 rounded px-1.5 py-1.5 hover:bg-secondary/30"
-            >
-              <span
-                className={cn(
-                  "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
-                  ok ? "bg-sys-green" : "bg-muted-foreground/30",
-                )}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p
-                    className={cn(
-                      "text-xs font-medium",
-                      ok ? "text-foreground" : "text-muted-foreground",
-                    )}
-                  >
-                    {e.label}
-                  </p>
-                  <span className="text-[10px] tabular-nums text-muted-foreground">
-                    {ok ? fmtDateTime(e.quando) : "pendente"}
-                  </span>
+    <div className="flex flex-col gap-3">
+      <MinimalCard title="Timeline" icon={MessageSquare}>
+        <ol className="space-y-1">
+          {eventos.map((e, i) => {
+            const ok = !!e.quando;
+            return (
+              <li
+                key={`${e.label}-${i}`}
+                className="flex items-start gap-2 rounded px-1.5 py-1.5 hover:bg-secondary/30"
+              >
+                <span
+                  className={cn(
+                    "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
+                    ok ? "bg-sys-green" : "bg-muted-foreground/30",
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p
+                      className={cn(
+                        "text-xs font-medium",
+                        ok ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {e.label}
+                    </p>
+                    <span className="text-[10px] tabular-nums text-muted-foreground">
+                      {ok ? fmtDateTime(e.quando) : "pendente"}
+                    </span>
+                  </div>
+                  {e.descricao && (
+                    <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
+                      {e.descricao}
+                    </p>
+                  )}
                 </div>
-                {e.descricao && (
-                  <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/80">
-                    {e.descricao}
-                  </p>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </MinimalCard>
+              </li>
+            );
+          })}
+        </ol>
+      </MinimalCard>
+
+      {/* Transcrição do Meet (CF meeting-transcripts) — lead.id = form_submissions.id */}
+      <TranscricaoReuniaoCard formSubmissionId={lead.id} />
+    </div>
   );
 }
 
@@ -793,6 +802,22 @@ function HistoricoSection({ lead }: { lead: Lead }) {
         </ol>
       )}
     </MinimalCard>
+  );
+}
+
+function DocumentosEmptySection({ lead }: { lead: Lead }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-12 text-center">
+      <FileText className="h-8 w-8 text-muted-foreground/40" />
+      <p className="text-sm font-medium text-foreground">
+        Checklist de documentos indisponível
+      </p>
+      <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+        {lead.qualification_classification === "FRIO"
+          ? "Leads FRIO não são promovidos ao pipeline, portanto não têm checklist de documentos."
+          : "Este lead ainda não foi promovido ao pipeline. O checklist de documentos fica disponível quando o atleta é criado (leads QUENTE/MORNO são promovidos automaticamente na qualificação)."}
+      </p>
+    </div>
   );
 }
 

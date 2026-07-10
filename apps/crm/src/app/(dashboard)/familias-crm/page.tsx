@@ -2,6 +2,9 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
 import { listarAlertasInatividade } from "@/lib/actions/experiencia";
 import { FamiliasCrmClient } from "./client";
+import { FamiliasNav } from "@/components/familias/FamiliasNav";
+import { FamiliasViewSwitcher } from "@/components/familias/FamiliasViewSwitcher";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -79,6 +82,7 @@ function mapExperienciaToFamily(row: Record<string, unknown>): Family {
 
   return {
     id: row.id as string,
+    atleta_id: (row.atleta_id as string) ?? undefined,
     athlete_name: (atleta?.nome_completo as string) ?? "Atleta",
     athlete_position: (atleta?.posicao as string) ?? undefined,
     guardian_name: (responsavel?.nome as string) ?? "Responsavel",
@@ -161,7 +165,9 @@ function mapExperienciaToFamily(row: Record<string, unknown>): Family {
 }
 
 export default async function FamiliasCrmPage() {
-  await requirePapel(["ceo", "head_sucesso"]);
+  // requirePapel retorna o papel efetivo (cto→ceo); "ceo" = nível CEO/CTO.
+  const papelEfetivo = await requirePapel(["ceo", "head_sucesso"]);
+  const canManage = papelEfetivo === "ceo";
 
   const supabase = await createServerSupabaseClient();
 
@@ -335,11 +341,21 @@ export default async function FamiliasCrmPage() {
   };
 
   return (
-    <FamiliasCrmClient
-      families={families}
-      tiposRiscoByFamilia={tiposRiscoByFamilia}
-      metrics={metrics}
-      alertas={alertas}
-    />
+    <div className="flex flex-col gap-5">
+      {/* CEO/CTO alterna entre a área do Head e a visão Gerencial (actions); o Head só vê a própria área. */}
+      <PageHeader dense
+        eyebrow="Famílias · Experiência"
+        title="CRM de Experiência da Família"
+        description="Acompanhamento pós-venda e suporte à jornada das famílias."
+        actions={canManage ? <FamiliasViewSwitcher /> : undefined}
+      />
+      <FamiliasNav />
+      <FamiliasCrmClient
+        families={families}
+        tiposRiscoByFamilia={tiposRiscoByFamilia}
+        metrics={metrics}
+        alertas={alertas}
+      />
+    </div>
   );
 }

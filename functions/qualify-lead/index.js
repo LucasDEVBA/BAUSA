@@ -9,6 +9,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 // Schema do Supabase: 'public' em PRD, 'uat' em UAT, 'dev' em DEV
 const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
+// Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
+const RUNS_SCHEMA = 'public';
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SERVICE_ACCOUNT_EMAIL = process.env.SERVICE_ACCOUNT_EMAIL;
 const RAW_KEY = process.env.SERVICE_ACCOUNT_PRIVATE_KEY || '';
@@ -66,15 +68,64 @@ const formatInvestmentRange = (code) => {
 // ─── Helper: sleep ─────────────────────────────────────────────
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// ─── Seções EDITÁVEIS do prompt (defaults byte-idênticos ao histórico) ─────
+// Editáveis pelo CEO em /automacoes (configuracoes_sistema.qualificacao_prompt).
+// Campo ausente/vazio na config → o default abaixo assume. O bloco DADOS DO
+// LEAD, o addressBlock e o FORMATO OBRIGATÓRIO (contrato JSON parseado pelo
+// código) permanecem FIXOS no código e não são editáveis.
+const PROMPT_DEFAULTS = {
+  persona: `Você é um Analista Estratégico de Qualificação da Bolsa Atleta USA.
+Sua função é classificar leads com base exclusivamente em:
+1. Faixa de investimento anual escolhida
+2. Profissão do responsável financeiro
+3. Endereço informado (caso necessário)
+4. Escola informada (caso necessário)
+5. Validação de consistência dos dados`,
+  criterio_quente: `1️⃣ QUENTE
+Classifique como QUENTE quando:
+- A profissão sustenta claramente a faixa escolhida OU a profissão indica capacidade financeira superior à faixa escolhida
+- E os dados do formulário NÃO apresentam sinais de preenchimento aleatório (ex: sequências de letras sem sentido, números repetitivos, padrões como "aaaa", "123456", "xxxx", campos incoerentes)
+- Se houver qualquer indício de preenchimento aleatório, NÃO pode ser QUENTE`,
+  // {criterio_endereco} é substituído pela variante BR/internacional abaixo.
+  criterio_morno: `2️⃣ MORNO
+Classifique como MORNO quando:
+- A profissão não sustenta claramente a faixa escolhida
+- {criterio_endereco}
+- OU a escola informada é reconhecida como instituição de alto padrão`,
+  morno_endereco_br: '- MAS o endereço/cidade informado confirma região de alto padrão / alto poder aquisitivo no Brasil',
+  morno_endereco_internacional: '- MAS a cidade ou país informado sugere contexto econômico favorável (ex: cidade de grande porte em país desenvolvido)',
+  criterio_frio: `3️⃣ FRIO
+Classifique como FRIO quando:
+- A profissão não sustenta a faixa escolhida E o endereço não confirma alto padrão E a escola não confirma alto padrão
+- OU houver sinais de preenchimento aleatório/inconsistente no formulário`,
+  regra_renda_variavel: `PROFISSÕES COM RENDA VARIÁVEL:
+Profissões que contenham termos como "analista", "financeiro", "gestor", "marketing", "comercial", "consultor", "corretor", "trader", "assessor" ou equivalentes frequentemente possuem renda total significativamente superior ao salário base, devido a comissões, bônus e variáveis. Analise com atenção o contexto completo antes de classificar como FRIO — um Analista Financeiro ou Gestor Comercial, por exemplo, pode ter renda real muito acima da média do cargo. Em caso de dúvida entre FRIO e MORNO para essas profissões, prefira MORNO.`,
+  regras_importantes: `REGRAS IMPORTANTES:
+- Não presumir renda
+- Não inventar patrimônio
+- Avaliar apenas plausibilidade estrutural
+- Não considerar desempenho esportivo ou acadêmico para decisão financeira
+- A análise deve ser objetiva e criteriosa
+- Para leads internacionais (fora do Brasil): não penalize a ausência de bairro, CEP ou estado — esses campos não foram solicitados; baseie a análise em profissão, faixa de investimento e contexto do país/cidade`,
+};
+
+// Seção da config quando é string não-vazia; senão o default (fail-open).
+const promptSection = (promptCfg, key) => {
+  const v = promptCfg ? promptCfg[key] : null;
+  return typeof v === 'string' && v.trim() ? v : PROMPT_DEFAULTS[key];
+};
+
 // ─── Chamada ao Gemini 2.5 Flash (com retry interno) ───────────
 // Faz até 3 tentativas com backoff curto em caso de HTTP 429 ou 5xx.
 // Timeouts: tentativa 1 imediato, depois +5s e +15s — total máx ~20s.
 // Se as 3 falharem, lança erro para que o handler marque o lead
 // como `qualification_pending=true` e o cron/manual reprocesse.
-const qualifyWithGemini = async (leadData) => {
+// promptCfg: seções editáveis (configuracoes_sistema.qualificacao_prompt);
+// {} → prompt byte-idêntico ao histórico.
+const qualifyWithGemini = async (leadData, promptCfg = {}) => {
   const isBrazil = !leadData.address_country || leadData.address_country === 'BR';
 
-  // Bloco de endereço adaptado ao país do lead
+  // Bloco de endereço adaptado ao país do lead (FIXO — interpolação de dados)
   const addressBlock = isBrazil
     ? `- Endereço: ${[leadData.address_street, leadData.address_number, leadData.address_complement].filter(Boolean).join(', ') || 'Não informado'}
 - Bairro: ${leadData.address_neighborhood || 'Não informado'}
@@ -84,18 +135,16 @@ const qualifyWithGemini = async (leadData) => {
 - Cidade: ${leadData.address_city || 'Não informado'}
 - Endereço detalhado: não fornecido (lead internacional — campos de bairro, CEP e estado não se aplicam)`;
 
-  // Critério MORNO de endereço adaptado ao contexto do lead
+  // Critério MORNO de endereço adaptado ao contexto do lead (textos editáveis)
   const mornoAddressCriteria = isBrazil
-    ? '- MAS o endereço/cidade informado confirma região de alto padrão / alto poder aquisitivo no Brasil'
-    : '- MAS a cidade ou país informado sugere contexto econômico favorável (ex: cidade de grande porte em país desenvolvido)';
+    ? promptSection(promptCfg, 'morno_endereco_br')
+    : promptSection(promptCfg, 'morno_endereco_internacional');
 
-  const prompt = `Você é um Analista Estratégico de Qualificação da Bolsa Atleta USA.
-Sua função é classificar leads com base exclusivamente em:
-1. Faixa de investimento anual escolhida
-2. Profissão do responsável financeiro
-3. Endereço informado (caso necessário)
-4. Escola informada (caso necessário)
-5. Validação de consistência dos dados
+  const criterioMorno = promptSection(promptCfg, 'criterio_morno')
+    .split('{criterio_endereco}')
+    .join(mornoAddressCriteria);
+
+  const prompt = `${promptSection(promptCfg, 'persona')}
 
 DADOS DO LEAD:
 - Atleta: ${leadData.athlete_name || 'Não informado'}
@@ -111,33 +160,15 @@ ${addressBlock}
 
 CRITÉRIO PRINCIPAL:
 
-1️⃣ QUENTE
-Classifique como QUENTE quando:
-- A profissão sustenta claramente a faixa escolhida OU a profissão indica capacidade financeira superior à faixa escolhida
-- E os dados do formulário NÃO apresentam sinais de preenchimento aleatório (ex: sequências de letras sem sentido, números repetitivos, padrões como "aaaa", "123456", "xxxx", campos incoerentes)
-- Se houver qualquer indício de preenchimento aleatório, NÃO pode ser QUENTE
+${promptSection(promptCfg, 'criterio_quente')}
 
-2️⃣ MORNO
-Classifique como MORNO quando:
-- A profissão não sustenta claramente a faixa escolhida
-- ${mornoAddressCriteria}
-- OU a escola informada é reconhecida como instituição de alto padrão
+${criterioMorno}
 
-3️⃣ FRIO
-Classifique como FRIO quando:
-- A profissão não sustenta a faixa escolhida E o endereço não confirma alto padrão E a escola não confirma alto padrão
-- OU houver sinais de preenchimento aleatório/inconsistente no formulário
+${promptSection(promptCfg, 'criterio_frio')}
 
-PROFISSÕES COM RENDA VARIÁVEL:
-Profissões que contenham termos como "analista", "financeiro", "gestor", "marketing", "comercial", "consultor", "corretor", "trader", "assessor" ou equivalentes frequentemente possuem renda total significativamente superior ao salário base, devido a comissões, bônus e variáveis. Analise com atenção o contexto completo antes de classificar como FRIO — um Analista Financeiro ou Gestor Comercial, por exemplo, pode ter renda real muito acima da média do cargo. Em caso de dúvida entre FRIO e MORNO para essas profissões, prefira MORNO.
+${promptSection(promptCfg, 'regra_renda_variavel')}
 
-REGRAS IMPORTANTES:
-- Não presumir renda
-- Não inventar patrimônio
-- Avaliar apenas plausibilidade estrutural
-- Não considerar desempenho esportivo ou acadêmico para decisão financeira
-- A análise deve ser objetiva e criteriosa
-- Para leads internacionais (fora do Brasil): não penalize a ausência de bairro, CEP ou estado — esses campos não foram solicitados; baseie a análise em profissão, faixa de investimento e contexto do país/cidade
+${promptSection(promptCfg, 'regras_importantes')}
 
 FORMATO OBRIGATÓRIO DE RESPOSTA — retorne APENAS o JSON abaixo, sem markdown, sem backticks, sem texto adicional:
 {"classification":"QUENTE","reason":"Análise objetiva em 2-4 frases","confidence":"ALTA"}
@@ -156,7 +187,7 @@ Onde:
     },
   });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
   // ─── Retry com backoff curto em 429/5xx ──────────────────────
   const MAX_ATTEMPTS = 3;
@@ -686,24 +717,36 @@ const autoPromoteToCRM = async (data, classification, reason, confidence, timing
 // Chamado após esgotar retries do Gemini. Incrementa attempts,
 // atualiza last_qualification_attempt_at, salva último erro.
 // O cron diário e o botão manual no War Room reprocessam após 6h.
-const markQualificationPending = async (submissionId, errorMessage) => {
+//
+// incrementAttempts=false (skip por TOGGLE desligado em /automacoes): marca
+// pendente SEM consumir o orçamento de retries (retry-qualification só
+// reprocessa attempts < 10) e SEM tocar last_qualification_attempt_at — na
+// reativação o cron pega o lead no primeiro tick, sem cooldown.
+const markQualificationPending = async (submissionId, errorMessage, { incrementAttempts = true } = {}) => {
   if (!submissionId) return false;
 
-  // Lê attempts atual para incrementar
-  const existing = await supabaseRequest(
-    'GET',
-    `form_submissions?id=eq.${encodeURIComponent(submissionId)}&select=qualification_attempts&limit=1`
-  );
-  const currentAttempts = Array.isArray(existing) && existing.length > 0
-    ? (existing[0].qualification_attempts || 0)
-    : 0;
-
-  const patchBody = JSON.stringify({
+  let patchFields = {
     qualification_pending: true,
-    qualification_attempts: currentAttempts + 1,
-    last_qualification_attempt_at: new Date().toISOString(),
     last_qualification_error: (errorMessage || '').substring(0, 1000),
-  });
+  };
+
+  if (incrementAttempts) {
+    // Lê attempts atual para incrementar
+    const existing = await supabaseRequest(
+      'GET',
+      `form_submissions?id=eq.${encodeURIComponent(submissionId)}&select=qualification_attempts&limit=1`
+    );
+    const currentAttempts = Array.isArray(existing) && existing.length > 0
+      ? (existing[0].qualification_attempts || 0)
+      : 0;
+    patchFields = {
+      ...patchFields,
+      qualification_attempts: currentAttempts + 1,
+      last_qualification_attempt_at: new Date().toISOString(),
+    };
+  }
+
+  const patchBody = JSON.stringify(patchFields);
 
   const result = await httpRequest(
     `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${encodeURIComponent(submissionId)}`,
@@ -769,6 +812,81 @@ const notifyQualificationPending = async (leadData, errorMessage) => {
   }
 };
 
+// ─── Config dinâmica das automações de sistema (/automacoes) ───
+// sistema_automacoes_ativas: toggles on/off (campo ausente = ATIVA).
+// qualificacao_prompt: seções editáveis do prompt (ausente = defaults).
+// Config indisponível JAMAIS bloqueia a qualificação — fallback {} (fail-open).
+const fetchSistemaConfig = async () => {
+  const out = { ativas: {}, promptCfg: {} };
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return out;
+  try {
+    const rows = await supabaseRequest(
+      'GET',
+      'configuracoes_sistema?chave=in.(sistema_automacoes_ativas,qualificacao_prompt)&select=chave,valor'
+    );
+    if (Array.isArray(rows)) {
+      for (const row of rows) {
+        if (row.chave === 'sistema_automacoes_ativas' && row.valor && typeof row.valor === 'object') {
+          out.ativas = row.valor;
+        }
+        if (row.chave === 'qualificacao_prompt' && row.valor && typeof row.valor === 'object') {
+          out.promptCfg = row.valor;
+        }
+      }
+    }
+  } catch (e) {
+    log('WARN', 'sistema_config_fallback', { error: e.message });
+  }
+  return out;
+};
+
+// ─── Âncora da automação de SISTEMA (aba Execuções de /automacoes) ─────────
+// ID fixo semeado pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_QUALIFICACAO_ID = 'a0000000-0000-4000-8000-000000000006';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    // POST direto (não supabaseRequest): o helper força Content-Profile =
+    // SUPABASE_SCHEMA DEPOIS do spread e não dá p/ sobrepor; o run PRECISA ir
+    // p/ RUNS_SCHEMA ('public') para o Engine enxergar em todos os ambientes.
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': RUNS_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
+  }
+};
+
 // ─── Cloud Function principal ──────────────────────────────────
 functions.http('qualifyLead', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -800,6 +918,35 @@ functions.http('qualifyLead', async (req, res) => {
       return res.status(400).send({ success: false, error: 'email e athlete_name obrigatórios' });
     }
 
+    // Config dinâmica: toggle on/off + seções editáveis do prompt (/automacoes)
+    const { ativas, promptCfg } = await fetchSistemaConfig();
+    if (ativas.qualificacao === false) {
+      // Desativada pelo CEO: NÃO qualifica — marca pendente SEM incrementar
+      // attempts (não consome o orçamento de 10 retries do cron) para
+      // reprocesso quando reativar (o retry-qualification chama esta CF,
+      // então o gate cobre o cron também).
+      log('WARN', 'qualificacao_desativada_skip', { email: data.email, athlete: data.athlete_name });
+      if (data.id && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+        try {
+          const marked = await markQualificationPending(
+            data.id,
+            'Automação de qualificação desativada em /automacoes',
+            { incrementAttempts: false }
+          );
+          if (!marked) throw new Error('PATCH pending retornou erro');
+        } catch (markErr) {
+          // Sem o pending o lead ficaria órfão — 500 faz o webhook re-tentar.
+          log('ERROR', 'mark_pending_failed_on_disabled', { error: markErr.message });
+          return res.status(500).send({ success: false, error: 'Falha ao marcar pendente (toggle off)' });
+        }
+      }
+      return res.status(200).send({
+        success: true,
+        action: 'skipped_disabled',
+        reason: 'Qualificação desativada em /automacoes — lead marcado como pendente.',
+      });
+    }
+
     // Classifica timing antes de chamar Gemini (decisão categórica baseada em school_year)
     const timingStatus = classifyTiming(data.school_year);
     const scheduledFollowupAt = computeScheduledFollowupAt(timingStatus);
@@ -814,10 +961,10 @@ functions.http('qualifyLead', async (req, res) => {
       scheduled_followup_at: scheduledFollowupAt,
     });
 
-    // 1. Qualificar com Gemini (já tem retry interno 3x)
+    // 1. Qualificar com Gemini (já tem retry interno 3x; prompt editável)
     let qualification;
     try {
-      qualification = await qualifyWithGemini(data);
+      qualification = await qualifyWithGemini(data, promptCfg);
     } catch (geminiErr) {
       // Após 3 tentativas falhas: marca lead como pendente.
       // Cron diário + botão manual no War Room tentarão novamente.
@@ -839,6 +986,19 @@ functions.http('qualifyLead', async (req, res) => {
         }
       }
 
+      // Registro em automacao_runs (aba Execuções) — estado TERMINAL (erro).
+      // Skip por toggle desligado (skipped_disabled acima) NÃO registra.
+      await registrarRunSistema({
+        automacaoId: RUN_QUALIFICACAO_ID,
+        ok: false,
+        lead: data,
+        acoes: [{
+          tipo: 'qualificacao',
+          status: 'falha',
+          detalhe: `Gemini indisponível — lead pendente p/ retry: ${(geminiErr.message || '').substring(0, 200)}`,
+        }],
+      });
+
       return res.status(202).send({
         success: false,
         action: 'pending_retry',
@@ -859,6 +1019,19 @@ functions.http('qualifyLead', async (req, res) => {
     try {
       await updateSupabase(data.id, data.email, data.athlete_name, qualification, timingStatus, scheduledFollowupAt);
       log('INFO', 'supabase_updated', { email: data.email, timing_status: timingStatus });
+
+      // Registro em automacao_runs (aba Execuções) — estado TERMINAL, após a
+      // classificação persistida no Supabase.
+      await registrarRunSistema({
+        automacaoId: RUN_QUALIFICACAO_ID,
+        ok: true,
+        lead: data,
+        acoes: [{
+          tipo: 'qualificacao',
+          status: 'ok',
+          detalhe: `${qualification.classification} (confiança ${qualification.confidence})`,
+        }],
+      });
     } catch (error) {
       log('ERROR', 'supabase_update_failed', { error: error.message });
     }

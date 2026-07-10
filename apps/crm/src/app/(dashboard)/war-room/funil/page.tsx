@@ -1,28 +1,6 @@
-import { requirePapel } from "@/lib/auth";
-import { fetchCommercialFunnel, fetchConversionFunnel } from "@/lib/war-room-queries";
-import { CommercialFunnelSection } from "@/components/war-room/CommercialFunnelSection";
-import { ConversionFunnel } from "@/components/war-room/ConversionFunnel";
+import { redirect } from "next/navigation";
 
-export default async function WarRoomFunilPage() {
-  await requirePapel("ceo");
-
-  const [commercialFunnel, conversionFunnel] = await Promise.all([
-    fetchCommercialFunnel(),
-    fetchConversionFunnel(),
-  ]);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-title-2 text-foreground">Funil Comercial</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Performance por etapa do processo de vendas — do lead ao contrato.
-        </p>
-      </div>
-
-      <CommercialFunnelSection data={commercialFunnel} />
-
-      <ConversionFunnel data={conversionFunnel} />
-    </div>
-  );
+// Consolidado no War Room unificado (F1) — agora é a aba "Funil".
+export default function WarRoomFunilRedirect() {
+  redirect("/war-room?tab=funil");
 }

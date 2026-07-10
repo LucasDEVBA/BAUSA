@@ -165,7 +165,7 @@ export function FamiliasOnboardingClient({
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground/60">
+                          <span className="text-xs text-muted-foreground">
                             —
                           </span>
                         )}
@@ -222,7 +222,7 @@ export function FamiliasOnboardingClient({
                       })}
                     </p>
                     {r.assuntos.length > 0 && (
-                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground/70">
+                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
                         Pauta: {r.assuntos.slice(0, 3).join(" · ")}
                         {r.assuntos.length > 3 ? "…" : ""}
                       </p>

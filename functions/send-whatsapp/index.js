@@ -1,11 +1,19 @@
 const functions = require('@google-cloud/functions-framework');
 const https = require('https');
+const crypto = require('crypto');
 
 // ─── Configuração via variáveis de ambiente ─────────────────────
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
 const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
 const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN;
+
+// Supabase (OPCIONAL — só para textos custom de mensagem). Sem estas env
+// vars a função usa exclusivamente os builders hardcoded (comportamento
+// histórico) — zero mudança de comportamento até serem configuradas.
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
 
 // ─── Log estruturado ───────────────────────────────────────────
 const log = (level, action, details = {}) => {
@@ -30,9 +38,10 @@ const httpRequest = (url, options, postData) => {
     });
 
     req.on('error', (e) => reject(e));
-    req.setTimeout(15000, () => {
+    const timeoutMs = options.timeoutMs || 15000;
+    req.setTimeout(timeoutMs, () => {
       req.destroy();
-      reject(new Error('Request timeout (15s)'));
+      reject(new Error(`Request timeout (${timeoutMs / 1000}s)`));
     });
 
     if (postData) req.write(postData);
@@ -171,11 +180,103 @@ const sendLink = async (phone, message, linkUrl, title, linkDescription, image) 
   return { success: true, response: JSON.parse(result.body) };
 };
 
+// ─── Enviar imagem com legenda via Z-API (/send-image) ───────
+// image = URL pública. A imagem chega como mídia nativa do WhatsApp (não
+// como card de link), com o texto como legenda. Usado quando o CEO anexa uma
+// imagem SEM link no compositor de mensagem direta.
+const sendImage = async (phone, imageUrl, caption) => {
+  const formattedPhone = formatPhone(phone);
+
+  if (!formattedPhone) {
+    log('WARN', 'invalid_phone', { phone });
+    return { success: false, error: 'Número inválido' };
+  }
+
+  const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-image`;
+
+  const postData = JSON.stringify({
+    phone: formattedPhone,
+    image: imageUrl,
+    caption: caption || '',
+  });
+
+  log('INFO', 'zapi_sending', {
+    phone: formattedPhone,
+    type: 'image',
+    captionLength: (caption || '').length,
+  });
+
+  const result = await httpRequest(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Client-Token': ZAPI_CLIENT_TOKEN,
+    },
+  }, postData);
+
+  log('INFO', 'zapi_response', {
+    phone: formattedPhone,
+    type: 'image',
+    statusCode: result.statusCode,
+    body: result.body.substring(0, 300),
+  });
+
+  if (result.statusCode >= 400) {
+    return { success: false, error: `Z-API HTTP ${result.statusCode}: ${result.body}` };
+  }
+
+  return { success: true, response: JSON.parse(result.body) };
+};
+
 // ─── Link de agendamento ─────────────────────────────────────
 // V1: link fixo para Google Calendar via /agendar (redirect)
-// V2: buildScheduleUrl com token Base64 (quando página custom ativar)
+// V2 (2026-07): SHORT LINK POR LEAD — slug determinístico do id do lead na
+// tabela links_curtos (mesma infra do Gerador UTM: rota pública /l/[slug]
+// do site conta o clique e redireciona p/ /agendar). Ganhos: rastrear
+// clique-por-lead no convite e link mais curto no WhatsApp.
+// FAIL-OPEN: qualquer falha usa o link fixo — o envio NUNCA depende disto.
+// Schema: SEMPRE public — quem resolve o slug é o SITE em produção (o /l/
+// lê public), mesmo padrão do "Engine lê public" (zapi-inbox/index.js:33).
 const SCHEDULE_URL = 'https://bolsaatletausa.com/agendar';
-const buildScheduleUrl = () => SCHEDULE_URL;
+const buildScheduleUrl = (data) => (data && data.schedule_url) || SCHEDULE_URL;
+
+const resolveScheduleUrl = async (data) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !data || !data.id) return SCHEDULE_URL;
+    // Slug determinístico e idempotente: 'a' + 7 hex do sha256 do id do lead
+    const slug = 'a' + crypto.createHash('sha256').update(String(data.id)).digest('hex').slice(0, 7);
+
+    const postData = JSON.stringify({
+      slug,
+      destino: SCHEDULE_URL,
+      titulo: `Agenda — ${data.athlete_name || 'lead'}`,
+      utm_source: 'whatsapp',
+      utm_medium: 'crm',
+      utm_content: String(data.id),
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/links_curtos`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': 'public',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+
+    // 201 criado | 409 já existe (idempotente) → usa o short link
+    if (result.statusCode === 201 || result.statusCode === 409) {
+      return `https://bolsaatletausa.com/l/${slug}`;
+    }
+    log('WARN', 'short_link_fallback', { statusCode: result.statusCode });
+    return SCHEDULE_URL;
+  } catch (error) {
+    log('WARN', 'short_link_fallback', { error: error.message });
+    return SCHEDULE_URL;
+  }
+};
 
 // ─── Metadados do link de agendamento ─────────────────────────
 const CALENDAR_LINK_URL = SCHEDULE_URL;
@@ -442,6 +543,78 @@ ${buildScheduleUrl(data)}
 — Equipe *Bolsa Atleta USA* — assessoria exclusiva para bolsas esportivas em instituições americanas.`;
 };
 
+// ─── Textos custom (configuracoes_sistema.scheduler_mensagens) ─
+// O CEO edita os textos no Engine (/automacoes). Esta função lê a config
+// UMA vez por request e usa o texto custom quando existir; os builders
+// hardcoded acima NUNCA são removidos — são o fallback permanente
+// (guard de CI: tests/send-whatsapp-mensagens.test.js).
+const fetchMensagensCustom = async () => {
+  // Sem credenciais Supabase → fallback total nos builders (sem WARN:
+  // é o estado esperado até as env vars serem configuradas).
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
+
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema` +
+      '?chave=eq.scheduler_mensagens&select=valor&limit=1';
+    const result = await httpRequest(url, {
+      method: 'GET',
+      // 5s (nao os 15s default): o caller followup-scheduler tem timeout de
+      // 30s - Supabase degradado nao pode consumir metade do budget dele.
+      timeoutMs: 5000,
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+      },
+    });
+
+    if (result.statusCode >= 400) {
+      throw new Error(`Supabase HTTP ${result.statusCode}`);
+    }
+
+    const rows = JSON.parse(result.body);
+    const valor = Array.isArray(rows) ? rows[0]?.valor : null;
+    // Seed ausente ou formato inesperado → builders assumem (sem erro)
+    if (!valor || typeof valor !== 'object') return null;
+    return valor;
+  } catch (error) {
+    log('WARN', 'mensagens_fallback', { error: error.message });
+    return null;
+  }
+};
+
+// Variáveis suportadas nos textos custom — espelham EXATAMENTE as
+// interpolações dos builders hardcoded, inclusive os fallbacks de nome
+// por destinatário/template.
+const buildTemplateVars = (data, messageType, destinatario) => {
+  const athleteFallback =
+    destinatario === 'atleta' ? 'Atleta' :
+    messageType === 'late_timing' ? 'o(a) atleta' :
+    'seu(sua) filho(a)';
+
+  return {
+    '{atleta_nome}': sanitize(data.athlete_name) || athleteFallback,
+    '{responsavel_nome}': sanitize(data.guardian_name) || 'Responsável',
+    '{agenda_url}': buildScheduleUrl(data),
+    '{proximo_ano}': String(new Date().getUTCFullYear() + 1),
+  };
+};
+
+// Renderiza um texto custom substituindo todos os placeholders.
+// Retorna null (→ builder hardcoded assume) se o texto não existir,
+// não for string ou renderizar vazio/whitespace.
+const renderTemplate = (texto, vars) => {
+  if (!texto || typeof texto !== 'string') return null;
+
+  let rendered = texto;
+  for (const [placeholder, valor] of Object.entries(vars)) {
+    rendered = rendered.split(placeholder).join(valor);
+  }
+
+  if (!rendered.trim()) return null;
+  return rendered;
+};
+
 // ─── Cloud Function principal ──────────────────────────────────
 functions.http('sendWhatsApp', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -469,6 +642,8 @@ functions.http('sendWhatsApp', async (req, res) => {
     const payload = req.body;
     const data = payload.record || payload;
     const messageType = payload.messageType || 'initial';
+    // Short link por lead (fail-open; os builders leem via buildScheduleUrl)
+    data.schedule_url = await resolveScheduleUrl(data);
 
     if (!data || !data.athlete_name) {
       log('WARN', 'validation_failed', { hasData: !!data });
@@ -499,34 +674,83 @@ functions.http('sendWhatsApp', async (req, res) => {
       messageType,
     });
 
-    // Mensagem custom (meeting_confirmed): envia direto sem template
+    // Mensagem custom (meeting_confirmed): envia direto sem template.
+    // Extensão I2 (aditiva): linkUrl opcional no payload → envia via
+    // /send-link (card clicável com linkTitle/linkDescription/linkImage —
+    // mesmo contrato do sendLink dos templates). SEM linkUrl, o caminho é
+    // o histórico byte-a-byte: /send-text (fallback intacto — callers
+    // existentes como o convite de reunião do Engine não mudam em nada).
     if (messageType === 'meeting_confirmed' && payload.customMessage && payload.phone) {
       const phone = formatPhone(payload.phone);
       if (!phone) {
         return res.status(400).send({ success: false, error: 'Telefone inválido' });
       }
-      const result = await sendMessage(payload.phone, payload.customMessage);
+      const isHttpUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v.trim());
+      const customLinkUrl = isHttpUrl(payload.linkUrl) ? payload.linkUrl.trim() : null;
+      // Imagem SEM link → mídia nativa (/send-image) com o texto como legenda.
+      // Com link, a imagem segue como preview do card (linkImage) — não duplica.
+      const customImageUrl =
+        !customLinkUrl && isHttpUrl(payload.imageUrl) ? payload.imageUrl.trim() : null;
+      let result;
+      if (customLinkUrl) {
+        // Z-API /send-link: o link precisa estar contido na mensagem para o
+        // card ser clicável — se o texto não o contém, anexa ao final
+        // (WYSIWYG com o preview do builder de automações).
+        const message = payload.customMessage.includes(customLinkUrl)
+          ? payload.customMessage
+          : `${payload.customMessage}\n\n${customLinkUrl}`;
+        result = await sendLink(
+          payload.phone,
+          message,
+          customLinkUrl,
+          sanitize(payload.linkTitle) || customLinkUrl,
+          sanitize(payload.linkDescription) || '',
+          isHttpUrl(payload.linkImage) ? payload.linkImage.trim() : ''
+        );
+      } else if (customImageUrl) {
+        result = await sendImage(payload.phone, customImageUrl, payload.customMessage);
+      } else {
+        result = await sendMessage(payload.phone, payload.customMessage);
+      }
       const durationMs = Date.now() - startTime;
-      log('INFO', 'custom_message_sent', { phone, durationMs });
+      log('INFO', 'custom_message_sent', {
+        phone,
+        durationMs,
+        withLink: !!customLinkUrl,
+        withImage: !!customImageUrl,
+      });
       return res.status(200).send({ success: true, results: [{ to: 'custom', ...result }], durationMs });
     }
 
+    // Textos custom editáveis (config scheduler_mensagens) — buscados UMA
+    // vez por request. Qualquer falha/ausência → athleteCustom/guardianCustom
+    // ficam null e os builders hardcoded abaixo assumem (fallback permanente).
+    const mensagensCustom = await fetchMensagensCustom();
+    const athleteCustom = renderTemplate(
+      mensagensCustom?.[messageType]?.atleta,
+      buildTemplateVars(data, messageType, 'atleta')
+    );
+    const guardianCustom = renderTemplate(
+      mensagensCustom?.[messageType]?.responsavel,
+      buildTemplateVars(data, messageType, 'responsavel')
+    );
+
     // Seleciona templates com base no tipo de mensagem
-    const athleteMsg =
+    const athleteMsg = athleteCustom || (
       messageType === 'followup_2' ? buildAthleteFollowup2Message(data) :
       messageType === 'followup_1' ? buildAthleteFollowup1Message(data) :
       messageType === 'early_potential' ? buildEarlyPotentialAthleteMessage(data) :
       messageType === 'late_timing' ? buildLateTimingAthleteMessage(data) :
       messageType === 'scheduled_return' ? buildScheduledReturnAthleteMessage(data) :
-      buildAthleteMessage(data);
+      buildAthleteMessage(data));
 
-    const guardianMsg =
+    const guardianMsg = guardianCustom || (
       messageType === 'followup_2' ? buildGuardianFollowup2Message(data) :
       messageType === 'followup_1' ? buildGuardianFollowup1Message(data) :
       messageType === 'early_potential' ? buildEarlyPotentialGuardianMessage(data) :
       messageType === 'late_timing' ? buildLateTimingGuardianMessage(data) :
       messageType === 'scheduled_return' ? buildScheduledReturnGuardianMessage(data) :
-      buildGuardianMessage(data);
+      buildGuardianMessage(data));
 
     const results = [];
 

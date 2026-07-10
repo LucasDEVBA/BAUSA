@@ -9,7 +9,7 @@ import {
   type SchoolSportInfluence,
   type ScholarshipAggressiveness,
 } from "@/types/school";
-import { cn } from "@/lib/utils";
+import { PageHeader, StatCard } from "@/components/ui";
 import { EscolasClient } from "@/components/escolas/EscolasClient";
 
 // Mapeia dados Supabase (tabela `escolas`) para o tipo School do componente
@@ -99,34 +99,19 @@ export default async function EscolasPage() {
     : 0;
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div>
-        <h1 className="text-title-2 text-foreground">Banco de Escolas</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Inteligencia institucional acumulada — {schools.length} instituicoes cadastradas
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader dense
+        eyebrow="Inteligência"
+        title="Banco de Escolas"
+        description={`Inteligência institucional acumulada — ${schools.length} instituições cadastradas`}
+      />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Escolas ativas", value: activeSchools.length.toString(), icon: GraduationCap, color: "text-primary", bg: "bg-primary/10" },
-          { label: "Aplicacoes totais", value: totalApplications.toString(), icon: Users, color: "text-sys-blue", bg: "bg-sys-blue/10" },
-          { label: "Taxa de aceite global", value: `${overallAcceptance}%`, icon: TrendingUp, color: "text-sys-green", bg: "bg-sys-green/10" },
-          { label: "Bolsa media", value: `${avgScholarship}%`, icon: Star, color: "text-sys-orange", bg: "bg-sys-orange/10" },
-        ].map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <div key={kpi.label} className="rounded-lg border border-border/70 bg-card/60 p-3">
-              <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", kpi.bg)}>
-                <Icon className={cn("h-4 w-4", kpi.color)} />
-              </div>
-              <p className="text-base font-semibold text-foreground">{kpi.value}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
-            </div>
-          );
-        })}
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Escolas ativas" value={activeSchools.length} icon={GraduationCap} accent="brand" />
+        <StatCard label="Aplicações totais" value={totalApplications} icon={Users} accent="blue" />
+        <StatCard label="Taxa de aceite global" value={`${overallAcceptance}%`} icon={TrendingUp} accent="green" />
+        <StatCard label="Bolsa média" value={`${avgScholarship}%`} icon={Star} accent="orange" />
       </div>
 
       {/* Toolbar + grid + sheets (client) */}

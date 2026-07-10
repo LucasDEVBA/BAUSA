@@ -143,6 +143,7 @@ export default async function FamiliasPipelinePage() {
     return {
       id: row.id as string,
       atleta_id: (row.atleta_id as string) ?? "",
+      deal_id: (row.deal_id as string) ?? null,
       athlete_name: (atleta?.nome_completo as string) ?? "Atleta",
       guardian_name: (responsavel?.nome as string) ?? "Responsável",
       whatsapp:

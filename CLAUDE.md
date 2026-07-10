@@ -121,6 +121,11 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | `functions/retry-qualification/` | `retry-qualification` | `retry-qualification-uat` | Cloud Scheduler (diário) + HTTP `lead_id` | Reprocessa qualificação Gemini pendente/falha (também usado p/ recuperar lead órfão) |
 | `functions/calendar-webhook/` | `calendar-webhook` | `calendar-webhook-uat` | Google Calendar Push Notification | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO |
 | `functions/renew-calendar-watch/` | `renew-calendar-watch` | `renew-calendar-watch-uat` | Cloud Scheduler (cada 6 dias) | Renova watch channel do Google Calendar |
+| `functions/automation-engine/` | `automation-engine` | `automation-engine-uat` | Cloud Scheduler (1x/hora, min 30) | Engine das automações do BAU Engine (`/automacoes`): materializa gatilhos de tempo + executa runs (tarefa/notificação/WhatsApp/deal) com CAS e retry. Guard CI: `tests/automation-engine-eligibility.test.js` |
+| `functions/meeting-transcripts/` | `meeting-transcripts` | `meeting-transcripts-uat` | Cloud Scheduler (a cada 2h, min 15) | Captura a transcrição nativa do Google Meet: acha o Doc anexado ao evento do Calendar (`deals.google_calendar_event_id`), exporta via Drive API (`drive.readonly`), resume via Gemini (opcional) e grava em `reunioes_transcricoes` (idempotente por `UNIQUE(google_event_id)`). Exibida no detalhe do lead/deal no Engine |
+| `functions/sync-meta-spend/` | `sync-meta-spend` | `sync-meta-spend-uat` | Cloud Scheduler (diário 06:00 BRT) | Ingestão do gasto de Meta Ads (Marketing API, `level=campaign` + `time_increment=1`, com paginação). Grava **detalhe por campanha/dia** em `meta_ads_campanha` (UNIQUE data,campanha_id) + **rollup mensal** em `investimentos_marketing` (canal=meta, source=meta_api) — fonte única dos TOTAIS do CAC/DRE. `campanha_id` cruza com `form_submissions.utm_id` p/ ROI exato. Env vars: `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`, `META_GRAPH_VERSION`, `META_SYNC_MESES`, `SUPABASE_*`. **Config manual** (credenciais Meta não estão em secrets). Assume conta BRL. |
+| `functions/billing-reminders/` | `billing-reminders` | `billing-reminders-uat` | Cloud Scheduler (diário 09:00 BRT) | Régua de cobrança (D-3 a D+15) sobre `parcelas` previsto/atrasado de contrato ativo. 1 marco por parcela/tick, CAS por coluna `regua_<marco>_at` (idempotente). **NÃO é outreach de lead** — não usa classe Gemini; elegibilidade = parcela em aberto + contrato ativo + marco não enviado. Texto editável em `regua_mensagens`. Envia via `send-whatsapp` (custom) + `send-messages` (customEmail); notifica CEO no D+7/D+15. Guard CI: `tests/billing-reminders-invariants.test.js`. **Nasce pausada.** |
+| `functions/calendar-lead-events/` | `calendar-lead-events` | `calendar-lead-events-uat` | HTTP POST (Engine, `x-webhook-secret` obrigatório) | **Read-only** (`calendar.readonly`): lista os eventos do Calendar do CEO que casam com UM lead (attendee por e-mail OU telefone tail-10 na descrição — mesmo matching do `calendar-webhook`), janela −180d/+120d, flag `temTranscricaoAnexada`. Usado pela UI de **relink** da aba Reunião (`reunioes-relink.ts`): CEO enxerga todas as reuniões do lead e religa o deal ao evento correto pós-remarcação. Env vars Google = **config manual pós-1º deploy** (copiar da `calendar-webhook`). Engine: `CALENDAR_LEAD_EVENTS_URL` no Vercel. |
 
 **Auth entre serviços:** header `x-webhook-secret` em todos os webhooks.
 
@@ -408,12 +413,12 @@ Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test
 - `WEBHOOK_SECRET` — todas as funções (diferente por ambiente: `_UAT`, `_DEV`)
 - `SUPABASE_SCHEMA` — `public` em PRD, `uat` em UAT, `dev` em DEV
 - `GEMINI_API_KEY` — qualify-lead
-- `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — qualify-lead, process-pending, process-followup, calendar-webhook
+- `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — qualify-lead, process-pending, process-followup, calendar-webhook, meeting-transcripts
 - `SPREADSHEET_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — qualify-lead, sync-leads, calendar-webhook, renew-calendar-watch
 - `ZAPI_INSTANCE_ID` + `ZAPI_TOKEN` + `ZAPI_CLIENT_TOKEN` — send-whatsapp, calendar-webhook
 - `RESEND_API_KEY` + `BREVO_API_KEY` + `FROM_EMAIL` + `INTERNAL_EMAIL` + `LOGO_URL` — send-messages
 - `SEND_WHATSAPP_URL` + `SYNC_LEADS_URL` — process-pending, process-followup, calendar-webhook
-- `GOOGLE_CALENDAR_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — process-followup, calendar-webhook, renew-calendar-watch
+- `GOOGLE_CALENDAR_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — process-followup, calendar-webhook, renew-calendar-watch, meeting-transcripts (+ `GEMINI_API_KEY` opcional p/ resumo)
 - `CEO_WHATSAPP` — calendar-webhook (notificação ao CEO)
 - `CALENDAR_WEBHOOK_URL` — renew-calendar-watch (URL do webhook para registrar no Google)
 
@@ -473,6 +478,8 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | ✅ **Guard anti-regressão schedulers** | CI `node:test` que bloqueia merge se filtro classe/timing sumir dos schedulers (após 2 incidentes) | Implementado 2026-05-18 |
 | ✅ **Engine: Design System Apple + Meu Perfil + Gestão de Usuários** | Tema claro/escuro + liquid glass; `/perfil` (nome/senha/foto via Storage `avatars`); aba Usuários em Configurações (CEO cria/edita papel/ativo) | Implementado 2026-06 |
 | ✅ **Papel `cto` (= CEO)** | Papel RBAC com permissões idênticas ao CEO — `getUserPapel()`/`get_user_papel()` resolvem `cto→ceo`; distinto só na exibição (migration `20260619034922`) | Implementado 2026-06-19 |
+| ✅ **Redesign2 premium (todas as telas)** | Design system v2 light-first (brandbook BAU) propagado a TODAS as telas do Engine: PageHeader (dense+HeaderMenu ⋯ nas dashboards), StatCard, Card glass, ScrollList (listas em card de altura fixa), hub `/sistema`, tipografia −2px/spacing enxuto | Implementado 2026-07 (PRs #157–#168) |
+| ✅ **Automações (builder + engine + runs)** | `/automacoes`: builder gatilho→condições→ações (CEO); CF `automation-engine` (Cloud Scheduler 1x/h min 30) executa com CAS duplo (run + lead `*_sent_at`), retry/backoff, órfãos/zumbis, anti-ban, loop-guard; aba Execuções com KPIs + replay. Migration `20260703232151` (+ fix latente do `audit.log_change` p/ tabelas sem `id`). Guard CI `tests/automation-engine-eligibility.test.js` | Implementado 2026-07-04 (PRs #169–#172); pendente UAT: env vars da CF + `scheduler.sh uat` |
 | 🔜 Monitoramento | Cloud Monitoring dashboards + alertas por ambiente | Não iniciado |
 | 🔜 **CAC Meta API** | Custo de Aquisição via Meta Marketing API | Planejado (ver `docs/IMPROVEMENTS.md`) |
 | 🔜 **next/image** | Migrar `<img>` para `next/image` (Core Web Vitals) | Planejado |
@@ -621,6 +628,12 @@ O CRM usa **light theme** com design tokens em `app/crm.css`:
 ### Configuração externa CRM — Deploy pendente
 - [ ] Deploy qualify-lead com auto-promoção (nova versão com autoPromoteToCRM)
 - [ ] Deploy process-followup-whatsapp com atualização de deals
+
+### Transcrição do Meet (meeting-transcripts) — Config pendente
+- [ ] Env vars da CF `meeting-transcripts` (por ambiente): `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SCHEMA`, `SERVICE_ACCOUNT_EMAIL`, `SERVICE_ACCOUNT_PRIVATE_KEY`, `GOOGLE_CALENDAR_ID`, `GEMINI_API_KEY` (opcional — habilita o resumo)
+- [ ] **Passo manual (Drive):** compartilhar a pasta **"Meet Recordings"** do Drive do CEO com o e-mail da service account (`SERVICE_ACCOUNT_EMAIL`) como **Leitor** — sem isso a CF loga `transcript_access_denied` e pula (não quebra o tick)
+- [ ] Habilitar a **Drive API** no projeto GCP `elite-portal-forms` (a SA usa scope `drive.readonly` para exportar o Doc)
+- [ ] `bash infra/scheduler.sh <env>` — cria/atualiza o job `meeting-transcripts-job{-uat|-dev}` (cron `15 */2 * * *`, deadline 300s)
 
 ### Backlog técnico
 - [ ] Rate limiting no formulário (proteção anti-spam)

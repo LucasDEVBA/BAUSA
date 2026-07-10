@@ -13,7 +13,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, TrendingDown, Minus, DollarSign, Users, FileCheck, BarChart2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, DollarSign, Users, BarChart2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RevenueMonth } from "@/types/revenue";
 import { AnalyticsExportButton } from "@/components/analytics/AnalyticsExportButton";
@@ -106,7 +106,7 @@ const CustomBarTooltip = ({ active, payload, label }: {
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
+    <div className="rounded-lg border border-border bg-popover shadow-lg px-3 py-2 text-xs">
       <p className="mb-1.5 font-semibold text-foreground">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }} className="flex items-center gap-1.5">
@@ -125,7 +125,7 @@ const CustomLineTooltip = ({ active, payload, label }: {
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="liquid-glass rounded-xl px-3 py-2 text-xs">
+    <div className="rounded-lg border border-border bg-popover shadow-lg px-3 py-2 text-xs">
       <p className="mb-1.5 font-semibold text-foreground">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} style={{ color: entry.color }}>
@@ -193,21 +193,24 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
   }));
 
   const lineData = useMemo(() => {
-    let cumCurrent = 0;
-    let cumPrev = 0;
     const maxLen = Math.max(currentSlice.length, compareEnabled ? previousSlice.length : 0);
+
+    // Soma acumulada de received_brl até o índice i, sem mutar variável externa
+    // durante o render (prefix sum imutável — preserva o resultado do loop original).
+    const cumReceived = (slice: RevenueMonth[], i: number) =>
+      slice.slice(0, i + 1).reduce((sum, m) => sum + m.received_brl, 0);
 
     return Array.from({ length: maxLen }, (_, i) => {
       const curMonth = currentSlice[i];
       const prv = previousSlice[i];
-      if (curMonth) cumCurrent += curMonth.received_brl;
-      if (prv && compareEnabled) cumPrev += prv.received_brl;
 
       return {
         idx: i + 1,
         label: curMonth?.month_label ?? `M${i + 1}`,
-        "Acumulado atual": curMonth ? cumCurrent : undefined,
-        ...(compareEnabled && prv ? { "Acumulado anterior": cumPrev } : {}),
+        "Acumulado atual": curMonth ? cumReceived(currentSlice, i) : undefined,
+        ...(compareEnabled && prv
+          ? { "Acumulado anterior": cumReceived(previousSlice, i) }
+          : {}),
       };
     });
   }, [currentSlice, previousSlice, compareEnabled]);
@@ -339,9 +342,9 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={barData} barSize={compareEnabled ? 8 : 14} barCategoryGap="30%">
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-            <XAxis dataKey="month" tick={{ fill: "var(--chart-grid)", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="month" tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
-              tick={{ fill: "var(--chart-grid)", fontSize: 11 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`}
@@ -366,9 +369,9 @@ export function AnalyticsClient({ revenueMonths }: AnalyticsClientProps) {
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={lineData}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-            <XAxis dataKey="label" tick={{ fill: "var(--chart-grid)", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="label" tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
-              tick={{ fill: "var(--chart-grid)", fontSize: 11 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`}

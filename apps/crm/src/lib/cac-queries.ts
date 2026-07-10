@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { dedupInvestimentos } from "@/lib/marketing-spend";
 
 // ════════════════════════════════════════════════════════════════════════
 // CAC/ROI — camada de dados (Fase 1, input manual de gasto)
@@ -66,11 +67,44 @@ export interface CacMetrics {
   roiAproximado: boolean;
 }
 
+/** ROI EXATO de uma campanha Meta (gasto real × conversões atribuídas por utm_id). */
+export interface CampanhaRoi {
+  campanhaId: string;
+  campanhaNome: string | null;
+  gasto: number;
+  impressoes: number;
+  cliques: number;
+  leads: number;
+  leadsQualificados: number;
+  clientes: number;
+  receita: number;
+  cacLead: number | null;
+  cacCliente: number | null;
+  /** (receita − gasto) / gasto. null quando gasto = 0. */
+  roi: number | null;
+}
+
+export interface DiaGasto {
+  data: string; // YYYY-MM-DD
+  gasto: number;
+}
+
+export interface CampanhaMetrics {
+  /** Há linhas em meta_ads_campanha no período (sync do Meta ativo). */
+  temDados: boolean;
+  gastoTotal: number;
+  porCampanha: CampanhaRoi[];
+  porDia: DiaGasto[];
+  /** Leads no período sem utm_id → não atribuíveis a uma campanha. */
+  leadsSemCampanha: number;
+}
+
 interface GastoRow {
   mes: string;
   canal: string;
   valor_gasto: number;
   leads_gerados: number | null;
+  source: string;
 }
 
 interface LeadRow {
@@ -117,7 +151,7 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
   const [gastoRes, leadsRes, contratosRes] = await Promise.all([
     supabase
       .from("investimentos_marketing")
-      .select("mes, canal, valor_gasto, leads_gerados")
+      .select("mes, canal, valor_gasto, leads_gerados, source")
       .is("deleted_at", null)
       .gte("mes", startMonth),
     supabase
@@ -131,7 +165,9 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
       .gte("created_at", startISO),
   ]);
 
-  const gastos = (gastoRes.data as GastoRow[] | null) ?? [];
+  // Dedup por (mês, canal): meta_api vence manual — mesma regra do DRE, para
+  // não dobrar o gasto de Meta quando o sync automático e o manual coexistem.
+  const gastos = dedupInvestimentos((gastoRes.data as GastoRow[] | null) ?? []);
   const leads = (leadsRes.data as LeadRow[] | null) ?? [];
   const contratos = (contratosRes.data as ContratoRow[] | null) ?? [];
 
@@ -212,5 +248,171 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
     porMes,
     roiPorCanal,
     roiAproximado: true,
+  };
+}
+
+// ─── ROI EXATO por campanha (Meta) ──────────────────────────────────────
+//
+// Cruza o gasto real por campanha (meta_ads_campanha.campanha_id) com as
+// conversões atribuídas via form_submissions.utm_id (= Meta campaign.id).
+// Cliente → campanha percorre contrato → deal → atleta → form_submission.
+// Diferente do ROI por canal (aproximado): aqui a atribuição é 1:1 exata.
+
+interface MetaRow {
+  data: string;
+  campanha_id: string;
+  campanha_nome: string | null;
+  valor_gasto: number;
+  impressoes: number | null;
+  cliques: number | null;
+}
+
+interface LeadCampanhaRow {
+  utm_id: string | null;
+  qualification_classification: string | null;
+}
+
+interface ContratoCampanhaRow {
+  valor_total: number;
+  deals: unknown; // embed to-one (objeto ou array, tratado por firstOf)
+}
+
+/** Embeds PostgREST to-one podem vir como objeto ou array de 1 — normaliza. */
+function firstOf<T>(value: unknown): T | null {
+  if (Array.isArray(value)) return (value[0] as T) ?? null;
+  return (value as T) ?? null;
+}
+
+/** utm_id do lead que originou o contrato (contrato→deal→atleta→form_submission). */
+function utmIdFromContrato(row: ContratoCampanhaRow): string | null {
+  const deal = firstOf<{ atletas: unknown }>(row.deals);
+  const atleta = firstOf<{ form_submissions: unknown }>(deal?.atletas);
+  const fs = firstOf<{ utm_id: string | null }>(atleta?.form_submissions);
+  const utm = fs?.utm_id?.trim();
+  return utm ? utm : null;
+}
+
+export async function fetchCampanhaMetrics(
+  period: Period,
+): Promise<CampanhaMetrics> {
+  const supabase = await createServerSupabaseClient();
+  const start = startDateUTC(period);
+  const startISO = start.toISOString();
+  const startDate = start.toISOString().slice(0, 10); // meta_ads_campanha.data é DATE
+
+  const [metaRes, leadsRes, contratosRes] = await Promise.all([
+    supabase
+      .from("meta_ads_campanha")
+      .select("data, campanha_id, campanha_nome, valor_gasto, impressoes, cliques")
+      .is("deleted_at", null)
+      .gte("data", startDate),
+    supabase
+      .from("form_submissions")
+      .select("utm_id, qualification_classification")
+      .gte("submitted_at", startISO),
+    supabase
+      .from("contratos_financeiros")
+      .select("valor_total, deals(atletas(form_submissions(utm_id)))")
+      .is("deleted_at", null)
+      .gte("created_at", startISO),
+  ]);
+
+  // Sem a tabela/sync do Meta, a query falha silenciosamente (data null) →
+  // temDados=false → a UI mostra o estado de ativação em vez de dados falsos.
+  const metaRows = (metaRes.data as MetaRow[] | null) ?? [];
+  const leads = (leadsRes.data as LeadCampanhaRow[] | null) ?? [];
+  const contratos = (contratosRes.data as ContratoCampanhaRow[] | null) ?? [];
+
+  // Gasto/impressões/cliques agregados por campanha + série diária
+  interface Acc {
+    nome: string | null;
+    gasto: number;
+    impressoes: number;
+    cliques: number;
+  }
+  const porCampanhaAcc = new Map<string, Acc>();
+  const porDiaMap = new Map<string, number>();
+  for (const r of metaRows) {
+    // Chave normalizada com trim — espelha o trim do lado leads/contratos
+    // (utmIdFromContrato / leads.utm_id) para o join não falhar por espaço residual.
+    const campanhaId = r.campanha_id?.trim();
+    if (!campanhaId) continue;
+    const acc = porCampanhaAcc.get(campanhaId) ?? {
+      nome: null,
+      gasto: 0,
+      impressoes: 0,
+      cliques: 0,
+    };
+    acc.gasto += Number(r.valor_gasto);
+    acc.impressoes += Number(r.impressoes ?? 0);
+    acc.cliques += Number(r.cliques ?? 0);
+    if (r.campanha_nome) acc.nome = r.campanha_nome;
+    porCampanhaAcc.set(campanhaId, acc);
+    if (r.data) porDiaMap.set(r.data, (porDiaMap.get(r.data) ?? 0) + Number(r.valor_gasto));
+  }
+
+  // Leads (total e qualificados) atribuídos por campanha (utm_id = campaign.id)
+  const leadsPorCampanha = new Map<string, { total: number; qualificados: number }>();
+  let leadsSemCampanha = 0;
+  for (const l of leads) {
+    const utm = l.utm_id?.trim();
+    if (!utm) {
+      leadsSemCampanha += 1;
+      continue;
+    }
+    const prev = leadsPorCampanha.get(utm) ?? { total: 0, qualificados: 0 };
+    prev.total += 1;
+    if (["QUENTE", "MORNO"].includes(l.qualification_classification ?? "")) {
+      prev.qualificados += 1;
+    }
+    leadsPorCampanha.set(utm, prev);
+  }
+
+  // Clientes + receita atribuídos por campanha (contrato → utm_id de origem)
+  const clientesPorCampanha = new Map<string, { clientes: number; receita: number }>();
+  for (const c of contratos) {
+    const utm = utmIdFromContrato(c);
+    if (!utm) continue;
+    const prev = clientesPorCampanha.get(utm) ?? { clientes: 0, receita: 0 };
+    prev.clientes += 1;
+    prev.receita += Number(c.valor_total);
+    clientesPorCampanha.set(utm, prev);
+  }
+
+  // ROI por campanha (chaveado nas campanhas COM gasto — onde ROI faz sentido)
+  const porCampanha: CampanhaRoi[] = Array.from(porCampanhaAcc.entries())
+    .map(([campanhaId, acc]) => {
+      const l = leadsPorCampanha.get(campanhaId) ?? { total: 0, qualificados: 0 };
+      const cl = clientesPorCampanha.get(campanhaId) ?? { clientes: 0, receita: 0 };
+      const temGasto = acc.gasto > 0;
+      return {
+        campanhaId,
+        campanhaNome: acc.nome,
+        gasto: acc.gasto,
+        impressoes: acc.impressoes,
+        cliques: acc.cliques,
+        leads: l.total,
+        leadsQualificados: l.qualificados,
+        clientes: cl.clientes,
+        receita: cl.receita,
+        cacLead: temGasto && l.total > 0 ? acc.gasto / l.total : null,
+        cacCliente: temGasto && cl.clientes > 0 ? acc.gasto / cl.clientes : null,
+        roi: temGasto ? (cl.receita - acc.gasto) / acc.gasto : null,
+      };
+    })
+    .sort((a, b) => b.gasto - a.gasto);
+
+  const porDia: DiaGasto[] = Array.from(porDiaMap.entries())
+    .map(([data, gasto]) => ({ data, gasto }))
+    .sort((a, b) => a.data.localeCompare(b.data));
+
+  const gastoTotal = porCampanha.reduce((s, c) => s + c.gasto, 0);
+
+  return {
+    temDados: metaRows.length > 0,
+    gastoTotal,
+    porCampanha,
+    porDia,
+    leadsSemCampanha,
   };
 }

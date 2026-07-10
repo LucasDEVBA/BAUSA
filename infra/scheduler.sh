@@ -176,4 +176,109 @@ gcloud scheduler jobs update http "${JOB_MS}" \
   --attempt-deadline=320s
 
 echo "✓ ${JOB_MS} configurado"
+
+# ─── Job 7: Engine de automações (1x/hora, minuto 30 p/ não competir
+#            com os schedulers de mensageria do minuto 0) ────────────
+JOB_AE="automation-engine-job${SUFFIX}"
+AUTOMATION_ENGINE_URL="${AUTOMATION_ENGINE_URL:-https://automation-engine${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_AE}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="30 * * * *" \
+  --uri="${AUTOMATION_ENGINE_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_AE}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="30 * * * *" \
+  --uri="${AUTOMATION_ENGINE_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s
+
+echo "✓ ${JOB_AE} configurado"
+
+# ─── Job 8: Transcrições do Google Meet (a cada 2h, minuto 15) ────────
+# A CF só processa reuniões já detectadas (deals.google_calendar_event_id)
+# sem transcrição capturada; anexo ausente = pula silencioso (próximo tick).
+JOB_MT="meeting-transcripts-job${SUFFIX}"
+MEETING_TRANSCRIPTS_URL="${MEETING_TRANSCRIPTS_URL:-https://meeting-transcripts${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_MT}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="15 */2 * * *" \
+  --uri="${MEETING_TRANSCRIPTS_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_MT}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="15 */2 * * *" \
+  --uri="${MEETING_TRANSCRIPTS_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s
+
+echo "✓ ${JOB_MT} configurado"
+
+# ─── Job 9: Régua de cobrança (diário 09:00 BRT) ──────────────────────
+# Percorre parcelas previsto/atrasado e dispara 1 marco por parcela/tick
+# (D-3 a D+15), com CAS por marco. Nasce PAUSADA — ativar após revisar
+# o texto (config regua_mensagens) e configurar SEND_MESSAGES_URL.
+JOB_BR="billing-reminders-job${SUFFIX}"
+BILLING_REMINDERS_URL="${BILLING_REMINDERS_URL:-https://billing-reminders${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_BR}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 9 * * *" \
+  --uri="${BILLING_REMINDERS_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_BR}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 9 * * *" \
+  --uri="${BILLING_REMINDERS_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=600s
+
+echo "✓ ${JOB_BR} configurado"
+
+# ─── Job 10: Monitor de saúde do funil (a cada 30 min) ────────────────
+# Watchdog: qualificação travada, fila WhatsApp presa, erros de automação.
+# Alerta o CEO (WhatsApp + in-app) com cooldown de 6h por check. A instância
+# UAT roda em modo dry (só a PRD alerta) — seguro criar o job nos 2 ambientes.
+JOB_MH="monitor-health-job${SUFFIX}"
+MONITOR_HEALTH_URL="${MONITOR_HEALTH_URL:-https://monitor-health${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_MH}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/30 * * * *" \
+  --uri="${MONITOR_HEALTH_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_MH}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/30 * * * *" \
+  --uri="${MONITOR_HEALTH_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s
+
+echo "✓ ${JOB_MH} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"

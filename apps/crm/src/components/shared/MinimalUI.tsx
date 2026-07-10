@@ -99,7 +99,7 @@ export function MinimalField({
     value !== null && value !== undefined && value !== "" && value !== "—";
   return (
     <div className="py-1">
-      <dt className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/80">
+      <dt className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
         {label}
       </dt>
       <dd
@@ -256,7 +256,7 @@ export function PageHero({
               {eyebrow}
             </p>
           )}
-          <h1 className="text-[17px] font-semibold leading-tight tracking-tight text-foreground">
+          <h1 className="text-[15px] font-semibold leading-tight tracking-tight text-foreground">
             {title}
           </h1>
           {description && (

@@ -3,7 +3,7 @@
 > Contexto do projeto para Claude Code. Complementa o CLAUDE.md global (~/.claude/CLAUDE.md).
 > Regras do CLAUDE.md global continuam valendo — este arquivo só sobrescreve/acrescenta o que é específico deste projeto.
 > Para regras de negócio detalhadas, ver `docs/regras-de-negocio.md`. Para mapa de módulos, ver `docs/modulos.md`.
-> **Design System (Apple-grade):** ao mexer na aparência do CRM, ler `docs/design-system/` — `CLAUDE.md` (brief + Regra de Ouro), `HIG-Rulebook-BAUSA.md` (princípios) e `BAUSA-CRM-DesignSystem-AppleGrade.md` (tokens/specs). Tokens em `src/app/globals.css` vencem em conflito.
+> **Design System v2 (2026-07, redesign do zero):** LIGHT-first, identidade OFICIAL do brandbook BAU 2025 (`docs/DESIGN_SPEC.md` = contrato). Tokens em `src/app/globals.css` vencem em conflito. Primitivos reusáveis em `src/components/ui/` (Card, Button, Badge, DeltaBadge, StatCard, ChannelAction, InsightCard, PageHeader, ChartCard/ChartTooltip/PeriodSelector, BrandTabs, ScrollList). Docs antigos em `docs/design-system/` (Apple-grade) estão SUPERADOS.
 
 ---
 
@@ -48,36 +48,71 @@ sonner — toasts
 
 ---
 
-## Paleta e Design System
+## Paleta e Design System (v2 — light-first)
 
-> **Design System Apple-grade** (2026-06). Tokens em `src/app/globals.css` (CSS-first, Tailwind v4).
-> Docs em `docs/design-system/` (`HIG-Rulebook-BAUSA.md`, `BAUSA-CRM-DesignSystem-AppleGrade.md`,
-> `conversion-guide.md`). **Regra: zero hex solto — sempre tokens.**
+> **Design System v2** (2026-07, reconstrução do zero). Tokens em `src/app/globals.css` (CSS-first, Tailwind v4).
+> Contrato = `docs/DESIGN_SPEC.md`. **Regra: zero hex solto — sempre tokens.**
 
-- **Temas claro/escuro** com toggle no Header (classe `.dark` no `<html>`; persiste em `localStorage`
-  `bausa-theme`; **dark é o padrão**; anti-FOUC via script inline no layout).
-- **Cores = tokens semânticos** (paleta de sistema Apple):
-  - Superfícies: `bg-background` · `bg-card` · `bg-popover` · `bg-secondary` · `bg-sidebar`.
-  - Texto (hierarquia por alpha): `text-foreground` · `text-muted-foreground` · `text-label-tertiary`.
-  - Ação (azul) = `primary`. Status (tinted fill ~15%): `sys-green/orange/red/blue/yellow`,
-    lead `lead-hot/warm/cold`, planos `plan-legacy/journey/start`.
-  - Marca BAUSA: `bau-blue` · `bau-burgundy` · `bau-gold`.
-  - Recharts: props de cor via `var(--chart-*/--sys-*/--lead-*)`.
-- **Liquid glass**: `.glass-card` (cards de conteúdo) e `.liquid-glass` (modais/sheets/popovers);
-  fundo com gradiente aurora; fallback de `prefers-reduced-transparency`.
-- **Tipografia** SF/Inter via `.text-title-*` · `.text-headline` · `.text-footnote` (tracking negativo).
-- **Raios**: inputs/botões `rounded-md` (10px) · cards `rounded-xl` · modais `rounded-2xl` (20px).
-- **Sidebar**: logo BAU (`/brand/bausa-bau.png`), **recolhível** (persiste); item ativo `bg-primary/15`
-  + barra `bg-primary`; **footer abre Meu Perfil (`/perfil`)** e mostra o avatar do usuário.
-- **A11y**: `:focus-visible` global (anel `--ring`), `prefers-reduced-motion`/`-transparency`.
+- **Tema LIGHT é o padrão** (toggle no Header; classe `.dark` opcional no `<html>`; persiste em
+  `localStorage` `bausa-theme`; anti-FOUC adiciona `.dark` só se escolhido).
+- **Paleta OFICIAL do brandbook BAU 2025:**
+  - Marca: `bau-blue` (#193b8b, = `primary`) · `bau-blue-2` (#476bc0) · `bau-burgundy` (#8e1824,
+    acento) · `bau-burgundy-2` (#c04753). **Sem dourado** (fora da marca oficial — `bau-gold`
+    permanece só como token legado, evitar uso).
+  - Superfícies: fundo off-white `bg-background` · `bg-card` (branco) · `bg-popover` · `bg-secondary`.
+  - Texto: `text-foreground` (tinta azul-escura) · `text-muted-foreground` · `text-label-tertiary`.
+  - Status (tinted fill): `sys-green/orange/red/blue/purple`, lead `lead-hot/warm/cold`.
+  - Charts (convenção de série): `chart-1`=azul, `2`=bordô, `3`=roxo, `4`=laranja, `5`=teal.
+- **Primitivos** (`src/components/ui/`, import via `@/components/ui`): `Card`, `Button`, `Badge`,
+  `DeltaBadge`, `Input`, `Skeleton`, `EmptyState`, `PageHeader`, `StatCard` (KPI eyebrow+delta),
+  `ChannelAction` (WhatsApp verde/E-mail azul), `InsightCard` (Gemini), `ChartCard`/`ChartTooltip`/
+  `PeriodSelector`, `BrandTabs`, `ScrollList` (lista rolável em card de altura fixa — ver abaixo).
+  **Reusar sempre; não criar markup ad-hoc.**
+- **Listas em card com altura fixa** (`ScrollList`): quando um card de dashboard/painel contém uma
+  lista que pode crescer, o card deve ter **altura fixa** e a lista **rolar por dentro**. Padrão:
+  card `flex flex-col h-[Nrem]`, cabeçalho `shrink-0`, e o wrapper da lista vira
+  `<ScrollList className="space-y-*">` (já é `min-h-0 flex-1 overflow-y-auto` + scrollbar fino
+  `.crm-scroll` + calha; use `gutter={false}` em listas edge-to-edge com `divide-y`). Cards irmãos
+  no mesmo grid usam a **mesma** altura. NÃO aplicar em tabela/lista primária de página inteira
+  (que já rola no nível do `<main>`).
+- **Liquid glass**: `.liquid-glass` (sidebar/header/modais/sheets/tooltips escuros). Gradiente de
+  marca (`bg-gradient-brand`, azul→bordô) em avatar/hero — nunca atrás de texto.
+- **A11y**: `:focus-visible` global (anel `--ring` = azul BAU), `prefers-reduced-motion`/`-transparency`.
+  **Charts: nunca usar `--chart-grid` como cor de texto** (é linha; use `--muted-foreground`).
 
-> Exceções de cor real (não-tema): budgets de **escola** em USD (`min/strong_budget_usd`) e
-> gradientes de marca pontuais (login).
+> Exceção de cor real (não-tema): budgets de **escola** em USD (`min/strong_budget_usd`).
 
 ---
 
-## Atualizações recentes (2026-06)
+## Atualizações recentes
 
+### CAC — ROI exato por campanha + Insights de IA (2026-07)
+- **`/analytics/cac`** ganhou a seção **ROI exato por campanha**: gasto do Meta
+  (`meta_ads_campanha.campanha_id`) cruzado 1:1 com as conversões via
+  `form_submissions.utm_id` (contrato→deal→atleta→form_submission), série diária
+  de gasto, estado vazio de ativação. Query `fetchCampanhaMetrics` em
+  `src/lib/cac-queries.ts`. Distinto do "ROI por canal" (aproximado).
+- **Insights de IA** (Gemini, sob demanda, só CEO): `src/lib/gemini.ts` (client
+  server-side, gemini-2.5-flash, JSON mode, erros tipados) + server action
+  `gerarInsightsCac` em `src/lib/actions/cac-insights.ts` (Zod, sanitização do
+  nome de campanha, degradação graciosa). **Requer `GEMINI_API_KEY` no ambiente
+  do CRM (Vercel)** — sem ela a UI mostra "IA não configurada" sem quebrar.
+
+### Redesign do zero — v2 (2026-07)
+- **Design System reconstruído do zero**, LIGHT-first, na **paleta oficial do brandbook** (azul
+  `#193b8b`, bordô `#8e1824`, off-white; **sem dourado**). `globals.css` reescrito; nomes de token
+  preservados como contrato. Contrato/plano: `docs/DESIGN_SPEC.md`.
+- **Primitivos novos** em `src/components/ui/` (ver seção Paleta). **Shell** (Sidebar/Header),
+  **Leads** (KPI strip), **Pipeline** (board premium), **War Room** (charts a11y) recompostos.
+- **Integridade (§8):** removida toda UI falsa — busca "⌘K" inerte, indicadores "Ao vivo"
+  (realtime inexistente), badge "8" hardcoded.
+- **Rotas:** `/dashboard` removido (consolidado em `/leads`). A tela de detalhe de lead/deal
+  ("Visão Executiva", sub-nav seccionada) é o **norte do design** — preservada.
+- Sequência: redesign2 F0–F6 (PRs #138–144). Famílias (`/familias-crm` · `/familias-pipeline` ·
+  `/familias`) **já é unificada** via `FamiliasNav` (abas Experiência/Jornada/Lista) — não requer
+  consolidação. Telas restantes (Escolas/Financeiro/etc.) já renderizam no v2 com header ad-hoc.
+
+### Design System Apple-grade (2026-06) — SUPERADO pelo v2 acima
 - **Design System Apple-grade** no CRM inteiro + **tema claro/escuro** (toggle no Header) + **liquid glass**.
 - **Logo BAU** no sidebar; **sidebar recolhível** (persiste em `localStorage`).
 - **Meu Perfil** (`/perfil`): editar nome, **trocar senha** (Supabase Auth), **foto de perfil**
@@ -180,8 +215,7 @@ Leads QUENTES e MORNOS entram **automaticamente** no pipeline:
 | `/war-room/risco` | CEO | Parcelas atrasadas, deals sem ação |
 | `/war-room/posicionamento` | CEO | Mix de planos (Legacy/Journey/Start) |
 | `/war-room/familias` | CEO | crm_experiencia (temperatura, status) |
-| `/dashboard` | CEO | form_submissions (métricas de leads) |
-| `/leads` | CEO | form_submissions + atletas (pipeline status) |
+| `/leads` | CEO | form_submissions + atletas — KPI strip (Total/Quente/Morno/Frio) + tabela. **`/dashboard` foi removido/consolidado aqui (redesign2 F2)** |
 | `/pipeline` | CEO | deals + atletas + form_submissions (Kanban drag-drop) |
 | `/financeiro` | CEO | contratos_financeiros + parcelas |
 | `/escolas` | CEO | escolas |
@@ -189,6 +223,8 @@ Leads QUENTES e MORNOS entram **automaticamente** no pipeline:
 | `/familias-crm` | CEO + Head | crm_experiencia + atletas + deals |
 | `/analytics` | CEO | parcelas + contratos (receita 24 meses) |
 | `/configuracoes` | CEO | Configurações (8 abas) + aba **Usuários** (listar/editar papel·ativo / criar usuário) |
+| `/sistema` | CEO + Head | **Hub Sistema**: grid de módulos (Tarefas/Documentos/FAQ/Indicações p/ todos; Automações/Monitor/Audit/Config só CEO); item único no sidebar com sub-itens |
+| `/automacoes` | CEO | **Builder de automações** (gatilho→condições→ações; nasce pausada) + aba **Execuções** (KPIs 7d, runs com status/tentativas/resultado, Reprocessar). Engine: CF `automation-engine` (1x/h min 30). Tabelas `automacoes`/`automacao_runs`; actions em `src/lib/actions/automacoes-builder.ts`; types `src/types/automacao.ts` |
 | `/perfil` | Autenticado (todos) | **Meu Perfil**: nome, **trocar senha** (Supabase Auth), **foto** (bucket `avatars`). Abre pelo nome no footer do sidebar |
 | `/minha-area` | Head | Área do Head (dashboard) — **distinto** de `/perfil` |
 
@@ -291,7 +327,7 @@ src/
 | `/war-room/familias` | Experiência das Famílias |
 | `/analytics` | Analytics com período + comparação |
 | `/dashboard` | KPIs de Leads |
-| `/leads` | Tabela de leads qualificados |
+| `/leads` | KPI strip + tabela de leads qualificados (`/dashboard` consolidado aqui) |
 | `/leads/novo` | Formulário de entrada de lead (6 etapas) |
 | `/pipeline` | Kanban 14 estágios |
 | `/families` | Módulo famílias (legado) |

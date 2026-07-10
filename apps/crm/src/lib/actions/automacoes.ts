@@ -2,6 +2,7 @@
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { notificarAtribuicaoTarefa } from "@/lib/notificacoes";
 
 export async function criarTarefa(dados: {
   titulo: string;
@@ -13,6 +14,8 @@ export async function criarTarefa(dados: {
   modulo_origem?: string;
   criada_automaticamente?: boolean;
   recorrencia?: 'nenhuma' | 'diaria' | 'semanal' | 'mensal';
+  sprint_id?: string | null;
+  quadro_coluna?: 'backlog' | 'a_fazer' | 'fazendo' | 'feito';
 }) {
   const papel = await getUserPapel();
   if (!papel || !["ceo", "head_sucesso"].includes(papel)) {
@@ -33,11 +36,23 @@ export async function criarTarefa(dados: {
       modulo_origem: dados.modulo_origem || "comercial",
       criada_automaticamente: dados.criada_automaticamente || false,
       recorrencia: dados.recorrencia || "nenhuma",
+      sprint_id: dados.sprint_id ?? null,
+      quadro_coluna: dados.quadro_coluna ?? "a_fazer",
     })
     .select("id")
     .single();
 
   if (error) return { success: false, error: error.message };
+
+  // Notifica o responsável (side-effect não-crítico) — só em tarefa manual
+  // atribuída a outra pessoa. O CEO já enxerga todas as notificações.
+  if (!dados.criada_automaticamente) {
+    await notificarAtribuicaoTarefa(supabase, {
+      responsavelId: dados.responsavel_id,
+      titulo: dados.titulo,
+    });
+  }
+
   return { success: true, tarefaId: data.id };
 }
 

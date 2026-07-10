@@ -2,6 +2,7 @@
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { notificarAtribuicaoTarefa } from "@/lib/notificacoes";
 
 export async function atualizarTarefa(
   tarefaId: string,
@@ -22,6 +23,13 @@ export async function atualizarTarefa(
 
   const supabase = await createAuditedSupabaseClient();
 
+  // Estado atual (p/ detectar reatribuição e notificar o novo responsável).
+  const { data: atual } = await supabase
+    .from("tarefas")
+    .select("responsavel_id, titulo")
+    .eq("id", tarefaId)
+    .single();
+
   const updateData: Record<string, unknown> = {};
   if (dados.titulo !== undefined) updateData.titulo = dados.titulo;
   if (dados.descricao !== undefined) updateData.descricao = dados.descricao || null;
@@ -38,5 +46,18 @@ export async function atualizarTarefa(
     .eq("id", tarefaId);
 
   if (error) return { success: false, error: error.message };
+
+  // Notifica só quando o responsável de fato mudou.
+  if (
+    dados.responsavel_id &&
+    atual?.responsavel_id &&
+    dados.responsavel_id !== atual.responsavel_id
+  ) {
+    await notificarAtribuicaoTarefa(supabase, {
+      responsavelId: dados.responsavel_id,
+      titulo: (dados.titulo ?? atual.titulo) as string,
+    });
+  }
+
   return { success: true };
 }

@@ -6,7 +6,6 @@ import {
   CheckCircle,
   ChevronRight,
   Star,
-  Zap,
   Target,
   BookOpen,
 } from "lucide-react";
@@ -18,7 +17,23 @@ import {
   MATCH_CLASSIFICATION_CONFIG,
 } from "@/types/matching";
 import { EditableStrategyRow } from "@/components/matching/EditableStrategyRow";
+import {
+  ScrollList,
+  PageHeader,
+  StatCard,
+  Card,
+  Badge,
+  EmptyState,
+  type BadgeTone,
+} from "@/components/ui";
 import { cn } from "@/lib/utils";
+
+const MATCH_CLASSIFICATION_TONE: Record<MatchClassification, BadgeTone> = {
+  excelente: "green",
+  forte: "blue",
+  possivel: "orange",
+  fraco: "red",
+};
 
 interface StrategyWithEditable extends SchoolMatch {
   estrategia_id: string;
@@ -178,69 +193,48 @@ export default async function MatchingPage() {
   }
 
   return (
-    <div className="p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Zap className="h-5 w-5 text-primary" />
-            <h1 className="text-title-2 text-foreground">Motor de Match Atleta-Escola</h1>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Cruzamento automatico de perfil do atleta com regras institucionais — {totalSchools} escolas na base
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader dense
+        eyebrow="Inteligência"
+        title="Motor de Match Atleta-Escola"
+        description={`Cruzamento automático de perfil do atleta com regras institucionais — ${totalSchools} escolas na base`}
+      />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Escolas ativas", value: totalSchools.toString(), icon: GraduationCap, color: "text-primary", bg: "bg-primary/10" },
-          { label: "Atletas no CRM", value: totalAtletas.toString(), icon: Target, color: "text-sys-blue", bg: "bg-sys-blue/10" },
-          { label: "Matches gerados", value: totalMatches.toString(), icon: Shuffle, color: "text-sys-green", bg: "bg-sys-green/10" },
-          { label: "Score medio", value: `${avgScore}/100`, icon: TrendingUp, color: "text-sys-orange", bg: "bg-sys-orange/10" },
-        ].map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <div key={kpi.label} className="rounded-lg border border-border/70 bg-card/60 p-3">
-              <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", kpi.bg)}>
-                <Icon className={cn("h-4 w-4", kpi.color)} />
-              </div>
-              <p className="text-base font-semibold text-foreground">{kpi.value}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{kpi.label}</p>
-            </div>
-          );
-        })}
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Escolas ativas" value={totalSchools} icon={GraduationCap} accent="brand" />
+        <StatCard label="Atletas no CRM" value={totalAtletas} icon={Target} accent="blue" />
+        <StatCard label="Matches gerados" value={totalMatches} icon={Shuffle} accent="green" />
+        <StatCard label="Score médio" value={`${avgScore}/100`} icon={TrendingUp} accent="orange" />
       </div>
 
       {/* Legenda de classificacao */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-2">
         {(["excelente", "forte", "possivel", "fraco"] as const).map((cls) => {
           const cfg = MATCH_CLASSIFICATION_CONFIG[cls];
           return (
-            <div key={cls} className={cn("flex items-center gap-2 rounded-lg border px-3 py-1.5", cfg.border, cfg.bg)}>
-              <div className={cn("h-2 w-2 rounded-full", cfg.color.replace("text-", "bg-"))} />
-              <span className={cn("text-xs font-medium", cfg.color)}>{cfg.label}</span>
-              <span className="text-[10px] text-label-tertiary">&gt;= {cfg.scoreMin}</span>
-            </div>
+            <Badge key={cls} tone={MATCH_CLASSIFICATION_TONE[cls]}>
+              {cfg.label}
+              <span className="opacity-70">&gt;= {cfg.scoreMin}</span>
+            </Badge>
           );
         })}
       </div>
 
       {/* Matches por atleta */}
       {atletaMap.size > 0 ? (
-        <div className="space-y-8">
+        <div className="space-y-5">
           {Array.from(atletaMap.entries()).map(([atletaId, { name, esporte, matches: athleteMatches }]) => {
             athleteMatches.sort((a, b) => b.score - a.score);
             const excelente = athleteMatches.filter((m) => m.classification === "excelente").length;
             const forte = athleteMatches.filter((m) => m.classification === "forte").length;
 
             return (
-              <div key={atletaId} className="border border-border/70 bg-card/60 rounded-xl overflow-hidden">
-                <div className="border-b border-border bg-popover px-5 py-4">
+              <Card key={atletaId} variant="glass" padding="none" className="flex flex-col h-[24rem] overflow-hidden">
+                <div className="border-b border-border/70 bg-gradient-to-r from-secondary/70 to-transparent px-5 py-4 shrink-0">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-plan-legacy text-sm font-bold text-white">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-white">
                         {name.charAt(0)}
                       </div>
                       <div>
@@ -280,39 +274,41 @@ export default async function MatchingPage() {
                   </div>
                 </div>
 
-                <div className="p-5 space-y-2.5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3">
+                <div className="p-5 flex flex-col min-h-0 flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-3 shrink-0">
                     Ranking de compatibilidade — {athleteMatches.length} escolas analisadas
                   </p>
-                  {athleteMatches.slice(0, 6).map((match) => (
-                    <EditableStrategyRow
-                      key={match.estrategia_id}
-                      strategy={{
-                        id: match.estrategia_id,
-                        school_name: match.school_name,
-                        school_type: match.school_type,
-                        school_state: match.school_state,
-                        score: match.score,
-                        classification: match.classification,
-                        estimated_scholarship_pct: match.estimated_scholarship_pct,
-                        compatibility_notes: match.compatibility_notes,
-                        blockers: match.blockers,
-                        bolsa_obtida_pct: match.bolsa_obtida_pct,
-                        bolsa_obtida_valor: match.bolsa_obtida_valor,
-                        data_aplicacao: match.data_aplicacao,
-                        data_resposta: match.data_resposta,
-                        resultado: match.resultado,
-                      }}
-                    />
-                  ))}
+                  <ScrollList className="space-y-2.5">
+                    {athleteMatches.slice(0, 6).map((match) => (
+                      <EditableStrategyRow
+                        key={match.estrategia_id}
+                        strategy={{
+                          id: match.estrategia_id,
+                          school_name: match.school_name,
+                          school_type: match.school_type,
+                          school_state: match.school_state,
+                          score: match.score,
+                          classification: match.classification,
+                          estimated_scholarship_pct: match.estimated_scholarship_pct,
+                          compatibility_notes: match.compatibility_notes,
+                          blockers: match.blockers,
+                          bolsa_obtida_pct: match.bolsa_obtida_pct,
+                          bolsa_obtida_valor: match.bolsa_obtida_valor,
+                          data_aplicacao: match.data_aplicacao,
+                          data_resposta: match.data_resposta,
+                          resultado: match.resultado,
+                        }}
+                      />
+                    ))}
+                  </ScrollList>
                   {athleteMatches.length > 6 && (
-                    <button className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                    <button className="mt-2.5 flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                       Ver mais {athleteMatches.length - 6} escolas
                       <ChevronRight className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>
@@ -320,7 +316,7 @@ export default async function MatchingPage() {
         /* Atletas disponiveis sem match */
         <div className="space-y-4">
           {totalAtletas > 0 && (
-            <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
+            <Card variant="glass" padding="md">
               <p className="text-xs font-semibold uppercase tracking-wider text-label-tertiary mb-4">
                 Atletas disponiveis para match ({totalAtletas})
               </p>
@@ -353,21 +349,21 @@ export default async function MatchingPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           )}
 
           {totalAtletas === 0 && totalMatches === 0 && (
-            <div className="text-center py-12">
-              <Shuffle className="h-10 w-10 mx-auto text-label-tertiary mb-3" />
-              <p className="text-sm text-muted-foreground">Nenhum match gerado ainda.</p>
-              <p className="text-xs text-label-tertiary mt-1">Promova leads e adicione escolas para gerar matches automaticos.</p>
-            </div>
+            <EmptyState
+              icon={Shuffle}
+              title="Nenhum match gerado ainda"
+              description="Promova leads e adicione escolas para gerar matches automaticos."
+            />
           )}
         </div>
       )}
 
       {/* CTA inteligencia futura */}
-      <div className="border border-border/70 bg-card/60 rounded-xl border-primary/20 p-5">
+      <Card variant="glass" accent="brand" padding="lg">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/20">
             <TrendingUp className="h-4 w-4 text-primary" />
@@ -381,7 +377,7 @@ export default async function MatchingPage() {
             </p>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

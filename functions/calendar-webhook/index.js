@@ -7,6 +7,8 @@ const WEBHOOK_SECRET          = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL            = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_SCHEMA         = process.env.SUPABASE_SCHEMA || 'public';
+// Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
+const RUNS_SCHEMA = 'public';
 const SEND_WHATSAPP_URL       = process.env.SEND_WHATSAPP_URL;
 const SYNC_LEADS_URL          = process.env.SYNC_LEADS_URL;
 const SERVICE_ACCOUNT_EMAIL   = process.env.SERVICE_ACCOUNT_EMAIL;
@@ -35,7 +37,7 @@ const httpRequest = (url, options, postData) => {
       path: parsedUrl.pathname + parsedUrl.search,
       method: options.method || 'GET',
       headers: options.headers || {},
-      timeout: 30000,
+      timeout: options.timeoutMs || 30000,
     };
     const req = https.request(reqOptions, (res) => {
       let body = '';
@@ -50,12 +52,49 @@ const httpRequest = (url, options, postData) => {
 };
 
 // ─── Buscar eventos recentes do Calendar ──────────────────────
+// Escopo calendar.events (leitura+escrita de eventos): o list continua igual
+// e habilita o patch do título com o nome do atleta (abaixo).
+const buildCalendarClient = () => {
+  const auth = new google.auth.JWT(
+    SERVICE_ACCOUNT_EMAIL,
+    undefined,
+    SERVICE_ACCOUNT_PRIVATE_KEY,
+    ['https://www.googleapis.com/auth/calendar.events'],
+  );
+  return google.calendar({ version: 'v3', auth });
+};
+
+// ─── Nome do atleta no título do evento ───────────────────────
+// O Google Booking cria o evento com título genérico ("Reunião Estratégica
+// Individual (Responsável)"). Depois do match, acrescentamos o nome do
+// atleta — o CEO enxerga QUEM é a reunião direto no Calendar/Agenda.
+// Fail-safe: falha (ex.: SA sem permissão de escrita) só loga e segue.
+const patchEventTitle = async (event, athleteName) => {
+  try {
+    const nome = String(athleteName || '').trim();
+    if (!event?.id || !nome) return false;
+    const summary = String(event.summary || '');
+    if (summary.toLowerCase().includes(nome.toLowerCase())) return false;
+    const calendar = buildCalendarClient();
+    await calendar.events.patch({
+      calendarId: GOOGLE_CALENDAR_ID,
+      eventId: event.id,
+      requestBody: { summary: `${summary} — ${nome}` },
+    });
+    log('INFO', 'event_title_patched', { eventId: event.id });
+    return true;
+  } catch (error) {
+    log('WARN', 'event_title_patch_failed', { eventId: event?.id, error: error.message });
+    return false;
+  }
+};
+
 const getRecentEvents = async (sinceMinutes = 10) => {
   const auth = new google.auth.JWT(
     SERVICE_ACCOUNT_EMAIL,
     undefined,
     SERVICE_ACCOUNT_PRIVATE_KEY,
-    ['https://www.googleapis.com/auth/calendar.readonly'],
+    ['https://www.googleapis.com/auth/calendar.events'],
   );
 
   const calendar = google.calendar({ version: 'v3', auth });
@@ -228,6 +267,83 @@ const moveDealToReuniao = async (leadId, event) => {
   return updateRes.statusCode < 400;
 };
 
+// ─── Resync de reunião REMARCADA ──────────────────────────────
+// Quando o lead reagenda, o Meet cria um NOVO evento (com novo id/link) e é
+// nele que a transcrição/anotações do Gemini ficam anexadas. Se o deal
+// continuar apontando para o evento original, a CF meeting-transcripts procura
+// no evento errado e a transcrição nunca é capturada (incidente 2026-07-10).
+//
+// Este resync aponta o deal para o evento MAIS RECENTE, sem mover a etapa e
+// sem re-notificar (silencioso). Só atualiza para frente (event.start >= a
+// reunião atual) para não reverter a um evento antigo quando o webhook
+// reprocessa um evento passado. Nunca lança — não faz parte do funil crítico.
+const resyncDealMeeting = async (leadId, event) => {
+  const eventId = event.id;
+  if (!eventId) return false;
+
+  // Filtros ANTES de qualquer query (baratos + reduzem falso-positivo):
+  //  • exige reunião real do Meet (hangoutLink) — evento interno do CEO que
+  //    casa um e-mail/telefone por acaso não tem Meet e é ignorado;
+  //  • exige horário FUTURO — o deal aponta sempre para a PRÓXIMA reunião
+  //    (cobre remarcação p/ mais cedo OU mais tarde) e nunca reverte a um
+  //    evento passado quando o webhook reprocessa um evento antigo.
+  const meetDate = event.start?.dateTime || event.start?.date || null;
+  if (!meetDate) return false;
+  if (!event.hangoutLink) return false;
+  if (new Date(meetDate).getTime() <= Date.now()) return false;
+
+  const atletaUrl = `${SUPABASE_URL}/rest/v1/atletas?form_submission_id=eq.${leadId}&deleted_at=is.null&select=id`;
+  const atletaRes = await httpRequest(atletaUrl, {
+    method: 'GET',
+    headers: {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept-Profile': SUPABASE_SCHEMA,
+    },
+  });
+  const atletas = JSON.parse(atletaRes.body);
+  if (!Array.isArray(atletas) || atletas.length === 0) return false;
+  const atletaId = atletas[0].id;
+
+  // Deal ativo mais recente do atleta (já passou de 'lead' na remarcação).
+  // Exclui 'perdido' p/ não ressincronizar um deal encerrado.
+  const dealUrl = `${SUPABASE_URL}/rest/v1/deals?atleta_id=eq.${atletaId}&deleted_at=is.null` +
+    `&etapa=neq.perdido&select=id,google_calendar_event_id&order=created_at.desc&limit=1`;
+  const dealRes = await httpRequest(dealUrl, {
+    method: 'GET',
+    headers: {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept-Profile': SUPABASE_SCHEMA,
+    },
+  });
+  const deals = JSON.parse(dealRes.body);
+  if (!Array.isArray(deals) || deals.length === 0) return false;
+  const deal = deals[0];
+
+  // Já aponta para este evento → nada a fazer (idempotente entre ticks).
+  if (deal.google_calendar_event_id === eventId) return false;
+
+  const meetLink = event.hangoutLink || event.htmlLink || '';
+  const updateUrl = `${SUPABASE_URL}/rest/v1/deals?id=eq.${deal.id}`;
+  const updateRes = await httpRequest(updateUrl, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Profile': SUPABASE_SCHEMA,
+      'Content-Type': 'application/json',
+    },
+  }, JSON.stringify({
+    google_calendar_event_id: eventId,
+    reuniao_data: meetDate,
+    reuniao_link: meetLink,
+    reuniao_agendada_at: new Date().toISOString(),
+  }));
+
+  return updateRes.statusCode < 400;
+};
+
 // ─── Formatar telefone (E.164) ────────────────────────────────
 const formatPhone = (phone) => {
   if (!phone) return null;
@@ -291,14 +407,10 @@ const sendLinkMessage = async (phone, message, linkUrl, title, description) => {
   }
 };
 
-// ─── Enviar WhatsApp de confirmação para o lead ───────────────
-const sendConfirmationWhatsApp = async (phone, name, event) => {
-  if (!phone) return;
-
-  const meetLink = event.hangoutLink || event.htmlLink || '';
-  const { eventDate, eventTime } = formatEventDateTime(event);
-
-  const message = `✅ *Reunião Estratégica Individual confirmada!*
+// ─── Builders hardcoded das mensagens de confirmação ──────────
+// FALLBACK PERMANENTE dos textos custom (scheduler_mensagens.meeting_confirmed)
+// — NUNCA remover (guard de CI: tests/calendar-webhook-mensagens.test.js).
+const buildLeadMeetingMessage = (name, eventDate, eventTime) => `✅ *Reunião Estratégica Individual confirmada!*
 
 Olá, *${name}*!
 
@@ -312,23 +424,7 @@ _Recomendamos acessar 5 minutos antes do horário marcado._
 Nos vemos em breve!
 *Bolsa Atleta USA*`;
 
-  const linkTitle = 'Reunião Estratégica Individual — Bolsa Atleta USA';
-  const linkDesc = `${eventDate} às ${eventTime}h — com Leandro Ribeiro`;
-
-  const sent = await sendLinkMessage(phone, message, meetLink, linkTitle, linkDesc);
-  if (sent) {
-    log('INFO', 'whatsapp_confirmation_sent', { phone, name });
-  }
-};
-
-// ─── Notificar CEO ────────────────────────────────────────────
-const notifyCeo = async (athleteName, guardianName, phone, email, event) => {
-  if (!CEO_WHATSAPP) return;
-
-  const meetLink = event.hangoutLink || event.htmlLink || '';
-  const { eventDate, eventTime } = formatEventDateTime(event);
-
-  const message = `🔔 *Nova Reunião Agendada*
+const buildCeoMeetingMessage = (athleteName, guardianName, phone, email, eventDate, eventTime) => `🔔 *Nova Reunião Agendada*
 
 *Atleta:* ${athleteName}
 *Responsável:* ${guardianName || athleteName}
@@ -338,12 +434,187 @@ ${email ? `*Email:* ${email}` : ''}
 📅 *${eventDate}*
 🕐 *${eventTime}h*`;
 
+// ─── Textos custom (configuracoes_sistema.scheduler_mensagens) ─
+// O CEO edita em /automacoes (chave meeting_confirmed: { lead, ceo }).
+// Mesmo padrão da CF send-whatsapp (Fase E): qualquer falha/ausência →
+// null e os builders hardcoded acima assumem (fallback permanente).
+const fetchMensagensCustom = async () => {
+  // Sem credenciais Supabase → fallback total nos builders.
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
+
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema` +
+      '?chave=eq.scheduler_mensagens&select=valor&limit=1';
+    const result = await httpRequest(url, {
+      method: 'GET',
+      // 5s (não os 30s default): config degradada não pode atrasar a
+      // confirmação instantânea de reunião.
+      timeoutMs: 5000,
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+      },
+    });
+
+    if (result.statusCode >= 400) {
+      throw new Error(`Supabase HTTP ${result.statusCode}`);
+    }
+
+    const rows = JSON.parse(result.body);
+    const valor = Array.isArray(rows) ? rows[0]?.valor : null;
+    // Seed ausente ou formato inesperado → builders assumem (sem erro)
+    if (!valor || typeof valor !== 'object') return null;
+    return valor;
+  } catch (error) {
+    log('WARN', 'mensagens_fallback', { error: error.message });
+    return null;
+  }
+};
+
+// ─── Toggles on/off das automações de sistema (/automacoes) ────
+// configuracoes_sistema.sistema_automacoes_ativas — campo ausente = ATIVA
+// (fail-open). Config indisponível JAMAIS bloqueia o webhook — fallback {}.
+const fetchAtivas = async () => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return {};
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema` +
+      '?chave=eq.sistema_automacoes_ativas&select=valor&limit=1';
+    const result = await httpRequest(url, {
+      method: 'GET',
+      // 5s: config degradada não pode atrasar a confirmação instantânea.
+      timeoutMs: 5000,
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`Supabase HTTP ${result.statusCode}`);
+    const rows = JSON.parse(result.body);
+    const valor = Array.isArray(rows) ? rows[0]?.valor : null;
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch (error) {
+    log('WARN', 'ativas_fallback', { error: error.message });
+    return {};
+  }
+};
+
+// Renderiza um texto custom substituindo todos os placeholders (split/join —
+// nunca String.replace, que interpreta padrões com $). Retorna null (→ builder
+// hardcoded assume) se o texto não existir, não for string ou renderizar
+// vazio/whitespace.
+const renderTemplate = (texto, vars) => {
+  if (!texto || typeof texto !== 'string') return null;
+
+  let rendered = texto;
+  for (const [placeholder, valor] of Object.entries(vars)) {
+    rendered = rendered.split(placeholder).join(valor);
+  }
+
+  if (!rendered.trim()) return null;
+  return rendered;
+};
+
+// Variáveis suportadas nos textos custom — espelham as interpolações dos
+// builders hardcoded. {meet_link} fica disponível, mas o link do Meet SEMPRE
+// vai anexado como preview (sendLinkMessage), independente do texto.
+const buildMeetingVars = (lead, recipientName, phone, event) => {
+  const { eventDate, eventTime } = formatEventDateTime(event);
+  return {
+    '{atleta_nome}': lead.athlete_name || 'Atleta',
+    '{responsavel_nome}': recipientName || 'Responsável',
+    '{telefone}': phone || 'N/A',
+    '{email}': lead.email || 'N/A',
+    '{meet_link}': event.hangoutLink || event.htmlLink || '',
+    '{data_reuniao}': eventDate,
+    '{hora_reuniao}': eventTime,
+  };
+};
+
+// ─── Enviar WhatsApp de confirmação para o lead ───────────────
+// customMessage: texto custom já renderizado (null → builder hardcoded).
+// Retorna true quando o Z-API confirmou o envio (usado no registro de run).
+const sendConfirmationWhatsApp = async (phone, name, event, customMessage) => {
+  if (!phone) return false;
+
+  const meetLink = event.hangoutLink || event.htmlLink || '';
+  const { eventDate, eventTime } = formatEventDateTime(event);
+
+  const message = customMessage || buildLeadMeetingMessage(name, eventDate, eventTime);
+
+  const linkTitle = 'Reunião Estratégica Individual — Bolsa Atleta USA';
+  const linkDesc = `${eventDate} às ${eventTime}h — com Leandro Ribeiro`;
+
+  const sent = await sendLinkMessage(phone, message, meetLink, linkTitle, linkDesc);
+  if (sent) {
+    log('INFO', 'whatsapp_confirmation_sent', { phone, name });
+  }
+  return sent;
+};
+
+// ─── Notificar CEO ────────────────────────────────────────────
+// customMessage: texto custom já renderizado (null → builder hardcoded).
+// Retorna true quando o Z-API confirmou o envio (usado no registro de run).
+const notifyCeo = async (athleteName, guardianName, phone, email, event, customMessage) => {
+  if (!CEO_WHATSAPP) return false;
+
+  const meetLink = event.hangoutLink || event.htmlLink || '';
+  const { eventDate, eventTime } = formatEventDateTime(event);
+
+  const message = customMessage || buildCeoMeetingMessage(athleteName, guardianName, phone, email, eventDate, eventTime);
+
   const linkTitle = `Nova reunião — ${athleteName}`;
   const linkDesc = `${eventDate} às ${eventTime}h`;
 
   const sent = await sendLinkMessage(CEO_WHATSAPP, message, meetLink, linkTitle, linkDesc);
   if (sent) {
     log('INFO', 'ceo_notification_sent');
+  }
+  return sent;
+};
+
+// ─── Âncora da automação de SISTEMA (aba Execuções de /automacoes) ─────────
+// ID fixo semeado pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_CONFIRMACAO_REUNIAO_ID = 'a0000000-0000-4000-8000-000000000007';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': RUNS_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
   }
 };
 
@@ -445,9 +716,19 @@ functions.http('calendarWebhook', async (req, res) => {
         continue;
       }
 
-      // Já foi marcado? Pula
+      // Já foi marcado? Não re-notifica, mas RESSINCRONIZA o evento do deal:
+      // se o lead remarcou, o deal precisa apontar para o evento novo (onde a
+      // transcrição fica anexada). Silencioso e à prova de falha.
       if (lead.meeting_scheduled) {
-        log('INFO', 'already_scheduled', { email: lead.email });
+        try {
+          const resynced = await resyncDealMeeting(lead.id, event);
+          log('INFO', resynced ? 'deal_meeting_resynced' : 'already_scheduled', {
+            email: lead.email,
+            eventId: event.id,
+          });
+        } catch (err) {
+          log('WARN', 'deal_resync_error', { error: err.message, eventId: event.id });
+        }
         continue;
       }
 
@@ -479,21 +760,67 @@ functions.http('calendarWebhook', async (req, res) => {
         log('WARN', 'deal_move_error', { error: err.message });
       }
 
+      // 2b. Nome do atleta no título do evento (fail-safe, não-crítico)
+      await patchEventTitle(event, lead.athlete_name);
+
       // 3. Enviar WhatsApp de confirmação para o lead
       const confirmPhone = phone || lead.guardian_whatsapp || lead.athlete_whatsapp;
       const confirmName = lead.guardian_name || lead.athlete_name;
-      if (confirmPhone) {
-        await sendConfirmationWhatsApp(confirmPhone, confirmName, event);
-      }
 
-      // 4. Notificar CEO
-      await notifyCeo(
-        lead.athlete_name,
-        lead.guardian_name || lead.athlete_name,
-        confirmPhone || 'N/A',
-        lead.email,
-        event,
-      );
+      // Toggle on/off em /automacoes (ausente = ativo). Gate SÓ nas
+      // notificações — a detecção da reunião, o meeting_scheduled, o move do
+      // deal e o sync Sheets acima/abaixo NUNCA são desativados (funil).
+      const ativas = await fetchAtivas();
+      if (ativas.confirmacao_reuniao === false) {
+        log('WARN', 'confirmacao_reuniao_desativada_skip', { athlete: lead.athlete_name });
+      } else {
+        // Textos custom editáveis (meeting_confirmed) — buscados só quando um
+        // lead vai de fato receber a confirmação. Falha/ausência → builders.
+        const mensagensCustom = await fetchMensagensCustom();
+        const meetingVars = buildMeetingVars(lead, confirmName, confirmPhone, event);
+        const leadCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.lead, meetingVars);
+        const ceoCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.ceo, meetingVars);
+
+        let leadSent = false;
+        if (confirmPhone) {
+          leadSent = await sendConfirmationWhatsApp(confirmPhone, confirmName, event, leadCustomMsg);
+        }
+
+        // 4. Notificar CEO
+        const ceoSent = await notifyCeo(
+          lead.athlete_name,
+          lead.guardian_name || lead.athlete_name,
+          confirmPhone || 'N/A',
+          lead.email,
+          event,
+          ceoCustomMsg,
+        );
+
+        // Registro em automacao_runs (aba Execuções) — estado TERMINAL, após
+        // as notificações. Toggle desligado (skip acima) NÃO registra.
+        // PII: detalhe sem telefone/e-mail — só rótulos das notificações.
+        const acoesRun = [];
+        if (confirmPhone) {
+          acoesRun.push({
+            tipo: 'confirmacao_reuniao',
+            status: leadSent ? 'ok' : 'falha',
+            detalhe: 'WhatsApp de confirmação ao lead',
+          });
+        }
+        if (CEO_WHATSAPP) {
+          acoesRun.push({
+            tipo: 'confirmacao_reuniao',
+            status: ceoSent ? 'ok' : 'falha',
+            detalhe: 'Notificação de reunião ao CEO',
+          });
+        }
+        await registrarRunSistema({
+          automacaoId: RUN_CONFIRMACAO_REUNIAO_ID,
+          ok: acoesRun.every((a) => a.status === 'ok'),
+          lead,
+          acoes: acoesRun,
+        });
+      }
 
       // 5. Sync Sheets
       await triggerSyncLeads({

@@ -6,6 +6,8 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
+// Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
+const RUNS_SCHEMA = 'public';
 const SEND_WHATSAPP_URL = process.env.SEND_WHATSAPP_URL;
 const SEND_MESSAGES_URL = process.env.SEND_MESSAGES_URL;
 const SYNC_LEADS_URL = process.env.SYNC_LEADS_URL;
@@ -38,8 +40,11 @@ const httpRequest = (url, options, postData) =>
       res.on('end', () => resolve({ statusCode: res.statusCode, body }));
     });
     req.on('error', reject);
-    req.setTimeout(60000, () => {
-      req.destroy(new Error('Request timeout (60s)'));
+    // Timeout 90s (paridade com process-pending-whatsapp): o send-whatsapp
+    // faz 2 envios sequenciais (atleta + responsável) com delay anti-ban de
+    // 20-30s entre eles — 60s ficava apertado e gerava erro espúrio.
+    req.setTimeout(90000, () => {
+      req.destroy(new Error('Request timeout (90s)'));
     });
     if (postData) req.write(postData);
     req.end();
@@ -166,6 +171,74 @@ const triggerSyncLeads = async (lead) => {
   }
 };
 
+// ─── Âncora da automação de SISTEMA (aba Execuções de /automacoes) ─────────
+// ID fixo semeado pela migration 20260709220205_automacoes_sistema_runs
+// (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
+const RUN_SCHEDULED_RETURN_ID = 'a0000000-0000-4000-8000-000000000005';
+
+// ─── Registrar execução em automacao_runs (observabilidade) ────────────────
+// SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
+// tentativas=1, proxima_tentativa_at=null) — a automation-engine NUNCA os
+// executa (a fila dela só seleciona pendente/erro-com-retry/executando).
+// Falha no registro JAMAIS afeta o fluxo principal (WARN e segue).
+// PII: contexto/resultado sem telefone/e-mail — só o nome do atleta.
+const registrarRunSistema = async ({ automacaoId, ok, lead = null, acoes = [] }) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+    const postData = JSON.stringify({
+      automacao_id: automacaoId,
+      status: ok ? 'sucesso' : 'erro',
+      tentativas: 1,
+      proxima_tentativa_at: null,
+      executado_at: new Date().toISOString(),
+      gatilho_origem_tabela: lead && lead.id ? 'form_submissions' : null,
+      gatilho_origem_id: (lead && lead.id) || null,
+      contexto: lead ? { athlete_name: lead.athlete_name || null } : {},
+      resultado: { acoes },
+    });
+    const result = await httpRequest(`${SUPABASE_URL}/rest/v1/automacao_runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': RUNS_SCHEMA,
+        'Prefer': 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      throw new Error(`POST automacao_runs ${result.statusCode}: ${(result.body || '').substring(0, 200)}`);
+    }
+  } catch (e) {
+    log('WARN', 'run_sistema_fallback', { error: e.message });
+  }
+};
+
+// ─── Toggles on/off das automações de sistema (/automacoes) ────────────────
+// configuracoes_sistema.sistema_automacoes_ativas — campo ausente = ATIVA
+// (fail-open). Config indisponível JAMAIS para o scheduler — fallback {}.
+const fetchAtivas = async () => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.sistema_automacoes_ativas&select=valor`;
+    const result = await httpRequest(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (result.statusCode >= 400) throw new Error(`GET ativas: ${result.statusCode}`);
+    const valor = (JSON.parse(result.body)[0] || {}).valor;
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch (e) {
+    log('WARN', 'ativas_fallback', { error: e.message });
+    return {};
+  }
+};
+
 // ─── Cloud Function principal ──────────────────────────────────
 functions.http('processScheduledFollowups', async (req, res) => {
   // Permite chamadas do Cloud Scheduler (sem secret) e chamadas autenticadas
@@ -189,6 +262,18 @@ functions.http('processScheduledFollowups', async (req, res) => {
       now: new Date().toISOString(),
       maxPerRun: MAX_LEADS_PER_RUN,
     });
+
+    // Toggle on/off em /automacoes (ausente = ativo); desligado → sem envio,
+    // leads seguem elegíveis (scheduled_followup_sent_at NULL) até reativar.
+    const ativas = await fetchAtivas();
+    if (ativas.scheduled_return === false) {
+      log('WARN', 'scheduled_return_desativado_skip');
+      return res.status(200).send({
+        success: true,
+        processed: 0,
+        message: 'Retomada agendada desativada em /automacoes',
+      });
+    }
 
     const eligibleLeads = await fetchEligibleLeads();
     log('INFO', 'eligible_leads_found', { count: eligibleLeads.length });
@@ -237,6 +322,20 @@ functions.http('processScheduledFollowups', async (req, res) => {
           email: lead.email,
           whatsappStatusCode: waResult.statusCode,
           emailStatusCode: emailResult.statusCode,
+        });
+
+        // Registro em automacao_runs (aba Execuções) — estado TERMINAL, APÓS
+        // o resultado real do envio (CAS perdido acima não registra).
+        const envioOk = waResult.statusCode < 400 || emailResult.statusCode < 400;
+        await registrarRunSistema({
+          automacaoId: RUN_SCHEDULED_RETURN_ID,
+          ok: envioOk,
+          lead,
+          acoes: [{
+            tipo: 'scheduled_return',
+            status: envioOk ? 'ok' : 'falha',
+            detalhe: `whatsapp HTTP ${waResult.statusCode}, email HTTP ${emailResult.statusCode}`,
+          }],
         });
 
         // Sincroniza Sheets (fire-and-forget)

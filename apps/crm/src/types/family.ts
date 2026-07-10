@@ -55,6 +55,7 @@ export interface AttentionRecord {
 
 export interface Family {
   id: string;
+  atleta_id?: string;
   athlete_name: string;
   athlete_position?: string;
   guardian_name: string;
