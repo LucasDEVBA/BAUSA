@@ -46,6 +46,10 @@ interface FamiliasCrmClientProps {
     em_alerta: number;
   };
   alertas: AlertaInatividade[];
+  /** Nível CEO/CTO — controla ações de gestão (Nova Família é CEO-only) */
+  canManage: boolean;
+  /** Deep-link ?familia=<experiencia_id>: abre a modal da família direto */
+  familiaInicial: string | null;
 }
 
 const STATUS_TONE: Record<FamilyStatus, BadgeTone> = {
@@ -258,9 +262,16 @@ export function FamiliasCrmClient({
   tiposRiscoByFamilia,
   metrics,
   alertas,
+  canManage,
+  familiaInicial,
 }: FamiliasCrmClientProps) {
   const router = useRouter();
-  const [selected, setSelected] = useState<Family | null>(null);
+  const [selected, setSelected] = useState<Family | null>(
+    () =>
+      (familiaInicial
+        ? families.find((f) => f.id === familiaInicial)
+        : null) ?? null,
+  );
   const [showNovaModal, setShowNovaModal] = useState(false);
   const [filter, setFilter] = useState<
     "todas" | "satisfeita" | "atencao" | "crise"
@@ -290,19 +301,24 @@ export function FamiliasCrmClient({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-end gap-2 flex-wrap">
-        <Button onClick={() => setShowNovaModal(true)}>
-          <User className="h-4 w-4" />
-          Nova Família
-        </Button>
+        {/* criarFamiliaManual é CEO-only — o Head via o botão mas o submit falhava */}
+        {canManage && (
+          <Button onClick={() => setShowNovaModal(true)}>
+            <User className="h-4 w-4" />
+            Nova Família
+          </Button>
+        )}
         <Button variant="secondary" asChild>
           <a href="/familias-pipeline">Pipeline da Família</a>
         </Button>
       </div>
 
-      <NovaFamiliaModal
-        open={showNovaModal}
-        onClose={() => setShowNovaModal(false)}
-      />
+      {canManage && (
+        <NovaFamiliaModal
+          open={showNovaModal}
+          onClose={() => setShowNovaModal(false)}
+        />
+      )}
 
       {/* Banner de alertas */}
       {alertas.length > 0 && (

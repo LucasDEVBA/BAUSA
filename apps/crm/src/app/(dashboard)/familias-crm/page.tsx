@@ -156,18 +156,22 @@ function mapExperienciaToFamily(row: Record<string, unknown>): Family {
     nps_enviado_at: (row.nps_enviado_at as string) ?? null,
     indicacoes_geradas: Number(row.indicacoes_geradas) || 0,
     escola_confirmada_id: (row.escola_confirmada_id as string) ?? null,
-    next_milestone: (row.acao_em_andamento as string) || "Proximo marco do processo",
-    next_milestone_date:
-      (row.proximo_contato as string) ??
-      new Date(Date.now() + 14 * 86400000).toISOString(),
-    consultant: "Head de Sucesso",
+    next_milestone: (row.acao_em_andamento as string) || undefined,
+    next_milestone_date: (row.proximo_contato as string) ?? undefined,
   };
 }
 
-export default async function FamiliasCrmPage() {
+export default async function FamiliasCrmPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ familia?: string }>;
+}) {
   // requirePapel retorna o papel efetivo (cto→ceo); "ceo" = nível CEO/CTO.
   const papelEfetivo = await requirePapel(["ceo", "head_sucesso"]);
   const canManage = papelEfetivo === "ceo";
+  // Deep-link ?familia=<experiencia_id> (usado por /minha-area e pelo
+  // acompanhamento de onboarding do CEO) abre a modal da família direto
+  const { familia: familiaInicial } = await searchParams;
 
   const supabase = await createServerSupabaseClient();
 
@@ -355,6 +359,8 @@ export default async function FamiliasCrmPage() {
         tiposRiscoByFamilia={tiposRiscoByFamilia}
         metrics={metrics}
         alertas={alertas}
+        canManage={canManage}
+        familiaInicial={familiaInicial ?? null}
       />
     </div>
   );
