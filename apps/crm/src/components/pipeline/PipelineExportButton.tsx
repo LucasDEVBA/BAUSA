@@ -2,13 +2,21 @@
 
 import { ExportCSVButton } from "@/components/shared/ExportCSVButton";
 import { type Deal } from "@/types/deal";
-import { DEAL_STAGE_CONFIG } from "@/types/deal";
+import {
+  DEFAULT_DEAL_STAGE_DISPLAY,
+  type DealStageConfigMap,
+} from "@/lib/etapas-deal";
 
 interface PipelineExportButtonProps {
   deals: Deal[];
+  /** Config de exibição das etapas (rótulos) — default estático. */
+  stageConfig?: DealStageConfigMap;
 }
 
-export function PipelineExportButton({ deals }: PipelineExportButtonProps) {
+export function PipelineExportButton({
+  deals,
+  stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+}: PipelineExportButtonProps) {
   const headers = [
     "Atleta",
     "Etapa",
@@ -21,7 +29,7 @@ export function PipelineExportButton({ deals }: PipelineExportButtonProps) {
 
   const rows = deals.map((deal) => [
     deal.athlete_name,
-    DEAL_STAGE_CONFIG[deal.stage]?.label ?? deal.stage,
+    stageConfig[deal.stage]?.label ?? deal.stage,
     deal.deal_value_brl.toLocaleString("pt-BR"),
     deal.classification,
     deal.next_action ?? "",

@@ -590,16 +590,25 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
         {/* ===== USUARIOS ===== */}
         {activeTab === "usuarios" && <UsuariosTab />}
 
-        {/* ===== PIPELINES (fases da jornada da família) ===== */}
+        {/* ===== PIPELINES (fases da família + etapas do comercial) ===== */}
         {activeTab === "pipelines" && (
           <PipelinesTab
             fasesConfigRaw={configs["fases_familia_config"]}
             inatividadeRaw={configs["inatividade_por_fase"]}
+            etapasDealRaw={configs["etapas_deal_config"]}
+            probabilidadeRaw={configs["probabilidade_por_etapa"]}
             onSaved={(fases, inatividade) => {
               setConfigs((prev) => ({
                 ...prev,
                 fases_familia_config: fases,
                 inatividade_por_fase: inatividade,
+              }));
+            }}
+            onSavedEtapasDeal={(etapas, probabilidade) => {
+              setConfigs((prev) => ({
+                ...prev,
+                etapas_deal_config: etapas,
+                probabilidade_por_etapa: probabilidade,
               }));
             }}
           />
@@ -614,7 +623,8 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                 <p className="text-sm font-semibold text-sys-orange">Somente leitura</p>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Estagios do pipeline sao definidos no codigo. Para alterar, contate o desenvolvedor.
+                Os estagios (valores internos) sao definidos no codigo. A apresentacao
+                (rotulo, cor, ordem, ocultar coluna e probabilidade) e editavel na aba Pipelines.
               </p>
             </Card>
 
