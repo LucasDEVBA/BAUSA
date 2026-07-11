@@ -1,9 +1,19 @@
-import { requirePapel } from "@/lib/auth";
+import { getUserPapel, requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { IndicacoesClient } from "./IndicacoesClient";
 
+interface IndicacaoJoinRow {
+  id: string;
+  status: string;
+  indicador_experiencia_id: string | null;
+  indicador_nome: string | null;
+  indicador: { id: string; nome: string } | null;
+}
+
 export default async function IndicacoesPage() {
   await requirePapel(["ceo", "head_sucesso"]);
+  // Escrita em `indicacoes` é CEO-only pela RLS — head vê tudo em leitura.
+  const podeGerenciar = (await getUserPapel()) === "ceo";
 
   const supabase = await createServerSupabaseClient();
 
@@ -17,27 +27,21 @@ export default async function IndicacoesPage() {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  // Calcula KPIs
-  const total = indicacoes?.length ?? 0;
-  const convertidos = indicacoes?.filter((i) => i.status === "convertido").length ?? 0;
-  const taxaConversao = total > 0 ? Math.round((convertidos / total) * 100) : 0;
-  const recompensasPendentes = indicacoes?.filter(
-    (i) => i.recompensa_devida && !i.recompensa_entregue,
-  ).length ?? 0;
-
-  // Top Indicadores — agrupa por responsavel_indicador_id
+  // Top Indicadores — agrupa pelo responsável vinculado OU pelo nome livre
+  // (indicações novas podem não ter FK de responsável).
   const indicadorMap = new Map<string, { id: string; nome: string; total: number; convertidos: number }>();
-  for (const ind of indicacoes ?? []) {
-    const indicador = ind.indicador as { id: string; nome: string } | null;
-    if (!indicador) continue;
-    const existing = indicadorMap.get(indicador.id);
+  for (const ind of (indicacoes ?? []) as unknown as IndicacaoJoinRow[]) {
+    const nome = ind.indicador?.nome ?? ind.indicador_nome;
+    if (!nome) continue;
+    const chave = ind.indicador?.id ?? `nome:${nome.trim().toLowerCase()}`;
+    const existing = indicadorMap.get(chave);
     if (existing) {
       existing.total += 1;
       if (ind.status === "convertido") existing.convertidos += 1;
     } else {
-      indicadorMap.set(indicador.id, {
-        id: indicador.id,
-        nome: indicador.nome,
+      indicadorMap.set(chave, {
+        id: chave,
+        nome,
         total: 1,
         convertidos: ind.status === "convertido" ? 1 : 0,
       });
@@ -79,12 +83,31 @@ export default async function IndicacoesPage() {
       pct: totalAtletas > 0 ? Math.round((count / totalAtletas) * 100) : 0,
     }));
 
+  // Famílias clientes para o seletor de "Nova indicação" (query leve; só CEO cria)
+  let familias: { id: string; atletaNome: string }[] = [];
+  if (podeGerenciar) {
+    const { data: familiasRaw } = await supabase
+      .from("crm_experiencia")
+      .select("id, atleta:atletas(nome_completo)")
+      .is("deleted_at", null)
+      .limit(300);
+    familias = (familiasRaw ?? [])
+      .map((f) => ({
+        id: f.id as string,
+        atletaNome:
+          (f.atleta as unknown as { nome_completo: string | null } | null)?.nome_completo ??
+          "Família sem nome",
+      }))
+      .sort((a, b) => a.atletaNome.localeCompare(b.atletaNome, "pt-BR"));
+  }
+
   return (
     <IndicacoesClient
       indicacoesIniciais={indicacoes ?? []}
-      kpis={{ total, convertidos, taxaConversao, recompensasPendentes }}
       topIndicadores={topIndicadores}
       origemLeads={origemLeads}
+      familias={familias}
+      podeGerenciar={podeGerenciar}
     />
   );
 }
