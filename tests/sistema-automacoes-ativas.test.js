@@ -40,6 +40,8 @@ const GATES = {
   'meeting-transcripts': ['resumo_transcricao === false'],
   // Monitor: desligar só cala os ALERTAS — os checks continuam rodando/logando
   'monitor-health': ['monitor_alertas === false'],
+  // Pós-venda: NPS aos 6 meses (outreach) + alerta ativo de inatividade
+  'experiencia-scheduler': ['ativas.nps_automatico === false', 'ativas.alerta_inatividade === false'],
 };
 
 for (const [fn, gates] of Object.entries(GATES)) {

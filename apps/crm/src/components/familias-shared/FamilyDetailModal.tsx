@@ -33,6 +33,7 @@ import {
 import {
   atualizarExperiencia,
   registrarContato,
+  registrarNps,
   escalonarCEO,
   listarContatosExperiencia,
   listarHistoricoFase,
@@ -156,6 +157,9 @@ export interface FamilyModalData {
   proximo_contato?: string | null;
   data_ultimo_contato?: string | null;
   dias_sem_contato?: number | null;
+  // NPS (6 meses) — pesquisa enviada pela CF experiencia-scheduler
+  nps_6meses?: number | null;
+  nps_enviado_at?: string | null;
 }
 
 interface FamilyDetailModalProps {
@@ -604,6 +608,25 @@ function TabIndicadores({
   const [satisfacao, setSatisfacao] = useState(family.satisfacao);
   const [risco, setRisco] = useState(family.risco_percebido);
   const [tipos, setTipos] = useState<RiskDimension[]>(family.tipos_risco);
+  const [npsNota, setNpsNota] = useState("");
+  const [npsPending, startNpsTransition] = useTransition();
+
+  const handleSaveNps = () => {
+    const nota = Number(npsNota);
+    if (!Number.isInteger(nota) || nota < 0 || nota > 10) {
+      toast.error("Nota NPS deve ser um inteiro entre 0 e 10.");
+      return;
+    }
+    startNpsTransition(async () => {
+      const result = await registrarNps(family.experiencia_id, nota);
+      if (result.success) {
+        toast.success(`NPS ${nota}/10 registrado`, { description: family.athlete_name });
+        onSaved();
+      } else {
+        toast.error(result.error ?? "Falha ao registrar NPS");
+      }
+    });
+  };
 
   const toggleTipo = (t: RiskDimension) =>
     setTipos((prev) =>
@@ -693,6 +716,58 @@ function TabIndicadores({
             );
           })}
         </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
+          NPS (6 meses)
+        </p>
+        {family.nps_6meses != null ? (
+          <div className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2">
+            <span className="text-xs text-muted-foreground">Nota registrada</span>
+            <span
+              className={cn(
+                "text-sm font-bold tabular-nums",
+                family.nps_6meses >= 9
+                  ? "text-sys-green"
+                  : family.nps_6meses >= 7
+                    ? "text-sys-orange"
+                    : "text-sys-red",
+              )}
+            >
+              {family.nps_6meses}/10
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={10}
+              step={1}
+              inputMode="numeric"
+              value={npsNota}
+              onChange={(e) => setNpsNota(e.target.value)}
+              placeholder="0–10"
+              aria-label="Nota NPS (0 a 10)"
+              className="w-20 rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            />
+            <button
+              type="button"
+              onClick={handleSaveNps}
+              disabled={npsPending || npsNota.trim() === ""}
+              className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {npsPending && <Loader2 className="h-3 w-3 animate-spin" />}
+              Salvar
+            </button>
+          </div>
+        )}
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          {family.nps_enviado_at
+            ? `Pesquisa enviada em ${new Date(family.nps_enviado_at).toLocaleDateString("pt-BR")}.`
+            : "Pesquisa ainda não enviada (dispara automaticamente aos 6 meses)."}
+        </p>
       </div>
 
       <button

@@ -570,6 +570,8 @@ const ativasSchema = z
     email_confirmacao: z.boolean().optional(),
     email_interno: z.boolean().optional(),
     confirmacao_reuniao: z.boolean().optional(),
+    nps_automatico: z.boolean().optional(),
+    alerta_inatividade: z.boolean().optional(),
   })
   .catchall(z.boolean());
 
@@ -649,6 +651,68 @@ export async function atualizarEmailConfig(input: {
   } catch (err) {
     console.error({ level: "error", action: "atualizar_email_config", error: String(err) });
     return { success: false, error: "Erro inesperado ao salvar e-mail." };
+  }
+}
+
+// Texto do WhatsApp da pesquisa NPS aos 6 meses (CF experiencia-scheduler).
+// Vazio/ausente → default do código (NPS_MENSAGEM_DEFAULT). Placeholders
+// suportados pela CF: {{responsavel}} e {{atleta}} — desconhecido chegaria
+// LITERAL na mensagem (mesma classe de guard do qualificacao_prompt).
+const NPS_PLACEHOLDERS_VALIDOS = ["{{responsavel}}", "{{atleta}}"];
+const npsMensagemSchema = z.object({
+  texto: z
+    .string()
+    .trim()
+    .min(10, "Texto do NPS muito curto (mín. 10 caracteres)")
+    .max(2000, "Texto do NPS muito longo (máx. 2000 caracteres)")
+    .superRefine((texto, ctx) => {
+      for (const m of texto.matchAll(/\{\{[a-z_]+\}\}/g)) {
+        if (!NPS_PLACEHOLDERS_VALIDOS.includes(m[0])) {
+          ctx.addIssue({
+            code: "custom",
+            message: `Placeholder desconhecido ${m[0]} — só ${NPS_PLACEHOLDERS_VALIDOS.join(" e ")} são substituídos.`,
+          });
+        }
+      }
+    })
+    .optional(),
+});
+
+export type NpsMensagemCfg = z.infer<typeof npsMensagemSchema>;
+
+/** Atualiza o texto da pesquisa NPS (configuracoes_sistema.nps_mensagem).
+ *  String vazia remove o override (a CF volta ao default do código). */
+export async function atualizarNpsMensagem(input: { texto?: string }): Promise<ActionResult> {
+  const denied = await requireCeo();
+  if (denied) return { success: false, error: denied };
+
+  // '' = limpar override → grava {} (a CF cai no NPS_MENSAGEM_DEFAULT)
+  const normalizado: NpsMensagemCfg = {};
+  if (typeof input.texto === "string" && input.texto.trim()) {
+    normalizado.texto = input.texto.trim();
+  }
+  const parsed = npsMensagemSchema.safeParse(normalizado);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Texto do NPS inválido" };
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .update({ valor: parsed.data })
+      .eq("chave", "nps_mensagem")
+      .select("chave");
+
+    if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { success: false, error: "Config nps_mensagem não encontrada (migration pendente?)" };
+    }
+    revalidatePath("/automacoes");
+    return { success: true };
+  } catch (err) {
+    console.error({ level: "error", action: "atualizar_nps_mensagem", error: String(err) });
+    return { success: false, error: "Erro inesperado ao salvar o texto do NPS." };
   }
 }
 

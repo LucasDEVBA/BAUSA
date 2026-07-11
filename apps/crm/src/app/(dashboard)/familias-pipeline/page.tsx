@@ -48,7 +48,7 @@ export default async function FamiliasPipelinePage() {
   const { data: experiencias, error: queryErr } = await supabase
     .from("crm_experiencia")
     .select(
-      "id, atleta_id, deal_id, fase, temperatura, status, ansiedade, satisfacao, risco_percebido, tipos_risco, descricao_problema, acao_em_andamento, tipo_crise, nivel_crise, psicologa_acionada, data_ultimo_contato, proximo_contato, data_prevista_embarque, updated_at",
+      "id, atleta_id, deal_id, fase, temperatura, status, ansiedade, satisfacao, risco_percebido, tipos_risco, descricao_problema, acao_em_andamento, tipo_crise, nivel_crise, psicologa_acionada, data_ultimo_contato, proximo_contato, data_prevista_embarque, nps_6meses, nps_enviado_at, updated_at",
     )
     .is("deleted_at", null)
     .order("updated_at", { ascending: false });
@@ -170,6 +170,8 @@ export default async function FamiliasPipelinePage() {
       proximo_contato: (row.proximo_contato as string) ?? null,
       data_ultimo_contato: lastContact,
       data_prevista_embarque: (row.data_prevista_embarque as string) ?? null,
+      nps_6meses: row.nps_6meses != null ? Number(row.nps_6meses) : null,
+      nps_enviado_at: (row.nps_enviado_at as string) ?? null,
     };
   });
 

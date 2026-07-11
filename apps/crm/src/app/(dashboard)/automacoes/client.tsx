@@ -63,13 +63,19 @@ import {
   atualizarMensagensScheduler,
   atualizarAtivasSistema,
   atualizarEmailConfig,
+  atualizarNpsMensagem,
   atualizarQualificacaoPrompt,
   type AutomacaoInput,
+  type NpsMensagemCfg,
   type SchedulerIntervalos,
   type SchedulerMensagens,
   type SistemaAtivas,
   type SistemaEmailConfig,
 } from "@/lib/actions/automacoes-builder";
+import {
+  NPS_MENSAGEM_DEFAULT,
+  NPS_MENSAGEM_VARIAVEIS,
+} from "@/lib/automacoes/nps-mensagem-default";
 import {
   QUALIFICACAO_PROMPT_DEFAULTS,
   QUALIFICACAO_PROMPT_LABELS,
@@ -118,6 +124,7 @@ export function AutomacoesClient({
   insightsCfg,
   transcricaoCfg,
   cacCfg,
+  npsCfg,
   agora,
 }: {
   automacoes: AutomacaoComStats[];
@@ -132,6 +139,7 @@ export function AutomacoesClient({
   insightsCfg: InsightsPromptCfg | null;
   transcricaoCfg: InsightsPromptCfg | null;
   cacCfg: InsightsPromptCfg | null;
+  npsCfg: NpsMensagemCfg | null;
   agora: number;
 }) {
   const router = useRouter();
@@ -283,6 +291,7 @@ export function AutomacoesClient({
             insightsCfg={insightsCfg}
             transcricaoCfg={transcricaoCfg}
             cacCfg={cacCfg}
+            npsCfg={npsCfg}
             isPending={isPending}
             onMontarRegua={() => setBuilder({ ...emptyBuilder(), gatilho: "parcela_vencendo" })}
           />
@@ -516,6 +525,8 @@ interface SistemaCard {
   editaTranscricaoPrompt?: boolean;
   /** Card de insights do CAC: edita as instruções do prompt. */
   editaCacPrompt?: boolean;
+  /** Card da pesquisa NPS: edita o texto do WhatsApp (nps_mensagem). */
+  editaNpsTexto?: boolean;
 }
 
 /** Automações nativas, na ordem dos cards: as 4 com intervalo editável
@@ -698,6 +709,36 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     }],
   },
   {
+    id: "nps_automatico",
+    nome: "Pesquisa NPS (6 meses)",
+    descricao: "Pós-venda: WhatsApp único pedindo a nota 0–10 às famílias com 6 meses de jornada.",
+    fluxo: [
+      "Roda diariamente (10:00 BRT): famílias embarcadas (fases Embarcado inicial e Acompanhamento) há 180+ dias recebem UM WhatsApp perguntando, de 0 a 10, o quanto recomendariam a BAUSA.",
+      "O envio é único por família (marcado antes de enviar — nunca duplica). A resposta chega pelo WhatsApp normal e a nota é registrada manualmente na aba Indicadores do detalhe da família.",
+      "O texto da mensagem é editável abaixo — vazio volta ao padrão do sistema.",
+    ],
+    editaNpsTexto: true,
+    toggles: [{
+      chave: "nps_automatico",
+      label: "Envio automático da pesquisa NPS",
+      avisoDesligar: "Famílias que completarem 6 meses NÃO receberão a pesquisa enquanto desligado — acumulam e disparam quando reativar.",
+    }],
+  },
+  {
+    id: "alerta_inatividade",
+    nome: "Alerta de inatividade (famílias)",
+    descricao: "Pós-venda: família sem contato além do limite da fase gera notificação + tarefa.",
+    fluxo: [
+      "Roda diariamente (10:00 BRT): famílias sem contato acima do limite da fase (Admissão 7d, Pré-embarque 15d, Embarcado inicial 7d, Acompanhamento 30d) geram alerta ATIVO.",
+      "A Head e o CEO recebem notificação in-app e a Head ganha a tarefa \"Contatar família\" (prazo 24h, prioridade alta). Cada família alerta no máximo 1x por semana.",
+    ],
+    toggles: [{
+      chave: "alerta_inatividade",
+      label: "Notificação + tarefa de inatividade",
+      avisoDesligar: "Sem o alerta ativo, a inatividade só aparece nos painéis de famílias — ninguém é notificado nem ganha tarefa.",
+    }],
+  },
+  {
     id: "sync_sheets",
     nome: "Sync Google Sheets",
     descricao: "Todo lead e atualização espelhados na planilha (cols A–BG).",
@@ -733,6 +774,8 @@ interface SistemaSavePayload {
   transcricaoInstrucoes?: string;
   /** Instruções dos insights de CAC ('' volta ao padrão). */
   cacInstrucoes?: string;
+  /** Texto do WhatsApp da pesquisa NPS ('' volta ao padrão do código). */
+  npsTexto?: string;
 }
 
 /** Seção "Automações do sistema" em CARDS (apresentação H4): grid 2-col para
@@ -748,6 +791,7 @@ function SistemaAutomacoesSection({
   insightsCfg,
   transcricaoCfg,
   cacCfg,
+  npsCfg,
   isPending,
   onMontarRegua,
   cardAberto,
@@ -761,6 +805,7 @@ function SistemaAutomacoesSection({
   insightsCfg: InsightsPromptCfg | null;
   transcricaoCfg: InsightsPromptCfg | null;
   cacCfg: InsightsPromptCfg | null;
+  npsCfg: NpsMensagemCfg | null;
   isPending: boolean;
   onMontarRegua: () => void;
   cardAberto: SistemaCard | null;
@@ -780,7 +825,8 @@ function SistemaAutomacoesSection({
     Boolean(card.editaPrompt && promptCfg) ||
     Boolean(card.editaInsightsPrompt && insightsCfg) ||
     Boolean(card.editaTranscricaoPrompt && transcricaoCfg) ||
-    Boolean(card.editaCacPrompt && cacCfg);
+    Boolean(card.editaCacPrompt && cacCfg) ||
+    Boolean(card.editaNpsTexto && npsCfg);
 
   /** Card está ativo? Ausente na config = ATIVA (fail-open, como nas CFs).
    *  Cards com vários toggles: desativado só se TODOS estiverem off. */
@@ -880,6 +926,14 @@ function SistemaAutomacoesSection({
         });
         if (!result.success) {
           toast.error(result.error ?? "Erro ao salvar as instruções");
+          router.refresh();
+          return;
+        }
+      }
+      if (payload.npsTexto !== undefined) {
+        const result = await atualizarNpsMensagem({ texto: payload.npsTexto });
+        if (!result.success) {
+          toast.error(result.error ?? "Erro ao salvar o texto do NPS");
           router.refresh();
           return;
         }
@@ -1009,6 +1063,7 @@ function SistemaAutomacoesSection({
           insightsCfg={insightsCfg}
           transcricaoCfg={transcricaoCfg}
           cacCfg={cacCfg}
+          npsCfg={npsCfg}
           isPending={ocupado}
           onClose={() => onCardAberto(null)}
           onSave={salvar}
@@ -1142,6 +1197,7 @@ function SistemaModal({
   insightsCfg,
   transcricaoCfg,
   cacCfg,
+  npsCfg,
   isPending,
   onClose,
   onSave,
@@ -1155,6 +1211,7 @@ function SistemaModal({
   insightsCfg: InsightsPromptCfg | null;
   transcricaoCfg: InsightsPromptCfg | null;
   cacCfg: InsightsPromptCfg | null;
+  npsCfg: NpsMensagemCfg | null;
   isPending: boolean;
   onClose: () => void;
   onSave: (payload: SistemaSavePayload) => void;
@@ -1168,6 +1225,7 @@ function SistemaModal({
   const insightsEditavel = Boolean(card.editaInsightsPrompt && insightsCfg);
   const transcricaoEditavel = Boolean(card.editaTranscricaoPrompt && transcricaoCfg);
   const cacEditavel = Boolean(card.editaCacPrompt && cacCfg);
+  const npsEditavel = Boolean(card.editaNpsTexto && npsCfg);
   const [intervalo, setIntervalo] = useState<number>(
     card.intervaloChave ? intervalos[card.intervaloChave] : 0,
   );
@@ -1221,6 +1279,10 @@ function SistemaModal({
       ? cacCfg.instrucoes ?? CAC_INSIGHTS_INSTRUCOES_DEFAULT
       : "",
   );
+  // Texto do WhatsApp da pesquisa NPS (config ?? default do código)
+  const [npsTexto, setNpsTexto] = useState<string>(() =>
+    card.editaNpsTexto && npsCfg ? npsCfg.texto ?? NPS_MENSAGEM_DEFAULT : "",
+  );
 
   const temEdicao =
     Boolean(card.intervaloChave) ||
@@ -1231,7 +1293,8 @@ function SistemaModal({
     promptEditavel ||
     insightsEditavel ||
     transcricaoEditavel ||
-    cacEditavel;
+    cacEditavel ||
+    npsEditavel;
 
   const intervaloValido =
     !card.intervaloChave || (Number.isInteger(intervalo) && intervalo >= 1 && intervalo <= 720);
@@ -1248,9 +1311,11 @@ function SistemaModal({
   const insightsValido = !insightsEditavel || insightsInstrucoes.length <= 4000;
   const transcricaoValido = !transcricaoEditavel || transcricaoInstrucoes.length <= 4000;
   const cacValido = !cacEditavel || cacInstrucoes.length <= 4000;
+  // NPS: vazio = volta ao padrão do código; senão 10–2000 chars
+  const npsValido = !npsEditavel || npsTexto.trim() === "" || mensagemValida(npsTexto.trim());
   const valido =
     intervaloValido && textosValidos && reuniaoValida && emailValido && promptValido &&
-    insightsValido && transcricaoValido && cacValido;
+    insightsValido && transcricaoValido && cacValido && npsValido;
 
   const setTexto = (template: MensagemTemplate, campo: keyof MensagemPar, valor: string) => {
     setTextos((prev) => {
@@ -1304,6 +1369,13 @@ function SistemaModal({
               cacInstrucoes.trim() === CAC_INSIGHTS_INSTRUCOES_DEFAULT.trim()
                 ? ""
                 : cacInstrucoes.trim(),
+          }
+        : {}),
+      // Igual ao default → '' (limpa o override; o default do código evolui)
+      ...(npsEditavel
+        ? {
+            npsTexto:
+              npsTexto.trim() === NPS_MENSAGEM_DEFAULT.trim() ? "" : npsTexto.trim(),
           }
         : {}),
     });
@@ -1640,6 +1712,49 @@ function SistemaModal({
             </p>
           )}
 
+          {/* Texto do WhatsApp da pesquisa NPS (nps_mensagem) */}
+          {npsEditavel && (
+            <section className="space-y-2">
+              <p className={SECTION_LABEL}>Mensagem — Pesquisa NPS</p>
+              <VariaveisLegenda variaveis={NPS_MENSAGEM_VARIAVEIS} />
+              <div className="flex items-center justify-between">
+                <label htmlFor="nps-texto" className="text-[11px] font-semibold text-foreground">
+                  Mensagem para o responsável
+                  {npsTexto.trim() !== NPS_MENSAGEM_DEFAULT.trim() && npsTexto.trim() !== "" && (
+                    <Badge tone="blue" size="sm" className="ml-1.5">
+                      Personalizada
+                    </Badge>
+                  )}
+                </label>
+                <span
+                  className={cn(
+                    "text-[11px] tabular-nums",
+                    npsValido ? "text-muted-foreground" : "text-sys-red",
+                  )}
+                >
+                  {npsTexto.length}/{MENSAGEM_MAX_CHARS}
+                </span>
+              </div>
+              <textarea
+                id="nps-texto"
+                className={cn(FIELD_CLASS, "min-h-32 resize-y leading-relaxed")}
+                value={npsTexto}
+                onChange={(e) => setNpsTexto(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                A pergunta da nota (0–10) deve permanecer no texto — a resposta chega pelo
+                WhatsApp normal. Apagar tudo volta ao padrão do sistema.
+              </p>
+            </section>
+          )}
+          {card.editaNpsTexto && !npsCfg && (
+            <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              Texto indisponível neste ambiente (seed{" "}
+              <code className="font-mono">nps_mensagem</code> pendente) — os envios seguem com
+              o texto padrão do sistema.
+            </p>
+          )}
+
           {/* Card 100% informativo: nada editável (sem UI falsa) */}
           {!card.intervaloChave &&
             !card.templates?.length &&
@@ -1649,7 +1764,8 @@ function SistemaModal({
             !card.editaPrompt &&
             !card.editaInsightsPrompt &&
             !card.editaTranscricaoPrompt &&
-            !card.editaCacPrompt && (
+            !card.editaCacPrompt &&
+            !card.editaNpsTexto && (
             <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Parâmetros editáveis: em breve.
             </p>
