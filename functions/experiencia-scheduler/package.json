@@ -1,0 +1,12 @@
+{
+  "name": "experiencia-scheduler",
+  "version": "1.0.0",
+  "description": "Cloud Function - Pós-venda: pesquisa NPS aos 6 meses (WhatsApp) + alerta ativo de inatividade das famílias (notificação + tarefa)",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  }
+}

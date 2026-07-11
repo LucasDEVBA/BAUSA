@@ -152,9 +152,18 @@ const casMark = async (parcelaId, column, marcaAtrasado) => {
 
 // Envio: o CAS já marcou o marco ANTES daqui, então uma falha 4xx/5xx NÃO
 // reenvia (evita loop/spam) — mas logamos para não perder o marco em silêncio.
-const sendWhatsApp = async (phone, message, parcelaId, checkpoint) => {
+const sendWhatsApp = async (phone, message, parcelaId, checkpoint, athleteName) => {
   if (!SEND_WHATSAPP_URL || !phone) return { skipped: true };
-  const payload = JSON.stringify({ messageType: 'meeting_confirmed', customMessage: message, phone });
+  // O handler do send-whatsapp valida `data.athlete_name` (payload.record ||
+  // payload) ANTES do branch custom — sem record.athlete_name o envio morre
+  // com 400. Bug latente nunca exercitado (a régua nasceu pausada); pego na
+  // revisão adversarial do experiencia-scheduler.
+  const payload = JSON.stringify({
+    messageType: 'meeting_confirmed',
+    customMessage: message,
+    phone,
+    record: { athlete_name: athleteName || 'família' },
+  });
   const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) };
   if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
   const r = await httpRequest(SEND_WHATSAPP_URL, { method: 'POST', headers }, payload);
@@ -277,7 +286,7 @@ functions.http('billingReminders', async (req, res) => {
       // Envia só com opt-in do canal (consentimento). Sem contato-consentido,
       // o marco fica marcado (não reprocessa) e o CEO cobre via notificação.
       if (cp.whatsapp && msg.whatsapp && contato.whatsapp && contato.aceiteWhatsapp) {
-        await sendWhatsApp(contato.whatsapp, renderTemplate(msg.whatsapp, vars), p.id, cp.id);
+        await sendWhatsApp(contato.whatsapp, renderTemplate(msg.whatsapp, vars), p.id, cp.id, contato.atletaNome);
       }
       if (cp.email && msg.email && contato.email && contato.aceiteEmail) {
         await sendEmail(contato.email, renderTemplate(msg.email_assunto || 'Bolsa Atleta USA', vars), renderTemplate(msg.email, vars), p.id, cp.id);

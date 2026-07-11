@@ -258,6 +258,8 @@ function familyToModalData(
     proximo_contato: f.next_contact_date ?? null,
     data_ultimo_contato: f.last_contact_at ?? null,
     dias_sem_contato: f.days_without_contact ?? null,
+    nps_6meses: f.nps_6meses ?? null,
+    nps_enviado_at: f.nps_enviado_at ?? null,
   };
 }
 

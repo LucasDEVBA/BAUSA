@@ -92,6 +92,7 @@ export default async function AutomacoesPage() {
     { data: insightsCfgRow },
     { data: transcricaoCfgRow },
     { data: cacCfgRow },
+    { data: npsCfgRow },
   ] = await Promise.all([
     supabase
       .from("configuracoes_sistema")
@@ -133,6 +134,11 @@ export default async function AutomacoesPage() {
       .select("valor")
       .eq("chave", "cac_insights_prompt")
       .maybeSingle(),
+    supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "nps_mensagem")
+      .maybeSingle(),
   ]);
   // null = seed não aplicado neste ambiente → client desabilita a edição
   const mensagens = (mensagensRow?.valor as SchedulerMensagens | undefined) ?? null;
@@ -151,6 +157,7 @@ export default async function AutomacoesPage() {
   const insightsCfg = (insightsCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
   const transcricaoCfg = (transcricaoCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
   const cacCfg = (cacCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
+  const npsCfg = (npsCfgRow?.valor as { texto?: string } | undefined) ?? null;
 
   if (autoErr) console.error({ level: "error", action: "listar_automacoes", error: autoErr.message });
   if (runsErr) console.error({ level: "error", action: "listar_automacao_runs", error: runsErr.message });
@@ -183,6 +190,7 @@ export default async function AutomacoesPage() {
       insightsCfg={insightsCfg}
       transcricaoCfg={transcricaoCfg}
       cacCfg={cacCfg}
+      npsCfg={npsCfg}
       // Server Component dinâmico (force-dynamic): timestamp de request-time é
       // intencional — âncora da janela "últimos 7 dias" dos KPIs de execução.
       // eslint-disable-next-line react-hooks/purity

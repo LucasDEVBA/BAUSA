@@ -69,6 +69,8 @@ export interface FamiliaPipelineCard {
   proximo_contato: string | null;
   data_ultimo_contato: string | null;
   data_prevista_embarque: string | null;
+  nps_6meses: number | null;
+  nps_enviado_at: string | null;
 }
 
 function PipelineCard({
@@ -254,6 +256,8 @@ function cardToModalData(card: FamiliaPipelineCard): FamilyModalData {
     proximo_contato: card.proximo_contato,
     data_ultimo_contato: card.data_ultimo_contato,
     dias_sem_contato: card.dias_sem_contato,
+    nps_6meses: card.nps_6meses,
+    nps_enviado_at: card.nps_enviado_at,
   };
 }
 

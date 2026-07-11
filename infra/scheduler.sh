@@ -281,4 +281,33 @@ gcloud scheduler jobs update http "${JOB_MH}" \
   --attempt-deadline=120s
 
 echo "✓ ${JOB_MH} configurado"
+
+# ─── Job 11: Pós-venda — NPS 6 meses + alerta de inatividade (diário 10:00 BRT) ─
+# NPS: WhatsApp único por família (CAS nps_enviado_at) às famílias embarcadas
+# há 180+ dias. Alerta: notificação Head/CEO + tarefa p/ Head, cooldown 7 dias.
+# ⚠️ O job de PRD deve nascer PAUSADO — é outreach a famílias clientes; o CEO
+# ativa quando quiser (mesmo racional do billing-reminders):
+#   gcloud scheduler jobs pause experiencia-scheduler-job --location=us-central1 --project=elite-portal-forms
+JOB_ES="experiencia-scheduler-job${SUFFIX}"
+EXPERIENCIA_SCHEDULER_URL="${EXPERIENCIA_SCHEDULER_URL:-https://experiencia-scheduler${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_ES}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 10 * * *" \
+  --uri="${EXPERIENCIA_SCHEDULER_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_ES}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 10 * * *" \
+  --uri="${EXPERIENCIA_SCHEDULER_URL}" \
+  --http-method=POST \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s
+
+echo "✓ ${JOB_ES} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"
