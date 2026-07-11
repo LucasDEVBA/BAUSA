@@ -62,7 +62,7 @@ export async function enviarConviteReuniao(dealId: string) {
 
   const { data: deal } = await supabase
     .from("deals")
-    .select("id, atleta:atletas(nome_completo, whatsapp, esporte, responsavel:responsaveis(nome, whatsapp))")
+    .select("id, atleta:atletas(nome_completo, whatsapp, esporte, responsavel:responsaveis!atletas_responsavel_id_fkey(nome, whatsapp))")
     .eq("id", dealId)
     .single();
 

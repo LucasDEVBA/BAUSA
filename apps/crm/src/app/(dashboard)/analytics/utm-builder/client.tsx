@@ -141,9 +141,10 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
   const [term, setTerm] = useState("");
   const [copied, setCopied] = useState(false);
   const [copiedShort, setCopiedShort] = useState(false);
+  const [copiedAcesso, setCopiedAcesso] = useState(false);
   // Encurtador
   const [creating, startCreate] = useTransition();
-  const [target, setTarget] = useState<"landing" | "forms">("landing");
+  const [target, setTarget] = useState<"landing" | "forms" | "acesso">("landing");
   const [titulo, setTitulo] = useState("");
   const [slug, setSlug] = useState("");
   const [shortSlug, setShortSlug] = useState<string | null>(null);
@@ -166,12 +167,19 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
     return generatedUrl.replace(baseUrl, `${baseUrl}/forms`);
   }, [generatedUrl, baseUrl]);
 
+  const acessoUrl = useMemo(() => {
+    return generatedUrl.replace(baseUrl, `${baseUrl}/acesso`);
+  }, [generatedUrl, baseUrl]);
+
   const copyToClipboard = useCallback(
-    async (url: string, type: "full" | "short") => {
+    async (url: string, type: "full" | "short" | "acesso") => {
       await navigator.clipboard.writeText(url);
       if (type === "full") {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+      } else if (type === "acesso") {
+        setCopiedAcesso(true);
+        setTimeout(() => setCopiedAcesso(false), 2000);
       } else {
         setCopiedShort(true);
         setTimeout(() => setCopiedShort(false), 2000);
@@ -194,13 +202,16 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
   const slugTrim = slug.trim();
   const slugValido = slugTrim === "" || /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(slugTrim);
 
+  // Formato raiz (bolsaatletausa.com/<slug>) — o middleware do site resolve;
+  // o formato antigo /l/<slug> continua funcionando para links já divulgados.
   const buildShort = useCallback(
-    (slug: string) => `${baseUrl}/l/${slug}`,
+    (slug: string) => `${baseUrl}/${slug}`,
     [baseUrl],
   );
 
   function handleEncurtar() {
-    const destino = target === "forms" ? formsUrl : generatedUrl;
+    const destino =
+      target === "forms" ? formsUrl : target === "acesso" ? acessoUrl : generatedUrl;
     setShortSlug(null);
     startCreate(async () => {
       const result = await criarLinkCurto({
@@ -424,12 +435,42 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
             </button>
           </div>
 
+          {/* Acesso URL */}
+          <div className="rounded-lg border border-border/70 bg-card/60 p-3.5">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Link da Tela de Acesso
+            </p>
+
+            <div className="rounded-lg border border-border bg-secondary p-3">
+              <p className="break-all text-sm text-foreground font-mono leading-relaxed">
+                {acessoUrl}
+              </p>
+            </div>
+
+            <button
+              onClick={() => copyToClipboard(acessoUrl, "acesso")}
+              disabled={!hasParams}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-secondary py-2.5 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {copiedAcesso ? (
+                <>
+                  <Check className="h-4 w-4" /> Copiado!
+                </>
+              ) : (
+                <>
+                  <Link2 className="h-4 w-4" /> Copiar Link Acesso
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Help */}
           <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 p-4">
             <p className="text-xs font-medium text-sys-orange mb-2">Como usar</p>
             <ul className="space-y-1 text-xs text-muted-foreground">
               <li>• Use o <strong className="text-foreground">Link Landing</strong> para anúncios e posts (lead vê a home primeiro)</li>
               <li>• Use o <strong className="text-foreground">Link Formulário</strong> para remarketing (lead já conhece, vai direto pro form)</li>
+              <li>• Use o <strong className="text-foreground">Link Acesso</strong> para levar direto à tela de acesso (/acesso)</li>
               <li>• Dados aparecem em <strong className="text-foreground">Analytics → Atribuição</strong> após o lead enviar o formulário</li>
               <li>• UTMs são capturados no <strong className="text-foreground">primeiro acesso</strong> (first-touch attribution)</li>
             </ul>
@@ -449,10 +490,13 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
         <p className="mb-3 text-xs text-muted-foreground">
           Gera um link limpo{" "}
           <span className="font-mono text-foreground">
-            {baseUrl.replace("https://", "")}/l/xxxx
+            {baseUrl.replace("https://", "")}/xxxx
           </span>{" "}
           que redireciona para a URL com UTMs — o link compartilhado não expõe os
-          parâmetros e os cliques são contados.
+          parâmetros e os cliques são contados. Com código personalizado dá para
+          criar, por exemplo,{" "}
+          <span className="font-mono text-foreground">/diagnostico</span>{" "}
+          apontando para a tela de Acesso.
         </p>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -461,7 +505,7 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
               Destino
             </label>
             <div className="flex gap-1 rounded-lg border border-border bg-secondary p-1">
-              {(["landing", "forms"] as const).map((t) => (
+              {(["landing", "forms", "acesso"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTarget(t)}
@@ -471,7 +515,7 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
                       : "rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
                   }
                 >
-                  {t === "landing" ? "Landing" : "Formulário"}
+                  {t === "landing" ? "Landing" : t === "forms" ? "Formulário" : "Acesso"}
                 </button>
               ))}
             </div>

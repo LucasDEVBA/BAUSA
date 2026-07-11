@@ -108,7 +108,7 @@ const lerConfig = async (chave) => {
 const fetchNpsElegiveis = async () => {
   const corte = new Date(Date.now() - NPS_MIN_DIAS * DIA_MS).toISOString();
   const select =
-    'id,created_at,atleta:atletas(nome_completo,whatsapp,responsavel:responsaveis(nome,whatsapp,aceite_whatsapp))';
+    'id,created_at,atleta:atletas(nome_completo,whatsapp,responsavel:responsaveis!atletas_responsavel_id_fkey(nome,whatsapp,aceite_whatsapp))';
   const url =
     `${SUPABASE_URL}/rest/v1/crm_experiencia?select=${encodeURIComponent(select)}` +
     `&fase=in.(embarcado_inicial,acompanhamento)` +
