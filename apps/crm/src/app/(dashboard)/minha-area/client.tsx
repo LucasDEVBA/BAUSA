@@ -383,7 +383,7 @@ function OnboardingsSection({
             return (
               <a
                 key={o.instancia_id}
-                href={`/familias-crm?familia=${o.experiencia_id}`}
+                href={`/familias-crm/onboarding/${o.experiencia_id}`}
                 className="block rounded-2xl border border-border bg-card p-3.5 shadow-sm transition-all hover:bg-accent hover:shadow-md"
               >
                 <div className="flex items-start justify-between mb-3">

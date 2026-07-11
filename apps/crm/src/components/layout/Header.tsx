@@ -22,6 +22,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/analytics/conversas": { label: "Conversas", parent: "Analytics" },
   "/analytics/reunioes": { label: "Reuniões", parent: "Analytics" },
   "/analytics/utm-builder": { label: "Gerador UTM", parent: "Analytics" },
+  "/familias-crm/onboarding": { label: "Onboarding da família", parent: "Famílias" },
   "/messages": { label: "Mensagens" },
   "/minha-area": { label: "Minha Área" },
   "/settings": { label: "Configurações" },
@@ -53,6 +54,7 @@ const CRUMB_HREF: Record<string, string> = {
   "War Room": "/war-room",
   Analytics: "/analytics",
   Sistema: "/sistema",
+  Famílias: "/familias-crm",
 };
 
 interface HeaderProps {
@@ -62,7 +64,13 @@ interface HeaderProps {
 
 export function Header({ nome, avatarUrl }: HeaderProps) {
   const pathname = usePathname();
-  const currentPage = BREADCRUMB_MAP[pathname] ?? BREADCRUMB_MAP["/" + pathname.split("/")[1]];
+  // Lookup: exato → prefixo de 2 segmentos (rotas dinâmicas, ex.
+  // /familias-crm/onboarding/<id>) → prefixo de 1 segmento.
+  const segs = pathname.split("/");
+  const currentPage =
+    BREADCRUMB_MAP[pathname] ??
+    BREADCRUMB_MAP["/" + segs.slice(1, 3).join("/")] ??
+    BREADCRUMB_MAP["/" + segs[1]];
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/70 px-5 backdrop-blur-xl">

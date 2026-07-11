@@ -9,6 +9,8 @@ export interface BrandTab {
   id: string;
   label: string;
   icon?: LucideIcon;
+  /** Indicador custom antes do rótulo (ex.: dot de status colorido). */
+  indicator?: React.ReactNode;
   /** Se presente, a aba é um Link (navegação por rota). Senão, usa onSelect. */
   href?: string;
 }
@@ -75,6 +77,7 @@ export function BrandTabs({
         const content = (
           <>
             {Icon ? <Icon className="h-4 w-4" /> : null}
+            {tab.indicator ?? null}
             {tab.label}
           </>
         );
