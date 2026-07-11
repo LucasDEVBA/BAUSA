@@ -21,7 +21,15 @@ import {
   type FamilyModalData,
 } from "@/components/familias-shared/FamilyDetailModal";
 import { toast } from "sonner";
-import { Card, EmptyState, PageHeader, StatCard, Input } from "@/components/ui";
+import {
+  Badge,
+  Card,
+  EmptyState,
+  PageHeader,
+  StatCard,
+  Input,
+} from "@/components/ui";
+import type { BadgeTone } from "@/components/ui";
 import { FamiliasNav } from "@/components/familias/FamiliasNav";
 import { JOURNEY_STAGE_CONFIG } from "@/types/family";
 import {
@@ -36,35 +44,29 @@ interface FamiliasConsolidadasClientProps {
   journeyConfig?: JourneyConfigMap;
 }
 
-const CLASSIFICATION_BADGE: Record<string, string> = {
-  QUENTE: "bg-sys-green/15 text-sys-green border-sys-green/20",
-  MORNO: "bg-sys-orange/15 text-sys-orange border-sys-orange/20",
-  FRIO: "bg-sys-blue/15 text-sys-blue border-sys-blue/20",
+const CLASSIFICATION_TONE: Record<string, BadgeTone> = {
+  QUENTE: "green",
+  MORNO: "orange",
+  FRIO: "blue",
 };
 
-const FASE_BADGE: Record<string, string> = {
-  admissao: "bg-primary/10 text-primary border-primary/20",
-  aprovado: "bg-sys-blue/15 text-sys-blue border-sys-blue/20",
-  pre_embarque: "bg-sys-cyan/15 text-sys-cyan border-sys-cyan/20",
-  embarcado_inicial: "bg-plan-legacy/15 text-plan-legacy border-plan-legacy/20",
-  acompanhamento: "bg-sys-green/15 text-sys-green border-sys-green/20",
-  encerrado: "bg-secondary text-muted-foreground border-border",
+const STATUS_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
+  satisfeita: { label: "Satisfeita", tone: "green" },
+  atencao: { label: "Atenção", tone: "orange" },
+  crise: { label: "Crise", tone: "red" },
 };
 
-const STATUS_BADGE: Record<string, { label: string; bg: string }> = {
-  satisfeita: {
-    label: "Satisfeita",
-    bg: "bg-sys-green/15 text-sys-green border-sys-green/20",
-  },
-  atencao: {
-    label: "Atenção",
-    bg: "bg-sys-orange/15 text-sys-orange border-sys-orange/20",
-  },
-  crise: {
-    label: "Crise",
-    bg: "bg-sys-red/15 text-sys-red border-sys-red/20",
-  },
-};
+const TABLE_HEADERS = [
+  { label: "Atleta", className: "" },
+  { label: "Classe", className: "" },
+  { label: "Fase", className: "" },
+  { label: "Status", className: "" },
+  { label: "Deal", className: "" },
+  { label: "Score", className: "text-right" },
+  { label: "Valor", className: "text-right" },
+] as const;
+
+const TABLE_COL_COUNT = TABLE_HEADERS.length + 1; // + coluna de ação
 
 function formatBRL(v: number) {
   return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
@@ -153,22 +155,27 @@ export function FamiliasConsolidadasClient({
         />
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search
-          aria-hidden
-          className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          type="text"
-          placeholder="Buscar por responsavel ou atleta..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      {/* Toolbar: busca + contagem */}
+      <div className="flex items-center gap-3">
+        <div className="relative max-w-sm flex-1">
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            type="text"
+            placeholder="Buscar por responsavel ou atleta..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <p className="ml-auto text-xs tabular-nums text-muted-foreground">
+          {filtered.length} de {familias.length} famílias
+        </p>
       </div>
 
-      {/* Family Cards */}
+      {/* Tabela densa agrupada por família */}
       {filtered.length === 0 ? (
         <EmptyState
           icon={Users}
@@ -176,177 +183,201 @@ export function FamiliasConsolidadasClient({
           description="Famílias aparecem aqui quando o deal chega em admission_process."
         />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((familia) => {
-            const hasAlertStatus = familia.atletas.some(
-              (a) => a.status === "atencao" || a.status === "crise",
-            );
-            const fases = familia.atletas
-              .map((a) => a.fase)
-              .filter(Boolean);
-            const hasMixedFases =
-              familia.atletas.length > 1 && new Set(fases).size > 1;
+        <Card padding="none" variant="plain" className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px]">
+              <thead>
+                <tr className="border-b border-border">
+                  {TABLE_HEADERS.map((h) => (
+                    <th
+                      key={h.label}
+                      className={cn(
+                        "px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground",
+                        h.className,
+                      )}
+                    >
+                      {h.label}
+                    </th>
+                  ))}
+                  <th className="w-20 px-4 py-2.5">
+                    <span className="sr-only">Ações</span>
+                  </th>
+                </tr>
+              </thead>
+              {filtered.map((familia) => {
+                const hasAlertStatus = familia.atletas.some(
+                  (a) => a.status === "atencao" || a.status === "crise",
+                );
+                const fases = familia.atletas
+                  .map((a) => a.fase)
+                  .filter(Boolean);
+                const hasMixedFases =
+                  familia.atletas.length > 1 && new Set(fases).size > 1;
 
-            return (
-              <Card
-                key={familia.responsavel_id}
-                padding="md"
-                accent={hasAlertStatus ? "orange" : "brand"}
-              >
-                {/* Guardian Header */}
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-white">
-                    {familia.responsavel_nome.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">
-                      {familia.responsavel_nome}
-                    </p>
-                    {familia.profissao && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Briefcase className="h-3 w-3 text-label-tertiary" />
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {familia.profissao}
-                        </p>
-                      </div>
-                    )}
-                    {familia.whatsapp && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Phone className="h-3 w-3 text-label-tertiary" />
-                        <p className="text-[10px] text-muted-foreground">
-                          {familia.whatsapp}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold text-sys-green">
-                      {formatBRL(familia.valor_total)}
-                    </p>
-                    <p className="text-[10px] text-label-tertiary">valor total</p>
-                  </div>
-                </div>
-
-                {/* Alerts */}
-                {(hasAlertStatus || hasMixedFases) && (
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    {hasAlertStatus && (
-                      <span className="inline-flex items-center gap-1 rounded-md border border-sys-orange/20 bg-sys-orange/15 px-2 py-0.5 text-[10px] font-semibold text-sys-orange">
-                        <AlertTriangle className="h-2.5 w-2.5" />
-                        Atenção/Crise
-                      </span>
-                    )}
-                    {hasMixedFases && (
-                      <span className="inline-flex items-center gap-1 rounded-md border border-plan-legacy/20 bg-plan-legacy/15 px-2 py-0.5 text-[10px] font-semibold text-plan-legacy">
-                        <Target className="h-2.5 w-2.5" />
-                        Fases diferentes
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Athletes */}
-                <div className="space-y-2">
-                  {familia.atletas.map((atleta) => {
-                    const isLoading = loadingId === atleta.experiencia_id;
-                    const statusCfg = atleta.status
-                      ? STATUS_BADGE[atleta.status]
-                      : null;
-                    return (
-                      <button
-                        type="button"
-                        key={atleta.id}
-                        onClick={() =>
-                          handleAtletaClick(atleta.experiencia_id)
-                        }
-                        disabled={isLoading || !atleta.experiencia_id}
-                        className={cn(
-                          "w-full flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5 text-left transition-colors",
-                          atleta.experiencia_id
-                            ? "hover:border-primary/40 cursor-pointer"
-                            : "opacity-60 cursor-not-allowed",
-                        )}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground truncate">
-                            {atleta.nome_completo}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            {atleta.classificacao && (
-                              <span
-                                className={cn(
-                                  "inline-flex rounded-md border px-1.5 py-0.5 text-[9px] font-semibold",
-                                  CLASSIFICATION_BADGE[atleta.classificacao] ??
-                                    "bg-secondary text-muted-foreground border-border",
-                                )}
-                              >
-                                {atleta.classificacao}
-                              </span>
-                            )}
-                            {atleta.fase && (
-                              <span
-                                className={cn(
-                                  "inline-flex rounded-md border px-1.5 py-0.5 text-[9px] font-semibold",
-                                  FASE_BADGE[atleta.fase] ??
-                                    "bg-secondary text-muted-foreground border-border",
-                                )}
-                              >
-                                {faseLabel(atleta.fase)}
-                              </span>
-                            )}
-                            {statusCfg && (
-                              <span
-                                className={cn(
-                                  "inline-flex rounded-md border px-1.5 py-0.5 text-[9px] font-semibold",
-                                  statusCfg.bg,
-                                )}
-                              >
-                                {statusCfg.label}
-                              </span>
-                            )}
-                            {atleta.etapa && (
-                              <span className="text-[10px] text-muted-foreground truncate">
-                                Deal:{" "}
-                                {(ETAPA_LABELS as Record<string, string>)[
-                                  atleta.etapa
-                                ] ?? atleta.etapa}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          {atleta.lead_score != null && (
-                            <div className="text-center">
-                              <p className="text-xs font-bold text-primary">
-                                {atleta.lead_score}
-                              </p>
-                              <p className="text-[9px] text-label-tertiary">score</p>
-                            </div>
-                          )}
-                          {atleta.deal_valor != null && (
-                            <div className="text-center">
-                              <p className="text-xs font-bold text-sys-green">
-                                {formatBRL(atleta.deal_valor)}
-                              </p>
-                              <p className="text-[9px] text-label-tertiary">valor</p>
-                            </div>
-                          )}
-                          {isLoading ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                          ) : (
-                            <span className="text-[10px] text-primary font-semibold">
-                              Editar
+                return (
+                  <tbody
+                    key={familia.responsavel_id}
+                    className="border-b border-border last:border-0"
+                  >
+                    {/* Linha-cabeçalho da família (responsável) */}
+                    <tr className="bg-secondary/50">
+                      <td colSpan={TABLE_COL_COUNT} className="px-4 py-2">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span
+                            aria-hidden
+                            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gradient-brand text-[10px] font-bold text-white"
+                          >
+                            {familia.responsavel_nome.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="text-xs font-semibold text-foreground">
+                            {familia.responsavel_nome}
+                          </span>
+                          {familia.profissao && (
+                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <Briefcase aria-hidden className="h-3 w-3 text-label-tertiary" />
+                              {familia.profissao}
                             </span>
                           )}
+                          {familia.whatsapp && (
+                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <Phone aria-hidden className="h-3 w-3 text-label-tertiary" />
+                              {familia.whatsapp}
+                            </span>
+                          )}
+                          {hasAlertStatus && (
+                            <Badge tone="orange" size="sm">
+                              <AlertTriangle aria-hidden className="h-2.5 w-2.5" />
+                              Atenção/Crise
+                            </Badge>
+                          )}
+                          {hasMixedFases && (
+                            <Badge tone="purple" size="sm">
+                              <Target aria-hidden className="h-2.5 w-2.5" />
+                              Fases diferentes
+                            </Badge>
+                          )}
+                          <span className="ml-auto text-xs font-semibold tabular-nums text-foreground">
+                            {formatBRL(familia.valor_total)}
+                          </span>
+                          <span className="text-[10px] text-label-tertiary">
+                            valor total
+                          </span>
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+                      </td>
+                    </tr>
+
+                    {/* Linhas de atleta */}
+                    {familia.atletas.map((atleta) => {
+                      const isLoading = loadingId === atleta.experiencia_id;
+                      const statusCfg = atleta.status
+                        ? STATUS_BADGE[atleta.status]
+                        : null;
+                      const clickable = Boolean(atleta.experiencia_id);
+                      return (
+                        <tr
+                          key={atleta.id}
+                          onClick={() =>
+                            clickable &&
+                            !isLoading &&
+                            handleAtletaClick(atleta.experiencia_id)
+                          }
+                          className={cn(
+                            "border-b border-border/60 transition-colors last:border-0",
+                            clickable
+                              ? "cursor-pointer hover:bg-accent"
+                              : "opacity-60",
+                          )}
+                        >
+                          <td className="px-4 py-2.5">
+                            <p className="truncate text-xs font-medium text-foreground">
+                              {atleta.nome_completo}
+                            </p>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {atleta.classificacao ? (
+                              <Badge
+                                tone={
+                                  CLASSIFICATION_TONE[atleta.classificacao] ??
+                                  "neutral"
+                                }
+                                size="sm"
+                              >
+                                {atleta.classificacao}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-label-tertiary">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span className="text-xs text-muted-foreground">
+                              {atleta.fase ? faseLabel(atleta.fase) : "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {statusCfg ? (
+                              <Badge tone={statusCfg.tone} size="sm">
+                                {statusCfg.label}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-label-tertiary">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span className="text-xs text-muted-foreground">
+                              {atleta.etapa
+                                ? ((ETAPA_LABELS as Record<string, string>)[
+                                    atleta.etapa
+                                  ] ?? atleta.etapa)
+                                : "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            {atleta.lead_score != null ? (
+                              <span className="text-xs font-semibold tabular-nums text-primary">
+                                {atleta.lead_score}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-label-tertiary">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            {atleta.deal_valor != null ? (
+                              <span className="text-xs font-medium tabular-nums text-foreground">
+                                {formatBRL(atleta.deal_valor)}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-label-tertiary">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            {isLoading ? (
+                              <Loader2
+                                aria-label="Carregando"
+                                className="ml-auto h-3.5 w-3.5 animate-spin text-primary"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAtletaClick(atleta.experiencia_id);
+                                }}
+                                disabled={!clickable}
+                                className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-label-tertiary disabled:hover:bg-transparent"
+                              >
+                                Editar
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                );
+              })}
+            </table>
+          </div>
+        </Card>
       )}
 
       {modalData && (

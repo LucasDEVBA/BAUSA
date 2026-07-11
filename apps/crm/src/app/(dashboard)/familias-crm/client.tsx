@@ -10,6 +10,7 @@ import {
   Smile,
   Activity,
   Users2,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import { Badge, Button, Card, EmptyState, StatCard } from "@/components/ui";
@@ -20,6 +21,7 @@ import {
   TEMPERATURE_CONFIG,
   type Family,
   type FamilyStatus,
+  type FamilyTemperature,
   type RiskDimension,
 } from "@/types/family";
 import {
@@ -61,6 +63,14 @@ const STATUS_TONE: Record<FamilyStatus, BadgeTone> = {
   crise: "red",
 };
 
+const TEMP_DOT: Record<FamilyTemperature, string> = {
+  verde: "bg-sys-green",
+  amarelo: "bg-sys-orange",
+  vermelho: "bg-sys-red",
+};
+
+const ALERT_PREVIEW_COUNT = 3;
+
 function formatRelative(dateStr: string) {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
   if (diff === 0) return "hoje";
@@ -80,10 +90,10 @@ function ScoreBar({
   const pct = (value / max) * 100;
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full bg-secondary">
+      <div className="h-1 flex-1 rounded-full bg-secondary">
         <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-semibold text-foreground w-4 text-right">
+      <span className="w-3 text-right text-[10px] font-semibold tabular-nums text-muted-foreground">
         {value}
       </span>
     </div>
@@ -93,10 +103,12 @@ function ScoreBar({
 function FamilyCard({
   family,
   journeyConfig,
+  emAlerta,
   onSelect,
 }: {
   family: Family;
   journeyConfig: JourneyConfigMap;
+  emAlerta: boolean;
   onSelect: (f: Family) => void;
 }) {
   const statusCfg = FAMILY_STATUS_CONFIG[family.family_status];
@@ -108,6 +120,8 @@ function FamilyCard({
       : family.family_status === "atencao"
         ? "orange"
         : undefined;
+  const contatoAtrasado =
+    family.days_without_contact >= stageCfg.alertDays && stageCfg.alertDays > 0;
 
   return (
     <Card
@@ -116,7 +130,7 @@ function FamilyCard({
       interactive
       role="button"
       tabIndex={0}
-      className="cursor-pointer p-3.5"
+      className="cursor-pointer p-4"
       onClick={() => onSelect(family)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -125,50 +139,55 @@ function FamilyCard({
         }
       }}
     >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div
-            className={cn(
-              "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold",
-              tempCfg.bg,
-              tempCfg.color
-            )}
-          >
+      {/* Identidade: hierarquia por tipografia — nome forte, contexto muted */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground">
             {family.athlete_name.charAt(0)}
           </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-foreground">
               {family.athlete_name}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground">
               {family.guardian_name}
               {family.address_state ? ` · ${family.address_state}` : ""}
             </p>
           </div>
         </div>
-        <span className="text-lg">{tempCfg.icon}</span>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {family.family_status === "satisfeita" ? (
+            <span className="text-[11px] font-medium text-label-tertiary">
+              {statusCfg.label}
+            </span>
+          ) : (
+            <Badge tone={STATUS_TONE[family.family_status]} size="sm">
+              <AlertTriangle aria-hidden className="h-2.5 w-2.5" />
+              {statusCfg.label}
+            </Badge>
+          )}
+          <span
+            title={`Temperatura: ${tempCfg.label}`}
+            className={cn("h-2 w-2 rounded-full", TEMP_DOT[family.temperature])}
+          >
+            <span className="sr-only">Temperatura {tempCfg.label}</span>
+          </span>
+        </div>
       </div>
 
-      <div className="mb-3 flex items-center gap-2 flex-wrap">
-        <Badge tone={STATUS_TONE[family.family_status]} size="sm">
-          <span className={cn("h-1.5 w-1.5 rounded-full", statusCfg.dot)} />
-          {statusCfg.label}
-        </Badge>
-        <Badge tone="neutral" size="sm">
-          {stageCfg.label}
-        </Badge>
-        <Badge tone="neutral" size="sm">
-          {family.plan}
-        </Badge>
-      </div>
+      {/* Fase + plano: texto muted, sem badges competindo */}
+      <p className="mt-2.5 text-[11px] text-label-tertiary">
+        {stageCfg.label} · {family.plan}
+      </p>
 
-      <div className="mb-3 space-y-2">
+      {/* Scores finos e discretos — cor só quando o valor pede atenção */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
         <div>
-          <p className="text-[10px] text-label-tertiary mb-1">Satisfacao</p>
-          <ScoreBar value={family.satisfaction_level} color="bg-sys-green" />
+          <p className="mb-1 text-[10px] text-label-tertiary">Satisfação</p>
+          <ScoreBar value={family.satisfaction_level} color="bg-primary/60" />
         </div>
         <div>
-          <p className="text-[10px] text-label-tertiary mb-1">Ansiedade</p>
+          <p className="mb-1 text-[10px] text-label-tertiary">Ansiedade</p>
           <ScoreBar
             value={family.anxiety_level}
             color={
@@ -176,52 +195,107 @@ function FamilyCard({
                 ? "bg-sys-red"
                 : family.anxiety_level >= 3
                   ? "bg-sys-orange"
-                  : "bg-sys-blue"
+                  : "bg-label-quaternary"
             }
           />
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-xs">
+      <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2.5 text-[11px]">
         <span className="text-muted-foreground">
-          Último contato:{" "}
-          <span className="text-foreground/80">
+          Último contato{" "}
+          <span className="font-medium text-foreground/80">
             {formatRelative(family.last_contact_at)}
           </span>
         </span>
         <span
           className={cn(
-            "font-medium",
-            family.days_without_contact >= stageCfg.alertDays &&
-              stageCfg.alertDays > 0
-              ? "text-sys-orange"
-              : "text-muted-foreground"
+            "flex items-center gap-1 tabular-nums",
+            emAlerta || contatoAtrasado
+              ? "font-semibold text-sys-orange"
+              : "text-label-tertiary"
           )}
+          title={emAlerta ? "Em alerta de inatividade" : undefined}
         >
+          {emAlerta && (
+            <>
+              <Bell aria-hidden className="h-3 w-3" />
+              <span className="sr-only">Em alerta de inatividade —</span>
+            </>
+          )}
           {family.days_without_contact}d sem contato
         </span>
       </div>
 
       {family.family_status === "crise" && (
-        <div className="mt-3 flex items-center gap-1.5 rounded-md bg-sys-red/10 border border-sys-red/20 px-2.5 py-1.5">
-          <AlertTriangle className="h-3.5 w-3.5 text-sys-red flex-shrink-0" />
-          <p className="text-[10px] font-medium text-sys-red">
-            Crise{" "}
-            {family.psicologa_acionada
-              ? "— psicóloga acionada"
-              : "— acionar protocolo"}
-          </p>
-        </div>
-      )}
-      {family.family_status === "atencao" && (
-        <div className="mt-3 flex items-center gap-1.5 rounded-md bg-sys-orange/10 border border-sys-orange/20 px-2.5 py-1.5">
-          <AlertTriangle className="h-3.5 w-3.5 text-sys-orange flex-shrink-0" />
-          <p className="text-[10px] font-medium text-sys-orange">
-            Atenção registrada
-          </p>
-        </div>
+        <p className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium text-sys-red">
+          <AlertTriangle aria-hidden className="h-3 w-3 flex-shrink-0" />
+          Crise{" "}
+          {family.psicologa_acionada
+            ? "— psicóloga acionada"
+            : "— acionar protocolo"}
+        </p>
       )}
     </Card>
+  );
+}
+
+/** Strip fino de alertas: contagem + famílias mais críticas inline, expansível. */
+function AlertasStrip({ alertas }: { alertas: AlertaInatividade[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const ordenados = [...alertas].sort((a, b) => b.dias - a.dias);
+  const preview = ordenados.slice(0, ALERT_PREVIEW_COUNT);
+
+  return (
+    <div className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 px-3.5 py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        <span className="flex items-center gap-1.5 font-semibold text-sys-orange">
+          <Bell aria-hidden className="h-3.5 w-3.5" />
+          {alertas.length} em alerta de inatividade
+        </span>
+        {!expanded &&
+          preview.map((a) => (
+            <span
+              key={a.experiencia_id}
+              className="truncate text-muted-foreground"
+            >
+              {a.atleta_nome}{" "}
+              <span className="font-semibold tabular-nums text-sys-orange">
+                {a.dias}d
+              </span>
+            </span>
+          ))}
+        {alertas.length > ALERT_PREVIEW_COUNT && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            className="ml-auto flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-sys-orange transition-colors hover:bg-sys-orange/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {expanded ? "Recolher" : "Ver todas"}
+            <ChevronDown
+              aria-hidden
+              className={cn("h-3 w-3 transition-transform", expanded && "rotate-180")}
+            />
+          </button>
+        )}
+      </div>
+      {expanded && (
+        <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 border-t border-sys-orange/15 pt-2 sm:grid-cols-2 lg:grid-cols-3">
+          {ordenados.map((a) => (
+            <div
+              key={a.experiencia_id}
+              className="flex items-center justify-between gap-2 text-xs"
+            >
+              <span className="truncate text-foreground/80">{a.atleta_nome}</span>
+              <span className="whitespace-nowrap text-[10px] font-semibold tabular-nums text-sys-orange">
+                {a.dias}d / {a.threshold}d · {a.fase}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -306,6 +380,27 @@ export function FamiliasCrmClient({
     { label: "Satisfação média", value: `${metrics.avg_satisfaction}/5`, icon: Activity, accent: "blue" },
   ];
 
+  const FILTER_OPTIONS: {
+    value: typeof filter;
+    label: string;
+    count: number | null;
+  }[] = [
+    { value: "todas", label: "Todas", count: null },
+    { value: "satisfeita", label: "Satisfeitas", count: metrics.satisfeita },
+    { value: "atencao", label: "Atenção", count: metrics.atencao },
+    { value: "crise", label: "Crise", count: metrics.crise },
+  ];
+
+  const TEMPERATURAS: {
+    key: FamilyTemperature;
+    label: string;
+    count: number;
+  }[] = [
+    { key: "verde", label: "Verde", count: metrics.temperatura_verde },
+    { key: "amarelo", label: "Amarelo", count: metrics.temperatura_amarelo },
+    { key: "vermelho", label: "Vermelho", count: metrics.temperatura_vermelho },
+  ];
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-end gap-2 flex-wrap">
@@ -329,36 +424,8 @@ export function FamiliasCrmClient({
         />
       )}
 
-      {/* Banner de alertas */}
-      {alertas.length > 0 && (
-        <Card accent="orange">
-          <div className="flex items-center gap-2 mb-2">
-            <Bell className="h-4 w-4 text-sys-orange" />
-            <p className="text-xs font-semibold text-sys-orange">
-              {alertas.length} família{alertas.length > 1 ? "s" : ""} em alerta
-              de inatividade
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-            {alertas.slice(0, 8).map((a) => (
-              <div
-                key={a.experiencia_id}
-                className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-1.5"
-              >
-                <p className="text-xs text-foreground/80 truncate">
-                  {a.atleta_nome}
-                </p>
-                <span className="text-[10px] font-semibold text-sys-orange whitespace-nowrap ml-2">
-                  {a.dias}d / {a.threshold}d ({a.fase})
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
       {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {STAT_CARDS.map((kpi) => (
           <StatCard
             key={kpi.label}
@@ -370,80 +437,69 @@ export function FamiliasCrmClient({
         ))}
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <p className="text-xs text-label-tertiary">Temperatura:</p>
-        {[
-          { key: "verde", label: "Verde", count: metrics.temperatura_verde },
-          {
-            key: "amarelo",
-            label: "Amarelo",
-            count: metrics.temperatura_amarelo,
-          },
-          {
-            key: "vermelho",
-            label: "Vermelho",
-            count: metrics.temperatura_vermelho,
-          },
-        ].map((t) => (
-          <div
-            key={t.key}
-            className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5"
-          >
-            <span className="text-xs text-foreground/80">{t.label}</span>
-            <span className="rounded-full bg-secondary px-1.5 text-[10px] font-semibold text-muted-foreground">
-              {t.count}
-            </span>
-          </div>
-        ))}
-      </div>
+      {/* Alertas de inatividade — strip fino */}
+      {alertas.length > 0 && <AlertasStrip alertas={alertas} />}
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {(["todas", "satisfeita", "atencao", "crise"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={cn(
-              "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-              filter === f
-                ? "border-primary/40 bg-primary/15 text-primary"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {f === "todas"
-              ? "Todas"
-              : f === "satisfeita"
-                ? "Satisfeitas"
-                : f === "atencao"
-                  ? "Atenção"
-                  : "Crise"}
-            {f !== "todas" && (
-              <span className="ml-1.5 rounded-full bg-secondary px-1.5 text-[10px] text-muted-foreground">
-                {f === "satisfeita"
-                  ? metrics.satisfeita
-                  : f === "atencao"
-                    ? metrics.atencao
-                    : metrics.crise}
+      {/* Controles: filtro de status + indicadores de temperatura numa linha */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex rounded-lg border border-border bg-card p-0.5">
+          {FILTER_OPTIONS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setFilter(f.value)}
+              aria-pressed={filter === f.value}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                filter === f.value
+                  ? "bg-primary/12 text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {f.label}
+              {f.count !== null && (
+                <span
+                  className={cn(
+                    "text-[10px] tabular-nums",
+                    filter === f.value ? "text-primary/80" : "text-label-tertiary"
+                  )}
+                >
+                  {f.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] uppercase tracking-wider text-label-tertiary">
+            Temperatura
+          </span>
+          {TEMPERATURAS.map((t) => (
+            <span
+              key={t.key}
+              title={`Temperatura ${t.label}`}
+              className="flex items-center gap-1.5 text-xs"
+            >
+              <span aria-hidden className={cn("h-2 w-2 rounded-full", TEMP_DOT[t.key])} />
+              <span className="sr-only">{t.label}:</span>
+              <span className="font-medium tabular-nums text-foreground/80">
+                {t.count}
               </span>
-            )}
-          </button>
-        ))}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {filtered.map((family) => (
-          <div key={family.id} className="relative">
-            <FamilyCard
-              family={family}
-              journeyConfig={journeyConfig}
-              onSelect={setSelected}
-            />
-            {alertasByExperiencia.has(family.id) && (
-              <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-md bg-sys-orange/15 border border-sys-orange/30 px-1.5 py-0.5 text-[10px] font-bold text-sys-orange">
-                <Bell className="h-2.5 w-2.5" />
-                Inativa
-              </span>
-            )}
-          </div>
+          <FamilyCard
+            key={family.id}
+            family={family}
+            journeyConfig={journeyConfig}
+            emAlerta={alertasByExperiencia.has(family.id)}
+            onSelect={setSelected}
+          />
         ))}
       </div>
 
