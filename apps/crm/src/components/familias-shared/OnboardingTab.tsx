@@ -4,21 +4,29 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
+  CheckSquare,
   Circle,
   Clock,
   Loader2,
   Play,
   SkipForward,
   Sparkles,
+  Square,
+  Video,
 } from "lucide-react";
 import {
   getOnboardingByExperiencia,
   marcarEtapaConcluida,
   marcarEtapaEmAndamento,
   pularEtapa,
+  toggleChecklistItem,
   type OnboardingEtapaEstado,
   type OnboardingInstancia,
 } from "@/lib/actions/onboarding";
+import {
+  listarReunioesFamilia,
+  type ReuniaoFamilia,
+} from "@/lib/actions/reunioes";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -37,28 +45,66 @@ export function OnboardingTab({ experienciaId, athleteName }: OnboardingTabProps
   const [showObs, setShowObs] = useState<string | null>(null);
   const [pulandoId, setPulandoId] = useState<string | null>(null);
   const [motivoPular, setMotivoPular] = useState("");
+  const [reunioes, setReunioes] = useState<ReuniaoFamilia[]>([]);
+  const [togglingItem, setTogglingItem] = useState<string | null>(null);
 
   const load = () => {
     startLoadTransition(async () => {
-      const data = await getOnboardingByExperiencia(experienciaId);
+      const [data, reunioesData] = await Promise.all([
+        getOnboardingByExperiencia(experienciaId),
+        listarReunioesFamilia(experienciaId),
+      ]);
       setInstancia(data.instancia);
       setEtapas(data.etapas);
+      setReunioes(reunioesData);
     });
   };
 
   useEffect(() => {
     let cancelled = false;
     startLoadTransition(async () => {
-      const data = await getOnboardingByExperiencia(experienciaId);
+      const [data, reunioesData] = await Promise.all([
+        getOnboardingByExperiencia(experienciaId),
+        listarReunioesFamilia(experienciaId),
+      ]);
       if (!cancelled) {
         setInstancia(data.instancia);
         setEtapas(data.etapas);
+        setReunioes(reunioesData);
       }
     });
     return () => {
       cancelled = true;
     };
   }, [experienciaId]);
+
+  const handleToggleItem = (etapa: OnboardingEtapaEstado, index: number) => {
+    const atual = etapa.checklist_estado[index];
+    if (!atual) return;
+    const key = `${etapa.id}:${index}`;
+    setTogglingItem(key);
+    // Otimista: atualiza local antes da resposta
+    setEtapas((prev) =>
+      prev.map((e) =>
+        e.id === etapa.id
+          ? {
+              ...e,
+              checklist_estado: e.checklist_estado.map((c, i) =>
+                i === index ? { ...c, concluido: !atual.concluido } : c,
+              ),
+            }
+          : e,
+      ),
+    );
+    startActionTransition(async () => {
+      const result = await toggleChecklistItem(etapa.id, index, !atual.concluido);
+      setTogglingItem(null);
+      if (!result.success) {
+        toast.error(result.error ?? "Falha ao atualizar o item");
+        load();
+      }
+    });
+  };
 
   const handleStart = (etapaId: string) => {
     startActionTransition(async () => {
@@ -260,6 +306,83 @@ export function OnboardingTab({ experienciaId, athleteName }: OnboardingTabProps
                       </span>
                     )}
                   </div>
+                  {/* Checklist de sub-itens da etapa */}
+                  {etapa.checklist_estado.length > 0 && (
+                    <div className="mt-2.5 rounded-lg border border-border bg-card/60 p-2.5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Checklist
+                        </p>
+                        <span className="text-[9px] font-bold tabular-nums text-muted-foreground">
+                          {etapa.checklist_estado.filter((c) => c.concluido).length}/
+                          {etapa.checklist_estado.length}
+                        </span>
+                      </div>
+                      <ul className="space-y-1">
+                        {etapa.checklist_estado.map((item, idx) => {
+                          const CheckIcon = item.concluido ? CheckSquare : Square;
+                          const key = `${etapa.id}:${idx}`;
+                          return (
+                            <li key={idx}>
+                              <button
+                                type="button"
+                                disabled={isFinalizada || togglingItem === key}
+                                onClick={() => handleToggleItem(etapa, idx)}
+                                className={cn(
+                                  "flex w-full items-start gap-1.5 rounded px-1 py-0.5 text-left text-[11px] transition-colors",
+                                  isFinalizada
+                                    ? "cursor-default"
+                                    : "hover:bg-accent",
+                                  item.concluido
+                                    ? "text-muted-foreground"
+                                    : "text-foreground",
+                                )}
+                              >
+                                <CheckIcon
+                                  className={cn(
+                                    "h-3.5 w-3.5 shrink-0 mt-px",
+                                    item.concluido
+                                      ? "text-sys-green"
+                                      : "text-muted-foreground",
+                                  )}
+                                />
+                                <span
+                                  className={cn(
+                                    item.concluido && "line-through opacity-70",
+                                  )}
+                                >
+                                  {item.item}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Status da reunião exigida pela etapa */}
+                  {etapa.requer_reuniao && !isFinalizada && (() => {
+                    const vinculadas = reunioes.filter(
+                      (r) =>
+                        r.etapa_estado_id === etapa.id &&
+                        (r.status === "agendada" || r.status === "realizada"),
+                    );
+                    return vinculadas.length > 0 ? (
+                      <p className="mt-2 flex items-center gap-1.5 text-[10px] text-sys-green">
+                        <Video className="h-3 w-3" />
+                        Reunião vinculada: {vinculadas[0].titulo} (
+                        {vinculadas[0].status})
+                      </p>
+                    ) : (
+                      <p className="mt-2 flex items-center gap-1.5 text-[10px] text-sys-orange">
+                        <Video className="h-3 w-3" />
+                        Exige reunião vinculada — agende na aba Reuniões e
+                        selecione esta etapa
+                      </p>
+                    );
+                  })()}
+
                   {isFinalizada && etapa.observacao && (
                     <p className="mt-2 rounded-md bg-card border border-border px-2 py-1.5 text-[10px] text-foreground">
                       <span className="font-semibold">Observação:</span>{" "}

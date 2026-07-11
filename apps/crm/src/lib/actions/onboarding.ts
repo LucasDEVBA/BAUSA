@@ -17,6 +17,12 @@ export type OnboardingInstanciaStatus =
   | "pausado"
   | "cancelado";
 
+export interface ChecklistItemEstado {
+  item: string;
+  concluido: boolean;
+  concluido_at: string | null;
+}
+
 export interface OnboardingEtapaEstado {
   id: string;
   instancia_id: string;
@@ -32,6 +38,24 @@ export interface OnboardingEtapaEstado {
   requer_reuniao: boolean;
   requer_assuntos: boolean;
   requer_documentos: boolean;
+  checklist_estado: ChecklistItemEstado[];
+}
+
+// checklist_estado é JSONB — tolera linhas antigas/formatos inesperados
+function parseChecklist(raw: unknown): ChecklistItemEstado[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const e = entry as { item?: unknown; concluido?: unknown; concluido_at?: unknown };
+    if (typeof e.item !== "string" || !e.item.trim()) return [];
+    return [
+      {
+        item: e.item,
+        concluido: e.concluido === true,
+        concluido_at: typeof e.concluido_at === "string" ? e.concluido_at : null,
+      },
+    ];
+  });
 }
 
 export interface OnboardingInstancia {
@@ -93,10 +117,60 @@ export async function getOnboardingByExperiencia(
     .eq("instancia_id", instancia.id)
     .order("ordem", { ascending: true });
 
+  const normalizadas = ((etapas ?? []) as Array<Record<string, unknown>>).map(
+    (e) => ({
+      ...(e as unknown as OnboardingEtapaEstado),
+      checklist_estado: parseChecklist(e.checklist_estado),
+    }),
+  );
+
   return {
     instancia: instancia as OnboardingInstancia,
-    etapas: (etapas ?? []) as OnboardingEtapaEstado[],
+    etapas: normalizadas,
   };
+}
+
+// ─── Marcar/desmarcar item do checklist da etapa ─────────────
+export async function toggleChecklistItem(
+  etapaEstadoId: string,
+  index: number,
+  concluido: boolean,
+) {
+  const papel = await requireHeadOrCeo();
+  if (!papel) return { success: false, error: "Sem permissão." };
+
+  const supabase = await createAuditedSupabaseClient();
+  const { data: etapa } = await supabase
+    .from("onboarding_etapa_estado")
+    .select("id, status, checklist_estado")
+    .eq("id", etapaEstadoId)
+    .maybeSingle();
+
+  if (!etapa) return { success: false, error: "Etapa não encontrada." };
+  if (etapa.status === "concluida" || etapa.status === "pulada") {
+    return { success: false, error: "Etapa já finalizada." };
+  }
+
+  const checklist = parseChecklist(etapa.checklist_estado);
+  if (!Number.isInteger(index) || index < 0 || index >= checklist.length) {
+    return { success: false, error: "Item do checklist não encontrado. Recarregue a página." };
+  }
+
+  checklist[index] = {
+    ...checklist[index],
+    concluido,
+    concluido_at: concluido ? new Date().toISOString() : null,
+  };
+
+  const { error } = await supabase
+    .from("onboarding_etapa_estado")
+    .update({ checklist_estado: checklist })
+    .eq("id", etapaEstadoId);
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/familias-crm");
+  revalidatePath("/minha-area");
+  return { success: true, checklist };
 }
 
 // ─── Progresso (RPC) ────────────────────────────────────────
@@ -290,16 +364,44 @@ export async function marcarEtapaConcluida(
 
   const supabase = await createAuditedSupabaseClient();
 
-  // Buscar dados para notificação
+  // Buscar dados para notificação + gates de conclusão
   const { data: etapa } = await supabase
     .from("onboarding_etapa_estado")
     .select(
-      "id, instancia_id, titulo, ordem, instancia:onboarding_instancias(experiencia_id)",
+      "id, instancia_id, titulo, ordem, requer_reuniao, checklist_estado, instancia:onboarding_instancias(experiencia_id)",
     )
     .eq("id", etapaEstadoId)
     .maybeSingle();
 
   if (!etapa) return { success: false, error: "Etapa não encontrada." };
+
+  // Gate 1: todos os itens do checklist concluídos
+  const checklist = parseChecklist(etapa.checklist_estado);
+  const abertos = checklist.filter((c) => !c.concluido).length;
+  if (abertos > 0) {
+    return {
+      success: false,
+      error: `Conclua o checklist antes de finalizar a etapa (${checklist.length - abertos}/${checklist.length} itens).`,
+    };
+  }
+
+  // Gate 2: etapa que exige reunião precisa de uma reunião vinculada
+  // (agendada ou realizada — cancelada não conta)
+  if (etapa.requer_reuniao) {
+    const { count } = await supabase
+      .from("reunioes_familia")
+      .select("id", { count: "exact", head: true })
+      .eq("etapa_estado_id", etapaEstadoId)
+      .in("status", ["agendada", "realizada"])
+      .is("deleted_at", null);
+    if (!count) {
+      return {
+        success: false,
+        error:
+          "Esta etapa exige uma reunião vinculada. Agende na aba Reuniões e selecione esta etapa no campo \"Vincular a etapa do onboarding\".",
+      };
+    }
+  }
 
   const { error } = await supabase
     .from("onboarding_etapa_estado")
@@ -378,6 +480,54 @@ export async function pularEtapa(etapaEstadoId: string, motivo: string) {
   revalidatePath("/familias-pipeline");
   revalidatePath("/minha-area");
   return { success: true };
+}
+
+// ─── Estatísticas executivas (War Room do CEO) ───────────────
+export interface OnboardingEstatisticas {
+  concluidos_30d: number;
+  tempo_medio_dias: number | null; // média dos concluídos nos últimos 90d
+}
+
+export async function estatisticasOnboarding(): Promise<OnboardingEstatisticas> {
+  const papel = await requireHeadOrCeo();
+  if (!papel) return { concluidos_30d: 0, tempo_medio_dias: null };
+
+  const supabase = await createAuditedSupabaseClient();
+  const desde90 = new Date(Date.now() - 90 * 86400000).toISOString();
+  const desde30 = new Date(Date.now() - 30 * 86400000).toISOString();
+
+  const { data } = await supabase
+    .from("onboarding_instancias")
+    .select("iniciado_at, concluido_at")
+    .eq("status", "concluido")
+    .gte("concluido_at", desde90)
+    .is("deleted_at", null);
+
+  const rows = (data ?? []) as Array<{
+    iniciado_at: string;
+    concluido_at: string | null;
+  }>;
+
+  const concluidos30 = rows.filter(
+    (r) => r.concluido_at && r.concluido_at >= desde30,
+  ).length;
+
+  const duracoes = rows
+    .filter((r) => r.concluido_at)
+    .map(
+      (r) =>
+        (new Date(r.concluido_at as string).getTime() -
+          new Date(r.iniciado_at).getTime()) /
+        86400000,
+    )
+    .filter((d) => d >= 0);
+
+  const media =
+    duracoes.length === 0
+      ? null
+      : Math.round(duracoes.reduce((s, d) => s + d, 0) / duracoes.length);
+
+  return { concluidos_30d: concluidos30, tempo_medio_dias: media };
 }
 
 // ─── Templates ───────────────────────────────────────────────
