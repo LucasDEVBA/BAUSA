@@ -149,7 +149,7 @@ export default async function MinhaAreaPage() {
       `
       *,
       atleta:atletas(nome_completo, posicao, whatsapp, email, esporte, cidade_estado,
-        responsavel:responsaveis(nome, whatsapp)),
+        responsavel:responsaveis!atletas_responsavel_id_fkey(nome, whatsapp)),
       deal:deals(id, etapa, valor_estimado, contrato:contratos_financeiros(plano, valor_total))
     `
     )

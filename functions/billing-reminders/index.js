@@ -125,7 +125,7 @@ const fetchEligibleParcelas = async (hoje) => {
   const ate = new Date(hoje.getTime() + 5 * DIA_MS).toISOString().slice(0, 10);
   const select =
     'id,numero_parcela,valor,vencimento,status,regua_dneg3_at,regua_d0_at,regua_d1_at,regua_d3_at,regua_d7_at,regua_d15_at,' +
-    'contrato:contratos_financeiros(id,deleted_at,deal:deals(id,atleta:atletas(nome_completo,responsavel:responsaveis(nome,email,whatsapp,aceite_whatsapp,aceite_email))))';
+    'contrato:contratos_financeiros(id,deleted_at,deal:deals(id,atleta:atletas(nome_completo,responsavel:responsaveis!atletas_responsavel_id_fkey(nome,email,whatsapp,aceite_whatsapp,aceite_email))))';
   const url =
     `${SUPABASE_URL}/rest/v1/parcelas?select=${encodeURIComponent(select)}` +
     `&status=in.(previsto,atrasado)&deleted_at=is.null` +

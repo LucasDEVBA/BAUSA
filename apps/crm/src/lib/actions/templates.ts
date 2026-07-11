@@ -173,7 +173,7 @@ interface ExperienciaContato {
 }
 
 const EXPERIENCIA_CONTATO_SELECT =
-  "id, atleta:atletas(id, nome_completo, whatsapp, responsavel:responsaveis(id, nome, whatsapp))";
+  "id, atleta:atletas(id, nome_completo, whatsapp, responsavel:responsaveis!atletas_responsavel_id_fkey(id, nome, whatsapp))";
 
 /** Prioridade de destino: WhatsApp do responsável → do atleta (fallback). */
 function telefoneDaExperiencia(exp: ExperienciaContato): string | null {

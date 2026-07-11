@@ -49,7 +49,7 @@ async function getFamiliaResumo(experienciaId: string): Promise<FamiliaResumo> {
   const { data: exp } = await supabase
     .from("crm_experiencia")
     .select(
-      "id, atleta:atletas(nome_completo, responsavel:responsaveis(nome, email, whatsapp))",
+      "id, atleta:atletas(nome_completo, responsavel:responsaveis!atletas_responsavel_id_fkey(nome, email, whatsapp))",
     )
     .eq("id", experienciaId)
     .maybeSingle();
