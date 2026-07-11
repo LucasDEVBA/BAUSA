@@ -47,6 +47,15 @@ function gerarSlug(): string {
   return s;
 }
 
+// Slugs que colidem com rotas reais do site público — o middleware do
+// apps/web só reescreve /<slug> para /l/<slug> quando o segmento NÃO é uma
+// dessas rotas; criar um link com esses nomes confundiria o CEO (funcionaria
+// só em /l/<slug>). Manter em sincronia com RESERVED do apps/web/middleware.ts.
+const SLUGS_RESERVADOS = new Set([
+  "pt", "en", "es",
+  "acesso", "forms", "links", "l", "api", "debug",
+]);
+
 const criarSchema = z.object({
   destino: z
     .string()
@@ -61,6 +70,10 @@ const criarSchema = z.object({
     .trim()
     .toLowerCase()
     .refine((s) => SLUG_CUSTOM_RE.test(s), "Use 3-40 letras, números ou hífen (sem hífen nas pontas).")
+    .refine(
+      (s) => !SLUGS_RESERVADOS.has(s),
+      "Esse código é uma página do site (reservado) — escolha outro.",
+    )
     .optional(),
   titulo: z.string().max(TITULO_MAX).optional(),
   utm_source: z.string().max(TITULO_MAX).optional(),

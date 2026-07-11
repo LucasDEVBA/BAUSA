@@ -202,8 +202,10 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
   const slugTrim = slug.trim();
   const slugValido = slugTrim === "" || /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(slugTrim);
 
+  // Formato raiz (bolsaatletausa.com/<slug>) — o middleware do site resolve;
+  // o formato antigo /l/<slug> continua funcionando para links já divulgados.
   const buildShort = useCallback(
-    (slug: string) => `${baseUrl}/l/${slug}`,
+    (slug: string) => `${baseUrl}/${slug}`,
     [baseUrl],
   );
 
@@ -488,10 +490,13 @@ export function UtmBuilderClient({ links }: { links: LinkCurtoRow[] }) {
         <p className="mb-3 text-xs text-muted-foreground">
           Gera um link limpo{" "}
           <span className="font-mono text-foreground">
-            {baseUrl.replace("https://", "")}/l/xxxx
+            {baseUrl.replace("https://", "")}/xxxx
           </span>{" "}
           que redireciona para a URL com UTMs — o link compartilhado não expõe os
-          parâmetros e os cliques são contados.
+          parâmetros e os cliques são contados. Com código personalizado dá para
+          criar, por exemplo,{" "}
+          <span className="font-mono text-foreground">/diagnostico</span>{" "}
+          apontando para a tela de Acesso.
         </p>
 
         <div className="flex flex-wrap items-end gap-3">
