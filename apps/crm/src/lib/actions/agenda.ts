@@ -211,7 +211,7 @@ export async function criarCompromisso(
   }
 }
 
-// ─── Link premium da reunião (bolsaatletausa.com/analise-<nome>) ────────────
+// ─── Link premium da reunião (bolsaatletausa.com/meet-strategy-<nome>) ────────────
 // Espelho TS do helper da CF calendar-webhook: cria/reusa um link curto de
 // marca em links_curtos apontando para o Meet — o lead nunca recebe o
 // meet.google.com cru nem htmlLink. Reagendamento do MESMO atleta reusa o
@@ -224,7 +224,9 @@ function slugReuniaoBase(athleteName: string): string | null {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
-  return primeiro.length >= 2 ? `analise-${primeiro}` : null;
+  // meet-strategy-<primeiro nome> — formato aprovado pelo CEO (2026-07-11);
+  // truncado p/ caber no limite de 40 chars do slug (com folga p/ sufixo -N)
+  return primeiro.length >= 2 ? `meet-strategy-${primeiro}`.slice(0, 38) : null;
 }
 
 async function criarLinkReuniaoPremium(

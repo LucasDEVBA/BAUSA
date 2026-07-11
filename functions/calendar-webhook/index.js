@@ -516,7 +516,7 @@ const renderTemplate = (texto, vars) => {
   return rendered;
 };
 
-// ─── Link premium da reunião (bolsaatletausa.com/analise-<nome>) ───────────
+// ─── Link premium da reunião (bolsaatletausa.com/meet-strategy-<nome>) ───────────
 // O lead NUNCA recebe htmlLink (evento do Calendar do CEO — ele veria "evento
 // não encontrado") nem o meet.google.com cru: criamos um link curto de marca
 // em links_curtos (public SEMPRE — mesmo padrão do resolveScheduleUrl do
@@ -534,7 +534,9 @@ const slugReuniaoBase = (athleteName) => {
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
-  return primeiro.length >= 2 ? `analise-${primeiro}` : null;
+  // meet-strategy-<primeiro nome> — formato aprovado pelo CEO (2026-07-11);
+  // truncado p/ caber no limite de 40 chars do slug (com folga p/ sufixo -N)
+  return primeiro.length >= 2 ? `meet-strategy-${primeiro}`.slice(0, 38) : null;
 };
 
 const criarLinkReuniaoPremium = async (athleteName, meetUrl) => {
@@ -850,7 +852,7 @@ functions.http('calendarWebhook', async (req, res) => {
         // Textos custom editáveis (meeting_confirmed) — buscados só quando um
         // lead vai de fato receber a confirmação. Falha/ausência → builders.
         const mensagensCustom = await fetchMensagensCustom();
-        // Link premium de marca p/ o LEAD (bolsaatletausa.com/analise-<nome>);
+        // Link premium de marca p/ o LEAD (bolsaatletausa.com/meet-strategy-<nome>);
         // sem Meet no evento → home da marca (nunca o htmlLink do Calendar).
         const leadMeetLink = event.hangoutLink
           ? await criarLinkReuniaoPremium(lead.athlete_name, event.hangoutLink)
