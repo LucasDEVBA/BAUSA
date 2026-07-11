@@ -17,7 +17,29 @@ export type AutomacaoGatilho =
   | "parcela_atrasada"
   | "familia_sem_contato"
   | "tarefa_vencida"
-  | "agendamento";
+  | "agendamento"
+  | "nps_registrado"
+  | "crise_registrada"
+  | "onboarding_etapa_atrasada"
+  | "indicacao_convertida";
+
+/** Categoria de exibição no select do builder (agrupamento por área). */
+export type GatilhoCategoria = "comercial" | "financeiro" | "familias" | "rotina";
+
+export const GATILHO_CATEGORIA_LABEL: Record<GatilhoCategoria, string> = {
+  comercial: "Comercial",
+  financeiro: "Financeiro",
+  familias: "Famílias",
+  rotina: "Rotina",
+};
+
+/** Ordem fixa das categorias nos optgroups do builder. */
+export const GATILHO_CATEGORIAS: GatilhoCategoria[] = [
+  "comercial",
+  "financeiro",
+  "familias",
+  "rotina",
+];
 
 export type AgendamentoFrequencia = "diaria" | "semanal" | "mensal";
 
@@ -39,6 +61,8 @@ export interface GatilhoInfo {
   label: string;
   descricao: string;
   origem: "evento" | "tempo";
+  /** Categoria de agrupamento no select do builder (Comercial/Financeiro/…). */
+  categoria: GatilhoCategoria;
   /** Campo numérico de configuração (ex.: dias) exibido no builder. */
   configDias?: { label: string; padrao: number };
   /** Gatilho `agendamento`: builder mostra frequência/hora/dia no lugar de dias. */
@@ -53,52 +77,61 @@ export const GATILHO_CATALOG: Record<AutomacaoGatilho, GatilhoInfo> = {
     label: "Lead qualificado",
     descricao: "Novo lead QUENTE/MORNO entrou no pipeline (deal criado).",
     origem: "evento",
+    categoria: "comercial",
   },
   deal_etapa_mudou: {
     label: "Deal mudou de etapa",
     descricao:
       "Um deal foi movido no pipeline — qualquer transição ou, escolhendo uma etapa de destino, só quando o deal entra nela.",
     origem: "evento",
+    categoria: "comercial",
     configEtapa: true,
   },
   reuniao_marcada: {
     label: "Reunião marcada",
     descricao: "Deal chegou na etapa reunião marcada.",
     origem: "evento",
+    categoria: "comercial",
   },
   temperatura_vermelha: {
     label: "Família em temperatura vermelha",
     descricao: "A temperatura da experiência mudou para vermelho.",
     origem: "evento",
+    categoria: "familias",
   },
   deal_parado_etapa: {
     label: "Deal parado na etapa",
     descricao: "Deal sem mudança de etapa há mais de X dias.",
     origem: "tempo",
+    categoria: "comercial",
     configDias: { label: "Dias parado", padrao: 4 },
   },
   parcela_vencendo: {
     label: "Parcela vencendo",
     descricao: "Parcela pendente vence em X dias (régua preventiva, ex.: D-3).",
     origem: "tempo",
+    categoria: "financeiro",
     configDias: { label: "Dias antes do vencimento", padrao: 3 },
   },
   parcela_atrasada: {
     label: "Parcela atrasada",
     descricao: "Parcela vencida há X dias sem pagamento (ex.: D+1, D+7, D+15).",
     origem: "tempo",
+    categoria: "financeiro",
     configDias: { label: "Dias de atraso", padrao: 1 },
   },
   familia_sem_contato: {
     label: "Família sem contato",
     descricao: "Família ativa sem registro de contato há mais de X dias.",
     origem: "tempo",
+    categoria: "familias",
     configDias: { label: "Dias sem contato", padrao: 7 },
   },
   tarefa_vencida: {
     label: "Tarefa vencida",
     descricao: "Tarefa pendente com prazo estourado há X dias.",
     origem: "tempo",
+    categoria: "rotina",
     configDias: { label: "Dias após o prazo", padrao: 1 },
   },
   agendamento: {
@@ -106,7 +139,37 @@ export const GATILHO_CATALOG: Record<AutomacaoGatilho, GatilhoInfo> = {
     descricao:
       "Dispara em horário fixo (diário, semanal ou mensal) — rotina sem lead/deal: use criar tarefa/notificação.",
     origem: "tempo",
+    categoria: "rotina",
     configAgendamento: true,
+  },
+  nps_registrado: {
+    label: "NPS registrado",
+    descricao:
+      "A nota NPS (0–10) da família acabou de ser registrada — combine com a condição de nota (ex.: detrator ≤ 6 → tarefa p/ Head).",
+    origem: "evento",
+    categoria: "familias",
+  },
+  crise_registrada: {
+    label: "Família em crise",
+    descricao:
+      "O status da experiência mudou para crise — mais grave que temperatura vermelha (protocolo de crise).",
+    origem: "evento",
+    categoria: "familias",
+  },
+  onboarding_etapa_atrasada: {
+    label: "Etapa de onboarding atrasada",
+    descricao:
+      "Etapa do onboarding pendente/em andamento com prazo estourado há X dias (dispara 1x por etapa).",
+    origem: "tempo",
+    categoria: "familias",
+    configDias: { label: "Dias após o prazo", padrao: 1 },
+  },
+  indicacao_convertida: {
+    label: "Indicação convertida",
+    descricao:
+      "Uma indicação virou contrato (status convertido) — ex.: agradecer o indicador e organizar a recompensa.",
+    origem: "evento",
+    categoria: "comercial",
   },
 };
 
@@ -146,7 +209,8 @@ export type AutomacaoAcaoTipo =
   | "enviar_whatsapp"
   | "enviar_whatsapp_custom"
   | "enviar_email_custom"
-  | "mover_deal";
+  | "mover_deal"
+  | "ia_prompt";
 
 export interface AcaoCriarTarefa {
   tipo: "criar_tarefa";
@@ -241,13 +305,34 @@ export interface AcaoMoverDeal {
   };
 }
 
+/** Ação de IA (Gemini): o CEO escreve as instruções; a engine monta o prompt
+ *  = instruções + bloco de CONTEXTO factual do registro do run (dados não
+ *  sensíveis do lead/deal/família) e o texto gerado vira notificação in-app
+ *  OU tarefa para o destinatário. SEGURANÇA POR DESIGN: a IA NUNCA envia
+ *  mensagem externa (WhatsApp/e-mail) — a IA escreve, você revisa e envia.
+ *  Placeholders {atleta_nome}/{responsavel_nome} valem no prompt e no título.
+ *  Requer GEMINI_API_KEY na CF automation-engine (config manual). */
+export interface AcaoIaPrompt {
+  tipo: "ia_prompt";
+  parametros: {
+    /** Instruções do CEO para a IA (10–4000 chars). */
+    prompt: string;
+    /** O texto gerado vira notificação in-app ou tarefa interna. */
+    resultado: "notificacao" | "tarefa";
+    destinatario: "ceo" | "head_sucesso";
+    /** Título da notificação/tarefa criada (3–120 chars). */
+    titulo: string;
+  };
+}
+
 export type AutomacaoAcao =
   | AcaoCriarTarefa
   | AcaoCriarNotificacao
   | AcaoEnviarWhatsapp
   | AcaoEnviarWhatsappCustom
   | AcaoEnviarEmailCustom
-  | AcaoMoverDeal;
+  | AcaoMoverDeal
+  | AcaoIaPrompt;
 
 export const ACAO_CATALOG: Record<AutomacaoAcaoTipo, { label: string; descricao: string }> = {
   criar_tarefa: {
@@ -273,6 +358,11 @@ export const ACAO_CATALOG: Record<AutomacaoAcaoTipo, { label: string; descricao:
   mover_deal: {
     label: "Mover deal",
     descricao: "Move o deal de etapa (exige próxima ação definida).",
+  },
+  ia_prompt: {
+    label: "Gerar com IA",
+    descricao:
+      "Gemini escreve a partir do seu prompt + dados do registro; vira notificação ou tarefa interna. A IA escreve, você revisa e envia — nunca dispara mensagem externa.",
   },
 };
 

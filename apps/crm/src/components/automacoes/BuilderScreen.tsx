@@ -1,21 +1,36 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, ListChecks, Plus, Trash2, Workflow, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Clock,
+  Diamond,
+  ListChecks,
+  Plus,
+  Trash2,
+  Workflow,
+  X,
+  Zap,
+} from "lucide-react";
 
-import { BrandTabs, Button, Card, useConfirm } from "@/components/ui";
-import { ACAO_CATALOG, type AutomacaoAcaoTipo } from "@/types/automacao";
+import { Badge, BrandTabs, Button, Card, useConfirm } from "@/components/ui";
+import { ACAO_CATALOG, GATILHO_CATALOG, type AutomacaoAcaoTipo } from "@/types/automacao";
+import { cn } from "@/lib/utils";
 
 import { AcaoForm, CondicaoForm, GatilhoForm } from "./BuilderForms";
 import {
   CONDICAO_CAMPOS,
-  SECTION_LABEL,
+  acaoPendencia,
   camposCondicaoDoGatilho,
   defaultAcao,
+  resumoAcao,
+  resumoAutomacao,
   type BuilderState,
   type UsuarioRow,
 } from "./builder-shared";
-import { FlowCanvas, type FlowSelection, type GhostMenu } from "./FlowCanvas";
+import { ACAO_ICON, FlowCanvas, type FlowSelection, type GhostMenu } from "./FlowCanvas";
 
 /**
  * BuilderScreen — builder de automações em tela cheia (substitui o modal).
@@ -54,6 +69,8 @@ export function BuilderScreen({
   const [view, setView] = useState<BuilderView>("fluxo");
   const [selection, setSelection] = useState<FlowSelection | null>(null);
   const [ghostMenu, setGhostMenu] = useState<GhostMenu>(null);
+  /** Ação expandida na visão Fluxo vertical (formulário) — null = todas recolhidas. */
+  const [acaoAberta, setAcaoAberta] = useState<number | null>(null);
   const panelRef = useRef<HTMLElement>(null);
 
   // Snapshot inicial p/ detectar mudanças (confirmação ao fechar)
@@ -118,7 +135,8 @@ export function BuilderScreen({
       ...builder,
       condicoes: [
         ...builder.condicoes,
-        { campo, operador: "eq", valor: info?.opcoes?.[0]?.value ?? "" },
+        // Campo numérico (ex.: nota NPS) nasce com 0 — o Zod exige number/string≥1
+        { campo, operador: "eq", valor: info?.opcoes?.[0]?.value ?? (info?.tipo === "numero" ? 0 : "") },
       ],
     };
     onChange(next);
@@ -131,6 +149,23 @@ export function BuilderScreen({
     onChange(next);
     setGhostMenu(null);
     setSelection({ kind: "acao", index: next.acoes.length - 1 });
+    setAcaoAberta(next.acoes.length - 1); // nova ação abre para edição na visão vertical
+  };
+
+  /** Reordena a ação i com a vizinha (setas ↑/↓ do card na visão vertical). */
+  const moveAcao = (i: number, delta: -1 | 1) => {
+    const j = i + delta;
+    if (j < 0 || j >= builder.acoes.length) return;
+    const acoes = [...builder.acoes];
+    [acoes[i], acoes[j]] = [acoes[j], acoes[i]];
+    onChange({ ...builder, acoes });
+    setAcaoAberta((cur) => (cur === i ? j : cur === j ? i : cur));
+    setSelection((sel) => {
+      if (sel?.kind !== "acao") return sel;
+      if (sel.index === i) return { kind: "acao", index: j };
+      if (sel.index === j) return { kind: "acao", index: i };
+      return sel;
+    });
   };
 
   const removeCondicao = (i: number) => {
@@ -148,6 +183,11 @@ export function BuilderScreen({
       if (sel?.kind !== "acao") return sel;
       if (sel.index === i) return null;
       return sel.index > i ? { kind: "acao", index: sel.index - 1 } : sel;
+    });
+    setAcaoAberta((cur) => {
+      if (cur === null) return null;
+      if (cur === i) return null;
+      return cur > i ? cur - 1 : cur;
     });
   };
 
@@ -294,90 +334,245 @@ export function BuilderScreen({
             )}
           </>
         ) : (
-          /* Visão Formulário — mesmos forms, empilhados (mesmo estado) */
+          /* Visão Formulário — FLUXO VERTICAL: 3 blocos numerados e conectados
+             (Gatilho → Condições → Ações), mesmos forms/estado da visão canvas. */
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-2xl space-y-6 p-4 md:p-6">
-              <section className="space-y-2">
-                <p className={SECTION_LABEL}>1 · Gatilho</p>
-                <GatilhoForm builder={builder} onChange={onChange} />
-              </section>
+            <div className="mx-auto max-w-2xl p-4 md:p-6">
+              <FlowStep
+                numero={1}
+                icon={GATILHO_CATALOG[builder.gatilho].origem === "evento" ? Zap : Clock}
+                titulo="Gatilho"
+                descricao="Quando isto acontecer…"
+              >
+                <Card variant="plain" padding="sm">
+                  <GatilhoForm builder={builder} onChange={onChange} />
+                </Card>
+              </FlowStep>
 
-              <section className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className={SECTION_LABEL}>2 · Condições (opcional)</p>
-                  {camposDisponiveis.length > 0 && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => addCondicao(camposDisponiveis[0].value)}
-                    >
-                      <Plus className="h-3 w-3" />
-                      Condição
-                    </Button>
-                  )}
-                </div>
-                {builder.condicoes.length === 0 ? (
+              <FlowStep
+                numero={2}
+                icon={Diamond}
+                titulo="Condições (opcional)"
+                descricao="…e todas estas condições valerem (E)…"
+              >
+                {builder.condicoes.length === 0 && (
                   <p className="text-[11px] text-muted-foreground">
-                    {builder.gatilho === "agendamento"
-                      ? "Agendamento não tem condições — não há lead/deal no contexto do disparo."
+                    {camposDisponiveis.length === 0
+                      ? "Este gatilho não tem condições — não há campos de contexto filtráveis."
                       : "Sem condições — dispara para todo evento do gatilho."}
                   </p>
-                ) : (
-                  builder.condicoes.map((_, i) => (
+                )}
+                {builder.condicoes.map((_, i) => (
+                  <Card key={i} variant="plain" padding="sm">
                     <CondicaoForm
-                      key={i}
                       builder={builder}
                       index={i}
                       onChange={onChange}
                       onRemove={() => removeCondicao(i)}
                     />
-                  ))
+                  </Card>
+                ))}
+                {camposDisponiveis.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => addCondicao(camposDisponiveis[0].value)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-card/60 px-3 py-2 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Plus aria-hidden className="h-3.5 w-3.5" />
+                    Adicionar condição
+                  </button>
                 )}
-              </section>
+              </FlowStep>
 
-              <section className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className={SECTION_LABEL}>3 · Ações</p>
-                  <div className="flex flex-wrap justify-end gap-1.5">
-                    {(Object.keys(ACAO_CATALOG) as AutomacaoAcaoTipo[]).map((tipo) => (
-                      <Button key={tipo} variant="secondary" size="sm" onClick={() => addAcao(tipo)}>
-                        <Plus className="h-3 w-3" />
-                        {ACAO_CATALOG[tipo].label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
+              <FlowStep
+                numero={3}
+                icon={ListChecks}
+                titulo="Ações"
+                descricao="…então a automação faz isto (na ordem dos cards)."
+                ultima
+              >
                 {builder.acoes.length === 0 && (
                   <p className="text-[11px] text-muted-foreground">
                     Adicione pelo menos uma ação — é o que a automação FAZ quando dispara.
                   </p>
                 )}
 
-                {builder.acoes.map((acao, i) => (
-                  <Card key={i} variant="plain" padding="sm" className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                        <ChevronRight className="h-3 w-3 text-primary" />
-                        {ACAO_CATALOG[acao.tipo].label}
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label="Remover ação"
-                        onClick={() => removeAcao(i)}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <AcaoForm builder={builder} index={i} usuarios={usuarios} onChange={onChange} />
-                  </Card>
-                ))}
-              </section>
+                {builder.acoes.map((acao, i) => {
+                  const Icon = ACAO_ICON[acao.tipo];
+                  const pendencia = acaoPendencia(acao);
+                  const aberta = acaoAberta === i;
+                  return (
+                    <Card key={i} variant="plain" padding="sm" className="space-y-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          aria-hidden
+                          className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <button
+                          type="button"
+                          aria-expanded={aberta}
+                          aria-label={`Ação ${i + 1}: ${ACAO_CATALOG[acao.tipo].label} — ${
+                            aberta ? "recolher" : "editar"
+                          }`}
+                          onClick={() => setAcaoAberta(aberta ? null : i)}
+                          className="min-w-0 flex-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <p className="text-xs font-semibold text-foreground">
+                            {ACAO_CATALOG[acao.tipo].label}
+                          </p>
+                          <p className="truncate text-[11px] text-muted-foreground">
+                            {resumoAcao(acao)}
+                          </p>
+                        </button>
+                        {pendencia && !aberta && (
+                          <Badge tone="orange" size="sm">
+                            Incompleta
+                          </Badge>
+                        )}
+                        <div className="flex shrink-0 items-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Mover ação ${i + 1} para cima`}
+                            disabled={i === 0}
+                            onClick={() => moveAcao(i, -1)}
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Mover ação ${i + 1} para baixo`}
+                            disabled={i === builder.acoes.length - 1}
+                            onClick={() => moveAcao(i, 1)}
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={aberta ? `Recolher ação ${i + 1}` : `Editar ação ${i + 1}`}
+                            onClick={() => setAcaoAberta(aberta ? null : i)}
+                          >
+                            <ChevronDown
+                              className={cn(
+                                "h-3.5 w-3.5 transition-transform",
+                                aberta ? "rotate-180" : "rotate-0",
+                              )}
+                            />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Remover ação ${i + 1}`}
+                            onClick={() => removeAcao(i)}
+                          >
+                            <X className="h-3.5 w-3.5 text-sys-red" />
+                          </Button>
+                        </div>
+                      </div>
+                      {aberta && (
+                        <div className="mt-2 space-y-2 border-t border-border pt-3">
+                          <AcaoForm
+                            builder={builder}
+                            index={i}
+                            usuarios={usuarios}
+                            onChange={onChange}
+                          />
+                          {pendencia && (
+                            <p className="text-[11px] font-medium text-sys-red">{pendencia}</p>
+                          )}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+
+                {/* Adicionar ação — todos os tipos do catálogo, com descrição */}
+                <div className="rounded-xl border border-dashed border-border bg-card/60 p-3">
+                  <p className="mb-2 text-[11px] font-medium text-muted-foreground">
+                    Adicionar ação
+                  </p>
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    {(Object.keys(ACAO_CATALOG) as AutomacaoAcaoTipo[]).map((tipo) => {
+                      const Icon = ACAO_ICON[tipo];
+                      return (
+                        <button
+                          key={tipo}
+                          type="button"
+                          onClick={() => addAcao(tipo)}
+                          className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                            <Icon aria-hidden className="h-3 w-3" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-xs font-medium text-foreground">
+                              {ACAO_CATALOG[tipo].label}
+                            </span>
+                            <span className="block text-[11px] leading-snug text-muted-foreground">
+                              {ACAO_CATALOG[tipo].descricao}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </FlowStep>
             </div>
           </div>
         )}
       </div>
+
+      {/* Resumo em linguagem natural — atualizado ao vivo (as duas visões) */}
+      <footer className="border-t border-border bg-card px-4 py-2 md:px-6">
+        <p aria-live="polite" className="text-[11px] leading-relaxed text-muted-foreground">
+          <span className="font-semibold text-foreground/80">Resumo: </span>
+          {resumoAutomacao(builder)}
+        </p>
+      </footer>
     </div>
+  );
+}
+
+/** Bloco do fluxo vertical: rail com círculo numerado + conector, título com
+ *  ícone e conteúdo. `ultima` omite o conector abaixo do círculo. */
+function FlowStep({
+  numero,
+  icon: Icon,
+  titulo,
+  descricao,
+  ultima,
+  children,
+}: {
+  numero: number;
+  icon: typeof Zap;
+  titulo: string;
+  descricao: string;
+  ultima?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <section className="relative flex gap-3">
+      <div aria-hidden className="flex flex-col items-center">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+          {numero}
+        </span>
+        {!ultima && <span className="my-1 w-px flex-1 bg-border" />}
+      </div>
+      <div className={cn("min-w-0 flex-1 space-y-2", ultima ? "pb-2" : "pb-6")}>
+        <div className="flex items-center gap-1.5 pt-1">
+          <Icon aria-hidden className="h-3.5 w-3.5 text-primary" />
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-foreground">
+            {titulo}
+          </h3>
+          <span className="text-[11px] text-muted-foreground">· {descricao}</span>
+        </div>
+        {children}
+      </div>
+    </section>
   );
 }

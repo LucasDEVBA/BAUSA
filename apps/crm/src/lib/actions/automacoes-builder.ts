@@ -166,6 +166,27 @@ const acaoSchema = z.discriminatedUnion("tipo", [
       proxima_acao_dias: z.number().int().min(0).max(90),
     }),
   }),
+  z.object({
+    tipo: z.literal("ia_prompt"),
+    parametros: z.object({
+      // SEGURANÇA POR DESIGN: o texto gerado pela IA NUNCA sai por canal
+      // externo — vira notificação in-app ou tarefa interna (o CEO revisa e
+      // envia). A engine impõe teto de execuções de IA por tick e, sem
+      // GEMINI_API_KEY, marca o run com erro claro (guard de CI).
+      prompt: z
+        .string()
+        .min(10, "Prompt muito curto (mínimo 10 caracteres)")
+        .max(4000, "Prompt muito longo (máximo 4000 caracteres)")
+        .superRefine(semPlaceholderDesconhecido),
+      resultado: z.enum(["notificacao", "tarefa"]),
+      destinatario: z.enum(["ceo", "head_sucesso"]),
+      titulo: z
+        .string()
+        .min(3, "Título muito curto (mínimo 3 caracteres)")
+        .max(120, "Título muito longo (máximo 120 caracteres)")
+        .superRefine(semPlaceholderDesconhecido),
+    }),
+  }),
 ]);
 
 const automacaoSchema = z
@@ -183,6 +204,10 @@ const automacaoSchema = z
       "familia_sem_contato",
       "tarefa_vencida",
       "agendamento",
+      "nps_registrado",
+      "crise_registrada",
+      "onboarding_etapa_atrasada",
+      "indicacao_convertida",
     ]),
     gatilho_config: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
     condicoes: z.array(condicaoSchema).max(10).default([]),
@@ -293,6 +318,55 @@ export async function criarAutomacao(input: AutomacaoInput): Promise<ActionResul
   } catch (err) {
     console.error({ level: "error", action: "criar_automacao", error: String(err) });
     return { success: false, error: "Erro inesperado ao criar automação." };
+  }
+}
+
+/** Clona uma automação existente — a cópia nasce PAUSADA com nome "(cópia)".
+ *  Âncoras de sistema (gatilho='sistema') não são cloneáveis. */
+export async function duplicarAutomacao(id: string): Promise<ActionResult> {
+  const denied = await requireCeo();
+  if (denied) return { success: false, error: denied };
+  if (!z.string().uuid().safeParse(id).success) {
+    return { success: false, error: "ID inválido" };
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data: origem, error: origemError } = await supabase
+      .from("automacoes")
+      .select("nome, descricao, gatilho, gatilho_config, condicoes, acoes")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .neq("gatilho", "sistema")
+      .maybeSingle();
+
+    if (origemError) return { success: false, error: origemError.message };
+    if (!origem) {
+      return { success: false, error: "Automação não encontrada (ou é uma automação do sistema)." };
+    }
+
+    // Sufixo antes do corte: o nome final respeita o max 120 do schema
+    const nome = `${origem.nome} (cópia)`.slice(0, 120);
+    const { data, error } = await supabase
+      .from("automacoes")
+      .insert({
+        nome,
+        descricao: origem.descricao,
+        gatilho: origem.gatilho,
+        gatilho_config: origem.gatilho_config,
+        condicoes: origem.condicoes,
+        acoes: origem.acoes,
+        ativo: false, // cópia nasce pausada — ativar é gesto explícito
+      })
+      .select("id")
+      .single();
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/automacoes");
+    return { success: true, id: data.id };
+  } catch (err) {
+    console.error({ level: "error", action: "duplicar_automacao", id, error: String(err) });
+    return { success: false, error: "Erro inesperado ao duplicar automação." };
   }
 }
 

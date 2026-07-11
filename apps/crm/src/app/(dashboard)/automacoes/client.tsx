@@ -8,6 +8,7 @@ import {
   Plus,
   Zap,
   Clock,
+  Copy,
   Pencil,
   Trash2,
   X,
@@ -57,6 +58,7 @@ import {
   criarAutomacao,
   atualizarAutomacao,
   alternarAtivoAutomacao,
+  duplicarAutomacao,
   excluirAutomacao,
   reprocessarRun,
   atualizarIntervalosScheduler,
@@ -203,6 +205,18 @@ export function AutomacoesClient({
         return;
       }
       toast.success(!a.ativo ? `“${a.nome}” ativada` : `“${a.nome}” pausada`);
+      router.refresh();
+    });
+  };
+
+  const duplicar = (a: AutomacaoComStats) => {
+    startTransition(async () => {
+      const result = await duplicarAutomacao(a.id);
+      if (!result.success) {
+        toast.error(result.error ?? "Erro ao duplicar automação");
+        return;
+      }
+      toast.success(`Cópia de “${a.nome}” criada (pausada — edite e ative quando quiser)`);
       router.refresh();
     });
   };
@@ -388,6 +402,16 @@ export function AutomacoesClient({
                           onClick={() => verExecucoes(a.id)}
                         >
                           <History className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Duplicar ${a.nome}`}
+                          title="Duplicar (a cópia nasce pausada)"
+                          disabled={isPending}
+                          onClick={() => duplicar(a)}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
                         </Button>
                         <Button variant="ghost" size="sm" aria-label={`Editar ${a.nome}`} onClick={() => setBuilder(builderFromAutomacao(a))}>
                           <Pencil className="h-3.5 w-3.5" />
