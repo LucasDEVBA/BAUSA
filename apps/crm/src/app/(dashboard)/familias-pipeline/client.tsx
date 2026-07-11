@@ -4,13 +4,13 @@ import { useState, useTransition, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  Bell,
   Loader2,
   Phone,
   Plane,
   ArrowLeftRight,
   UserPlus,
   Pencil,
-  Inbox,
   Users,
   Flame,
   CircleAlert,
@@ -32,7 +32,7 @@ import {
 import { NovaFamiliaModal } from "@/components/familias-shared/NovaFamiliaModal";
 import { HealthBadge } from "@/components/familias-shared/HealthBadge";
 import { FamiliasNav } from "@/components/familias/FamiliasNav";
-import { PageHeader, StatCard, Button, EmptyState } from "@/components/ui";
+import { PageHeader, StatCard, Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -73,6 +73,12 @@ export interface FamiliaPipelineCard {
   nps_enviado_at: string | null;
 }
 
+const TEMP_DOT: Record<FamiliaPipelineCard["temperatura"], string> = {
+  verde: "bg-sys-green",
+  amarelo: "bg-sys-orange",
+  vermelho: "bg-sys-red",
+};
+
 function PipelineCard({
   card,
   journeyConfig,
@@ -108,30 +114,35 @@ function PipelineCard({
           onClick();
         }
       }}
-      className={cn(
-        "group relative rounded-xl border bg-card p-3 cursor-grab active:cursor-grabbing transition-colors hover:border-primary/40",
-        card.status === "crise"
-          ? "border-sys-red/40"
-          : card.status === "atencao"
-            ? "border-sys-orange/30"
-            : "border-border",
-      )}
+      className="group relative cursor-grab rounded-xl border border-border bg-card p-2.5 shadow-xs transition-all hover:-translate-y-px hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
     >
+      {/* Acento delicado só quando o status pede atenção */}
+      {card.status !== "satisfeita" && (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute left-0 top-3 h-4 w-[3px] rounded-r-full",
+            card.status === "crise" ? "bg-sys-red" : "bg-sys-orange",
+          )}
+        />
+      )}
+
       {/* Indicador de "click para editar" */}
       <span className="pointer-events-none absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
-        <Pencil className="h-3 w-3 text-primary" />
+        <Pencil aria-hidden className="h-3 w-3 text-primary" />
       </span>
 
-      <div className="flex items-start justify-between gap-2 mb-2">
+      {/* Identidade: hierarquia por tipografia + sinais discretos */}
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-foreground truncate">
+          <p className="truncate text-xs font-semibold leading-tight text-foreground">
             {card.athlete_name}
           </p>
-          <p className="text-[10px] text-muted-foreground truncate">
+          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
             {card.guardian_name}
           </p>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-1.5">
           <HealthBadge
             ansiedade={card.ansiedade}
             satisfacao={card.satisfacao}
@@ -140,88 +151,87 @@ function PipelineCard({
             temperatura={card.temperatura}
             dias_sem_contato={card.dias_sem_contato}
           />
-          <span className="text-base">{tempCfg.icon}</span>
+          <span
+            title={`Temperatura: ${tempCfg.label}`}
+            className={cn("h-2 w-2 rounded-full", TEMP_DOT[card.temperatura])}
+          >
+            <span className="sr-only">Temperatura {tempCfg.label}</span>
+          </span>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1 mb-2">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-semibold",
-            statusCfg.bg,
-            statusCfg.color,
-          )}
-        >
-          {statusCfg.label}
-        </span>
-        <span className="inline-flex rounded-md bg-background border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground">
-          {card.plano}
-        </span>
-        {card.esporte && (
-          <span className="inline-flex rounded-md bg-background border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground truncate max-w-[80px]">
-            {card.esporte}
-          </span>
-        )}
-      </div>
-
-      <div className="space-y-1 text-[10px] text-muted-foreground">
-        <div className="flex items-center justify-between">
-          <span>Ansiedade</span>
+      {/* Status + plano + esporte: texto muted, cor só em atenção/crise */}
+      <p className="mt-1.5 flex min-w-0 items-center gap-1 text-[10px] leading-tight">
+        {card.status === "satisfeita" ? (
+          <span className="text-label-tertiary">{statusCfg.label}</span>
+        ) : (
           <span
             className={cn(
-              "font-semibold",
+              "flex items-center gap-0.5 font-medium",
+              card.status === "crise" ? "text-sys-red" : "text-sys-orange",
+            )}
+          >
+            <AlertTriangle aria-hidden className="h-2.5 w-2.5 flex-shrink-0" />
+            {statusCfg.label}
+          </span>
+        )}
+        <span className="truncate text-label-tertiary">
+          · {card.plano}
+          {card.esporte ? ` · ${card.esporte}` : ""}
+        </span>
+      </p>
+
+      {/* Scores: neutros, cor apenas quando o valor pede atenção */}
+      <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+        <span>
+          Ansiedade{" "}
+          <span
+            className={cn(
+              "font-semibold tabular-nums",
               card.ansiedade >= 4 ? "text-sys-red" : "text-foreground/80",
             )}
           >
             {card.ansiedade}/5
           </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span>Satisfação</span>
+        </span>
+        <span>
+          Satisfação{" "}
           <span
             className={cn(
-              "font-semibold",
+              "font-semibold tabular-nums",
               card.satisfacao <= 2 ? "text-sys-red" : "text-foreground/80",
             )}
           >
             {card.satisfacao}/5
           </span>
-        </div>
-        {card.data_prevista_embarque && (
-          <div className="flex items-center gap-1 mt-1.5">
-            <Plane className="h-3 w-3 text-sys-blue" />
-            <span className="text-sys-blue">
-              {new Date(card.data_prevista_embarque).toLocaleDateString("pt-BR")}
-            </span>
-          </div>
-        )}
+        </span>
       </div>
 
-      {(isInactive || card.status === "crise") && (
-        <div
-          className={cn(
-            "mt-2 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-semibold",
-            card.status === "crise"
-              ? "bg-sys-red/10 border border-sys-red/30 text-sys-red"
-              : "bg-sys-orange/10 border border-sys-orange/30 text-sys-orange",
-          )}
-        >
-          <AlertTriangle className="h-2.5 w-2.5" />
-          {card.status === "crise"
-            ? "Crise"
-            : `${card.dias_sem_contato}d sem contato`}
-        </div>
+      {card.data_prevista_embarque && (
+        <p className="mt-1.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Plane aria-hidden className="h-2.5 w-2.5 text-label-tertiary" />
+          Embarque{" "}
+          {new Date(card.data_prevista_embarque).toLocaleDateString("pt-BR")}
+        </p>
+      )}
+
+      {/* Inatividade: texto direto, sem caixa */}
+      {isInactive && (
+        <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-sys-orange">
+          <Bell aria-hidden className="h-2.5 w-2.5 flex-shrink-0" />
+          {card.dias_sem_contato}d sem contato
+        </p>
       )}
 
       {card.proximo_contato && (
-        <div className="mt-2 flex items-center gap-1 text-[9px] text-label-tertiary">
-          <Phone className="h-2.5 w-2.5" />
+        <p className="mt-2 flex items-center gap-1 border-t border-border/60 pt-1.5 text-[10px] text-label-tertiary">
+          <Phone aria-hidden className="h-2.5 w-2.5" />
           Próximo:{" "}
           {new Date(card.proximo_contato).toLocaleDateString("pt-BR", {
             day: "2-digit",
             month: "2-digit",
           })}
-        </div>
+        </p>
       )}
     </div>
   );
@@ -414,7 +424,7 @@ export function FamiliasPipelineClient({
       <FamiliasNav />
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           label="Total de famílias"
           value={kpis.total}
@@ -476,10 +486,8 @@ export function FamiliasPipelineClient({
             <div
               key={fase}
               className={cn(
-                "liquid-glass rounded-xl p-3 transition-all flex flex-col min-h-[360px]",
-                isHovering
-                  ? "border-primary/50"
-                  : "",
+                "flex min-h-[360px] flex-col rounded-xl border border-border/70 bg-secondary/40 transition-colors",
+                isHovering && "border-primary/40 bg-primary/5",
               )}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -493,18 +501,19 @@ export function FamiliasPipelineClient({
                 handleDrop(fase);
               }}
             >
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-foreground/80">
+              {/* Cabeçalho sutil: rótulo + contagem tabular */}
+              <div className="flex items-center justify-between gap-2 px-2.5 pt-2">
+                <span className="truncate text-[11px] font-semibold text-foreground">
                   {cfg.label}
-                </p>
-                <span className="rounded-full bg-secondary px-2 text-[10px] font-bold text-muted-foreground">
+                </span>
+                <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-card px-1 text-[10px] font-semibold tabular-nums text-muted-foreground">
                   {list.length}
                 </span>
               </div>
-              <p className="mb-3 text-[10px] text-label-tertiary">
+              <p className="px-2.5 pb-1 pt-0.5 text-[10px] text-label-tertiary">
                 Alerta: {cfg.alertDays} dia(s) sem contato
               </p>
-              <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+              <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-1.5 pt-0.5">
                 {list.map((c) => (
                   <PipelineCard
                     key={c.id}
@@ -515,11 +524,9 @@ export function FamiliasPipelineClient({
                   />
                 ))}
                 {list.length === 0 && (
-                  <EmptyState
-                    icon={Inbox}
-                    title="Vazio"
-                    className="rounded-xl border border-dashed border-border px-3 py-6"
-                  />
+                  <div className="flex flex-1 items-center justify-center py-6">
+                    <p className="text-[10px] text-muted-foreground">vazio</p>
+                  </div>
                 )}
               </div>
             </div>
