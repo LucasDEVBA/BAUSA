@@ -490,8 +490,13 @@ export interface FaqArtigo {
 
 export interface Indicacao {
   id: string;
-  responsavel_indicador_id: string;
-  atleta_indicado_id: string;
+  responsavel_indicador_id: string | null;
+  atleta_indicado_id: string | null;
+  indicador_experiencia_id: string | null;
+  indicador_nome: string | null;
+  indicado_nome: string | null;
+  indicado_whatsapp: string | null;
+  observacao: string | null;
   status: 'pendente' | 'em_negociacao' | 'convertido' | 'perdido';
   recompensa_devida: boolean;
   recompensa_entregue: boolean;
