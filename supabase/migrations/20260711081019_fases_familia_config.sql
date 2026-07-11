@@ -94,6 +94,13 @@ RETURNS TABLE(
     END
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
+-- Hardening: a definição ORIGINAL (20260401001400) ficou exposta a anon via
+-- PostgREST (SECURITY DEFINER + EXECUTE default a PUBLIC) — sonda em produção
+-- confirmou HTTP 200 com a anon key, vazando nomes de famílias. O Engine chama
+-- sempre autenticado (listarAlertasInatividade), então fechar p/ anon é seguro.
+REVOKE EXECUTE ON FUNCTION public.familias_em_alerta_inatividade() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.familias_em_alerta_inatividade() TO authenticated, service_role;
+
 COMMENT ON FUNCTION public.familias_em_alerta_inatividade() IS
   'Retorna famílias com dias sem contato acima do threshold por fase. Thresholds lidos de configuracoes_sistema.inatividade_por_fase (fallback: admissao=7, pre_embarque=15, embarcado_inicial=7, acompanhamento=30).';
 
