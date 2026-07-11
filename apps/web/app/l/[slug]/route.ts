@@ -17,7 +17,13 @@ const FALLBACK = "https://bolsaatletausa.com";
 
 // Allowlist de domínio (defesa em profundidade contra open redirect): mesmo que
 // um destino inválido chegue ao banco, o link de marca nunca redireciona p/ fora.
-const HOSTS_PERMITIDOS = new Set(["bolsaatletausa.com", "www.bolsaatletausa.com"]);
+// meet.google.com: links premium de reunião (bolsaatletausa.com/analise-<nome>
+// → Google Meet), criados pelo calendar-webhook e pela /agenda do Engine.
+const HOSTS_PERMITIDOS = new Set([
+  "bolsaatletausa.com",
+  "www.bolsaatletausa.com",
+  "meet.google.com",
+]);
 
 function destinoSeguro(url: string): boolean {
   try {

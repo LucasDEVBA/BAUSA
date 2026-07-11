@@ -92,3 +92,29 @@ test('guard: detecta corretamente quando o fallback está ausente', () => {
   assert.equal(fakeSource.includes('|| buildLeadMeetingMessage('), false);
   assert.equal(fakeSource.includes('mensagens_fallback'), false);
 });
+
+// ─── Link premium da reunião (pedido do CEO 2026-07-11) ────────────────────
+// O LEAD nunca recebe htmlLink (evento do Calendar do CEO — inacessível) nem
+// o meet.google.com cru: o handler resolve criarLinkReuniaoPremium e passa
+// leadMeetLink para a confirmação. O CEO continua com o link real (notifyCeo).
+test('calendar-webhook: lead recebe link premium — nunca htmlLink', () => {
+  const src = loadExecutableSource();
+  assert.ok(
+    src.includes('criarLinkReuniaoPremium'),
+    'INVARIANTE VIOLADO: o helper criarLinkReuniaoPremium deve existir — o ' +
+      'lead recebe bolsaatletausa.com/analise-<nome>, não o link cru.',
+  );
+  const confirmBlock = src.match(/const sendConfirmationWhatsApp[\s\S]*?\n};/);
+  assert.ok(confirmBlock, 'sendConfirmationWhatsApp deve existir');
+  assert.ok(
+    !confirmBlock[0].includes('htmlLink'),
+    'INVARIANTE VIOLADO: sendConfirmationWhatsApp não pode usar htmlLink — ' +
+      'o lead veria "evento não encontrado" (link do Calendar do CEO).',
+  );
+  const varsBlock = src.match(/const buildMeetingVars[\s\S]*?\n};/);
+  assert.ok(varsBlock, 'buildMeetingVars deve existir');
+  assert.ok(
+    !varsBlock[0].includes('htmlLink'),
+    'INVARIANTE VIOLADO: {meet_link} dos textos custom não pode cair em htmlLink.',
+  );
+});

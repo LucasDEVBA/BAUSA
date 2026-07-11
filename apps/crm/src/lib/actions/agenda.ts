@@ -211,6 +211,61 @@ export async function criarCompromisso(
   }
 }
 
+// ─── Link premium da reunião (bolsaatletausa.com/analise-<nome>) ────────────
+// Espelho TS do helper da CF calendar-webhook: cria/reusa um link curto de
+// marca em links_curtos apontando para o Meet — o lead nunca recebe o
+// meet.google.com cru nem htmlLink. Reagendamento do MESMO atleta reusa o
+// slug (PATCH do destino). Falha → devolve o link original (fail-open).
+function slugReuniaoBase(athleteName: string): string | null {
+  const primeiro = athleteName
+    .trim()
+    .split(/\s+/)[0]
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  return primeiro.length >= 2 ? `analise-${primeiro}` : null;
+}
+
+async function criarLinkReuniaoPremium(
+  athleteName: string,
+  meetUrl: string,
+): Promise<string> {
+  try {
+    const base = slugReuniaoBase(athleteName);
+    if (!base) return meetUrl;
+    const titulo = `Reunião — ${athleteName.slice(0, 80)}`;
+    const supabase = await createAuditedSupabaseClient();
+
+    for (const sufixo of ["", "-2", "-3", "-4", "-5"]) {
+      const slug = `${base}${sufixo}`;
+      const { error } = await supabase
+        .from("links_curtos")
+        .insert({ slug, destino: meetUrl, titulo });
+      if (!error) return `https://bolsaatletausa.com/${slug}`;
+
+      // Slug ocupado: mesmo atleta → atualiza o destino e reusa
+      const { data: existente } = await supabase
+        .from("links_curtos")
+        .select("titulo")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (existente?.titulo === titulo) {
+        await supabase
+          .from("links_curtos")
+          .update({ destino: meetUrl })
+          .eq("slug", slug);
+        return `https://bolsaatletausa.com/${slug}`;
+      }
+      // Homônimo → próximo sufixo
+    }
+    return meetUrl;
+  } catch (err) {
+    console.warn("[criarLinkReuniaoPremium] fail-open", err);
+    return meetUrl;
+  }
+}
+
 /** Confirmação de REMARCAÇÃO via send-whatsapp (caminho meeting_confirmed +
  *  customMessage). Nunca lança — falha vira false (o CEO vê 'não notificado'). */
 async function enviarConfirmacaoRemarcacao(args: {
@@ -233,6 +288,11 @@ async function enviarConfirmacaoRemarcacao(args: {
     `foi reagendada para *${data}* às *${hora}* (horário de Brasília).\n\n` +
     `Até lá!`;
 
+  // Link premium de marca no lugar do meet.google.com cru (fail-open)
+  const linkPremium = args.linkReuniao
+    ? await criarLinkReuniaoPremium(args.athleteName, args.linkReuniao)
+    : null;
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
@@ -248,7 +308,7 @@ async function enviarConfirmacaoRemarcacao(args: {
           qualification_classification: args.classification,
           phone: args.phone,
           customMessage,
-          ...(args.linkReuniao ? { linkUrl: args.linkReuniao } : {}),
+          ...(linkPremium ? { linkUrl: linkPremium } : {}),
         }),
         signal: controller.signal,
       });

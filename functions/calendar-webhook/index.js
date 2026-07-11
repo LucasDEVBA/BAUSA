@@ -516,17 +516,90 @@ const renderTemplate = (texto, vars) => {
   return rendered;
 };
 
+// ─── Link premium da reunião (bolsaatletausa.com/analise-<nome>) ───────────
+// O lead NUNCA recebe htmlLink (evento do Calendar do CEO — ele veria "evento
+// não encontrado") nem o meet.google.com cru: criamos um link curto de marca
+// em links_curtos (public SEMPRE — mesmo padrão do resolveScheduleUrl do
+// send-whatsapp) apontando para o Meet. Reagendamento REUSA o slug do mesmo
+// atleta (PATCH do destino — o link antigo passa a apontar p/ a reunião nova).
+// Qualquer falha → devolve o link do Meet cru (fail-open, nunca bloqueia).
+// Espelho TS no Engine: apps/crm/src/lib/actions/agenda.ts.
+const SITE_URL = 'https://bolsaatletausa.com';
+
+const slugReuniaoBase = (athleteName) => {
+  const primeiro = String(athleteName || '')
+    .trim()
+    .split(/\s+/)[0]
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+  return primeiro.length >= 2 ? `analise-${primeiro}` : null;
+};
+
+const criarLinkReuniaoPremium = async (athleteName, meetUrl) => {
+  if (!meetUrl) return '';
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return meetUrl;
+    const base = slugReuniaoBase(athleteName);
+    if (!base) return meetUrl;
+    const titulo = `Reunião — ${String(athleteName || '').slice(0, 80)}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public',
+    };
+
+    for (const sufixo of ['', '-2', '-3', '-4', '-5']) {
+      const slug = `${base}${sufixo}`;
+      const postData = JSON.stringify({ slug, destino: meetUrl, titulo });
+      const ins = await httpRequest(`${SUPABASE_URL}/rest/v1/links_curtos`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Length': Buffer.byteLength(postData), Prefer: 'return=minimal' },
+      }, postData);
+      if (ins.statusCode < 300) {
+        log('INFO', 'link_reuniao_premium_criado', { slug });
+        return `${SITE_URL}/${slug}`;
+      }
+      // Slug ocupado: se for do MESMO atleta, atualiza o destino e reusa
+      const get = await httpRequest(
+        `${SUPABASE_URL}/rest/v1/links_curtos?slug=eq.${slug}&select=titulo`,
+        { headers },
+      );
+      const rows = get.statusCode < 300 ? JSON.parse(get.body) : [];
+      if (Array.isArray(rows) && rows[0] && rows[0].titulo === titulo) {
+        const patchData = JSON.stringify({ destino: meetUrl });
+        await httpRequest(`${SUPABASE_URL}/rest/v1/links_curtos?slug=eq.${slug}`, {
+          method: 'PATCH',
+          headers: { ...headers, 'Content-Length': Buffer.byteLength(patchData), Prefer: 'return=minimal' },
+        }, patchData);
+        log('INFO', 'link_reuniao_premium_reusado', { slug });
+        return `${SITE_URL}/${slug}`;
+      }
+      // Ocupado por outra pessoa (homônimo) → tenta o próximo sufixo
+    }
+    return meetUrl;
+  } catch (err) {
+    log('WARN', 'link_reuniao_premium_failed', { error: err.message });
+    return meetUrl;
+  }
+};
+
 // Variáveis suportadas nos textos custom — espelham as interpolações dos
 // builders hardcoded. {meet_link} fica disponível, mas o link do Meet SEMPRE
 // vai anexado como preview (sendLinkMessage), independente do texto.
-const buildMeetingVars = (lead, recipientName, phone, event) => {
+// leadMeetLink: link premium (ou home da marca quando o evento não tem Meet)
+// — o lead nunca recebe htmlLink.
+const buildMeetingVars = (lead, recipientName, phone, event, leadMeetLink) => {
   const { eventDate, eventTime } = formatEventDateTime(event);
   return {
     '{atleta_nome}': lead.athlete_name || 'Atleta',
     '{responsavel_nome}': recipientName || 'Responsável',
     '{telefone}': phone || 'N/A',
     '{email}': lead.email || 'N/A',
-    '{meet_link}': event.hangoutLink || event.htmlLink || '',
+    '{meet_link}': leadMeetLink || '',
     '{data_reuniao}': eventDate,
     '{hora_reuniao}': eventTime,
   };
@@ -534,11 +607,11 @@ const buildMeetingVars = (lead, recipientName, phone, event) => {
 
 // ─── Enviar WhatsApp de confirmação para o lead ───────────────
 // customMessage: texto custom já renderizado (null → builder hardcoded).
+// leadMeetLink: link premium já resolvido pelo handler (nunca htmlLink).
 // Retorna true quando o Z-API confirmou o envio (usado no registro de run).
-const sendConfirmationWhatsApp = async (phone, name, event, customMessage) => {
+const sendConfirmationWhatsApp = async (phone, name, event, customMessage, leadMeetLink) => {
   if (!phone) return false;
 
-  const meetLink = event.hangoutLink || event.htmlLink || '';
   const { eventDate, eventTime } = formatEventDateTime(event);
 
   const message = customMessage || buildLeadMeetingMessage(name, eventDate, eventTime);
@@ -546,7 +619,7 @@ const sendConfirmationWhatsApp = async (phone, name, event, customMessage) => {
   const linkTitle = 'Reunião Estratégica Individual — Bolsa Atleta USA';
   const linkDesc = `${eventDate} às ${eventTime}h — com Leandro Ribeiro`;
 
-  const sent = await sendLinkMessage(phone, message, meetLink, linkTitle, linkDesc);
+  const sent = await sendLinkMessage(phone, message, leadMeetLink || SITE_URL, linkTitle, linkDesc);
   if (sent) {
     log('INFO', 'whatsapp_confirmation_sent', { phone, name });
   }
@@ -777,13 +850,18 @@ functions.http('calendarWebhook', async (req, res) => {
         // Textos custom editáveis (meeting_confirmed) — buscados só quando um
         // lead vai de fato receber a confirmação. Falha/ausência → builders.
         const mensagensCustom = await fetchMensagensCustom();
-        const meetingVars = buildMeetingVars(lead, confirmName, confirmPhone, event);
+        // Link premium de marca p/ o LEAD (bolsaatletausa.com/analise-<nome>);
+        // sem Meet no evento → home da marca (nunca o htmlLink do Calendar).
+        const leadMeetLink = event.hangoutLink
+          ? await criarLinkReuniaoPremium(lead.athlete_name, event.hangoutLink)
+          : SITE_URL;
+        const meetingVars = buildMeetingVars(lead, confirmName, confirmPhone, event, leadMeetLink);
         const leadCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.lead, meetingVars);
         const ceoCustomMsg = renderTemplate(mensagensCustom?.meeting_confirmed?.ceo, meetingVars);
 
         let leadSent = false;
         if (confirmPhone) {
-          leadSent = await sendConfirmationWhatsApp(confirmPhone, confirmName, event, leadCustomMsg);
+          leadSent = await sendConfirmationWhatsApp(confirmPhone, confirmName, event, leadCustomMsg, leadMeetLink);
         }
 
         // 4. Notificar CEO
