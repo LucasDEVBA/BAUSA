@@ -48,18 +48,26 @@ export function TemplatesAdmin({ templatesIniciais }: TemplatesAdminProps) {
   const [isPending, startTransition] = useTransition();
 
   const reload = async () => {
-    const data = await listarTemplatesAdmin();
-    setTemplates(data);
+    try {
+      const data = await listarTemplatesAdmin();
+      setTemplates(data);
+    } catch {
+      toast.error("Falha ao atualizar a lista de modelos");
+    }
   };
 
   const run = (fn: () => Promise<{ success: boolean; error?: string }>, ok: string) => {
     startTransition(async () => {
-      const result = await fn();
-      if (result.success) {
-        toast.success(ok);
-        await reload();
-      } else {
-        toast.error(result.error ?? "Falha");
+      try {
+        const result = await fn();
+        if (result.success) {
+          toast.success(ok);
+          await reload();
+        } else {
+          toast.error(result.error ?? "Falha");
+        }
+      } catch {
+        toast.error("Falha de rede. Tente novamente.");
       }
     });
   };
@@ -446,20 +454,25 @@ function TemplateCard({
                   </button>
                   <button
                     type="button"
+                    disabled={savingMeta}
                     onClick={() => {
                       if (!window.confirm(`Excluir a etapa "${etapa.titulo}"?`))
                         return;
-                      void (async () => {
-                        const result = await removerEtapaTemplate(etapa.id);
-                        if (result.success) {
-                          toast.success("Etapa excluída");
-                          await onReload();
-                        } else {
-                          toast.error(result.error ?? "Falha");
+                      startMetaTransition(async () => {
+                        try {
+                          const result = await removerEtapaTemplate(etapa.id);
+                          if (result.success) {
+                            toast.success("Etapa excluída");
+                            await onReload();
+                          } else {
+                            toast.error(result.error ?? "Falha");
+                          }
+                        } catch {
+                          toast.error("Falha de rede ao excluir a etapa. Tente novamente.");
                         }
-                      })();
+                      });
                     }}
-                    className="rounded p-1 text-sys-red/70 hover:bg-sys-red/10 hover:text-sys-red"
+                    className="rounded p-1 text-sys-red/70 hover:bg-sys-red/10 hover:text-sys-red disabled:opacity-30"
                     aria-label="Excluir etapa"
                   >
                     <Trash2 className="h-3 w-3" />

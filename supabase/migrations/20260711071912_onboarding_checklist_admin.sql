@@ -28,6 +28,21 @@ ALTER TABLE public.onboarding_etapa_estado
 COMMENT ON COLUMN public.onboarding_etapa_estado.checklist_estado IS
   'Snapshot executável do checklist: array de {item, concluido, concluido_at}. Editar o template não retroage.';
 
+-- Valor não-array quebraria o trigger de instanciação (jsonb_array_elements_text)
+-- para TODAS as famílias novas — CHECK de tipo fecha a porta (a RLS permite
+-- head/ceo escreverem direto na tabela via PostgREST, fora do Zod das actions).
+DO $$ BEGIN
+  ALTER TABLE public.onboarding_template_etapas
+    ADD CONSTRAINT chk_onboarding_tmpl_etapas_checklist_array
+    CHECK (jsonb_typeof(checklist) = 'array');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.onboarding_etapa_estado
+    ADD CONSTRAINT chk_onboarding_etapa_estado_checklist_array
+    CHECK (jsonb_typeof(checklist_estado) = 'array');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 -- ─── 3. Trigger de instanciação copia o checklist ────────────────────────
 CREATE OR REPLACE FUNCTION public.trg_create_onboarding_for_experiencia()
 RETURNS TRIGGER AS $$
@@ -123,7 +138,9 @@ RETURNS JSONB AS $$
 DECLARE
   v_ok BOOLEAN;
 BEGIN
-  IF public.get_user_papel() <> 'ceo' THEN
+  -- IS DISTINCT FROM: fail-closed quando get_user_papel() retorna NULL
+  -- (anon key / usuário sem user_profiles) — SECURITY DEFINER pula a RLS.
+  IF public.get_user_papel() IS DISTINCT FROM 'ceo' THEN
     RETURN jsonb_build_object('success', FALSE, 'error', 'Apenas o CEO pode alterar o template padrão.');
   END IF;
 
@@ -146,6 +163,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- SECURITY DEFINER: nunca expor a anon (defesa em profundidade além do gate)
+REVOKE EXECUTE ON FUNCTION public.definir_template_default(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.definir_template_default(UUID) TO authenticated, service_role;
+
 -- ─── 5. RPC: reordenar etapas de um template de forma atômica ────────────
 -- UNIQUE(template_id, ordem) impede swaps diretos; desloca para uma faixa
 -- temporária e reatribui 1..N conforme a posição no array.
@@ -158,7 +179,8 @@ DECLARE
   v_count INT;
   i INT;
 BEGIN
-  IF public.get_user_papel() <> 'ceo' THEN
+  -- IS DISTINCT FROM: fail-closed quando get_user_papel() retorna NULL
+  IF public.get_user_papel() IS DISTINCT FROM 'ceo' THEN
     RETURN jsonb_build_object('success', FALSE, 'error', 'Apenas o CEO pode reordenar etapas.');
   END IF;
 
@@ -168,6 +190,15 @@ BEGIN
 
   IF v_count <> COALESCE(array_length(p_etapa_ids, 1), 0) THEN
     RETURN jsonb_build_object('success', FALSE, 'error', 'Lista de etapas não confere com o template. Recarregue a página.');
+  END IF;
+
+  IF v_count = 0 THEN
+    RETURN jsonb_build_object('success', TRUE);
+  END IF;
+
+  -- Duplicata no array deixaria uma etapa órfã na faixa temporária (>10000)
+  IF (SELECT COUNT(DISTINCT u.id) FROM unnest(p_etapa_ids) AS u(id)) <> v_count THEN
+    RETURN jsonb_build_object('success', FALSE, 'error', 'Lista de etapas contém IDs duplicados. Recarregue a página.');
   END IF;
 
   IF EXISTS (
@@ -183,7 +214,7 @@ BEGIN
   SET ordem = ordem + 10000
   WHERE template_id = p_template_id;
 
-  FOR i IN 1 .. array_length(p_etapa_ids, 1) LOOP
+  FOR i IN 1 .. COALESCE(array_length(p_etapa_ids, 1), 0) LOOP
     UPDATE public.onboarding_template_etapas
     SET ordem = i
     WHERE id = p_etapa_ids[i] AND template_id = p_template_id;
@@ -192,6 +223,49 @@ BEGIN
   RETURN jsonb_build_object('success', TRUE);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE EXECUTE ON FUNCTION public.reordenar_etapas_template(UUID, UUID[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.reordenar_etapas_template(UUID, UUID[]) TO authenticated, service_role;
+
+-- ─── 5b. RPC: toggle atômico de item do checklist (sem read-modify-write) ─
+-- SECURITY INVOKER (default): a RLS de onboarding_etapa_estado continua
+-- valendo (só ceo/head_sucesso atualizam). jsonb_set em um único UPDATE
+-- elimina o last-write-wins de toggles concorrentes e re-checa status/índice
+-- no próprio WHERE (CAS).
+CREATE OR REPLACE FUNCTION public.toggle_checklist_item(
+  p_etapa_estado_id UUID,
+  p_index INT,
+  p_concluido BOOLEAN
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_novo JSONB;
+BEGIN
+  UPDATE public.onboarding_etapa_estado
+  SET checklist_estado = jsonb_set(
+    checklist_estado,
+    ARRAY[p_index::text],
+    (checklist_estado->p_index) || jsonb_build_object(
+      'concluido', p_concluido,
+      'concluido_at', CASE WHEN p_concluido THEN to_jsonb(NOW()) ELSE 'null'::jsonb END
+    )
+  )
+  WHERE id = p_etapa_estado_id
+    AND status IN ('pendente', 'em_andamento')
+    AND p_index >= 0
+    AND jsonb_typeof(checklist_estado) = 'array'
+    AND p_index < jsonb_array_length(checklist_estado)
+  RETURNING checklist_estado INTO v_novo;
+
+  IF v_novo IS NULL THEN
+    RETURN jsonb_build_object('success', FALSE, 'error', 'Item indisponível ou etapa já finalizada. Recarregue a página.');
+  END IF;
+  RETURN jsonb_build_object('success', TRUE, 'checklist', v_novo);
+END;
+$$ LANGUAGE plpgsql;
+
+REVOKE EXECUTE ON FUNCTION public.toggle_checklist_item(UUID, INT, BOOLEAN) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.toggle_checklist_item(UUID, INT, BOOLEAN) TO authenticated, service_role;
 
 -- ─── 6. Seed: checklists detalhados no template padrão ───────────────────
 -- Idempotente: só preenche onde o checklist ainda está vazio, casando pelo

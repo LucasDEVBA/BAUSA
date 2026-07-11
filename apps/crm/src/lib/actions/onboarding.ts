@@ -131,46 +131,45 @@ export async function getOnboardingByExperiencia(
 }
 
 // ─── Marcar/desmarcar item do checklist da etapa ─────────────
+// RPC atômica (jsonb_set + CAS de status/índice no WHERE): sem
+// read-modify-write, toggles concorrentes não se sobrescrevem.
 export async function toggleChecklistItem(
   etapaEstadoId: string,
   index: number,
   concluido: boolean,
-) {
+): Promise<
+  | { success: true; checklist: ChecklistItemEstado[] }
+  | { success: false; error: string }
+> {
   const papel = await requireHeadOrCeo();
   if (!papel) return { success: false, error: "Sem permissão." };
+  if (!Number.isInteger(index) || index < 0) {
+    return { success: false, error: "Item do checklist inválido." };
+  }
 
   const supabase = await createAuditedSupabaseClient();
-  const { data: etapa } = await supabase
-    .from("onboarding_etapa_estado")
-    .select("id, status, checklist_estado")
-    .eq("id", etapaEstadoId)
-    .maybeSingle();
-
-  if (!etapa) return { success: false, error: "Etapa não encontrada." };
-  if (etapa.status === "concluida" || etapa.status === "pulada") {
-    return { success: false, error: "Etapa já finalizada." };
-  }
-
-  const checklist = parseChecklist(etapa.checklist_estado);
-  if (!Number.isInteger(index) || index < 0 || index >= checklist.length) {
-    return { success: false, error: "Item do checklist não encontrado. Recarregue a página." };
-  }
-
-  checklist[index] = {
-    ...checklist[index],
-    concluido,
-    concluido_at: concluido ? new Date().toISOString() : null,
-  };
-
-  const { error } = await supabase
-    .from("onboarding_etapa_estado")
-    .update({ checklist_estado: checklist })
-    .eq("id", etapaEstadoId);
+  const { data, error } = await supabase.rpc("toggle_checklist_item", {
+    p_etapa_estado_id: etapaEstadoId,
+    p_index: index,
+    p_concluido: concluido,
+  });
 
   if (error) return { success: false, error: error.message };
+  const result = (data ?? {}) as {
+    success?: boolean;
+    error?: string;
+    checklist?: unknown;
+  };
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error ?? "Falha ao atualizar o item.",
+    };
+  }
+
   revalidatePath("/familias-crm");
   revalidatePath("/minha-area");
-  return { success: true, checklist };
+  return { success: true, checklist: parseChecklist(result.checklist) };
 }
 
 // ─── Progresso (RPC) ────────────────────────────────────────
@@ -403,16 +402,22 @@ export async function marcarEtapaConcluida(
     }
   }
 
-  const { error } = await supabase
+  // CAS: só finaliza etapa ainda aberta (evita re-conclusão + notificação duplicada)
+  const { data: atualizadas, error } = await supabase
     .from("onboarding_etapa_estado")
     .update({
       status: "concluida",
       concluida_at: new Date().toISOString(),
       observacao: observacao?.trim() || null,
     })
-    .eq("id", etapaEstadoId);
+    .eq("id", etapaEstadoId)
+    .in("status", ["pendente", "em_andamento"])
+    .select("id");
 
   if (error) return { success: false, error: error.message };
+  if (!atualizadas || atualizadas.length === 0) {
+    return { success: false, error: "Etapa já finalizada. Recarregue a página." };
+  }
 
   // Notificar CEO (best-effort)
   try {
@@ -466,16 +471,22 @@ export async function pularEtapa(etapaEstadoId: string, motivo: string) {
   if (!motivo.trim()) return { success: false, error: "Motivo é obrigatório." };
 
   const supabase = await createAuditedSupabaseClient();
-  const { error } = await supabase
+  // CAS: só pula etapa ainda aberta
+  const { data: atualizadas, error } = await supabase
     .from("onboarding_etapa_estado")
     .update({
       status: "pulada",
       concluida_at: new Date().toISOString(),
       observacao: `[Pulada] ${motivo}`,
     })
-    .eq("id", etapaEstadoId);
+    .eq("id", etapaEstadoId)
+    .in("status", ["pendente", "em_andamento"])
+    .select("id");
 
   if (error) return { success: false, error: error.message };
+  if (!atualizadas || atualizadas.length === 0) {
+    return { success: false, error: "Etapa já finalizada. Recarregue a página." };
+  }
   revalidatePath("/familias-crm");
   revalidatePath("/familias-pipeline");
   revalidatePath("/minha-area");

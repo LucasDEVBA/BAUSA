@@ -259,11 +259,24 @@ function OnboardingRow({
         )}
       >
         <td className="px-2 py-2 text-muted-foreground">
-          {aberto ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5" />
-          )}
+          <button
+            type="button"
+            aria-expanded={aberto}
+            aria-label={`${aberto ? "Recolher" : "Expandir"} etapas de ${resumo.atleta_nome}`}
+            onClick={(e) => {
+              // O <tr> mantém onClick como conveniência de mouse;
+              // stopPropagation evita o toggle duplo via teclado/click no botão
+              e.stopPropagation();
+              toggle();
+            }}
+            className="flex items-center justify-center rounded p-0.5 hover:bg-accent hover:text-foreground"
+          >
+            {aberto ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
+          </button>
         </td>
         <td className="px-3 py-2">
           <p className="truncate text-xs font-medium text-foreground">

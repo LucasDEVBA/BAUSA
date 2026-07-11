@@ -97,11 +97,30 @@ export function OnboardingTab({ experienciaId, athleteName }: OnboardingTabProps
       ),
     );
     startActionTransition(async () => {
-      const result = await toggleChecklistItem(etapa.id, index, !atual.concluido);
-      setTogglingItem(null);
-      if (!result.success) {
-        toast.error(result.error ?? "Falha ao atualizar o item");
+      try {
+        const result = await toggleChecklistItem(
+          etapa.id,
+          index,
+          !atual.concluido,
+        );
+        if (result.success) {
+          // Estado autoritativo do server (traz o concluido_at real)
+          setEtapas((prev) =>
+            prev.map((e) =>
+              e.id === etapa.id
+                ? { ...e, checklist_estado: result.checklist }
+                : e,
+            ),
+          );
+        } else {
+          toast.error(result.error ?? "Falha ao atualizar o item");
+          load();
+        }
+      } catch {
+        toast.error("Falha de conexão ao atualizar o item");
         load();
+      } finally {
+        setTogglingItem(null);
       }
     });
   };

@@ -168,6 +168,16 @@ function CreateReuniaoForm({
     (e) => e.status === "pendente" || e.status === "em_andamento",
   );
 
+  // Etapa selecionada pode ser concluída em paralelo (outra sessão) —
+  // invalida a seleção obsoleta em vez de submetê-la invisível
+  useEffect(() => {
+    if (etapaId && !etapasAbertas.some((e) => e.id === etapaId)) {
+      setEtapaId("");
+      toast.info("A etapa selecionada foi finalizada; vínculo removido.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etapasOnboarding]);
+
   const addAssunto = () => {
     if (!assuntoNovo.trim()) return;
     setAssuntos((prev) => [...prev, assuntoNovo.trim()]);
