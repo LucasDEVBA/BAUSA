@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { DOCUMENTO_TIPOS, FAQ_CATEGORIAS } from "@/types/crm";
 import { DEAL_STAGE_CONFIG, PIPELINE_STAGE_ORDER } from "@/types/deal";
 import { UsuariosTab } from "@/components/configuracoes/UsuariosTab";
+import { PipelinesTab } from "@/components/configuracoes/PipelinesTab";
 import { PageHeader, BrandTabs, Card, Input, Button } from "@/components/ui";
 
 const TABS = [
@@ -19,6 +20,7 @@ const TABS = [
   { value: "experiencia", label: "Experiencia" },
   { value: "cobranca", label: "Cobranca" },
   { value: "pipeline", label: "Pipeline" },
+  { value: "pipelines", label: "Pipelines" },
   { value: "notificacoes", label: "Notificacoes" },
   { value: "listas", label: "Listas" },
   { value: "usuarios", label: "Usuarios" },
@@ -588,6 +590,30 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
         {/* ===== USUARIOS ===== */}
         {activeTab === "usuarios" && <UsuariosTab />}
 
+        {/* ===== PIPELINES (fases da família + etapas do comercial) ===== */}
+        {activeTab === "pipelines" && (
+          <PipelinesTab
+            fasesConfigRaw={configs["fases_familia_config"]}
+            inatividadeRaw={configs["inatividade_por_fase"]}
+            etapasDealRaw={configs["etapas_deal_config"]}
+            probabilidadeRaw={configs["probabilidade_por_etapa"]}
+            onSaved={(fases, inatividade) => {
+              setConfigs((prev) => ({
+                ...prev,
+                fases_familia_config: fases,
+                inatividade_por_fase: inatividade,
+              }));
+            }}
+            onSavedEtapasDeal={(etapas, probabilidade) => {
+              setConfigs((prev) => ({
+                ...prev,
+                etapas_deal_config: etapas,
+                probabilidade_por_etapa: probabilidade,
+              }));
+            }}
+          />
+        )}
+
         {/* ===== PIPELINE ===== */}
         {activeTab === "pipeline" && (
           <div className="space-y-4">
@@ -597,7 +623,8 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
                 <p className="text-sm font-semibold text-sys-orange">Somente leitura</p>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Estagios do pipeline sao definidos no codigo. Para alterar, contate o desenvolvedor.
+                Os estagios (valores internos) sao definidos no codigo. A apresentacao
+                (rotulo, cor, ordem, ocultar coluna e probabilidade) e editavel na aba Pipelines.
               </p>
             </Card>
 

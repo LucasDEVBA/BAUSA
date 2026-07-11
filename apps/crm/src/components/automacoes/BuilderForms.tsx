@@ -8,9 +8,12 @@ import { Button, Input } from "@/components/ui";
 import { uploadAutomacaoImagem } from "@/lib/actions/automacoes-media";
 import {
   GATILHO_CATALOG,
+  GATILHO_CATEGORIAS,
+  GATILHO_CATEGORIA_LABEL,
   type AgendamentoFrequencia,
   type AutomacaoGatilho,
   type CondicaoOperador,
+  type GatilhoInfo,
   OPERADOR_LABEL,
 } from "@/types/automacao";
 import { cn } from "@/lib/utils";
@@ -27,6 +30,10 @@ import {
   ETAPA_OPCOES,
   FIELD_CLASS,
   FREQUENCIA_OPCOES,
+  IA_PROMPT_MAX,
+  IA_PROMPT_MIN,
+  IA_TITULO_MAX,
+  IA_TITULO_MIN,
   TEMPLATE_OPCOES,
   WHATSAPP_CUSTOM_MAX,
   WHATSAPP_CUSTOM_MIN,
@@ -72,8 +79,14 @@ export function GatilhoForm({
   onChange: (b: BuilderState) => void;
 }) {
   const gatilhoInfo = GATILHO_CATALOG[builder.gatilho];
-  const gatilhosEvento = Object.entries(GATILHO_CATALOG).filter(([, i]) => i.origem === "evento");
-  const gatilhosTempo = Object.entries(GATILHO_CATALOG).filter(([, i]) => i.origem === "tempo");
+  // Agrupado por CATEGORIA (Comercial/Financeiro/Famílias/Rotina); o marcador
+  // ⚡/⏱ em cada opção preserva a distinção evento × tempo.
+  const gatilhosPorCategoria = GATILHO_CATEGORIAS.map((categoria) => ({
+    categoria,
+    itens: (Object.entries(GATILHO_CATALOG) as [AutomacaoGatilho, GatilhoInfo][]).filter(
+      ([, info]) => info.categoria === categoria,
+    ),
+  })).filter((g) => g.itens.length > 0);
   const etapaEscolhida = ETAPA_OPCOES.find((o) => o.value === builder.gatilhoEtapaPara);
 
   return (
@@ -94,20 +107,15 @@ export function GatilhoForm({
               });
             }}
           >
-            <optgroup label="⚡ Evento — dispara na hora">
-              {gatilhosEvento.map(([value, info]) => (
-                <option key={value} value={value}>
-                  {info.label}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="⏱ Tempo — verificado a cada hora">
-              {gatilhosTempo.map(([value, info]) => (
-                <option key={value} value={value}>
-                  {info.label}
-                </option>
-              ))}
-            </optgroup>
+            {gatilhosPorCategoria.map(({ categoria, itens }) => (
+              <optgroup key={categoria} label={GATILHO_CATEGORIA_LABEL[categoria]}>
+                {itens.map(([value, info]) => (
+                  <option key={value} value={value}>
+                    {info.origem === "evento" ? "⚡" : "⏱"} {info.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
           </select>
         </Field>
         {gatilhoInfo.configDias && (
@@ -215,7 +223,14 @@ export function GatilhoForm({
           </p>
         </>
       )}
-      <p className="text-[11px] text-muted-foreground">{gatilhoInfo.descricao}</p>
+      <p className="text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground/80">
+          {gatilhoInfo.origem === "evento"
+            ? "⚡ Evento — dispara na hora."
+            : "⏱ Tempo — verificado a cada hora."}
+        </span>{" "}
+        {gatilhoInfo.descricao}
+      </p>
     </div>
   );
 }
@@ -259,7 +274,11 @@ export function CondicaoForm({
         value={cond.campo}
         onChange={(e) => {
           const novo = CONDICAO_CAMPOS.find((c) => c.value === e.target.value);
-          setCondicao({ campo: e.target.value, valor: novo?.opcoes?.[0]?.value ?? "" });
+          setCondicao({
+            campo: e.target.value,
+            operador: "eq",
+            valor: novo?.opcoes?.[0]?.value ?? (novo?.tipo === "numero" ? 0 : ""),
+          });
         }}
       >
         {camposDisponiveis.map((c) => (
@@ -274,7 +293,12 @@ export function CondicaoForm({
         value={cond.operador}
         onChange={(e) => setCondicao({ operador: e.target.value as CondicaoOperador })}
       >
-        {(["eq", "neq", "in"] as CondicaoOperador[]).map((op) => (
+        {/* Campo numérico ganha operadores de comparação (a engine avalia
+            gt/gte/lt/lte via Number) — os demais seguem eq/neq/in. */}
+        {(campoInfo?.tipo === "numero"
+          ? (["eq", "neq", "gt", "gte", "lt", "lte"] as CondicaoOperador[])
+          : (["eq", "neq", "in"] as CondicaoOperador[])
+        ).map((op) => (
           <option key={op} value={op}>
             {OPERADOR_LABEL[op]}
           </option>
@@ -293,6 +317,14 @@ export function CondicaoForm({
             </option>
           ))}
         </select>
+      ) : campoInfo?.tipo === "numero" ? (
+        <Input
+          type="number"
+          aria-label="Valor"
+          className="max-w-24 text-center tabular-nums"
+          value={String(cond.valor)}
+          onChange={(e) => setCondicao({ valor: Number(e.target.value) })}
+        />
       ) : (
         <Input
           aria-label="Valor"
@@ -378,6 +410,10 @@ export function AcaoForm({
               onChange={(e) => setParametro("prazo_dias", Number(e.target.value))}
             />
           </Field>
+          <p className="text-[11px] text-muted-foreground sm:col-span-2">
+            Variável no título: <code className="font-mono text-foreground">{"{atleta_nome}"}</code>{" "}
+            — substituída no disparo quando o gatilho tem lead no contexto.
+          </p>
         </div>
       )}
 
@@ -420,6 +456,11 @@ export function AcaoForm({
               <option value="baixa">Baixa</option>
             </select>
           </Field>
+          <p className="text-[11px] text-muted-foreground sm:col-span-2">
+            Variável no título e na mensagem:{" "}
+            <code className="font-mono text-foreground">{"{atleta_nome}"}</code> — substituída no
+            disparo quando o gatilho tem lead no contexto.
+          </p>
         </div>
       )}
 
@@ -630,6 +671,84 @@ export function AcaoForm({
             linkTitulo={acao.parametros.link_titulo}
             className="pt-1"
           />
+        </div>
+      )}
+
+      {acao.tipo === "ia_prompt" && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor={`ia-prompt-${index}`}
+              className="text-[11px] font-semibold text-foreground"
+            >
+              Prompt para a IA (Gemini)
+            </label>
+            <span
+              className={cn(
+                "text-[11px] tabular-nums",
+                acao.parametros.prompt.length >= IA_PROMPT_MIN &&
+                  acao.parametros.prompt.length <= IA_PROMPT_MAX
+                  ? "text-muted-foreground"
+                  : "text-sys-red",
+              )}
+            >
+              {acao.parametros.prompt.length}/{IA_PROMPT_MAX}
+            </span>
+          </div>
+          <textarea
+            id={`ia-prompt-${index}`}
+            className={cn(FIELD_CLASS, "min-h-32 resize-y leading-relaxed")}
+            placeholder="Ex.: Analise a situação de {atleta_nome} e sugira, em até 5 linhas, os próximos passos para o time…"
+            value={acao.parametros.prompt}
+            onChange={(e) => setParametro("prompt", e.target.value)}
+          />
+          <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            Variáveis disponíveis:{" "}
+            {WHATSAPP_CUSTOM_VARIAVEIS.map((v) => (
+              <code key={v} className="mr-1.5 font-mono text-foreground">
+                {v}
+              </code>
+            ))}
+            — valem no prompt e no título. A engine anexa automaticamente um bloco de{" "}
+            <strong>contexto factual</strong> do registro que disparou o gatilho (etapa, fase,
+            nota NPS, parcela…) — não precisa repetir esses dados no prompt.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Field label="Resultado vira">
+              <select
+                className={FIELD_CLASS}
+                value={acao.parametros.resultado}
+                onChange={(e) => setParametro("resultado", e.target.value)}
+              >
+                <option value="notificacao">Notificação in-app</option>
+                <option value="tarefa">Tarefa</option>
+              </select>
+            </Field>
+            <Field label="Destinatário">
+              <select
+                className={FIELD_CLASS}
+                value={acao.parametros.destinatario}
+                onChange={(e) => setParametro("destinatario", e.target.value)}
+              >
+                <option value="ceo">CEO</option>
+                <option value="head_sucesso">Head de Sucesso</option>
+              </select>
+            </Field>
+            <Field label={`Título (${IA_TITULO_MIN}-${IA_TITULO_MAX})`}>
+              <Input
+                maxLength={IA_TITULO_MAX}
+                placeholder="Ex.: Sugestão da IA — {atleta_nome}"
+                value={acao.parametros.titulo}
+                onChange={(e) => setParametro("titulo", e.target.value)}
+              />
+            </Field>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            <strong>Segurança por design:</strong> a IA NUNCA envia WhatsApp/e-mail — o texto
+            gerado vira notificação ou tarefa interna. A IA escreve, <strong>você revisa e
+            envia</strong>. Requer <code className="font-mono">GEMINI_API_KEY</code> configurada
+            na engine (sem ela o run marca erro claro, sem afetar as demais automações).
+          </p>
         </div>
       )}
 

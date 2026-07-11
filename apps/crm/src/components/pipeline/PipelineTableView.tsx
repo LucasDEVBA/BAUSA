@@ -8,12 +8,18 @@ import {
   AlertTriangle,
   Clock,
 } from "lucide-react";
-import { type Deal, DEAL_STAGE_CONFIG } from "@/types/deal";
+import { type Deal } from "@/types/deal";
+import {
+  DEFAULT_DEAL_STAGE_DISPLAY,
+  type DealStageConfigMap,
+} from "@/lib/etapas-deal";
 import { cn } from "@/lib/utils";
 
 interface Props {
   deals: Deal[];
   onDealClick: (deal: Deal) => void;
+  /** Config de exibição das etapas (rótulo/cor/ordem) — default estático. */
+  stageConfig?: DealStageConfigMap;
 }
 
 type SortKey =
@@ -54,7 +60,11 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   );
 }
 
-export function PipelineTableView({ deals, onDealClick }: Props) {
+export function PipelineTableView({
+  deals,
+  onDealClick,
+  stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+}: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("stage_updated_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -69,8 +79,8 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
           bv = b.athlete_name.toLowerCase();
           break;
         case "stage":
-          av = DEAL_STAGE_CONFIG[a.stage].order;
-          bv = DEAL_STAGE_CONFIG[b.stage].order;
+          av = stageConfig[a.stage].order;
+          bv = stageConfig[b.stage].order;
           break;
         case "deal_value_brl":
           av = a.deal_value_brl;
@@ -94,7 +104,7 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
       return 0;
     });
     return arr;
-  }, [deals, sortKey, sortDir]);
+  }, [deals, sortKey, sortDir, stageConfig]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -164,7 +174,7 @@ export function PipelineTableView({ deals, onDealClick }: Props) {
           </thead>
           <tbody>
             {sorted.map((d) => {
-              const stageCfg = DEAL_STAGE_CONFIG[d.stage];
+              const stageCfg = stageConfig[d.stage];
               const dEtapa = diasAtras(d.stage_updated_at) ?? 0;
               const atraso = d.next_action_date
                 ? diasAtras(d.next_action_date) ?? 0

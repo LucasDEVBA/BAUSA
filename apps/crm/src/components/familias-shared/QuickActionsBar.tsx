@@ -25,6 +25,9 @@ interface QuickActionsBarProps {
   esporte?: string | null;
   data_embarque?: string | null;
   dias_sem_contato?: number | null;
+  /** crm_experiencia.id — habilita o envio direto via Z-API no template picker.
+   *  Opcional: sem ele, a família é resolvida server-side por telefone+nome. */
+  experienciaId?: string | null;
 }
 
 function sanitizePhone(raw: string | null): string | null {
@@ -135,6 +138,7 @@ export function QuickActionsBar({
   esporte,
   data_embarque,
   dias_sem_contato,
+  experienciaId,
 }: QuickActionsBarProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [templatePicker, setTemplatePicker] = useState<{
@@ -298,6 +302,7 @@ export function QuickActionsBar({
           vars={templateVars}
           phone={templatePicker.phone}
           email={templatePicker.email}
+          experienciaId={experienciaId ?? null}
         />
       )}
     </div>

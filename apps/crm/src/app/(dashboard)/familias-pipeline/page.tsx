@@ -1,25 +1,12 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
+import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { mergeJourneyConfig, normalizarFase } from "@/lib/fases-familia";
 import { FamiliasPipelineClient, type FamiliaPipelineCard } from "./client";
-import type { FamilyJourneyStage, RiskDimension } from "@/types/family";
+import type { RiskDimension } from "@/types/family";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-function normalizarFase(fase: string): FamilyJourneyStage {
-  if (
-    fase === "admissao" ||
-    fase === "aprovado" ||
-    fase === "pre_embarque" ||
-    fase === "embarcado_inicial" ||
-    fase === "acompanhamento" ||
-    fase === "encerrado"
-  ) {
-    return fase;
-  }
-  if (fase === "embarcado") return "embarcado_inicial";
-  return "admissao";
-}
 
 const VALID_RISK_DIMENSIONS: ReadonlyArray<RiskDimension> = [
   "academico",
@@ -45,10 +32,14 @@ export default async function FamiliasPipelinePage() {
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
 
+  const journeyConfig = mergeJourneyConfig(
+    await getFasesFamiliaConfigOverrides(),
+  );
+
   const { data: experiencias, error: queryErr } = await supabase
     .from("crm_experiencia")
     .select(
-      "id, atleta_id, deal_id, fase, temperatura, status, ansiedade, satisfacao, risco_percebido, tipos_risco, descricao_problema, acao_em_andamento, tipo_crise, nivel_crise, psicologa_acionada, data_ultimo_contato, proximo_contato, data_prevista_embarque, updated_at",
+      "id, atleta_id, deal_id, fase, temperatura, status, ansiedade, satisfacao, risco_percebido, tipos_risco, descricao_problema, acao_em_andamento, tipo_crise, nivel_crise, psicologa_acionada, data_ultimo_contato, proximo_contato, data_prevista_embarque, nps_6meses, nps_enviado_at, updated_at",
     )
     .is("deleted_at", null)
     .order("updated_at", { ascending: false });
@@ -170,8 +161,10 @@ export default async function FamiliasPipelinePage() {
       proximo_contato: (row.proximo_contato as string) ?? null,
       data_ultimo_contato: lastContact,
       data_prevista_embarque: (row.data_prevista_embarque as string) ?? null,
+      nps_6meses: row.nps_6meses != null ? Number(row.nps_6meses) : null,
+      nps_enviado_at: (row.nps_enviado_at as string) ?? null,
     };
   });
 
-  return <FamiliasPipelineClient cards={cards} />;
+  return <FamiliasPipelineClient cards={cards} journeyConfig={journeyConfig} />;
 }

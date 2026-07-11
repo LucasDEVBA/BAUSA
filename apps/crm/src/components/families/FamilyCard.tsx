@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { MessageCircle, Phone, Calendar, AlertCircle, MapPin } from "lucide-react";
-import { type Family } from "@/types/family";
+import { JOURNEY_STAGE_CONFIG, type Family } from "@/types/family";
 import { getInitials, formatRelativeTime } from "@/lib/utils";
+import { type JourneyConfigMap } from "@/lib/fases-familia";
 import { JourneyProgress } from "./JourneyProgress";
 import { RiskBadge } from "./RiskBadge";
 import { EmotionalTempBadge } from "./EmotionalTempBadge";
@@ -18,9 +19,14 @@ const NPS_COLOR = (score: number | null): string => {
 
 interface FamilyCardProps {
   family: Family;
+  /** Config das fases (rótulo/ordem configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
-export function FamilyCard({ family }: FamilyCardProps) {
+export function FamilyCard({
+  family,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
+}: FamilyCardProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
@@ -52,7 +58,10 @@ export function FamilyCard({ family }: FamilyCardProps) {
         </div>
 
         {/* Journey progress */}
-        <JourneyProgress currentStage={family.journey_stage} />
+        <JourneyProgress
+          currentStage={family.journey_stage}
+          journeyConfig={journeyConfig}
+        />
 
         {/* Badges row */}
         <div className="flex flex-wrap items-center gap-2">
@@ -114,7 +123,12 @@ export function FamilyCard({ family }: FamilyCardProps) {
         </div>
       </div>
 
-      <FamilyDetailSheet family={family} open={sheetOpen} onClose={() => setSheetOpen(false)} />
+      <FamilyDetailSheet
+        family={family}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        journeyConfig={journeyConfig}
+      />
     </>
   );
 }

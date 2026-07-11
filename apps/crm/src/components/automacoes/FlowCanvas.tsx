@@ -22,6 +22,7 @@ import {
   MessageSquareText,
   MoveRight,
   Plus,
+  Sparkles,
   X,
   Zap,
   ZoomIn,
@@ -107,13 +108,15 @@ const GHOST_MENU_W_ACAO = 288; // w-72
 const GHOST_MENU_W_CONDICAO = 256; // w-64
 const GHOST_MENU_MARGIN = 8;
 
-const ACAO_ICON: Record<AutomacaoAcaoTipo, LucideIcon> = {
+/** Ícone por tipo de ação — exportado p/ a visão fluxo vertical (BuilderScreen). */
+export const ACAO_ICON: Record<AutomacaoAcaoTipo, LucideIcon> = {
   criar_tarefa: ClipboardList,
   criar_notificacao: Bell,
   enviar_whatsapp: MessageCircle,
   enviar_whatsapp_custom: MessageSquareText,
   enviar_email_custom: Mail,
   mover_deal: MoveRight,
+  ia_prompt: Sparkles,
 };
 
 interface FlowLayout {

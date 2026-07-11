@@ -345,8 +345,12 @@ interface DealFunilRow {
   } | null;
 }
 
-// Ordem das etapas (espelha DEAL_STAGE_CONFIG). perdido/desconhecido = -1 (não
-// usa ordem — só timestamps dizem até onde o deal perdido chegou).
+// Ordem das etapas (espelha a ordem CANÔNICA de negócio de DEAL_STAGE_CONFIG).
+// perdido/desconhecido = -1 (não usa ordem — só timestamps dizem até onde o
+// deal perdido chegou).
+// ⚠️ Cópia paralela LEGADA usada só pela lógica do funil (progressão de
+// negócio, NÃO exibição). A fonte canônica de EXIBIÇÃO — com a ordem/rótulos
+// configurados pelo CEO (`etapas_deal_config`) — é `src/lib/etapas-deal.ts`.
 const ORDEM_ETAPA: Record<string, number> = {
   lead: 0,
   aguardando_timing: 0.5,

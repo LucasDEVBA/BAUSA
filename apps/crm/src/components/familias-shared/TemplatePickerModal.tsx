@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Loader2, MessageSquare, X, Copy, Send, Sparkles } from "lucide-react";
+import { ExternalLink, Loader2, MessageSquare, X, Copy, Send, Sparkles } from "lucide-react";
 import {
+  enviarTemplateWhatsApp,
   listarTemplates,
+  resolverDestinoTemplate,
+  type DestinoTemplate,
   type MensagemTemplate,
   type TemplateCanal,
   type TemplateCategoria,
@@ -40,6 +43,10 @@ interface TemplatePickerModalProps {
   // Destinos: phone (para WhatsApp) ou email
   phone?: string | null;
   email?: string | null;
+  /** crm_experiencia.id — habilita o envio DIRETO via Z-API com registro na
+   *  timeline. Quando ausente, a família é resolvida server-side pelo
+   *  telefone + nome do atleta (resolverDestinoTemplate). */
+  experienciaId?: string | null;
 }
 
 function sanitizePhone(raw: string | null | undefined): string | null {
@@ -56,11 +63,14 @@ export function TemplatePickerModal({
   vars,
   phone,
   email,
+  experienciaId,
 }: TemplatePickerModalProps) {
   const [templates, setTemplates] = useState<MensagemTemplate[]>([]);
   const [loadPending, startLoadTransition] = useTransition();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editedBody, setEditedBody] = useState<string | null>(null);
+  const [destino, setDestino] = useState<DestinoTemplate | null>(null);
+  const [sendPending, startSendTransition] = useTransition();
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +83,29 @@ export function TemplatePickerModal({
       cancelled = true;
     };
   }, [open, canal]);
+
+  // Resolve a família/número de destino do envio direto (server-side).
+  const atletaNomeHint = vars.atleta_nome ?? null;
+  useEffect(() => {
+    if (!open || canal === "email") return;
+    if (!experienciaId && !phone) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await resolverDestinoTemplate({
+          experienciaId: experienciaId ?? null,
+          telefone: phone ?? null,
+          atletaNome: atletaNomeHint,
+        });
+        if (!cancelled) setDestino(result.success ? result.destino : null);
+      } catch {
+        if (!cancelled) setDestino(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, canal, experienciaId, phone, atletaNomeHint]);
 
   // Derivados durante render — evita cascading renders
   const selected = selectedId
@@ -106,6 +139,39 @@ export function TemplatePickerModal({
     );
     toast.success("WhatsApp aberto");
     onClose();
+  };
+
+  // Envio DIRETO via Z-API (CF send-whatsapp) + registro na timeline.
+  const handleSendDireto = () => {
+    if (!selected || !previewBody.trim()) return;
+    if (!destino) {
+      toast.error("Família não identificada para envio direto", {
+        description: "Use \"Abrir no WhatsApp\" ou copie a mensagem.",
+      });
+      return;
+    }
+    const confirmado = window.confirm(
+      `Enviar agora via WhatsApp para ${destino.telefoneDestino} (família de ${destino.atletaNome})?\n\nO contato será registrado na timeline da família.`,
+    );
+    if (!confirmado) return;
+
+    startSendTransition(async () => {
+      const result = await enviarTemplateWhatsApp(
+        destino.experienciaId,
+        selected.id,
+        previewBody,
+      );
+      if (result.success) {
+        toast.success("Mensagem enviada via WhatsApp", {
+          description: result.detalhe,
+        });
+        onClose();
+      } else {
+        toast.error("Falha no envio via WhatsApp", {
+          description: result.error ?? "Tente novamente.",
+        });
+      }
+    });
   };
 
   const handleSendEmail = () => {
@@ -261,15 +327,41 @@ export function TemplatePickerModal({
                 <div className="grid grid-cols-1 gap-2 pt-2 border-t border-border">
                   {(canal === "whatsapp" || selected.canal === "whatsapp" ||
                     selected.canal === "ambos") && (
-                    <button
-                      type="button"
-                      onClick={handleSendWhatsApp}
-                      disabled={!cleanPhone}
-                      className="flex items-center justify-center gap-2 rounded-md bg-sys-green px-4 py-2.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      Enviar via WhatsApp
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleSendDireto}
+                        disabled={!destino || sendPending || !previewBody.trim()}
+                        title={
+                          destino
+                            ? `Envio direto para ${destino.telefoneDestino}`
+                            : "Família não identificada para envio direto"
+                        }
+                        className="flex items-center justify-center gap-2 rounded-md bg-sys-green px-4 py-2.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {sendPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Send className="h-3.5 w-3.5" />
+                        )}
+                        {sendPending ? "Enviando..." : "Enviar via WhatsApp"}
+                      </button>
+                      {destino && (
+                        <p className="text-center text-[10px] text-label-tertiary">
+                          Envio direto para {destino.telefoneDestino} — registra o contato
+                          na timeline da família.
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleSendWhatsApp}
+                        disabled={!cleanPhone}
+                        className="flex items-center justify-center gap-2 rounded-md border border-sys-green/40 bg-sys-green/10 px-4 py-2 text-xs font-semibold text-sys-green hover:bg-sys-green/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Abrir no WhatsApp
+                      </button>
+                    </>
                   )}
                   {(canal === "email" || selected.canal === "email" ||
                     selected.canal === "ambos") && (

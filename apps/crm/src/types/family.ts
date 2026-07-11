@@ -71,8 +71,8 @@ export interface Family {
   satisfaction_level: number;
   perceived_risk: number;
 
-  // Perfil de risco por dimensão
-  risk_profile: FamilyRiskProfile[];
+  // Perfil de risco por dimensão (opcional — só quando derivável de dados reais)
+  risk_profile?: FamilyRiskProfile[];
 
   // Controle de contato
   last_contact_at: string;
@@ -118,9 +118,9 @@ export interface Family {
   // Processo admissao
   escola_confirmada_id?: string | null;
 
-  // Milestone
-  next_milestone: string;
-  next_milestone_date: string;
+  // Milestone (opcional — derivado da próxima etapa do onboarding, quando existe)
+  next_milestone?: string;
+  next_milestone_date?: string;
   consultant?: string;
   consultant_notes?: string;
 }

@@ -97,6 +97,7 @@ jobs:
             calendar-lead-events)        echo "entry=calendarLeadEvents"       >> "$GITHUB_OUTPUT"; echo "name=calendar-lead-events-uat" >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
             calendar-create-event)       echo "entry=calendarCreateEvent"      >> "$GITHUB_OUTPUT"; echo "name=calendar-create-event-uat" >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
             monitor-health)              echo "entry=monitorHealth"            >> "$GITHUB_OUTPUT"; echo "name=monitor-health-uat"        >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
+            experiencia-scheduler)       echo "entry=experienciaScheduler"     >> "$GITHUB_OUTPUT"; echo "name=experiencia-scheduler-uat" >> "$GITHUB_OUTPUT"; echo "timeout=300s" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Deploy
         run: |

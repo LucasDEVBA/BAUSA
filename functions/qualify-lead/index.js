@@ -25,9 +25,12 @@ const log = (level, action, details = {}) => {
 };
 
 // ─── Requisição HTTPS genérica com timeout ─────────────────────
+// options.timeoutMs: timeout por requisição (default 15s — comportamento
+// histórico preservado p/ Supabase/Sheets; a chamada Gemini passa o seu).
 const httpRequest = (url, options, postData) => {
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
+    const timeoutMs = options.timeoutMs || 15000;
     const reqOptions = {
       hostname: parsedUrl.hostname,
       path: parsedUrl.pathname + parsedUrl.search,
@@ -42,9 +45,9 @@ const httpRequest = (url, options, postData) => {
     });
 
     req.on('error', (e) => reject(e));
-    req.setTimeout(15000, () => {
+    req.setTimeout(timeoutMs, () => {
       req.destroy();
-      reject(new Error('Request timeout (15s)'));
+      reject(new Error(`Request timeout (${Math.round(timeoutMs / 1000)}s)`));
     });
 
     if (postData) req.write(postData);
@@ -67,6 +70,133 @@ const formatInvestmentRange = (code) => {
 
 // ─── Helper: sleep ─────────────────────────────────────────────
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ─── Resiliência da chamada Gemini ─────────────────────────────
+// Port do padrão validado do Engine (apps/crm/src/lib/gemini.ts):
+//  - retry com backoff exponencial + jitter em erros transitórios
+//    (429/5xx/rede/timeout);
+//  - fallback para um modelo GA de capacidade separada quando o primário
+//    está indisponível (retries esgotados OU 404 model-not-found);
+//  - deadline global para caber no timeout da CF (120s no deploy) deixando
+//    margem para Supabase/Sheets/auto-promoção CRM depois da chamada.
+const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+const GEMINI_ENDPOINT = (model) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_TIMEOUT_MS = 20000; // por tentativa
+const GEMINI_DEADLINE_MS = 90000; // orçamento total do loop de resiliência
+const MAX_TENTATIVAS_POR_MODELO = 2;
+const BACKOFF_BASE_MS = 1500;
+/** HTTP transitórios que valem re-tentar no MESMO modelo (capacidade/rate). */
+const STATUS_TRANSIENTE = new Set([429, 500, 502, 503, 504]);
+
+// Como o laço reage a uma falha:
+//   'retry' → capacidade/rede/timeout: re-tenta o mesmo modelo (com backoff)
+//   'pular' → modelo indisponível (404 model-not-found): próximo modelo já
+//   'fatal' → request/credencial inválidos (400/401/403): aborta imediatamente
+class GeminiCallError extends Error {
+  constructor(message, categoria = 'fatal') {
+    super(message);
+    this.name = 'GeminiCallError';
+    this.categoria = categoria;
+  }
+}
+
+// Backoff exponencial com jitter (base ~1.5s: 1.5–3s, depois 3–4.5s…)
+const backoffMs = (tentativa) => {
+  const base = BACKOFF_BASE_MS * 2 ** (tentativa - 1);
+  return base + Math.floor(Math.random() * BACKOFF_BASE_MS);
+};
+
+// ─── Uma chamada a um modelo específico (timeout limitado pelo orçamento) ──
+// Lança GeminiCallError com a categoria correta (mesma taxonomia do Engine).
+const chamarModeloGemini = async (model, postData, timeoutMs) => {
+  let result;
+  try {
+    result = await httpRequest(GEMINI_ENDPOINT(model), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      timeoutMs,
+    }, postData);
+  } catch (err) {
+    // Timeout/erro de rede do httpRequest são transitórios
+    throw new GeminiCallError(err.message, 'retry');
+  }
+
+  if (result.statusCode >= 400) {
+    const body = (result.body || '').trim();
+    let categoria;
+    if (STATUS_TRANSIENTE.has(result.statusCode)) {
+      categoria = 'retry';
+    } else if (result.statusCode === 404) {
+      // Corpo vazio = rate-limit de edge do free-tier sob rajada (transitório
+      // → retry). Corpo com erro = model-not-found → pula p/ o próximo modelo.
+      categoria = body ? 'pular' : 'retry';
+    } else {
+      // 400/401/403… → request/credencial inválidos: definitivo.
+      categoria = 'fatal';
+    }
+    throw new GeminiCallError(
+      `Gemini HTTP ${result.statusCode}: ${body.substring(0, 200)}`,
+      categoria
+    );
+  }
+
+  return result;
+};
+
+// ─── Loop de resiliência: retry + fallback de modelo + deadline global ─────
+// Retorna { result, modelUsed } do primeiro modelo que responder 2xx.
+// Se tudo falhar, lança o último erro — o handler marca o lead como
+// qualification_pending e o cron/manual reprocessa.
+const callGeminiWithResilience = async (postData) => {
+  const inicio = Date.now();
+  const restante = () => GEMINI_DEADLINE_MS - (Date.now() - inicio);
+  let ultimoErro = null;
+
+  for (const model of GEMINI_MODELS) {
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS_POR_MODELO; tentativa++) {
+      if (restante() <= 0) {
+        log('ERROR', 'gemini_deadline_exceeded', { model, deadlineMs: GEMINI_DEADLINE_MS });
+        throw ultimoErro || new GeminiCallError('Gemini excedeu o orçamento total de tempo', 'retry');
+      }
+      try {
+        const result = await chamarModeloGemini(
+          model,
+          postData,
+          Math.min(GEMINI_TIMEOUT_MS, restante())
+        );
+        return { result, modelUsed: model };
+      } catch (err) {
+        const gerr = err instanceof GeminiCallError ? err : new GeminiCallError(err.message, 'retry');
+        ultimoErro = gerr;
+        if (gerr.categoria === 'fatal') {
+          log('ERROR', 'gemini_fatal_error', { model, tentativa, error: gerr.message });
+          throw gerr;
+        }
+        if (gerr.categoria === 'pular') {
+          log('WARN', 'gemini_model_skip', { model, tentativa, error: gerr.message });
+          break; // modelo indisponível → próximo modelo já
+        }
+        // 'retry': backoff antes da próxima tentativa do mesmo modelo (se
+        // houver tentativa restante E orçamento p/ esperar + chamar de novo).
+        log('WARN', 'gemini_will_retry', { model, tentativa, error: gerr.message });
+        if (tentativa < MAX_TENTATIVAS_POR_MODELO && restante() > BACKOFF_BASE_MS) {
+          await sleep(Math.min(backoffMs(tentativa), Math.max(0, restante() - 1000)));
+        }
+      }
+    }
+    // Esgotou/pulou este modelo → tenta o próximo (capacidade separada).
+  }
+
+  log('ERROR', 'gemini_exhausted_retries', {
+    models: GEMINI_MODELS,
+    lastErr: ultimoErro ? ultimoErro.message : null,
+  });
+  throw ultimoErro || new GeminiCallError('Falha ao chamar a Gemini após retries', 'retry');
+};
 
 // ─── Seções EDITÁVEIS do prompt (defaults byte-idênticos ao histórico) ─────
 // Editáveis pelo CEO em /automacoes (configuracoes_sistema.qualificacao_prompt).
@@ -115,11 +245,11 @@ const promptSection = (promptCfg, key) => {
   return typeof v === 'string' && v.trim() ? v : PROMPT_DEFAULTS[key];
 };
 
-// ─── Chamada ao Gemini 2.5 Flash (com retry interno) ───────────
-// Faz até 3 tentativas com backoff curto em caso de HTTP 429 ou 5xx.
-// Timeouts: tentativa 1 imediato, depois +5s e +15s — total máx ~20s.
-// Se as 3 falharem, lança erro para que o handler marque o lead
-// como `qualification_pending=true` e o cron/manual reprocesse.
+// ─── Chamada ao Gemini 2.5 Flash (retry + fallback de modelo) ──
+// Resiliência via callGeminiWithResilience: até 2 tentativas por modelo
+// (backoff exponencial + jitter), fallback gemini-flash-lite-latest e
+// deadline global de 90s. Se tudo falhar, lança erro para que o handler
+// marque o lead como `qualification_pending=true` e o cron/manual reprocesse.
 // promptCfg: seções editáveis (configuracoes_sistema.qualificacao_prompt);
 // {} → prompt byte-idêntico ao histórico.
 const qualifyWithGemini = async (leadData, promptCfg = {}) => {
@@ -187,51 +317,8 @@ Onde:
     },
   });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
-
-  // ─── Retry com backoff curto em 429/5xx ──────────────────────
-  const MAX_ATTEMPTS = 3;
-  const BACKOFFS_MS = [0, 5000, 15000]; // imediato, +5s, +15s
-
-  let result;
-  let lastErr;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    if (BACKOFFS_MS[attempt - 1] > 0) {
-      log('INFO', 'gemini_retry_backoff', { attempt, waitMs: BACKOFFS_MS[attempt - 1] });
-      await sleep(BACKOFFS_MS[attempt - 1]);
-    }
-
-    try {
-      result = await httpRequest(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData),
-        },
-      }, postData);
-
-      // Sucesso — sai do loop
-      if (result.statusCode < 400) break;
-
-      // Retry em 429 (rate limit) e 5xx (overload/transient)
-      const retryable = result.statusCode === 429
-        || (result.statusCode >= 500 && result.statusCode < 600);
-      lastErr = `Gemini HTTP ${result.statusCode}: ${result.body.substring(0, 200)}`;
-
-      if (!retryable || attempt === MAX_ATTEMPTS) {
-        log('ERROR', 'gemini_call_failed', { attempt, statusCode: result.statusCode, retryable });
-        throw new Error(lastErr);
-      }
-      log('WARN', 'gemini_will_retry', { attempt, statusCode: result.statusCode });
-    } catch (err) {
-      lastErr = err.message;
-      if (attempt === MAX_ATTEMPTS) {
-        log('ERROR', 'gemini_exhausted_retries', { attempts: MAX_ATTEMPTS, lastErr });
-        throw err;
-      }
-      log('WARN', 'gemini_network_error_will_retry', { attempt, error: err.message });
-    }
-  }
+  // Retry + fallback de modelo + deadline global (mesma taxonomia do Engine)
+  const { result, modelUsed } = await callGeminiWithResilience(postData);
 
   const response = JSON.parse(result.body);
   const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -243,7 +330,7 @@ Onde:
   // Limpa possíveis backticks ou markdown residuais
   const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
-  log('INFO', 'gemini_raw_response', { rawText: cleanText.substring(0, 600) });
+  log('INFO', 'gemini_raw_response', { modelUsed, rawText: cleanText.substring(0, 600) });
 
   try {
     const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
@@ -261,14 +348,15 @@ Onde:
       classification: parsed.classification,
       reason: parsed.reason || 'Sem justificativa',
       confidence: ['ALTA', 'MEDIA', 'BAIXA'].includes(parsed.confidence) ? parsed.confidence : 'MEDIA',
+      modelUsed,
     };
   } catch (parseError) {
     log('WARN', 'gemini_parse_fallback', { error: parseError.message, rawText: cleanText.substring(0, 300) });
 
-    if (cleanText.includes('QUENTE')) return { classification: 'QUENTE', reason: cleanText.substring(0, 200), confidence: 'BAIXA' };
-    if (cleanText.includes('MORNO'))  return { classification: 'MORNO',  reason: cleanText.substring(0, 200), confidence: 'BAIXA' };
-    if (cleanText.includes('FRIO'))   return { classification: 'FRIO',   reason: cleanText.substring(0, 200), confidence: 'BAIXA' };
-    return { classification: 'FRIO', reason: 'Não foi possível classificar automaticamente. Revisão manual necessária.', confidence: 'BAIXA' };
+    if (cleanText.includes('QUENTE')) return { classification: 'QUENTE', reason: cleanText.substring(0, 200), confidence: 'BAIXA', modelUsed };
+    if (cleanText.includes('MORNO'))  return { classification: 'MORNO',  reason: cleanText.substring(0, 200), confidence: 'BAIXA', modelUsed };
+    if (cleanText.includes('FRIO'))   return { classification: 'FRIO',   reason: cleanText.substring(0, 200), confidence: 'BAIXA', modelUsed };
+    return { classification: 'FRIO', reason: 'Não foi possível classificar automaticamente. Revisão manual necessária.', confidence: 'BAIXA', modelUsed };
   }
 };
 
@@ -784,7 +872,7 @@ const notifyQualificationPending = async (leadData, errorMessage) => {
   }
 
   const titulo = `Lead aguardando qualificação: ${leadData.athlete_name}`;
-  const descricao = `O Gemini retornou erro repetido (3 tentativas) ao qualificar este lead. `
+  const descricao = `O Gemini retornou erro repetido (tentativas esgotadas nos 2 modelos) ao qualificar este lead. `
     + `Erro: ${(errorMessage || '').substring(0, 300)}. `
     + `O sistema tentará novamente automaticamente em até 6 horas. Você também pode forçar `
     + `o retry manualmente no War Room → "Leads pendentes de qualificação".`;
@@ -961,12 +1049,12 @@ functions.http('qualifyLead', async (req, res) => {
       scheduled_followup_at: scheduledFollowupAt,
     });
 
-    // 1. Qualificar com Gemini (já tem retry interno 3x; prompt editável)
+    // 1. Qualificar com Gemini (retry + fallback de modelo + deadline; prompt editável)
     let qualification;
     try {
       qualification = await qualifyWithGemini(data, promptCfg);
     } catch (geminiErr) {
-      // Após 3 tentativas falhas: marca lead como pendente.
+      // Após esgotar retries + fallback de modelo: marca lead como pendente.
       // Cron diário + botão manual no War Room tentarão novamente.
       log('ERROR', 'gemini_all_retries_failed_marking_pending', {
         email: data.email,
@@ -1013,6 +1101,7 @@ functions.http('qualifyLead', async (req, res) => {
       classification: qualification.classification,
       reason: qualification.reason,
       confidence: qualification.confidence,
+      modelUsed: qualification.modelUsed,
     });
 
     // 2. Atualizar Supabase (com timing_status + scheduled_followup_at se aplicável)

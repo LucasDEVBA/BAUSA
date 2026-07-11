@@ -3,28 +3,28 @@
 import { X, MessageCircle, Phone, Calendar, CheckCircle2, Circle, MapPin } from "lucide-react";
 import { type Family, JOURNEY_STAGE_CONFIG } from "@/types/family";
 import { getInitials, formatRelativeTime, formatDate } from "@/lib/utils";
+import { orderedStages, type JourneyConfigMap } from "@/lib/fases-familia";
 import { RiskBadge } from "./RiskBadge";
 import { EmotionalTempBadge } from "./EmotionalTempBadge";
 import { JourneyProgress } from "./JourneyProgress";
-
-const STAGES_ORDER = [
-  "admissao",
-  "aprovado",
-  "pre_embarque",
-  "embarcado_inicial",
-  "acompanhamento",
-  "encerrado",
-] as const;
 
 interface FamilyDetailSheetProps {
   family: Family;
   open: boolean;
   onClose: () => void;
+  /** Config das fases (rótulo/ordem configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
-export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetProps) {
+export function FamilyDetailSheet({
+  family,
+  open,
+  onClose,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
+}: FamilyDetailSheetProps) {
   if (!open) return null;
 
+  const STAGES_ORDER = orderedStages(journeyConfig);
   const currentIndex = STAGES_ORDER.indexOf(family.journey_stage);
 
   return (
@@ -99,14 +99,17 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
           {/* Jornada */}
           <div className="rounded-lg p-3 border border-border/70 bg-card/60">
             <p className="mb-3 text-xs font-semibold text-foreground/80">Progresso da Jornada</p>
-            <JourneyProgress currentStage={family.journey_stage} />
+            <JourneyProgress
+              currentStage={family.journey_stage}
+              journeyConfig={journeyConfig}
+            />
 
             {/* Timeline vertical */}
             <div className="mt-4 space-y-2">
               {STAGES_ORDER.map((stage, index) => {
                 const isPast = index < currentIndex;
                 const isCurrent = index === currentIndex;
-                const stageConfig = JOURNEY_STAGE_CONFIG[stage];
+                const stageConfig = journeyConfig[stage];
 
                 return (
                   <div key={stage} className="flex items-start gap-3">
@@ -141,18 +144,22 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
             </div>
           </div>
 
-          {/* Próximo marco */}
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-            <div className="flex items-start gap-2">
-              <Calendar className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
-              <div>
-                <p className="text-xs font-semibold text-foreground">{family.next_milestone}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {formatDate(family.next_milestone_date)}
-                </p>
+          {/* Próximo marco (só quando derivado de dados reais) */}
+          {family.next_milestone && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-start gap-2">
+                <Calendar className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">{family.next_milestone}</p>
+                  {family.next_milestone_date && (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {formatDate(family.next_milestone_date)}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Contrato */}
           <div className="rounded-lg p-3 border border-border/70 bg-card/60">

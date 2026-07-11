@@ -1,19 +1,17 @@
 import { type FamilyJourneyStage, JOURNEY_STAGE_CONFIG } from "@/types/family";
-
-const STAGES_ORDER: FamilyJourneyStage[] = [
-  "admissao",
-  "aprovado",
-  "pre_embarque",
-  "embarcado_inicial",
-  "acompanhamento",
-  "encerrado",
-];
+import { orderedStages, type JourneyConfigMap } from "@/lib/fases-familia";
 
 interface JourneyProgressProps {
   currentStage: FamilyJourneyStage;
+  /** Config das fases (rótulo/ordem configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
-export function JourneyProgress({ currentStage }: JourneyProgressProps) {
+export function JourneyProgress({
+  currentStage,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
+}: JourneyProgressProps) {
+  const STAGES_ORDER = orderedStages(journeyConfig);
   const currentIndex = STAGES_ORDER.indexOf(currentStage);
 
   return (
@@ -21,7 +19,7 @@ export function JourneyProgress({ currentStage }: JourneyProgressProps) {
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-muted-foreground">Jornada</p>
         <p className="text-[10px] font-medium text-foreground">
-          {JOURNEY_STAGE_CONFIG[currentStage].label}
+          {journeyConfig[currentStage].label}
         </p>
       </div>
       <div className="flex items-center gap-0.5">
@@ -32,7 +30,7 @@ export function JourneyProgress({ currentStage }: JourneyProgressProps) {
           return (
             <div
               key={stage}
-              title={JOURNEY_STAGE_CONFIG[stage].label}
+              title={journeyConfig[stage].label}
               className={`flex-1 rounded-full transition-all ${
                 isCurrent
                   ? "h-2 bg-primary"

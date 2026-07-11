@@ -22,6 +22,7 @@ import {
   TEMPERATURE_CONFIG,
   type Family,
 } from "@/types/family";
+import { type JourneyConfigMap } from "@/lib/fases-familia";
 import type { Tarefa } from "@/types/crm";
 import type { OnboardingResumo } from "@/lib/actions/onboarding";
 import { Card, EmptyState, PageHeader, ScrollList, StatCard } from "@/components/ui";
@@ -53,6 +54,8 @@ interface MinhaAreaClientProps {
   performance: PerformanceMetrics;
   onboardings: OnboardingResumo[];
   proximasReunioes: ProximaReuniao[];
+  /** Config das fases (rótulo/ordem/alerta configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
 interface UpcomingContact {
@@ -224,14 +227,16 @@ function UrgentActionsSection({
 
 function FamilyCard({
   family,
+  journeyConfig,
   onClick,
 }: {
   family: Family;
+  journeyConfig: JourneyConfigMap;
   onClick: () => void;
 }) {
   const tempCfg = TEMPERATURE_CONFIG[family.temperature];
   const statusCfg = FAMILY_STATUS_CONFIG[family.family_status];
-  const stageCfg = JOURNEY_STAGE_CONFIG[family.journey_stage];
+  const stageCfg = journeyConfig[family.journey_stage];
 
   return (
     <button
@@ -290,9 +295,11 @@ function FamilyCard({
 
 function MyFamiliesSection({
   families,
+  journeyConfig,
   onFamilyClick,
 }: {
   families: Family[];
+  journeyConfig: JourneyConfigMap;
   onFamilyClick: (id: string) => void;
 }) {
   const sorted = [...families].sort(sortFamilies);
@@ -322,6 +329,7 @@ function MyFamiliesSection({
             <FamilyCard
               key={f.id}
               family={f}
+              journeyConfig={journeyConfig}
               onClick={() => onFamilyClick(f.id)}
             />
           ))}
@@ -375,7 +383,7 @@ function OnboardingsSection({
             return (
               <a
                 key={o.instancia_id}
-                href={`/familias-crm?familia=${o.experiencia_id}`}
+                href={`/familias-crm/onboarding/${o.experiencia_id}`}
                 className="block rounded-2xl border border-border bg-card p-3.5 shadow-sm transition-all hover:bg-accent hover:shadow-md"
               >
                 <div className="flex items-start justify-between mb-3">
@@ -612,27 +620,29 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
   );
 }
 
-// --- Inactivity threshold per phase ---
+// --- Inatividade: threshold por fase vem do config (alertDays) ---
 
-const INACTIVITY_THRESHOLD: Record<string, number> = {
-  admissao: 7,
-  aprovado: 7,
-  pre_embarque: 15,
-  embarcado: 7,
-  acompanhamento: 30,
-  encerrado: 999,
-};
+function inactivityThreshold(
+  journeyConfig: JourneyConfigMap,
+  stage: Family["journey_stage"],
+): number {
+  const alertDays = journeyConfig[stage]?.alertDays ?? 7;
+  // alertDays <= 0 (ex.: encerrado) = fase sem alerta de inatividade
+  return alertDays > 0 ? alertDays : Number.POSITIVE_INFINITY;
+}
 
 function NeedContactSection({
   families,
+  journeyConfig,
   onFamilyClick,
 }: {
   families: Family[];
+  journeyConfig: JourneyConfigMap;
   onFamilyClick: (id: string) => void;
 }) {
   const needContact = [...families]
     .filter((f) => {
-      const threshold = INACTIVITY_THRESHOLD[f.journey_stage] ?? 7;
+      const threshold = inactivityThreshold(journeyConfig, f.journey_stage);
       return f.days_without_contact >= threshold && f.journey_stage !== "encerrado";
     })
     .sort((a, b) => b.days_without_contact - a.days_without_contact);
@@ -662,10 +672,10 @@ function NeedContactSection({
       ) : (
         <ScrollList className="space-y-2">
           {needContact.map((f) => {
-            const threshold = INACTIVITY_THRESHOLD[f.journey_stage] ?? 7;
+            const threshold = inactivityThreshold(journeyConfig, f.journey_stage);
             const isOverThreshold = f.days_without_contact >= threshold;
             const tempCfg = TEMPERATURE_CONFIG[f.temperature];
-            const stageCfg = JOURNEY_STAGE_CONFIG[f.journey_stage];
+            const stageCfg = journeyConfig[f.journey_stage];
 
             return (
               <button
@@ -704,9 +714,11 @@ function NeedContactSection({
 
 function AdmissaoSection({
   families,
+  journeyConfig,
   onFamilyClick,
 }: {
   families: Family[];
+  journeyConfig: JourneyConfigMap;
   onFamilyClick: (id: string) => void;
 }) {
   const admissaoFamilies = families.filter(
@@ -738,7 +750,7 @@ function AdmissaoSection({
       ) : (
         <ScrollList className="space-y-2">
           {admissaoFamilies.map((f) => {
-            const stageCfg = JOURNEY_STAGE_CONFIG[f.journey_stage];
+            const stageCfg = journeyConfig[f.journey_stage];
             const hasSchool = Boolean(f.escola_confirmada_id);
 
             return (
@@ -827,6 +839,7 @@ export function MinhaAreaClient({
   performance,
   onboardings,
   proximasReunioes,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
 }: MinhaAreaClientProps) {
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
 
@@ -928,12 +941,14 @@ export function MinhaAreaClient({
       {/* Section 2: Familias que precisam de contato */}
       <NeedContactSection
         families={families}
+        journeyConfig={journeyConfig}
         onFamilyClick={handleFamilyClick}
       />
 
       {/* Section 3: Processos de admissao ativos */}
       <AdmissaoSection
         families={families}
+        journeyConfig={journeyConfig}
         onFamilyClick={handleFamilyClick}
       />
 
@@ -943,6 +958,7 @@ export function MinhaAreaClient({
       {/* Section 5: Minhas Familias */}
       <MyFamiliesSection
         families={families}
+        journeyConfig={journeyConfig}
         onFamilyClick={handleFamilyClick}
       />
 

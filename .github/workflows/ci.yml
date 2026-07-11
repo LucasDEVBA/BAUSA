@@ -193,6 +193,7 @@ jobs:
           - calendar-lead-events
           - calendar-create-event
           - monitor-health
+          - experiencia-scheduler
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

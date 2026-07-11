@@ -253,6 +253,28 @@ export async function atualizarExperiencia(
   return ok();
 }
 
+// ─── Registrar nota NPS (6 meses) ────────────────────────────
+// A pesquisa é enviada pela CF experiencia-scheduler (WhatsApp); a família
+// responde pelo WhatsApp normal e a Head registra a nota aqui manualmente.
+export async function registrarNps(experienciaId: string, nota: number) {
+  const papel = await requireExperiencePapel();
+  if (!papel) return fail("Sem permissao.");
+  if (!Number.isInteger(nota) || nota < 0 || nota > 10)
+    return fail("Nota NPS deve ser um inteiro entre 0 e 10.");
+
+  const supabase = await createAuditedSupabaseClient();
+  const { error } = await supabase
+    .from("crm_experiencia")
+    .update({ nps_6meses: nota })
+    .eq("id", experienciaId);
+  if (error) return fail(error.message);
+
+  revalidatePath("/familias-crm");
+  revalidatePath("/familias-pipeline");
+  revalidatePath("/familias");
+  return ok();
+}
+
 // ─── Escalonar para CEO ──────────────────────────────────────
 export async function escalonarCEO(experienciaId: string, contexto: string) {
   const papel = await getUserPapel();
@@ -459,6 +481,8 @@ export interface FamilyModalSnapshot {
   proximo_contato: string | null;
   data_ultimo_contato: string | null;
   dias_sem_contato: number | null;
+  nps_6meses: number | null;
+  nps_enviado_at: string | null;
 }
 
 export async function getFamilyModalData(
@@ -545,6 +569,8 @@ export async function getFamilyModalData(
     proximo_contato: (exp.proximo_contato as string) ?? null,
     data_ultimo_contato: lastContact,
     dias_sem_contato: dias,
+    nps_6meses: exp.nps_6meses != null ? Number(exp.nps_6meses) : null,
+    nps_enviado_at: (exp.nps_enviado_at as string) ?? null,
   };
 }
 

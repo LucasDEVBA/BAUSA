@@ -3,11 +3,12 @@ import { getUserProfile } from "@/lib/auth";
 import { isCeoLevel } from "@/lib/papel";
 import { listarOnboardingsAtivos } from "@/lib/actions/onboarding";
 import { listarProximasReunioes } from "@/lib/actions/reunioes";
+import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { mergeJourneyConfig, normalizarFase } from "@/lib/fases-familia";
 import { redirect } from "next/navigation";
 import { MinhaAreaClient } from "./client";
 import type {
   Family,
-  FamilyJourneyStage,
   FamilyStatus,
   FamilyTemperature,
 } from "@/types/family";
@@ -16,7 +17,15 @@ import type { Tarefa } from "@/types/crm";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function mapExperienciaToFamily(row: Record<string, unknown>): Family {
+interface ProximaEtapaOnboarding {
+  titulo: string;
+  prazo: string | null;
+}
+
+function mapExperienciaToFamily(
+  row: Record<string, unknown>,
+  proximaEtapa?: ProximaEtapaOnboarding,
+): Family {
   const atleta = row.atleta as Record<string, unknown> | null;
   const responsavel = atleta?.responsavel as Record<string, unknown> | null;
   const deal = row.deal as Record<string, unknown> | null;
@@ -32,7 +41,7 @@ function mapExperienciaToFamily(row: Record<string, unknown>): Family {
   const planoRaw = (primeiroContrato?.plano as string) ?? "";
   const plan = planMap[planoRaw] ?? "Journey";
 
-  const fase = (row.fase as string) ?? "admissao";
+  const fase = normalizarFase((row.fase as string) ?? "admissao");
   const temperatura = (row.temperatura as string) ?? "verde";
   const status = (row.status as string) ?? "satisfeita";
 
@@ -53,20 +62,12 @@ function mapExperienciaToFamily(row: Record<string, unknown>): Family {
       (atleta?.whatsapp as string) ??
       "",
     plan,
-    journey_stage: fase as FamilyJourneyStage,
+    journey_stage: fase,
     family_status: status as FamilyStatus,
     temperature: temperatura as FamilyTemperature,
     anxiety_level: Number(row.ansiedade) || 1,
     satisfaction_level: Number(row.satisfacao) || 3,
     perceived_risk: Number(row.risco_percebido) || 1,
-    risk_profile: [
-      { dimension: "academico", score: 2 },
-      { dimension: "esportivo", score: 1 },
-      { dimension: "emocional", score: Number(row.ansiedade) >= 4 ? 4 : 2 },
-      { dimension: "financeiro", score: 2 },
-      { dimension: "relacional", score: 2 },
-      { dimension: "comunicacao", score: 2 },
-    ],
     last_contact_at: lastContact,
     last_contact_type: "whatsapp",
     next_contact_date:
@@ -120,11 +121,9 @@ function mapExperienciaToFamily(row: Record<string, unknown>): Family {
     nps_enviado_at: (row.nps_enviado_at as string) ?? null,
     indicacoes_geradas: Number(row.indicacoes_geradas) || 0,
     escola_confirmada_id: (row.escola_confirmada_id as string) ?? null,
-    next_milestone: "Proximo marco do processo",
-    next_milestone_date:
-      (row.proximo_contato as string) ??
-      new Date(Date.now() + 14 * 86400000).toISOString(),
-    consultant: "Leandro Ribeiro",
+    // Marco real: a próxima etapa do onboarding da família (quando existe)
+    next_milestone: proximaEtapa?.titulo,
+    next_milestone_date: proximaEtapa?.prazo ?? undefined,
   };
 }
 
@@ -157,9 +156,32 @@ export default async function MinhaAreaPage() {
     .is("deleted_at", null)
     .order("updated_at", { ascending: false });
 
-  const families: Family[] = (rawExperiencias ?? []).map((row) =>
-    mapExperienciaToFamily(row as Record<string, unknown>)
+  // Onboardings + próximas reuniões (server actions já filtram por papel).
+  // Buscados ANTES do mapeamento: a próxima etapa do onboarding vira o
+  // marco real (next_milestone) de cada família.
+  const [onboardings, proximasReunioes, fasesOverrides] = await Promise.all([
+    listarOnboardingsAtivos(),
+    listarProximasReunioes(10),
+    getFasesFamiliaConfigOverrides(),
+  ]);
+  const journeyConfig = mergeJourneyConfig(fasesOverrides);
+
+  const proximaEtapaByExperiencia = new Map(
+    onboardings
+      .filter((o) => o.proxima_titulo)
+      .map((o) => [
+        o.experiencia_id,
+        { titulo: o.proxima_titulo as string, prazo: o.proxima_prazo },
+      ]),
   );
+
+  const families: Family[] = (rawExperiencias ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return mapExperienciaToFamily(
+      r,
+      proximaEtapaByExperiencia.get(r.id as string),
+    );
+  });
 
   // Buscar tarefas do usuario (atrasadas e proximos 7 dias)
   // Head só vê tarefas dos módulos pertinentes a ela.
@@ -182,13 +204,7 @@ export default async function MinhaAreaPage() {
   const { data: rawTarefas } = await tarefasQuery;
   const tarefas: Tarefa[] = (rawTarefas ?? []) as Tarefa[];
 
-  // Onboardings + próximas reuniões (server actions já filtram por papel)
-  const [onboardings, proximasReunioes] = await Promise.all([
-    listarOnboardingsAtivos(),
-    listarProximasReunioes(10),
-  ]);
-
-  // Contatos desta semana
+  // Contatos desta semana — do PRÓPRIO usuário ("Meu desempenho", não global)
   const startOfWeek = new Date();
   startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
   startOfWeek.setHours(0, 0, 0, 0);
@@ -196,13 +212,9 @@ export default async function MinhaAreaPage() {
   const { count: contatosSemana } = await supabase
     .from("contatos_experiencia")
     .select("*", { count: "exact", head: true })
+    .eq("registrado_por", profile.id)
     .gte("created_at", startOfWeek.toISOString())
     .is("deleted_at", null);
-
-  // Documentos por atleta (para progresso admissao)
-  const admissaoFamilies = families.filter(
-    (f) => f.journey_stage === "admissao" || f.journey_stage === "aprovado"
-  );
 
   // Performance metrics
   const totalFamilias = families.length;
@@ -234,6 +246,7 @@ export default async function MinhaAreaPage() {
       performance={performance}
       onboardings={onboardings}
       proximasReunioes={proximasReunioes}
+      journeyConfig={journeyConfig}
     />
   );
 }

@@ -6,9 +6,6 @@ import {
   ArrowUp,
   ArrowDown,
   AlertTriangle,
-  Flame,
-  Sparkles,
-  CircleAlert,
   Clock,
   Inbox,
 } from "lucide-react";
@@ -16,10 +13,11 @@ import {
   JOURNEY_STAGE_CONFIG,
   type FamilyJourneyStage,
 } from "@/types/family";
-import { Card, EmptyState } from "@/components/ui";
+import type { JourneyConfigMap } from "@/lib/fases-familia";
+import { Badge, Card, EmptyState, type BadgeTone } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
-interface Card {
+interface FamiliaRow {
   id: string;
   athlete_name: string;
   guardian_name: string;
@@ -35,8 +33,9 @@ interface Card {
 }
 
 interface Props {
-  cards: Card[];
-  onCardClick: (card: Card) => void;
+  cards: FamiliaRow[];
+  journeyConfig?: JourneyConfigMap;
+  onCardClick: (card: FamiliaRow) => void;
 }
 
 type SortKey =
@@ -47,22 +46,19 @@ type SortKey =
   | "dias_sem_contato";
 type SortDir = "asc" | "desc";
 
-const STATUS_BADGE: Record<string, string> = {
-  satisfeita: "bg-sys-green/15 text-sys-green border-sys-green/30",
-  atencao: "bg-sys-orange/15 text-sys-orange border-sys-orange/30",
-  crise: "bg-sys-red/15 text-sys-red border-sys-red/30",
+const STATUS_META: Record<
+  FamiliaRow["status"],
+  { label: string; tone: BadgeTone }
+> = {
+  satisfeita: { label: "Satisfeita", tone: "green" },
+  atencao: { label: "Atenção", tone: "orange" },
+  crise: { label: "Crise", tone: "red" },
 };
 
 const TEMP_DOT: Record<string, string> = {
   verde: "bg-sys-green",
   amarelo: "bg-sys-orange",
   vermelho: "bg-sys-red",
-};
-
-const STATUS_ICON = {
-  satisfeita: Sparkles,
-  atencao: CircleAlert,
-  crise: Flame,
 };
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -75,11 +71,15 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   );
 }
 
-export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
+export function FamiliasPipelineTable({
+  cards,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
+  onCardClick,
+}: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("status");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  const statusOrder: Record<Card["status"], number> = {
+  const statusOrder: Record<FamiliaRow["status"], number> = {
     crise: 0,
     atencao: 1,
     satisfeita: 2,
@@ -96,8 +96,8 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
           bv = b.athlete_name;
           break;
         case "fase":
-          av = JOURNEY_STAGE_CONFIG[a.fase].order;
-          bv = JOURNEY_STAGE_CONFIG[b.fase].order;
+          av = journeyConfig[a.fase].order;
+          bv = journeyConfig[b.fase].order;
           break;
         case "status":
           av = statusOrder[a.status];
@@ -118,7 +118,7 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
     });
     return arr;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, sortKey, sortDir]);
+  }, [cards, sortKey, sortDir, journeyConfig]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -130,7 +130,7 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
 
   if (cards.length === 0) {
     return (
-      <Card padding="none">
+      <Card padding="none" variant="plain">
         <EmptyState
           icon={Inbox}
           title="Nenhuma família"
@@ -168,66 +168,77 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
   ];
 
   return (
-    <Card padding="none" className="overflow-hidden">
+    <Card padding="none" variant="plain" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full table-fixed">
           <thead>
-            <tr className="border-b border-border bg-card/80">
-              {cols.map((c) => (
-                <th
-                  key={c.key}
-                  style={{ width: c.width, maxWidth: c.width }}
-                  onClick={() =>
-                    c.sortable && c.key !== "actions"
-                      ? toggleSort(c.key as SortKey)
-                      : undefined
-                  }
-                  className={cn(
-                    "px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground",
-                    c.align === "right" && "text-right",
-                    c.align === "center" && "text-center",
-                    c.sortable && c.key !== "actions" && "cursor-pointer hover:text-foreground",
-                  )}
-                >
-                  <span
+            <tr className="border-b border-border">
+              {cols.map((c) => {
+                const sortable = c.sortable && c.key !== "actions";
+                return (
+                  <th
+                    key={c.key}
+                    style={{ width: c.width, maxWidth: c.width }}
+                    aria-sort={
+                      sortable && sortKey === c.key
+                        ? sortDir === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : undefined
+                    }
                     className={cn(
-                      "inline-flex items-center gap-1",
-                      c.align === "right" && "justify-end",
-                      c.align === "center" && "justify-center",
+                      "px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground",
+                      c.align === "right" && "text-right",
+                      c.align === "center" && "text-center",
                     )}
                   >
-                    {c.label}
-                    {c.sortable && c.key !== "actions" && (
-                      <SortIcon active={sortKey === c.key} dir={sortDir} />
+                    {sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(c.key as SortKey)}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded uppercase tracking-wider transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          c.align === "right" && "justify-end",
+                        )}
+                      >
+                        {c.label}
+                        <SortIcon active={sortKey === c.key} dir={sortDir} />
+                      </button>
+                    ) : (
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1",
+                          c.align === "center" && "justify-center",
+                        )}
+                      >
+                        {c.label}
+                      </span>
                     )}
-                  </span>
-                </th>
-              ))}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {sorted.map((c, i) => {
-              const stageCfg = JOURNEY_STAGE_CONFIG[c.fase];
-              const StatusIcon = STATUS_ICON[c.status];
+            {sorted.map((c) => {
+              const stageCfg = journeyConfig[c.fase];
+              const statusCfg = STATUS_META[c.status];
               const semContato = (c.dias_sem_contato ?? 0) > 30;
               const semContatoMedio = (c.dias_sem_contato ?? 0) > 15;
               return (
                 <tr
                   key={c.id}
                   onClick={() => onCardClick(c)}
-                  className={cn(
-                    "cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-accent",
-                    i % 2 === 1 && "bg-fill-4",
-                  )}
+                  className="cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-accent"
                 >
                   <td
                     style={{ width: 240, maxWidth: 240 }}
-                    className="overflow-hidden px-3 py-2"
+                    className="overflow-hidden px-3 py-2.5"
                   >
                     <div className="flex items-center gap-2">
                       <span
                         className={cn(
-                          "h-1.5 w-1.5 shrink-0 rounded-full",
+                          "h-2 w-2 shrink-0 rounded-full",
                           TEMP_DOT[c.temperatura],
                         )}
                         title={`Temperatura ${c.temperatura}`}
@@ -251,38 +262,32 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
                   </td>
                   <td
                     style={{ width: 140, maxWidth: 140 }}
-                    className="overflow-hidden px-3 py-2"
+                    className="overflow-hidden px-3 py-2.5"
                   >
                     <span
-                      className="inline-flex items-center gap-1.5 text-xs text-foreground"
+                      className="block truncate text-xs text-muted-foreground"
                       title={stageCfg.label}
                     >
-                      <span className="truncate">{stageCfg.label}</span>
+                      {stageCfg.label}
                     </span>
                   </td>
                   <td
                     style={{ width: 110, maxWidth: 110 }}
-                    className="overflow-hidden px-3 py-2"
+                    className="overflow-hidden px-3 py-2.5"
                   >
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-md border px-1.5 py-px text-[10px] font-medium",
-                        STATUS_BADGE[c.status],
-                      )}
-                    >
-                      <StatusIcon className="h-2.5 w-2.5" />
-                      {c.status}
-                    </span>
+                    <Badge tone={statusCfg.tone} size="sm">
+                      {statusCfg.label}
+                    </Badge>
                   </td>
                   <td
                     style={{ width: 80, maxWidth: 80 }}
-                    className="overflow-hidden px-3 py-2 text-right text-xs tabular-nums text-foreground"
+                    className="overflow-hidden px-3 py-2.5 text-right text-xs tabular-nums text-foreground"
                   >
                     {c.satisfacao}/5
                   </td>
                   <td
                     style={{ width: 100, maxWidth: 100 }}
-                    className="overflow-hidden px-3 py-2 text-right text-xs tabular-nums"
+                    className="overflow-hidden px-3 py-2.5 text-right text-xs tabular-nums"
                   >
                     {c.dias_sem_contato == null ? (
                       <span className="text-muted-foreground/60">—</span>
@@ -290,9 +295,9 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
                       <span
                         className={cn(
                           semContato
-                            ? "text-sys-red"
+                            ? "font-medium text-sys-red"
                             : semContatoMedio
-                              ? "text-sys-orange"
+                              ? "font-medium text-sys-orange"
                               : "text-muted-foreground",
                         )}
                       >
@@ -302,7 +307,7 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
                   </td>
                   <td
                     style={{ width: 80, maxWidth: 80 }}
-                    className="overflow-hidden px-3 py-2"
+                    className="overflow-hidden px-3 py-2.5"
                   >
                     <div className="flex items-center justify-center gap-1">
                       {c.status === "crise" && (
