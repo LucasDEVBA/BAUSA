@@ -18,6 +18,10 @@ import {
   cancelarReuniao,
   type ReuniaoFamilia,
 } from "@/lib/actions/reunioes";
+import {
+  getOnboardingByExperiencia,
+  type OnboardingEtapaEstado,
+} from "@/lib/actions/onboarding";
 import { cn } from "@/lib/utils";
 import { ScrollList } from "@/components/ui";
 import { toast } from "sonner";
@@ -31,25 +35,42 @@ export function ReunioesTab({ experienciaId, athleteName }: ReunioesTabProps) {
   const router = useRouter();
   const [loadPending, startLoadTransition] = useTransition();
   const [reunioes, setReunioes] = useState<ReuniaoFamilia[]>([]);
+  const [etapasOnboarding, setEtapasOnboarding] = useState<
+    OnboardingEtapaEstado[]
+  >([]);
   const [showCreate, setShowCreate] = useState(false);
 
   const load = () => {
     startLoadTransition(async () => {
-      const data = await listarReunioesFamilia(experienciaId);
+      const [data, onboarding] = await Promise.all([
+        listarReunioesFamilia(experienciaId),
+        getOnboardingByExperiencia(experienciaId),
+      ]);
       setReunioes(data);
+      setEtapasOnboarding(onboarding.etapas);
     });
   };
 
   useEffect(() => {
     let cancelled = false;
     startLoadTransition(async () => {
-      const data = await listarReunioesFamilia(experienciaId);
-      if (!cancelled) setReunioes(data);
+      const [data, onboarding] = await Promise.all([
+        listarReunioesFamilia(experienciaId),
+        getOnboardingByExperiencia(experienciaId),
+      ]);
+      if (!cancelled) {
+        setReunioes(data);
+        setEtapasOnboarding(onboarding.etapas);
+      }
     });
     return () => {
       cancelled = true;
     };
   }, [experienciaId]);
+
+  const etapaTituloById = new Map(
+    etapasOnboarding.map((e) => [e.id, `Etapa ${e.ordem} — ${e.titulo}`]),
+  );
 
   return (
     <div className="space-y-4">
@@ -71,6 +92,7 @@ export function ReunioesTab({ experienciaId, athleteName }: ReunioesTabProps) {
         <CreateReuniaoForm
           experienciaId={experienciaId}
           athleteName={athleteName}
+          etapasOnboarding={etapasOnboarding}
           onSaved={() => {
             setShowCreate(false);
             load();
@@ -99,6 +121,11 @@ export function ReunioesTab({ experienciaId, athleteName }: ReunioesTabProps) {
               key={r.id}
               reuniao={r}
               athleteName={athleteName}
+              etapaTitulo={
+                r.etapa_estado_id
+                  ? etapaTituloById.get(r.etapa_estado_id) ?? null
+                  : null
+              }
               onChanged={() => {
                 load();
                 router.refresh();
@@ -114,11 +141,13 @@ export function ReunioesTab({ experienciaId, athleteName }: ReunioesTabProps) {
 function CreateReuniaoForm({
   experienciaId,
   athleteName,
+  etapasOnboarding,
   onSaved,
   onCancel,
 }: {
   experienciaId: string;
   athleteName: string;
+  etapasOnboarding: OnboardingEtapaEstado[];
   onSaved: () => void;
   onCancel: () => void;
 }) {
@@ -131,8 +160,23 @@ function CreateReuniaoForm({
   });
   const [duracao, setDuracao] = useState(30);
   const [link, setLink] = useState("");
+  const [etapaId, setEtapaId] = useState("");
   const [assuntoNovo, setAssuntoNovo] = useState("");
   const [assuntos, setAssuntos] = useState<string[]>([]);
+
+  const etapasAbertas = etapasOnboarding.filter(
+    (e) => e.status === "pendente" || e.status === "em_andamento",
+  );
+
+  // Etapa selecionada pode ser concluída em paralelo (outra sessão) —
+  // invalida a seleção obsoleta em vez de submetê-la invisível
+  useEffect(() => {
+    if (etapaId && !etapasAbertas.some((e) => e.id === etapaId)) {
+      setEtapaId("");
+      toast.info("A etapa selecionada foi finalizada; vínculo removido.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etapasOnboarding]);
 
   const addAssunto = () => {
     if (!assuntoNovo.trim()) return;
@@ -159,6 +203,7 @@ function CreateReuniaoForm({
         data_hora: new Date(data).toISOString(),
         duracao_minutos: duracao,
         link_reuniao: link || undefined,
+        etapa_estado_id: etapaId || undefined,
       });
       if (result.success) {
         toast.success("Reunião agendada", { description: athleteName });
@@ -236,6 +281,31 @@ function CreateReuniaoForm({
         />
       </div>
 
+      {etapasAbertas.length > 0 && (
+        <div>
+          <label className="block text-[10px] text-muted-foreground mb-1">
+            Vincular a etapa do onboarding (opcional)
+          </label>
+          <select
+            value={etapaId}
+            onChange={(e) => setEtapaId(e.target.value)}
+            className="w-full rounded-md border border-border bg-card px-2.5 py-2 text-xs text-foreground outline-none focus:border-primary/40"
+          >
+            <option value="">Sem vínculo</option>
+            {etapasAbertas.map((e) => (
+              <option key={e.id} value={e.id}>
+                Etapa {e.ordem} — {e.titulo}
+                {e.requer_reuniao ? " (exige reunião)" : ""}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[9px] text-muted-foreground">
+            Etapas que exigem reunião só podem ser concluídas com uma reunião
+            vinculada.
+          </p>
+        </div>
+      )}
+
       <div>
         <label className="block text-[10px] text-muted-foreground mb-1">
           Assuntos / pauta
@@ -299,10 +369,12 @@ function CreateReuniaoForm({
 function ReuniaoCard({
   reuniao,
   athleteName,
+  etapaTitulo,
   onChanged,
 }: {
   reuniao: ReuniaoFamilia;
   athleteName: string;
+  etapaTitulo: string | null;
   onChanged: () => void;
 }) {
   const [showConfirm, setShowConfirm] = useState(false);
@@ -398,6 +470,12 @@ function ReuniaoCard({
             })}{" "}
             · {reuniao.duracao_minutos}min
           </p>
+
+          {etapaTitulo && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-sys-purple/10 px-1.5 py-0.5 text-[9px] font-semibold text-sys-purple">
+              Onboarding: {etapaTitulo}
+            </span>
+          )}
 
           {reuniao.assuntos.length > 0 && (
             <div className="mt-2">

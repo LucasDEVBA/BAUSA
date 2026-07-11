@@ -98,6 +98,34 @@ export async function criarReuniao(
   const supabase = await createAuditedSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Vínculo com etapa do onboarding: só etapa aberta e da MESMA família
+  // (o gate de conclusão conta reuniões por etapa_estado_id — vínculo
+  // cruzado satisfaria o gate de outra família)
+  if (dados.etapa_estado_id) {
+    const { data: etapa } = await supabase
+      .from("onboarding_etapa_estado")
+      .select("id, status, instancia:onboarding_instancias(experiencia_id)")
+      .eq("id", dados.etapa_estado_id)
+      .maybeSingle();
+
+    const instRaw = etapa?.instancia as unknown;
+    const instObj = (Array.isArray(instRaw) ? instRaw[0] : instRaw) as
+      | { experiencia_id?: string }
+      | null;
+
+    if (
+      !etapa ||
+      (etapa.status !== "pendente" && etapa.status !== "em_andamento") ||
+      instObj?.experiencia_id !== experienciaId
+    ) {
+      return {
+        success: false,
+        error:
+          "A etapa selecionada não está mais disponível para vínculo. Recarregue e tente novamente.",
+      };
+    }
+  }
+
   const { data, error } = await supabase
     .from("reunioes_familia")
     .insert({
