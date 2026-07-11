@@ -83,13 +83,25 @@ function parseAnexos(raw: unknown): UploadedFile[] {
   });
 }
 
+// URL segura para render em <a href>: só http(s) — o JSONB pode ser escrito
+// direto via PostgREST (RLS ceo/head) fora da validação da action, e um
+// javascript: renderizado como href executaria no browser de quem abrir.
+function isHttpUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 // links é JSONB — tolera linhas antigas/formatos inesperados
 function parseLinks(raw: unknown): EtapaLinkItem[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((entry) => {
     if (!entry || typeof entry !== "object") return [];
     const e = entry as { url?: unknown; titulo?: unknown; adicionado_at?: unknown };
-    if (typeof e.url !== "string" || !e.url.trim()) return [];
+    if (typeof e.url !== "string" || !e.url.trim() || !isHttpUrl(e.url)) return [];
     return [
       {
         url: e.url,

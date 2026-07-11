@@ -42,7 +42,7 @@ import {
   listarReunioesFamilia,
   type ReuniaoFamilia,
 } from "@/lib/actions/reunioes";
-import { getFileSignedUrl, uploadFile } from "@/lib/actions/uploads";
+import { deleteFile, getFileSignedUrl, uploadFile } from "@/lib/actions/uploads";
 import { registrarContato } from "@/lib/actions/experiencia";
 import {
   Badge,
@@ -798,9 +798,11 @@ function AgendarReuniaoEtapaForm({
     `Etapa ${etapa.ordem} — ${familia.atletaNome.split(" ")[0]}`,
   );
   const [data, setData] = useState(() => {
+    // datetime-local espera hora LOCAL — toISOString (UTC) abriria 13:00 em BRT
     const d = new Date(Date.now() + 86400000);
     d.setHours(10, 0, 0, 0);
-    return d.toISOString().slice(0, 16);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   });
   const [duracao, setDuracao] = useState(30);
   const [criarNoCalendar, setCriarNoCalendar] = useState(true);
@@ -1098,6 +1100,9 @@ function AnexosEtapaCard({
           onPatch(etapa.id, { anexos: result.anexos });
           toast.success("Anexo adicionado", { description: file.name });
         } else {
+          // Upload já subiu mas o vínculo falhou (etapa finalizada em outra
+          // aba, limite de anexos) — limpa o arquivo órfão do bucket
+          void deleteFile(up.file.path).catch(() => undefined);
           toast.error(result.error);
         }
       } catch {
