@@ -141,18 +141,22 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
             </div>
           </div>
 
-          {/* Próximo marco */}
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-            <div className="flex items-start gap-2">
-              <Calendar className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
-              <div>
-                <p className="text-xs font-semibold text-foreground">{family.next_milestone}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {formatDate(family.next_milestone_date)}
-                </p>
+          {/* Próximo marco (só quando derivado de dados reais) */}
+          {family.next_milestone && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-start gap-2">
+                <Calendar className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">{family.next_milestone}</p>
+                  {family.next_milestone_date && (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {formatDate(family.next_milestone_date)}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Contrato */}
           <div className="rounded-lg p-3 border border-border/70 bg-card/60">

@@ -618,7 +618,7 @@ const INACTIVITY_THRESHOLD: Record<string, number> = {
   admissao: 7,
   aprovado: 7,
   pre_embarque: 15,
-  embarcado: 7,
+  embarcado_inicial: 7,
   acompanhamento: 30,
   encerrado: 999,
 };
