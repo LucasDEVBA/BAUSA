@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ArrowUpRight,
   CheckCircle2,
   CheckSquare,
   Circle,
@@ -139,8 +141,15 @@ export function OnboardingTab({ experienciaId, athleteName }: OnboardingTabProps
   };
 
   const handleComplete = (etapaId: string) => {
+    const obs = (observacao[etapaId] ?? "").trim();
+    // Mesma regra da action: registro de informações é obrigatório
+    if (obs.length < 10) {
+      toast.error(
+        "Registre as informações da etapa (mín. 10 caracteres) antes de concluir.",
+      );
+      return;
+    }
     startActionTransition(async () => {
-      const obs = observacao[etapaId];
       const result = await marcarEtapaConcluida(etapaId, obs);
       if (result.success) {
         toast.success("Etapa concluída", { description: athleteName });
@@ -205,6 +214,15 @@ export function OnboardingTab({ experienciaId, athleteName }: OnboardingTabProps
 
   return (
     <div className="space-y-5">
+      {/* Atalho para a tela dedicada de execução */}
+      <Link
+        href={`/familias-crm/onboarding/${experienciaId}`}
+        className="flex items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+      >
+        Abrir tela do onboarding
+        <ArrowUpRight className="h-3.5 w-3.5" />
+      </Link>
+
       {/* Header com progresso */}
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex items-center justify-between mb-3">
@@ -452,8 +470,8 @@ export function OnboardingTab({ experienciaId, athleteName }: OnboardingTabProps
                             [etapa.id]: e.target.value,
                           }))
                         }
-                        rows={2}
-                        placeholder="Observações sobre a conclusão (opcional)..."
+                        rows={3}
+                        placeholder="Informações da etapa — o que foi feito, decisões, combinados (obrigatório, mín. 10 caracteres) *"
                         className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40"
                       />
                       <button

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowUpRight,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -340,6 +342,15 @@ function OnboardingRow({
       {aberto && (
         <tr className={cn(zebra && "bg-secondary/10")}>
           <td colSpan={6} className="border-b border-border/50 px-4 pb-3 pt-1">
+            <div className="mb-1 flex justify-end">
+              <Link
+                href={`/familias-crm/onboarding/${resumo.experiencia_id}`}
+                className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/20"
+              >
+                Abrir tela
+                <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </div>
             {isPending || etapas === null ? (
               <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
