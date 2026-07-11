@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Ban,
   ExternalLink,
+  CalendarCheck,
 } from "lucide-react";
 import {
   listarReunioesFamilia,
@@ -160,6 +161,8 @@ function CreateReuniaoForm({
   });
   const [duracao, setDuracao] = useState(30);
   const [link, setLink] = useState("");
+  const [criarNoCalendar, setCriarNoCalendar] = useState(true);
+  const [convidadoEmail, setConvidadoEmail] = useState("");
   const [etapaId, setEtapaId] = useState("");
   const [assuntoNovo, setAssuntoNovo] = useState("");
   const [assuntos, setAssuntos] = useState<string[]>([]);
@@ -196,6 +199,11 @@ function CreateReuniaoForm({
       toast.error("Data e hora obrigatórias");
       return;
     }
+    const emailConvidado = convidadoEmail.trim();
+    if (criarNoCalendar && emailConvidado && !emailConvidado.includes("@")) {
+      toast.error("E-mail do convidado inválido");
+      return;
+    }
     startTransition(async () => {
       const result = await criarReuniao(experienciaId, {
         titulo,
@@ -204,9 +212,24 @@ function CreateReuniaoForm({
         duracao_minutos: duracao,
         link_reuniao: link || undefined,
         etapa_estado_id: etapaId || undefined,
+        criar_no_calendar: criarNoCalendar,
+        convidado_email:
+          criarNoCalendar && emailConvidado ? emailConvidado : undefined,
       });
       if (result.success) {
-        toast.success("Reunião agendada", { description: athleteName });
+        if (result.calendarCriado) {
+          toast.success("Reunião agendada e evento criado no Calendar", {
+            description: athleteName,
+          });
+        } else if (result.calendarCriado === false) {
+          toast.warning("Reunião agendada — sem evento no Calendar", {
+            description:
+              result.calendarAviso ??
+              "Crie o evento manualmente no Google Calendar.",
+          });
+        } else {
+          toast.success("Reunião agendada", { description: athleteName });
+        }
         onSaved();
       } else {
         toast.error(result.error ?? "Falha");
@@ -268,6 +291,42 @@ function CreateReuniaoForm({
         </div>
       </div>
 
+      <label className="flex items-start gap-2 rounded-md border border-border bg-card px-2.5 py-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={criarNoCalendar}
+          onChange={(e) => setCriarNoCalendar(e.target.checked)}
+          className="mt-0.5 h-3.5 w-3.5 accent-primary"
+        />
+        <span>
+          <span className="block text-[11px] font-medium text-foreground">
+            Criar evento no Google Calendar
+          </span>
+          <span className="block text-[9px] text-muted-foreground">
+            Gera o link do Meet automaticamente no calendário do CEO.
+          </span>
+        </span>
+      </label>
+
+      {criarNoCalendar && (
+        <div>
+          <label className="block text-[10px] text-muted-foreground mb-1">
+            E-mail do convidado (família) — opcional
+          </label>
+          <input
+            type="email"
+            value={convidadoEmail}
+            onChange={(e) => setConvidadoEmail(e.target.value)}
+            placeholder="familia@exemplo.com"
+            className="w-full rounded-md border border-border bg-card px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40"
+          />
+          <p className="mt-1 text-[9px] text-muted-foreground">
+            Tenta convidar quando possível — o agendamento não depende do
+            convite.
+          </p>
+        </div>
+      )}
+
       <div>
         <label className="block text-[10px] text-muted-foreground mb-1">
           Link da reunião (Google Meet, Zoom, etc.)
@@ -279,6 +338,12 @@ function CreateReuniaoForm({
           placeholder="https://meet.google.com/..."
           className="w-full rounded-md border border-border bg-card px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40"
         />
+        {criarNoCalendar && (
+          <p className="mt-1 text-[9px] text-muted-foreground">
+            Deixe vazio para usar o link do Meet gerado — se preencher, o link
+            manual prevalece.
+          </p>
+        )}
       </div>
 
       {etapasAbertas.length > 0 && (
@@ -419,7 +484,13 @@ function ReuniaoCard({
     startTransition(async () => {
       const result = await cancelarReuniao(reuniao.id, motivo);
       if (result.success) {
-        toast.success("Reunião cancelada");
+        if (result.avisoCalendar) {
+          toast.warning("Reunião cancelada", {
+            description: result.avisoCalendar,
+          });
+        } else {
+          toast.success("Reunião cancelada");
+        }
         setShowCancel(false);
         onChanged();
       } else {
@@ -471,10 +542,20 @@ function ReuniaoCard({
             · {reuniao.duracao_minutos}min
           </p>
 
-          {etapaTitulo && (
-            <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-sys-purple/10 px-1.5 py-0.5 text-[9px] font-semibold text-sys-purple">
-              Onboarding: {etapaTitulo}
-            </span>
+          {(etapaTitulo || reuniao.google_event_id) && (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {etapaTitulo && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-sys-purple/10 px-1.5 py-0.5 text-[9px] font-semibold text-sys-purple">
+                  Onboarding: {etapaTitulo}
+                </span>
+              )}
+              {reuniao.google_event_id && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-sys-blue/10 px-1.5 py-0.5 text-[9px] font-semibold text-sys-blue">
+                  <CalendarCheck className="h-2.5 w-2.5" />
+                  Google Calendar
+                </span>
+              )}
+            </div>
           )}
 
           {reuniao.assuntos.length > 0 && (

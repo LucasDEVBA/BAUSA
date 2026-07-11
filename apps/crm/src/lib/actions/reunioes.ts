@@ -20,6 +20,8 @@ export interface ReuniaoFamilia {
   data_hora: string;
   duracao_minutos: number;
   link_reuniao: string | null;
+  /** Id do evento no Google Calendar (criado via CF calendar-create-event). */
+  google_event_id: string | null;
   status: ReuniaoStatus;
   participantes: string[];
   notas_realizacao: string | null;
@@ -60,6 +62,115 @@ async function notifyCeos(
   );
 }
 
+// ─── Google Calendar (CF calendar-create-event) ─────────────
+// Mesmo contrato/envs do consumidor de referência (agenda.ts):
+// POST { athleteName, guardianName, leadEmail, startIso, duracaoMin,
+// observacao } com header x-webhook-secret → { success, eventId,
+// htmlLink, hangoutLink, meetCriado, conviteEnviado }.
+
+const CALENDAR_TIMEOUT_MS = 30_000;
+const DURACAO_PADRAO_MIN = 30;
+// Faixa aceita pela CF — fora dela ela RESETA para 60min; clampamos aqui
+// para o evento ficar o mais próximo possível da duração real da reunião.
+const CF_DURACAO_MIN = 15;
+const CF_DURACAO_MAX = 240;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface EventoCalendarArgs {
+  nomeAtleta: string;
+  titulo: string;
+  convidadoEmail: string | null;
+  startIso: string;
+  duracaoMin: number;
+  assuntos: string[];
+}
+
+type EventoCalendarResult =
+  | {
+      success: true;
+      eventId: string;
+      hangoutLink: string | null;
+      htmlLink: string | null;
+    }
+  | { success: false; error: string };
+
+/** Cria o evento no Calendar do CEO via CF calendar-create-event.
+ *  Nunca lança — qualquer falha vira { success: false } para a action
+ *  degradar graciosamente (a reunião é criada mesmo sem evento). */
+async function criarEventoCalendar(
+  args: EventoCalendarArgs,
+): Promise<EventoCalendarResult> {
+  const url = process.env.CALENDAR_CREATE_EVENT_URL;
+  const secret = process.env.WEBHOOK_SECRET;
+  if (!url || !secret) {
+    return {
+      success: false,
+      error: "Integração com o Calendar não configurada (CALENDAR_CREATE_EVENT_URL).",
+    };
+  }
+
+  const startMs = Date.parse(args.startIso ?? "");
+  if (!Number.isFinite(startMs)) {
+    return { success: false, error: "Data/hora inválida para o evento." };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CALENDAR_TIMEOUT_MS);
+    let resposta: Response;
+    try {
+      resposta = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-webhook-secret": secret },
+        body: JSON.stringify({
+          // A CF monta o título como `Reunião — <athleteName> (<guardianName>)`;
+          // com athleteName="Família <atleta>" e guardianName=<título> o evento
+          // vira "Reunião — Família <atleta> (<título>)".
+          athleteName: `Família ${args.nomeAtleta}`,
+          guardianName: args.titulo,
+          leadEmail: args.convidadoEmail,
+          // NUNCA enviar phone: a CF escreveria o telefone na descrição e o
+          // calendar-webhook casaria o evento como reunião COMERCIAL do lead
+          // (confirmação WhatsApp + deal→reuniao_marcada) — fluxo errado para
+          // uma reunião de pós-venda/LRM.
+          startIso: new Date(startMs).toISOString(),
+          duracaoMin: Math.min(Math.max(args.duracaoMin, CF_DURACAO_MIN), CF_DURACAO_MAX),
+          observacao:
+            args.assuntos.length > 0 ? `Pauta: ${args.assuntos.join("; ")}` : "",
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const corpo = (await resposta.json().catch(() => null)) as {
+      success?: boolean;
+      eventId?: string;
+      htmlLink?: string | null;
+      hangoutLink?: string | null;
+      error?: string;
+    } | null;
+    if (!resposta.ok || !corpo?.success || !corpo.eventId) {
+      return {
+        success: false,
+        error: corpo?.error ?? `Calendar indisponível (HTTP ${resposta.status}).`,
+      };
+    }
+    return {
+      success: true,
+      eventId: corpo.eventId,
+      hangoutLink: corpo.hangoutLink ?? null,
+      htmlLink: corpo.htmlLink ?? null,
+    };
+  } catch {
+    return {
+      success: false,
+      error: "Falha de rede/timeout ao criar o evento no Calendar.",
+    };
+  }
+}
+
 // ─── Listar reuniões de uma família ─────────────────────────
 export async function listarReunioesFamilia(
   experienciaId: string,
@@ -78,6 +189,17 @@ export async function listarReunioesFamilia(
 }
 
 // ─── Criar reunião + notificar CEO ──────────────────────────
+export type CriarReuniaoResult =
+  | { success: false; error: string }
+  | {
+      success: true;
+      reuniaoId: string;
+      /** undefined = evento no Calendar não foi solicitado. */
+      calendarCriado?: boolean;
+      /** Presente quando calendarCriado=false — aviso curto para a UI. */
+      calendarAviso?: string;
+    };
+
 export async function criarReuniao(
   experienciaId: string,
   dados: {
@@ -88,12 +210,21 @@ export async function criarReuniao(
     link_reuniao?: string;
     etapa_estado_id?: string;
     participantes?: string[];
+    /** Criar o evento real no Google Calendar do CEO (Meet automático). */
+    criar_no_calendar?: boolean;
+    /** E-mail do responsável/família — a CF tenta convidar quando possível. */
+    convidado_email?: string;
   },
-) {
+): Promise<CriarReuniaoResult> {
   const papel = await requireHeadOrCeo();
   if (!papel) return { success: false, error: "Sem permissão." };
   if (!dados.titulo.trim()) return { success: false, error: "Título é obrigatório." };
   if (!dados.data_hora) return { success: false, error: "Data/hora é obrigatória." };
+
+  const convidadoEmail = dados.convidado_email?.trim().toLowerCase() || null;
+  if (convidadoEmail && !EMAIL_REGEX.test(convidadoEmail)) {
+    return { success: false, error: "E-mail do convidado inválido." };
+  }
 
   const supabase = await createAuditedSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -126,26 +257,8 @@ export async function criarReuniao(
     }
   }
 
-  const { data, error } = await supabase
-    .from("reunioes_familia")
-    .insert({
-      experiencia_id: experienciaId,
-      etapa_estado_id: dados.etapa_estado_id ?? null,
-      titulo: dados.titulo.trim(),
-      assuntos: dados.assuntos.filter((a) => a.trim()).map((a) => a.trim()),
-      data_hora: dados.data_hora,
-      duracao_minutos: dados.duracao_minutos ?? 30,
-      link_reuniao: dados.link_reuniao?.trim() || null,
-      participantes: dados.participantes ?? [],
-      status: "agendada",
-      created_by: user?.id ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (error) return { success: false, error: error.message };
-
-  // Buscar nome do atleta para a notificação
+  // Nome do atleta — usado no título do evento do Calendar e na notificação
+  let nomeAtleta = "atleta";
   try {
     const { data: exp } = await supabase
       .from("crm_experiencia")
@@ -154,13 +267,86 @@ export async function criarReuniao(
       .maybeSingle();
     const rawA = exp?.atleta as unknown;
     const ao = (Array.isArray(rawA) ? rawA[0] : rawA) as { nome_completo?: string } | null;
-    const nome = ao?.nome_completo ?? "atleta";
+    nomeAtleta = ao?.nome_completo ?? "atleta";
+  } catch (e) {
+    console.warn("[criarReuniao] atleta lookup failed", e);
+  }
 
+  // Evento no Google Calendar (opcional) — ANTES do INSERT para gravar o
+  // link do Meet e o google_event_id junto com a reunião. Falha da CF NÃO
+  // bloqueia o agendamento (degradação graciosa).
+  const linkManual = dados.link_reuniao?.trim() || null;
+  const assuntosLimpos = dados.assuntos.filter((a) => a.trim()).map((a) => a.trim());
+  let linkReuniao = linkManual;
+  let googleEventId: string | null = null;
+  let calendarCriado: boolean | undefined;
+  let calendarAviso: string | undefined;
+
+  if (dados.criar_no_calendar) {
+    const evento = await criarEventoCalendar({
+      nomeAtleta,
+      titulo: dados.titulo.trim(),
+      convidadoEmail,
+      startIso: dados.data_hora,
+      duracaoMin: dados.duracao_minutos ?? DURACAO_PADRAO_MIN,
+      assuntos: assuntosLimpos,
+    });
+    if (evento.success) {
+      googleEventId = evento.eventId;
+      calendarCriado = true;
+      // Link manual digitado VENCE o gerado pelo Calendar
+      if (!linkManual) linkReuniao = evento.hangoutLink ?? evento.htmlLink ?? null;
+    } else {
+      calendarCriado = false;
+      calendarAviso = `Evento não criado no Calendar: ${evento.error} A reunião foi agendada só no Engine.`;
+      console.warn({
+        level: "warn",
+        action: "criar_reuniao_calendar_falhou",
+        experienciaId,
+        error: evento.error,
+      });
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("reunioes_familia")
+    .insert({
+      experiencia_id: experienciaId,
+      etapa_estado_id: dados.etapa_estado_id ?? null,
+      titulo: dados.titulo.trim(),
+      assuntos: assuntosLimpos,
+      data_hora: dados.data_hora,
+      duracao_minutos: dados.duracao_minutos ?? DURACAO_PADRAO_MIN,
+      link_reuniao: linkReuniao,
+      google_event_id: googleEventId,
+      participantes: dados.participantes ?? [],
+      status: "agendada",
+      created_by: user?.id ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    // Evento pode ter sido criado no Calendar sem a reunião correspondente —
+    // logar o id para o CEO remover manualmente (a CF não tem delete).
+    if (googleEventId) {
+      console.warn({
+        level: "warn",
+        action: "criar_reuniao_insert_falhou_com_evento",
+        googleEventId,
+        error: error.message,
+      });
+    }
+    return { success: false, error: error.message };
+  }
+
+  // Notificar CEO (inclui o link final — manual ou Meet gerado)
+  try {
     await notifyCeos(supabase, {
-      titulo: `Reuniao agendada com ${nome}`,
+      titulo: `Reuniao agendada com ${nomeAtleta}`,
       mensagem: `${dados.titulo} em ${new Date(dados.data_hora).toLocaleString("pt-BR")}.` +
-        (dados.link_reuniao ? ` Link: ${dados.link_reuniao}` : "") +
-        (dados.assuntos.length > 0 ? ` Assuntos: ${dados.assuntos.join(", ")}` : ""),
+        (linkReuniao ? ` Link: ${linkReuniao}` : "") +
+        (assuntosLimpos.length > 0 ? ` Assuntos: ${assuntosLimpos.join(", ")}` : ""),
       tipo: "reuniao_agendada",
       severidade: "media",
     });
@@ -172,7 +358,7 @@ export async function criarReuniao(
   revalidatePath("/familias-pipeline");
   revalidatePath("/minha-area");
   revalidatePath("/war-room");
-  return { success: true, reuniaoId: data.id };
+  return { success: true, reuniaoId: data.id, calendarCriado, calendarAviso };
 }
 
 // ─── Confirmar reunião como realizada ───────────────────────
@@ -242,15 +428,29 @@ export async function confirmarReuniaoRealizada(
 }
 
 // ─── Cancelar reunião ───────────────────────────────────────
+// Limitação conhecida: a CF calendar-create-event NÃO tem caminho de
+// delete — se a reunião tem google_event_id, o evento permanece no
+// Calendar e a UI avisa o usuário para cancelá-lo por lá.
+export type CancelarReuniaoResult =
+  | { success: false; error: string }
+  | { success: true; avisoCalendar?: string };
+
 export async function cancelarReuniao(
   reuniaoId: string,
   motivo: string,
-) {
+): Promise<CancelarReuniaoResult> {
   const papel = await requireHeadOrCeo();
   if (!papel) return { success: false, error: "Sem permissão." };
   if (!motivo.trim()) return { success: false, error: "Motivo é obrigatório." };
 
   const supabase = await createAuditedSupabaseClient();
+
+  const { data: reuniao } = await supabase
+    .from("reunioes_familia")
+    .select("google_event_id")
+    .eq("id", reuniaoId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("reunioes_familia")
     .update({
@@ -265,7 +465,15 @@ export async function cancelarReuniao(
   revalidatePath("/familias-pipeline");
   revalidatePath("/minha-area");
   revalidatePath("/war-room");
-  return { success: true };
+  return {
+    success: true,
+    ...(reuniao?.google_event_id
+      ? {
+          avisoCalendar:
+            "Cancele também no Google Calendar — o evento não é removido automaticamente.",
+        }
+      : {}),
+  };
 }
 
 // ─── Próximas reuniões agendadas (vista global ou por familia) ─
