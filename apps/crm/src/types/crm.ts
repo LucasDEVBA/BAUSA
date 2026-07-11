@@ -174,7 +174,12 @@ export interface AuditLog {
   created_at: string;
 }
 
-// Labels amigáveis para as etapas do pipeline
+// Labels amigáveis para as etapas do pipeline.
+// ⚠️ Cópia paralela LEGADA (consumida pelo builder de automações e telas de
+// família/relatórios). A fonte canônica de EXIBIÇÃO — com os overrides do CEO
+// (rótulo/cor/ordem via chave `etapas_deal_config`) — é
+// `src/lib/etapas-deal.ts` (mergeDealStageConfig). Nesta fase o builder segue
+// com os labels default daqui; não adicionar novos consumidores.
 export const ETAPA_LABELS: Record<StatusDeal, string> = {
   lead: 'Lead',
   aguardando_timing: 'Aguardando Timing',

@@ -1,7 +1,11 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import { type Deal, type DealStage, DEAL_STAGE_CONFIG } from "@/types/deal";
+import { type Deal, type DealStage } from "@/types/deal";
+import {
+  DEFAULT_DEAL_STAGE_DISPLAY,
+  type DealStageConfigMap,
+} from "@/lib/etapas-deal";
 import { DealCard } from "./DealCard";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +13,8 @@ interface PipelineColumnProps {
   stage: DealStage;
   deals: Deal[];
   onDealClick: (deal: Deal) => void;
+  /** Config de exibição das etapas (rótulo/cor/oculta) — default estático. */
+  stageConfig?: DealStageConfigMap;
 }
 
 function fmtCompact(value: number): string {
@@ -21,9 +27,10 @@ export function PipelineColumn({
   stage,
   deals,
   onDealClick,
+  stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
 }: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
-  const config = DEAL_STAGE_CONFIG[stage];
+  const config = stageConfig[stage];
   const totalValue = deals.reduce((sum, d) => sum + d.deal_value_brl, 0);
 
   return (
@@ -45,6 +52,14 @@ export function PipelineColumn({
           <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-card px-1 text-[10px] font-semibold tabular-nums text-muted-foreground">
             {deals.length}
           </span>
+          {config.oculta && (
+            <span
+              className="shrink-0 rounded-sm bg-secondary px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
+              title="Coluna marcada como oculta nas configurações — visível porque ainda tem deals (deals nunca são escondidos)."
+            >
+              Oculta
+            </span>
+          )}
         </div>
         {totalValue > 0 && (
           <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">

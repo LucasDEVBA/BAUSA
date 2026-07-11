@@ -44,7 +44,11 @@ import {
   StickyNote,
   Pencil,
 } from "lucide-react";
-import { type Deal, DEAL_STAGE_CONFIG } from "@/types/deal";
+import { type Deal } from "@/types/deal";
+import {
+  DEFAULT_DEAL_STAGE_DISPLAY,
+  type DealStageConfigMap,
+} from "@/lib/etapas-deal";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { DealDetailSheet } from "./DealDetailSheet";
@@ -69,6 +73,8 @@ import type { NotaInterna, AuditLog } from "@/types/crm";
 interface DealDetailModalProps {
   deal: Deal | null;
   onClose: () => void;
+  /** Config de exibição das etapas (rótulos/cores) — default estático. */
+  stageConfig?: DealStageConfigMap;
 }
 
 type SectionId =
@@ -315,7 +321,11 @@ function StatPill({
 
 // ─── Main ────────────────────────────────────────────────────────
 
-export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
+export function DealDetailModal({
+  deal,
+  onClose,
+  stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+}: DealDetailModalProps) {
   const [section, setSection] = useState<SectionId>("executiva");
   const [showLateralEditor, setShowLateralEditor] = useState(false);
   const documentos = useDocumentosAtleta(deal?.atleta_id);
@@ -342,11 +352,12 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
           setShowLateralEditor(false);
           onClose();
         }}
+        stageConfig={stageConfig}
       />
     );
   }
 
-  const stageCfg = DEAL_STAGE_CONFIG[deal.stage];
+  const stageCfg = stageConfig[deal.stage];
   const diasEtapa = diasAtras(deal.stage_updated_at) ?? 0;
   const diasNoPipeline = diasAtras(deal.created_at) ?? 0;
 
@@ -523,7 +534,9 @@ export function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
               {section === "academico" && <AcademicoSection deal={deal} />}
               {section === "esporte" && <EsporteSection deal={deal} />}
               {section === "familia" && <FamiliaSection deal={deal} />}
-              {section === "comercial" && <ComercialSection deal={deal} />}
+              {section === "comercial" && (
+                <ComercialSection deal={deal} stageConfig={stageConfig} />
+              )}
               {section === "reuniao" && <ReuniaoSection deal={deal} />}
               {section === "comunicacoes" && <ComunicacoesSection deal={deal} />}
               {section === "atribuicao" && <AtribuicaoSection deal={deal} />}
@@ -787,8 +800,14 @@ function FamiliaSection({ deal }: { deal: Deal }) {
   );
 }
 
-function ComercialSection({ deal }: { deal: Deal }) {
-  const stageCfg = DEAL_STAGE_CONFIG[deal.stage];
+function ComercialSection({
+  deal,
+  stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+}: {
+  deal: Deal;
+  stageConfig?: DealStageConfigMap;
+}) {
+  const stageCfg = stageConfig[deal.stage];
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

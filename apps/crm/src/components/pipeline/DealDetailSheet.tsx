@@ -34,7 +34,11 @@ import {
   AlertTriangle,
   Shield,
 } from "lucide-react";
-import { type Deal, DEAL_STAGE_CONFIG, PIPELINE_STAGE_ORDER, type DealStage } from "@/types/deal";
+import { type Deal, PIPELINE_STAGE_ORDER, type DealStage } from "@/types/deal";
+import {
+  DEFAULT_DEAL_STAGE_DISPLAY,
+  type DealStageConfigMap,
+} from "@/lib/etapas-deal";
 import { atualizarDeal, moverDeal, customizarValorDeal, type StructuredLossData } from "@/lib/actions/deals";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
@@ -52,6 +56,8 @@ import { DealContratoTab } from "./DealContratoTab";
 interface DealDetailSheetProps {
   deal: Deal | null;
   onClose: () => void;
+  /** Config de exibição das etapas (rótulos/cores) — default estático. Não altera gates de moverDeal. */
+  stageConfig?: DealStageConfigMap;
 }
 
 type TabId = "resumo" | "reuniao" | "dados" | "historico" | "notas" | "documentos" | "contrato";
@@ -510,7 +516,11 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
   );
 }
 
-export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
+export function DealDetailSheet({
+  deal,
+  onClose,
+  stageConfig: stageConfigMap = DEFAULT_DEAL_STAGE_DISPLAY,
+}: DealDetailSheetProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<TabId>("resumo");
@@ -559,13 +569,15 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
 
   if (!deal) return null;
 
-  const stageConfig = DEAL_STAGE_CONFIG[deal.stage];
+  const stageConfig = stageConfigMap[deal.stage];
+  // Progressão canônica: PIPELINE_STAGE_ORDER estático — a ordem configurada
+  // é só exibição e NUNCA muda o que "avançar/retroceder" significa.
   const currentIdx = PIPELINE_STAGE_ORDER.indexOf(deal.stage);
   const nextStage =
     currentIdx < PIPELINE_STAGE_ORDER.length - 1
       ? PIPELINE_STAGE_ORDER[currentIdx + 1]
       : null;
-  const nextStageLabel = nextStage ? DEAL_STAGE_CONFIG[nextStage]?.label : null;
+  const nextStageLabel = nextStage ? stageConfigMap[nextStage]?.label : null;
   const classColors =
     CLASSIFICATION_COLORS[deal.classification] ?? CLASSIFICATION_COLORS.FRIO;
 
@@ -663,7 +675,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
         retrocederMotivo,
       );
       if (result.success) {
-        toast.success(`Retrocedido para ${DEAL_STAGE_CONFIG[retrocederStage as DealStage]?.label}`);
+        toast.success(`Retrocedido para ${stageConfigMap[retrocederStage as DealStage]?.label}`);
         router.refresh();
         onClose();
       } else {
@@ -1676,7 +1688,7 @@ export function DealDetailSheet({ deal, onClose }: DealDetailSheetProps) {
                 <option value="">Selecione a etapa...</option>
                 {previousStages.map((s) => (
                   <option key={s} value={s}>
-                    {DEAL_STAGE_CONFIG[s]?.label}
+                    {stageConfigMap[s]?.label}
                   </option>
                 ))}
               </select>

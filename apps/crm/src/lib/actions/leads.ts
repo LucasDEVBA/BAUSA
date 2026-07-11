@@ -2,6 +2,7 @@
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 
 function mapInvestmentToEnum(range: string | null): string {
   if (!range) return "ate_20k";
@@ -184,6 +185,9 @@ export async function promoverLead(formSubmissionId: string) {
   // 6. Criar deal
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Probabilidade da etapa inicial vem da config do CEO (fail-open → fallback)
+  const probabilidadePorEtapa = await getProbabilidadePorEtapa();
+
   const { data: deal, error: dealError } = await supabase
     .from("deals")
     .insert({
@@ -191,7 +195,7 @@ export async function promoverLead(formSubmissionId: string) {
       etapa: "lead",
       responsavel_id: user?.id,
       valor_estimado: mapInvestmentToValor(fs.investment_range),
-      probabilidade_fechamento: 10,
+      probabilidade_fechamento: probabilidadePorEtapa["lead"] ?? 10,
       status_decisao_familia: "em_discussao",
       safra: "fall_2026",
     })

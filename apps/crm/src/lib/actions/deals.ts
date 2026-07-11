@@ -9,22 +9,12 @@ import {
   okMove,
   type MoveDealResult,
 } from "@/lib/move-deal-result";
+import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 
-const PROBABILIDADE_POR_ETAPA: Record<string, number> = {
-  lead: 10,
-  aguardando_timing: 10, // estacionado = mesma chance de um lead novo
-  reuniao_marcada: 20,
-  reuniao_realizada: 30,
-  diagnostico_fit: 40,
-  alinhamento_estrategico: 50,
-  proposta_enviada: 60,
-  followup_proposta: 65,
-  negociacao: 70,
-  contrato_enviado: 80,
-  contrato_assinado: 90,
-  sinal_pago: 95,
-  admission_process: 98,
-};
+// Probabilidade por etapa: configurável pelo CEO via chave
+// `probabilidade_por_etapa` de configuracoes_sistema (lida em
+// getProbabilidadePorEtapa). O mapa hardcoded histórico virou o FALLBACK —
+// ver PROBABILIDADE_ETAPA_FALLBACK em @/lib/etapas-deal.
 
 export interface StructuredLossData {
   motivo_perda: string;
@@ -141,8 +131,9 @@ export async function moverDeal(
     etapa_anterior: deal.etapa,
   };
 
-  if (PROBABILIDADE_POR_ETAPA[novaEtapa] !== undefined) {
-    updateData.probabilidade_fechamento = PROBABILIDADE_POR_ETAPA[novaEtapa];
+  const probabilidadePorEtapa = await getProbabilidadePorEtapa();
+  if (probabilidadePorEtapa[novaEtapa] !== undefined) {
+    updateData.probabilidade_fechamento = probabilidadePorEtapa[novaEtapa];
   }
 
   if (isRetrocesso) {

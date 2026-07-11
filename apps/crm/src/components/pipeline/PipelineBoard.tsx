@@ -12,7 +12,12 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { type Deal, type DealStage, PIPELINE_STAGE_ORDER } from "@/types/deal";
+import { type Deal, type DealStage } from "@/types/deal";
+import {
+  DEFAULT_DEAL_STAGE_DISPLAY,
+  orderedKanbanStages,
+  type DealStageConfigMap,
+} from "@/lib/etapas-deal";
 import { PipelineColumn } from "./PipelineColumn";
 import { DealCard } from "./DealCard";
 import { DealDetailModal } from "./DealDetailModal";
@@ -33,6 +38,8 @@ import { toast } from "sonner";
 interface PipelineBoardProps {
   deals: Deal[];
   currentUserId?: string;
+  /** Config de exibição das etapas (rótulo/cor/ordem/oculta) — default estático. */
+  stageConfig?: DealStageConfigMap;
 }
 
 function getDealsByStage(deals: Deal[]) {
@@ -87,6 +94,7 @@ function applyFilters(
 export function PipelineBoard({
   deals: initialDeals,
   currentUserId,
+  stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
 }: PipelineBoardProps) {
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
@@ -111,6 +119,15 @@ export function PipelineBoard({
 
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
   const dealsByStage = getDealsByStage(filteredDeals);
+
+  // Colunas na ordem configurada. Coluna OCULTA some do board SÓ quando não
+  // tem deals visíveis — com deals, renderiza com badge "Oculta" (deals nunca
+  // são escondidos pela configuração).
+  const boardStages = useMemo(() => orderedKanbanStages(stageConfig), [stageConfig]);
+  const visibleStages = boardStages.filter(
+    (stage) =>
+      !stageConfig[stage].oculta || (dealsByStage[stage]?.length ?? 0) > 0,
+  );
 
   const handleAction = (action: MoveDealAction, deal: Deal) => {
     switch (action.type) {
@@ -256,12 +273,13 @@ export function PipelineBoard({
           onDragEnd={handleDragEnd}
         >
           <div className="flex h-full gap-3 overflow-x-auto pb-4">
-            {PIPELINE_STAGE_ORDER.map((stage) => (
+            {visibleStages.map((stage) => (
               <PipelineColumn
                 key={stage}
                 stage={stage}
                 deals={dealsByStage[stage] ?? []}
                 onDealClick={(deal) => setSelectedDeal(deal)}
+                stageConfig={stageConfig}
               />
             ))}
           </div>
@@ -274,6 +292,7 @@ export function PipelineBoard({
         <PipelineTableView
           deals={filteredDeals}
           onDealClick={(deal) => setSelectedDeal(deal)}
+          stageConfig={stageConfig}
         />
       )}
 
@@ -317,6 +336,7 @@ export function PipelineBoard({
           key={selectedDeal.id}
           deal={selectedDeal}
           onClose={() => setSelectedDeal(null)}
+          stageConfig={stageConfig}
         />
       )}
     </>

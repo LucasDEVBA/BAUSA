@@ -4,6 +4,8 @@ import { PipelineExportButton } from "@/components/pipeline/PipelineExportButton
 import { FutureLeadsSection } from "@/components/pipeline/FutureLeadsSection";
 import { PageHeader } from "@/components/ui";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getEtapasDealConfigOverrides } from "@/lib/actions/configuracoes";
+import { mergeDealStageConfig } from "@/lib/etapas-deal";
 import { type Deal, type DealStage } from "@/types/deal";
 import { type LeadClassification } from "@/types/lead";
 
@@ -185,7 +187,10 @@ export default async function PipelinePage() {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: rows } = await supabase
+  // Overrides de apresentação das etapas (CEO) em paralelo com os deals
+  const [etapasOverrides, { data: rows }] = await Promise.all([
+    getEtapasDealConfigOverrides(),
+    supabase
     .from("deals")
     .select(`
       id, etapa, valor_estimado, next_action, data_proxima_acao,
@@ -216,7 +221,10 @@ export default async function PipelinePage() {
       )
     `)
     .is("deleted_at", null)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false }),
+  ]);
+
+  const stageConfig = mergeDealStageConfig(etapasOverrides);
 
   const rawDeals = (rows ?? []).map((row) => mapDealRow(row as unknown as SupabaseDealRow));
 
@@ -296,7 +304,7 @@ export default async function PipelinePage() {
         eyebrow="Comercial"
         title="Pipeline de Vendas"
         description={`${activeDeals.length} negócios ativos · ${reunioesMarcadas} reuniões marcadas`}
-        actions={<PipelineExportButton deals={deals} />}
+        actions={<PipelineExportButton deals={deals} stageConfig={stageConfig} />}
       />
 
       {/* M\u00e9tricas em dropdown colaps\u00e1vel \u2014 fechado por padr\u00e3o p/ dar altura ao Kanban */}
@@ -318,7 +326,7 @@ export default async function PipelinePage() {
 
       {/* Kanban board */}
       <div className="flex-1 overflow-hidden">
-        <PipelineBoard deals={deals} currentUserId={user?.id} />
+        <PipelineBoard deals={deals} currentUserId={user?.id} stageConfig={stageConfig} />
       </div>
 
       {/* Leads Futuros */}
