@@ -167,7 +167,7 @@ export const GATILHO_CATALOG: Record<AutomacaoGatilho, GatilhoInfo> = {
   indicacao_convertida: {
     label: "Indicação convertida",
     descricao:
-      "Uma indicação virou contrato (status convertido) — ex.: agradecer o indicador e organizar a recompensa.",
+      "Uma indicação virou contrato (status convertido) — ex.: organizar a recompensa. Atenção: {atleta_nome}/{responsavel_nome} referem-se ao INDICADO; o nome de quem indicou vai no contexto da IA como \"Indicador\".",
     origem: "evento",
     categoria: "comercial",
   },

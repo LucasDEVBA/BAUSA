@@ -637,6 +637,8 @@ const IA_CONTEXTO_CAMPOS = {
   temperatura_de: 'Temperatura anterior',
   temperatura_para: 'Temperatura atual',
   nps_nota: 'Nota NPS (0-10)',
+  indicador_nome: 'Indicador (quem indicou)',
+  indicado_nome: 'Indicado (novo lead)',
   valor: 'Valor da parcela (R$)',
   vencimento: 'Vencimento da parcela',
   dias_atraso: 'Dias de atraso',

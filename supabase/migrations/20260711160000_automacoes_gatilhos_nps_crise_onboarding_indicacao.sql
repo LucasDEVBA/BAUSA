@@ -117,9 +117,15 @@ BEGIN
           AND NEW.status::text = 'convertido'
           AND OLD.status IS DISTINCT FROM NEW.status THEN
       v_gatilhos := ARRAY['indicacao_convertida'];
+      -- indicador_nome/indicado_nome: colunas diretas da linha (fluxo novo,
+      -- 20260711091729) — sem subquery para manter a função schema-aware
+      -- (o search_path fixo resolveria tabelas só em public).
       v_contexto := jsonb_build_object(
         'indicacao_id', NEW.id, 'atleta_id', NEW.atleta_indicado_id,
         'responsavel_indicador_id', NEW.responsavel_indicador_id,
+        'indicador_experiencia_id', NEW.indicador_experiencia_id,
+        'indicador_nome', NEW.indicador_nome,
+        'indicado_nome', NEW.indicado_nome,
         'status_de', OLD.status, 'status_para', NEW.status);
     ELSE
       RETURN NEW;
