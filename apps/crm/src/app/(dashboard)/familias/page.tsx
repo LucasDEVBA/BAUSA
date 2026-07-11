@@ -1,5 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
+import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { mergeJourneyConfig } from "@/lib/fases-familia";
 import { FamiliasConsolidadasClient } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +31,9 @@ export default async function FamiliasPage() {
   await requirePapel(["ceo", "head_sucesso"]);
 
   const supabase = await createServerSupabaseClient();
+  const journeyConfig = mergeJourneyConfig(
+    await getFasesFamiliaConfigOverrides(),
+  );
 
   type ExperienciaRow = {
     id: string;
@@ -72,7 +77,7 @@ export default async function FamiliasPage() {
   const experiencias = (expData ?? []) as ExperienciaRow[];
 
   if (experiencias.length === 0) {
-    return <FamiliasConsolidadasClient familias={[]} />;
+    return <FamiliasConsolidadasClient familias={[]} journeyConfig={journeyConfig} />;
   }
 
   const atletaIdsComExperiencia = experiencias
@@ -80,7 +85,7 @@ export default async function FamiliasPage() {
     .filter((id): id is string => id !== null);
 
   if (atletaIdsComExperiencia.length === 0) {
-    return <FamiliasConsolidadasClient familias={[]} />;
+    return <FamiliasConsolidadasClient familias={[]} journeyConfig={journeyConfig} />;
   }
 
   const expByAtleta = new Map<string, ExperienciaRow>();
@@ -107,7 +112,7 @@ export default async function FamiliasPage() {
   const uniqueRespIds = Array.from(new Set(respIds));
 
   if (uniqueRespIds.length === 0) {
-    return <FamiliasConsolidadasClient familias={[]} />;
+    return <FamiliasConsolidadasClient familias={[]} journeyConfig={journeyConfig} />;
   }
 
   const { data: respData, error: respErr } = await supabase
@@ -189,5 +194,7 @@ export default async function FamiliasPage() {
     familias: familias.length,
   });
 
-  return <FamiliasConsolidadasClient familias={familias} />;
+  return (
+    <FamiliasConsolidadasClient familias={familias} journeyConfig={journeyConfig} />
+  );
 }

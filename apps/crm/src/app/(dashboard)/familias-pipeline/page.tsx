@@ -1,25 +1,12 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
+import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { mergeJourneyConfig, normalizarFase } from "@/lib/fases-familia";
 import { FamiliasPipelineClient, type FamiliaPipelineCard } from "./client";
-import type { FamilyJourneyStage, RiskDimension } from "@/types/family";
+import type { RiskDimension } from "@/types/family";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-function normalizarFase(fase: string): FamilyJourneyStage {
-  if (
-    fase === "admissao" ||
-    fase === "aprovado" ||
-    fase === "pre_embarque" ||
-    fase === "embarcado_inicial" ||
-    fase === "acompanhamento" ||
-    fase === "encerrado"
-  ) {
-    return fase;
-  }
-  if (fase === "embarcado") return "embarcado_inicial";
-  return "admissao";
-}
 
 const VALID_RISK_DIMENSIONS: ReadonlyArray<RiskDimension> = [
   "academico",
@@ -44,6 +31,10 @@ export default async function FamiliasPipelinePage() {
   const supabase = await createServerSupabaseClient();
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
+
+  const journeyConfig = mergeJourneyConfig(
+    await getFasesFamiliaConfigOverrides(),
+  );
 
   const { data: experiencias, error: queryErr } = await supabase
     .from("crm_experiencia")
@@ -173,5 +164,5 @@ export default async function FamiliasPipelinePage() {
     };
   });
 
-  return <FamiliasPipelineClient cards={cards} />;
+  return <FamiliasPipelineClient cards={cards} journeyConfig={journeyConfig} />;
 }

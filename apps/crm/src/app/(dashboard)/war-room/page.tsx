@@ -14,6 +14,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { requirePapel } from "@/lib/auth";
+import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { mergeJourneyConfig } from "@/lib/fases-familia";
 import {
   fetchWarRoomMetrics,
   fetchMetaRevenue,
@@ -166,6 +168,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     dealsWithoutNextAction,
     pendingQualifications,
     timingAlternatives,
+    fasesOverrides,
   ] = await Promise.all([
     fetchWarRoomMetrics(),
     fetchMetaRevenue(),
@@ -188,7 +191,10 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     fetchDealsWithoutNextAction(),
     fetchPendingQualifications(),
     fetchTimingAlternatives(),
+    getFasesFamiliaConfigOverrides(),
   ]);
+
+  const journeyConfig = mergeJourneyConfig(fasesOverrides);
 
   const criticalAlerts = alerts.filter((a) => a.type === "critical");
   const warningAlerts = alerts.filter((a) => a.type === "warning");
@@ -448,7 +454,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
           <FamilyExperienceSection data={familyExperience} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <FamilyRiskDonut families={families} />
-            <FamilyStageChart families={families} />
+            <FamilyStageChart families={families} journeyConfig={journeyConfig} />
           </div>
         </div>
       ),

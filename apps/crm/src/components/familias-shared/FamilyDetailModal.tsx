@@ -23,13 +23,13 @@ import {
 import {
   JOURNEY_STAGE_CONFIG,
   FAMILY_STATUS_CONFIG,
-  FAMILY_JOURNEY_STAGES,
   TEMPERATURE_CONFIG,
   RISK_DIMENSION_LABELS,
   type FamilyJourneyStage,
   type FamilyStatus,
   type RiskDimension,
 } from "@/types/family";
+import { orderedStages, type JourneyConfigMap } from "@/lib/fases-familia";
 import {
   atualizarExperiencia,
   registrarContato,
@@ -162,6 +162,8 @@ interface FamilyDetailModalProps {
   family: FamilyModalData;
   onClose: () => void;
   onChanged?: () => void;
+  /** Config das fases (rótulo/ordem configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
 type Tab =
@@ -193,12 +195,13 @@ export function FamilyDetailModal({
   family,
   onClose,
   onChanged,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
 }: FamilyDetailModalProps) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("geral");
   const statusCfg = FAMILY_STATUS_CONFIG[family.status];
   const tempCfg = TEMPERATURE_CONFIG[family.temperatura];
-  const stageCfg = JOURNEY_STAGE_CONFIG[family.fase];
+  const stageCfg = journeyConfig[family.fase];
 
   // Fecha com Escape (padrão dos demais modais: DealDetailModal, FormModal…).
   useEffect(() => {
@@ -371,7 +374,11 @@ export function FamilyDetailModal({
             />
           )}
           {tab === "status" && (
-            <TabStatus family={family} onSaved={handleSaved} />
+            <TabStatus
+              family={family}
+              journeyConfig={journeyConfig}
+              onSaved={handleSaved}
+            />
           )}
           {tab === "notas" && (
             <TabNotas experienciaId={family.experiencia_id} />
@@ -1304,9 +1311,11 @@ function TabDocumentos({
 // ─── Tab Status (Satisfeita/Atenção/Crise) ───────────────────────
 function TabStatus({
   family,
+  journeyConfig,
   onSaved,
 }: {
   family: FamilyModalData;
+  journeyConfig: JourneyConfigMap;
   onSaved: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -1371,9 +1380,9 @@ function TabStatus({
           onChange={(e) => setFase(e.target.value as FamilyJourneyStage)}
           className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
         >
-          {FAMILY_JOURNEY_STAGES.map((f) => (
+          {orderedStages(journeyConfig).map((f) => (
             <option key={f} value={f}>
-              {JOURNEY_STAGE_CONFIG[f].label}
+              {journeyConfig[f].label}
             </option>
           ))}
         </select>

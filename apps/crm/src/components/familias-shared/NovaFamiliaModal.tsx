@@ -15,9 +15,9 @@ import {
 } from "@/lib/actions/experiencia";
 import {
   JOURNEY_STAGE_CONFIG,
-  FAMILY_JOURNEY_STAGES,
   type FamilyJourneyStage,
 } from "@/types/family";
+import { orderedStages, type JourneyConfigMap } from "@/lib/fases-familia";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -38,12 +38,15 @@ interface NovaFamiliaModalProps {
   open: boolean;
   onClose: () => void;
   onCreated?: () => void;
+  /** Config das fases (rótulo/ordem configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
 export function NovaFamiliaModal({
   open,
   onClose,
   onCreated,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
 }: NovaFamiliaModalProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -208,9 +211,9 @@ export function NovaFamiliaModal({
                 onChange={(e) => setFase(e.target.value as FamilyJourneyStage)}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
               >
-                {FAMILY_JOURNEY_STAGES.map((f) => (
+                {orderedStages(journeyConfig).map((f) => (
                   <option key={f} value={f}>
-                    {JOURNEY_STAGE_CONFIG[f].label}
+                    {journeyConfig[f].label}
                   </option>
                 ))}
               </select>
