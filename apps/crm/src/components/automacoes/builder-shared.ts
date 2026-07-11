@@ -5,6 +5,7 @@
  */
 
 import {
+  ACAO_CATALOG,
   GATILHO_CATALOG,
   OPERADOR_LABEL,
   type AgendamentoFrequencia,
@@ -37,6 +38,8 @@ export interface CondicaoCampoUI {
   label: string;
   gatilhos: AutomacaoGatilho[];
   opcoes?: { value: string; label: string }[];
+  /** Campo numérico (ex.: nota NPS): input number + operadores de comparação. */
+  tipo?: "numero";
 }
 
 /** Campos de condição disponíveis por gatilho (contexto que a engine resolve). */
@@ -44,12 +47,24 @@ export const CONDICAO_CAMPOS: CondicaoCampoUI[] = [
   {
     value: "classificacao",
     label: "Classificação Gemini",
-    gatilhos: ["lead_qualificado", "deal_etapa_mudou", "reuniao_marcada", "deal_parado_etapa"],
+    gatilhos: [
+      "lead_qualificado",
+      "deal_etapa_mudou",
+      "reuniao_marcada",
+      "deal_parado_etapa",
+      "indicacao_convertida",
+    ],
     opcoes: [
       { value: "QUENTE", label: "QUENTE" },
       { value: "MORNO", label: "MORNO" },
       { value: "FRIO", label: "FRIO" },
     ],
+  },
+  {
+    value: "nps_nota",
+    label: "Nota NPS (0-10)",
+    gatilhos: ["nps_registrado"],
+    tipo: "numero",
   },
   {
     value: "etapa_para",
@@ -76,7 +91,13 @@ export const CONDICAO_CAMPOS: CondicaoCampoUI[] = [
   {
     value: "fase",
     label: "Fase da experiência",
-    gatilhos: ["familia_sem_contato", "temperatura_vermelha"],
+    gatilhos: [
+      "familia_sem_contato",
+      "temperatura_vermelha",
+      "nps_registrado",
+      "crise_registrada",
+      "onboarding_etapa_atrasada",
+    ],
     opcoes: [
       { value: "admissao", label: "Admissão" },
       { value: "aprovado", label: "Aprovado" },
@@ -128,6 +149,13 @@ export const EMAIL_CUSTOM_MENSAGEM_MAX = 2000;
 // (título do card/botão 3-80; URLs http/https).
 export const CUSTOM_LINK_TITULO_MIN = 3;
 export const CUSTOM_LINK_TITULO_MAX = 80;
+
+// Ação de IA (ia_prompt) — espelha o Zod do servidor (prompt 10-4000,
+// título 3-120; mesmas variáveis {atleta_nome}/{responsavel_nome}).
+export const IA_PROMPT_MIN = 10;
+export const IA_PROMPT_MAX = 4000;
+export const IA_TITULO_MIN = 3;
+export const IA_TITULO_MAX = 120;
 
 export const FREQUENCIA_OPCOES: { value: AgendamentoFrequencia; label: string }[] = [
   { value: "diaria", label: "Diária" },
@@ -236,6 +264,11 @@ export function defaultAcao(tipo: AutomacaoAcaoTipo, usuarios: UsuarioRow[]): Au
         tipo,
         parametros: { etapa_destino: "reuniao_marcada", next_action: "", proxima_acao_dias: 2 },
       };
+    case "ia_prompt":
+      return {
+        tipo,
+        parametros: { prompt: "", resultado: "notificacao", destinatario: "ceo", titulo: "" },
+      };
   }
 }
 
@@ -319,5 +352,80 @@ export function resumoAcao(acao: AutomacaoAcao): string {
     }
     case "mover_deal":
       return `→ ${etapaLabel(acao.parametros.etapa_destino)}`;
+    case "ia_prompt": {
+      const destino = acao.parametros.resultado === "tarefa" ? "tarefa" : "notificação";
+      return acao.parametros.titulo
+        ? `“${acao.parametros.titulo}” → ${destino}`
+        : "Escreva o prompt da IA";
+    }
   }
+}
+
+/** Pendência de preenchimento da ação (validação inline do builder) — null
+ *  quando os campos obrigatórios estão OK. Espelha os mínimos do Zod do
+ *  servidor; a validação completa continua server-side. */
+export function acaoPendencia(acao: AutomacaoAcao): string | null {
+  switch (acao.tipo) {
+    case "criar_tarefa":
+      if (acao.parametros.titulo.trim().length < 3) return "Defina o título da tarefa";
+      if (!acao.parametros.responsavel_id) return "Escolha o responsável";
+      return null;
+    case "criar_notificacao":
+      if (acao.parametros.titulo.trim().length < 3) return "Defina o título da notificação";
+      if (acao.parametros.mensagem.trim().length < 3) return "Escreva a mensagem";
+      return null;
+    case "enviar_whatsapp":
+      return null;
+    case "enviar_whatsapp_custom": {
+      const n = acao.parametros.mensagem.trim().length;
+      if (n < WHATSAPP_CUSTOM_MIN) return `Mensagem com no mínimo ${WHATSAPP_CUSTOM_MIN} caracteres`;
+      if (n > WHATSAPP_CUSTOM_MAX) return `Mensagem acima de ${WHATSAPP_CUSTOM_MAX} caracteres`;
+      return null;
+    }
+    case "enviar_email_custom": {
+      if (acao.parametros.assunto.trim().length < EMAIL_CUSTOM_ASSUNTO_MIN)
+        return "Defina o assunto do e-mail";
+      if (acao.parametros.mensagem.trim().length < EMAIL_CUSTOM_MENSAGEM_MIN)
+        return `Mensagem com no mínimo ${EMAIL_CUSTOM_MENSAGEM_MIN} caracteres`;
+      return null;
+    }
+    case "mover_deal":
+      if (acao.parametros.next_action.trim().length < 3)
+        return "Defina a próxima ação (regra do pipeline)";
+      return null;
+    case "ia_prompt": {
+      if (acao.parametros.prompt.trim().length < IA_PROMPT_MIN)
+        return `Prompt com no mínimo ${IA_PROMPT_MIN} caracteres`;
+      if (acao.parametros.prompt.length > IA_PROMPT_MAX)
+        return `Prompt acima de ${IA_PROMPT_MAX} caracteres`;
+      if (acao.parametros.titulo.trim().length < IA_TITULO_MIN)
+        return "Defina o título da notificação/tarefa";
+      return null;
+    }
+  }
+}
+
+/** Resumo em LINGUAGEM NATURAL da automação inteira — "Quando…, se…, então…".
+ *  Atualizado ao vivo no rodapé do builder (as duas visões). */
+export function resumoAutomacao(builder: BuilderState): string {
+  const info = GATILHO_CATALOG[builder.gatilho];
+  const configResumo = resumoGatilho(builder);
+  const quando =
+    info.configDias || info.configAgendamento
+      ? `${info.label.toLowerCase()} (${configResumo.toLowerCase()})`
+      : info.configEtapa && builder.gatilhoEtapaPara
+        ? `${info.label.toLowerCase()} (${etapaLabel(builder.gatilhoEtapaPara)})`
+        : info.label.toLowerCase();
+
+  const partes = [`Quando ${quando}`];
+  if (builder.condicoes.length > 0) {
+    partes.push(`se ${builder.condicoes.map(resumoCondicao).join(" e ")}`);
+  }
+  if (builder.acoes.length === 0) {
+    partes.push("então… (adicione pelo menos uma ação)");
+  } else {
+    const acoes = builder.acoes.map((a) => ACAO_CATALOG[a.tipo].label.toLowerCase());
+    partes.push(`então ${acoes.join(" + ")}`);
+  }
+  return `${partes.join(", ")}.`;
 }

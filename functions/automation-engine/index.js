@@ -3,12 +3,18 @@
  *
  * Trigger: Cloud Scheduler (1x/hora). Fluxo por tick:
  *   1. Materializa gatilhos de TEMPO (deal parado, parcela vencendo/atrasada,
- *      família sem contato, tarefa vencida) em automacao_runs 'pendente' —
- *      com dedup one-shot por (automacao, origem). O gatilho 'agendamento'
- *      (recorrente diário/semanal/mensal em hora BRT fixa) usa dedup POR
- *      PERÍODO (bucket em contexto->>periodo) e materializa runs SEM origem.
+ *      família sem contato, tarefa vencida, etapa de onboarding atrasada) em
+ *      automacao_runs 'pendente' — com dedup one-shot por (automacao, origem).
+ *      O gatilho 'agendamento' (recorrente diário/semanal/mensal em hora BRT
+ *      fixa) usa dedup POR PERÍODO (bucket em contexto->>periodo) e
+ *      materializa runs SEM origem. Gatilhos de EVENTO (lead qualificado,
+ *      etapa de deal, temperatura vermelha, NPS registrado, crise, indicação
+ *      convertida) são materializados por trigger no banco.
  *   2. Processa a fila de runs (pendente + erro com retry vencido) com CAS
  *      atômico; avalia condições; executa ações; grava resultado.
+ *   3. Ação ia_prompt (Gemini): retry+fallback+deadline por run e teto
+ *      IA_MAX_PER_TICK; o texto vira notificação/tarefa interna — a IA NUNCA
+ *      envia mensagem externa (guard tests/automation-engine-ia.test.js).
  *
  * INVARIANTES (skill bausa-scheduler-safety — guard de CI):
  *   - Ação enviar_whatsapp reaplica elegibilidade: FRIO NUNCA recebe —
@@ -37,6 +43,9 @@ const SUPABASE_URL         = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SEND_WHATSAPP_URL    = process.env.SEND_WHATSAPP_URL;
 const SEND_MESSAGES_URL    = process.env.SEND_MESSAGES_URL;
+// Ação ia_prompt (opcional — config manual pós-deploy): sem a key, runs com
+// ação de IA marcam erro claro sem afetar as demais automações do tick.
+const GEMINI_API_KEY       = process.env.GEMINI_API_KEY;
 // Schema do Supabase: 'public' em PRD, 'uat' em UAT, 'dev' em DEV
 const SUPABASE_SCHEMA      = process.env.SUPABASE_SCHEMA || 'public';
 
@@ -46,6 +55,11 @@ const MATERIALIZE_LIMIT = 100;     // registros elegíveis por automação de te
 const TICK_BUDGET_MS = 360000;     // 6min — folga p/ o pior caso (POST 90s + delay) caber nos 540s
 const ORPHAN_MINUTES = 15;         // run 'executando' sem update há 15min = órfão (crash/timeout)
 const WHATSAPP_DELAY_MS = () => 45000 + Math.floor(Math.random() * 15000); // 45-60s anti-ban
+
+// Teto de execuções de IA por tick: cada run de IA custa até IA_DEADLINE_MS —
+// acima do teto, o run é ADIADO (fica pendente, sem claim) e roda no próximo
+// tick, logando o excedente. Protege o timeout de 540s da engine.
+const IA_MAX_PER_TICK = 10;
 
 // ─── Log estruturado ────────────────────────────────────────────
 const log = (level, action, details = {}) => {
@@ -82,6 +96,120 @@ const httpRequest = (url, options, postData) => {
 
 // ─── Delay entre envios (anti-ban) ──────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ─── Cliente Gemini resiliente (ação ia_prompt) ─────────────────
+// Port do padrão validado do qualify-lead (chamarModeloGemini +
+// callGeminiWithResilience): retry com backoff+jitter em transitórios
+// (429/5xx/rede/timeout), fallback p/ modelo GA de capacidade separada e
+// DEADLINE por run de IA (IA_DEADLINE_MS) — a engine processa vários runs
+// por tick e não pode estourar o próprio timeout (TICK_BUDGET_MS cobre o
+// agregado; o teto IA_MAX_PER_TICK limita o total de chamadas).
+const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+const GEMINI_ENDPOINT = (model) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+const IA_TIMEOUT_MS = 15000;             // por tentativa
+const IA_DEADLINE_MS = 30000;            // orçamento total por run de IA
+const IA_MAX_TENTATIVAS_POR_MODELO = 2;
+const IA_BACKOFF_BASE_MS = 1000;
+const IA_MAX_OUTPUT_TOKENS = 1024;       // texto simples, sem JSON mode
+const STATUS_TRANSIENTE = new Set([429, 500, 502, 503, 504]);
+
+// 'retry' → transitório: re-tenta o mesmo modelo (com backoff)
+// 'pular' → modelo indisponível (404 model-not-found): próximo modelo já
+// 'fatal' → request/credencial inválidos (400/401/403): aborta imediatamente
+class GeminiCallError extends Error {
+  constructor(message, categoria = 'fatal') {
+    super(message);
+    this.name = 'GeminiCallError';
+    this.categoria = categoria;
+  }
+}
+
+const iaBackoffMs = (tentativa) => {
+  const base = IA_BACKOFF_BASE_MS * 2 ** (tentativa - 1);
+  return base + Math.floor(Math.random() * IA_BACKOFF_BASE_MS);
+};
+
+const chamarModeloGemini = async (model, postData, timeoutMs) => {
+  let result;
+  try {
+    result = await httpRequest(GEMINI_ENDPOINT(model), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      timeoutMs,
+    }, postData);
+  } catch (err) {
+    // Timeout/erro de rede do httpRequest são transitórios
+    throw new GeminiCallError(err.message, 'retry');
+  }
+
+  if (result.statusCode >= 400) {
+    const body = (result.body || '').trim();
+    let categoria;
+    if (STATUS_TRANSIENTE.has(result.statusCode)) {
+      categoria = 'retry';
+    } else if (result.statusCode === 404) {
+      // Corpo vazio = rate-limit de edge do free-tier (transitório → retry).
+      // Corpo com erro = model-not-found → pula p/ o próximo modelo.
+      categoria = body ? 'pular' : 'retry';
+    } else {
+      categoria = 'fatal';
+    }
+    throw new GeminiCallError(
+      `Gemini HTTP ${result.statusCode}: ${body.substring(0, 200)}`,
+      categoria
+    );
+  }
+
+  return result;
+};
+
+const callGeminiWithResilience = async (postData) => {
+  const inicio = Date.now();
+  const restante = () => IA_DEADLINE_MS - (Date.now() - inicio);
+  let ultimoErro = null;
+
+  for (const model of GEMINI_MODELS) {
+    for (let tentativa = 1; tentativa <= IA_MAX_TENTATIVAS_POR_MODELO; tentativa++) {
+      if (restante() <= 0) {
+        log('ERROR', 'ia_deadline_exceeded', { model, deadlineMs: IA_DEADLINE_MS });
+        throw ultimoErro || new GeminiCallError('IA excedeu o orçamento de tempo do run', 'retry');
+      }
+      try {
+        const result = await chamarModeloGemini(
+          model,
+          postData,
+          Math.min(IA_TIMEOUT_MS, restante())
+        );
+        return { result, modelUsed: model };
+      } catch (err) {
+        const gerr = err instanceof GeminiCallError ? err : new GeminiCallError(err.message, 'retry');
+        ultimoErro = gerr;
+        if (gerr.categoria === 'fatal') {
+          log('ERROR', 'ia_fatal_error', { model, tentativa, error: gerr.message });
+          throw gerr;
+        }
+        if (gerr.categoria === 'pular') {
+          log('WARN', 'ia_model_skip', { model, tentativa, error: gerr.message });
+          break; // modelo indisponível → próximo modelo já
+        }
+        log('WARN', 'ia_will_retry', { model, tentativa, error: gerr.message });
+        if (tentativa < IA_MAX_TENTATIVAS_POR_MODELO && restante() > IA_BACKOFF_BASE_MS) {
+          await delay(Math.min(iaBackoffMs(tentativa), Math.max(0, restante() - 500)));
+        }
+      }
+    }
+  }
+
+  log('ERROR', 'ia_exhausted_retries', {
+    models: GEMINI_MODELS,
+    lastErr: ultimoErro ? ultimoErro.message : null,
+  });
+  throw ultimoErro || new GeminiCallError('Falha ao chamar a Gemini após retries', 'retry');
+};
 
 // ─── Helpers Supabase REST (PostgREST) ──────────────────────────
 const sbHeaders = (write = false) => {
@@ -286,6 +414,41 @@ const TIME_TRIGGER_FINDERS = {
     }));
   },
 
+  // Etapa de onboarding com prazo estourado há X dias, ainda pendente/em
+  // andamento, de instância ativa (em_andamento, não deletada). Dedup =
+  // one-shot por (automacao, etapa) — mesmo mecanismo do deal_parado_etapa
+  // (fetchExistingOrigens): a etapa só materializa 1 run por automação, sem
+  // coluna nova. Embed aninhado traz atleta/deal/fase da família (contexto
+  // compatível com notificação/tarefa e com as ações de lead).
+  onboarding_etapa_atrasada: async (config) => {
+    const dias = configDias(config);
+    const rows = await sbGet(
+      'onboarding_etapa_estado?select=id,instancia_id,titulo,ordem,prazo,status,'
+      + 'onboarding_instancias!inner(experiencia_id,responsavel_id,status,deleted_at,'
+      + 'crm_experiencia(atleta_id,deal_id,fase))'
+      + '&status=in.(pendente,em_andamento)'
+      + `&prazo=lt.${encodeURIComponent(isoDaysAgo(dias))}`
+      + '&onboarding_instancias.status=eq.em_andamento'
+      + '&onboarding_instancias.deleted_at=is.null'
+      + `&limit=${MATERIALIZE_LIMIT}`
+    );
+    return rows.map((e) => {
+      const inst = e.onboarding_instancias || {};
+      const exp = inst.crm_experiencia || {};
+      return {
+        origemId: e.id,
+        tabela: 'onboarding_etapa_estado',
+        contexto: {
+          etapa_estado_id: e.id, instancia_id: e.instancia_id,
+          etapa_titulo: e.titulo, etapa_ordem: e.ordem, prazo: e.prazo,
+          experiencia_id: inst.experiencia_id, responsavel_id: inst.responsavel_id,
+          atleta_id: exp.atleta_id, deal_id: exp.deal_id, fase: exp.fase,
+          dias_apos_prazo: dias,
+        },
+      };
+    });
+  },
+
   // Gatilho recorrente genérico (rotinas do CEO): dispara em hora BRT fixa,
   // com frequência diária, semanal (dia_semana 0-6, dom=0) ou mensal
   // (dia_mes 1-28). Dispara SOMENTE quando a hora BRT atual === config.hora —
@@ -441,6 +604,8 @@ const MODULO_POR_TABELA = {
   parcelas: 'financeiro',
   crm_experiencia: 'experiencia',
   tarefas: 'comercial',
+  onboarding_etapa_estado: 'experiencia',
+  indicacoes: 'comercial',
 };
 
 const resolveDestinatarios = async (destinatario, contexto) => {
@@ -457,6 +622,54 @@ const resolveDestinatarios = async (destinatario, contexto) => {
   const papelFilter = destinatario === 'ceo' ? 'papel=in.(ceo,cto)' : 'papel=eq.head_sucesso';
   const rows = await sbGet(`user_profiles?${papelFilter}&ativo=eq.true&select=id`);
   return rows.map((r) => r.id);
+};
+
+// ─── Ação ia_prompt: contexto factual (whitelist) + nomes do lead ──────────
+// Só campos NÃO sensíveis do contexto do run entram no prompt (nunca ids,
+// telefone, e-mail, endereço). NUNCA logar o prompt inteiro — só métricas.
+const IA_CONTEXTO_CAMPOS = {
+  etapa: 'Etapa do deal',
+  etapa_de: 'Etapa anterior do deal',
+  etapa_para: 'Nova etapa do deal',
+  dias_parado: 'Dias parado na etapa',
+  fase: 'Fase da experiência',
+  status: 'Status da família',
+  temperatura_de: 'Temperatura anterior',
+  temperatura_para: 'Temperatura atual',
+  nps_nota: 'Nota NPS (0-10)',
+  indicador_nome: 'Indicador (quem indicou)',
+  indicado_nome: 'Indicado (novo lead)',
+  valor: 'Valor da parcela (R$)',
+  vencimento: 'Vencimento da parcela',
+  dias_atraso: 'Dias de atraso',
+  dias_sem_contato: 'Dias sem contato',
+  tarefa_titulo: 'Tarefa',
+  prioridade: 'Prioridade da tarefa',
+  etapa_titulo: 'Etapa do onboarding',
+  etapa_ordem: 'Ordem da etapa do onboarding',
+  prazo: 'Prazo da etapa do onboarding',
+  dias_apos_prazo: 'Dias após o prazo',
+  status_de: 'Status anterior da indicação',
+  status_para: 'Status da indicação',
+  periodo: 'Período do agendamento',
+};
+
+// Nomes p/ os placeholders {atleta_nome}/{responsavel_nome} do prompt/título.
+const resolveNomesLead = async (contexto) => {
+  const nomes = { atleta: null, responsavel: null };
+  if (!contexto.atleta_id) return nomes;
+  try {
+    const rows = await sbGet(`atletas?id=eq.${contexto.atleta_id}&select=nome_completo,form_submission_id`);
+    nomes.atleta = rows[0]?.nome_completo || null;
+    const fsId = rows[0]?.form_submission_id;
+    if (fsId) {
+      const fs = await sbGet(`form_submissions?id=eq.${fsId}&select=guardian_name`);
+      nomes.responsavel = fs[0]?.guardian_name || null;
+    }
+  } catch (e) {
+    log('WARN', 'ia_nomes_lookup_failed', { error: e.message });
+  }
+  return nomes;
 };
 
 // INVARIANTES de elegibilidade do WhatsApp (guard de CI cobre estas cláusulas).
@@ -534,7 +747,9 @@ const claimLeadColumn = async (fsId, column) => {
   return Array.isArray(updated) && updated.length > 0;
 };
 
-const executeAcao = async (acao, contexto, runId) => {
+// tickState: estado compartilhado do tick ({ iaCalls }) — conta as execuções
+// de IA p/ o teto IA_MAX_PER_TICK (o defer acontece ANTES do claim, no loop).
+const executeAcao = async (acao, contexto, runId, tickState) => {
   const p = acao.parametros || {};
 
   if (acao.tipo === 'criar_tarefa') {
@@ -828,6 +1043,109 @@ const executeAcao = async (acao, contexto, runId) => {
     return { tipo: acao.tipo, status: 'ok', detalhe: 'e-mail custom ao responsável' };
   }
 
+  // Ação de IA (ia_prompt): Gemini gera texto a partir das instruções do CEO
+  // + bloco de CONTEXTO factual do registro do run. SEGURANÇA POR DESIGN: o
+  // texto gerado NUNCA sai por canal externo — vira notificação in-app ou
+  // tarefa interna (o CEO revisa e envia). Por isso este bloco NÃO referencia
+  // URL de envio (SEND_*) — guard de CI tests/automation-engine-ia.test.js.
+  if (acao.tipo === 'ia_prompt') {
+    if (!GEMINI_API_KEY) {
+      // Fail-clear: run marca erro com mensagem acionável, sem afetar as
+      // demais automações/ações do tick.
+      return { tipo: acao.tipo, status: 'erro', detalhe: 'IA não configurada (GEMINI_API_KEY)' };
+    }
+    tickState.iaCalls++;
+
+    const nomes = await resolveNomesLead(contexto);
+    const vars = {
+      '{atleta_nome}': nomes.atleta || 'atleta',
+      '{responsavel_nome}': nomes.responsavel || 'responsável',
+    };
+    let instrucoes = String(p.prompt || '');
+    let titulo = String(p.titulo || '');
+    for (const [placeholder, valor] of Object.entries(vars)) {
+      instrucoes = instrucoes.split(placeholder).join(valor);
+      titulo = titulo.split(placeholder).join(valor);
+    }
+    if (!instrucoes.trim() || !titulo.trim()) {
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'prompt/título vazios' };
+    }
+
+    // Bloco de contexto factual — só campos da whitelist (não sensíveis)
+    const linhasContexto = [];
+    if (nomes.atleta) linhasContexto.push(`Atleta: ${nomes.atleta}`);
+    if (nomes.responsavel) linhasContexto.push(`Responsável: ${nomes.responsavel}`);
+    for (const [campo, rotulo] of Object.entries(IA_CONTEXTO_CAMPOS)) {
+      const v = contexto[campo];
+      if (v !== undefined && v !== null && v !== '') linhasContexto.push(`${rotulo}: ${v}`);
+    }
+
+    const promptFinal =
+      `${instrucoes}\n\n`
+      + 'CONTEXTO FACTUAL DO REGISTRO (dados do CRM — use apenas o que for relevante):\n'
+      + `${linhasContexto.length > 0 ? linhasContexto.join('\n') : '(sem dados adicionais)'}\n\n`
+      + 'Responda em português do Brasil, em texto simples e direto (sem JSON, sem tabelas).';
+
+    const postData = JSON.stringify({
+      contents: [{ parts: [{ text: promptFinal }] }],
+      generationConfig: { temperature: 0.4, maxOutputTokens: IA_MAX_OUTPUT_TOKENS },
+    });
+    // NUNCA logar o prompt inteiro — só métricas de tamanho/modelo.
+    log('INFO', 'ia_prompt_start', {
+      runId, promptChars: promptFinal.length, contextoLinhas: linhasContexto.length,
+    });
+    const { result, modelUsed } = await callGeminiWithResilience(postData);
+
+    let texto = '';
+    try {
+      const parsed = JSON.parse(result.body);
+      const parts = parsed?.candidates?.[0]?.content?.parts || [];
+      texto = parts.map((pt) => pt.text || '').join('').trim();
+    } catch (e) {
+      throw new Error(`resposta Gemini inválida: ${e.message}`);
+    }
+    if (!texto) throw new Error('resposta vazia da IA');
+    log('INFO', 'ia_prompt_done', { runId, modelUsed, respostaChars: texto.length });
+
+    const destinatarios = await resolveDestinatarios(p.destinatario, contexto);
+    if (destinatarios.length === 0) {
+      return { tipo: acao.tipo, status: 'erro', detalhe: 'nenhum usuário ativo para receber o resultado' };
+    }
+
+    if (p.resultado === 'tarefa') {
+      await sbPost('tarefas', {
+        titulo: titulo.slice(0, 200),
+        descricao: texto,
+        responsavel_id: destinatarios[0],
+        prazo: new Date(Date.now() + 2 * 86400000).toISOString(),
+        prioridade: 'media',
+        modulo_origem: MODULO_POR_TABELA[contexto.__tabela] || 'comercial',
+        deal_id: contexto.deal_id || null,
+        atleta_id: contexto.atleta_id || null,
+        experiencia_id: contexto.experiencia_id || null,
+        criada_automaticamente: true,
+        automacao_run_id: runId,
+      });
+      return { tipo: acao.tipo, status: 'ok', detalhe: `IA (${modelUsed}) → tarefa "${titulo.slice(0, 60)}"` };
+    }
+
+    for (const destinatarioId of destinatarios) {
+      await sbPost('notificacoes', {
+        destinatario_id: destinatarioId,
+        titulo: titulo.slice(0, 200),
+        mensagem: texto,
+        tipo: 'automacao',
+        severidade: 'media',
+        deal_id: contexto.deal_id || null,
+        automacao_run_id: runId,
+      });
+    }
+    return {
+      tipo: acao.tipo, status: 'ok',
+      detalhe: `IA (${modelUsed}) → notificação (${destinatarios.length} destinatário(s))`,
+    };
+  }
+
   if (acao.tipo === 'mover_deal') {
     if (!contexto.deal_id) {
       return { tipo: acao.tipo, status: 'ignorado', detalhe: 'contexto sem deal_id' };
@@ -898,7 +1216,7 @@ const retryOrExhaust = async (run, engineConfig, resultado) => {
   );
 };
 
-const processRun = async (run, automacoesById, engineConfig) => {
+const processRun = async (run, automacoesById, engineConfig, tickState) => {
   const auto = automacoesById[run.automacao_id];
 
   if (!auto || !auto.ativo || auto.deleted_at) {
@@ -941,7 +1259,7 @@ const processRun = async (run, automacoesById, engineConfig) => {
     let houveErro = false;
     for (const acao of auto.acoes || []) {
       try {
-        resultados.push(await executeAcao(acao, contexto, run.id));
+        resultados.push(await executeAcao(acao, contexto, run.id, tickState));
       } catch (e) {
         houveErro = true;
         resultados.push({ tipo: acao.tipo, status: 'erro', detalhe: e.message });
@@ -1024,22 +1342,37 @@ functions.http('automationEngine', async (req, res) => {
     }
     if (zumbis.length > 0) log('WARN', 'zombie_runs_closed', { count: zumbis.length });
 
-    const counters = { sucesso: 0, erro: 0, ignorado: 0, skipped_cas: 0, deferred_budget: 0 };
+    const counters = { sucesso: 0, erro: 0, ignorado: 0, skipped_cas: 0, deferred_budget: 0, deferred_ia: 0 };
+    const tickState = { iaCalls: 0 };
     const fila = [...pendentes, ...retries, ...orfaos].slice(0, RUN_LIMIT);
     for (let i = 0; i < fila.length; i++) {
       const run = fila[i];
       // Budget de wall-clock: envios de WhatsApp custam 35-60s cada — parar
       // com folga antes do timeout de 540s; o resto processa no próximo tick.
       if (Date.now() - startedAt > TICK_BUDGET_MS) {
-        counters.deferred_budget = fila.length - (counters.sucesso + counters.erro + counters.ignorado + counters.skipped_cas);
+        counters.deferred_budget = fila.length - (counters.sucesso + counters.erro + counters.ignorado + counters.skipped_cas + counters.deferred_ia);
         log('WARN', 'tick_budget_reached', { deferred: counters.deferred_budget });
         break;
+      }
+      // Teto de IA por tick: run com ação ia_prompt além do orçamento é
+      // ADIADO SEM CLAIM (segue pendente/erro-retry) — roda no próximo tick,
+      // sem queimar tentativa. Loga o excedente para monitoramento.
+      const autoDoRun = automacoesById[run.automacao_id];
+      const iaCount = autoDoRun
+        ? (autoDoRun.acoes || []).filter((a) => a.tipo === 'ia_prompt').length
+        : 0;
+      if (iaCount > 0 && tickState.iaCalls + iaCount > IA_MAX_PER_TICK) {
+        counters.deferred_ia++;
+        log('WARN', 'ia_budget_deferred', {
+          runId: run.id, iaCalls: tickState.iaCalls, iaMax: IA_MAX_PER_TICK,
+        });
+        continue;
       }
       if (!(await claimRun(run))) {
         counters.skipped_cas++;
         continue;
       }
-      const { outcome, whatsappSent } = await processRun(run, automacoesById, engineConfig);
+      const { outcome, whatsappSent } = await processRun(run, automacoesById, engineConfig, tickState);
       counters[outcome] = (counters[outcome] || 0) + 1;
       // Anti-ban: espaçar envios de leads distintos (padrão dos schedulers).
       // Sem delay após o último run — não queimar budget dormindo à toa.
