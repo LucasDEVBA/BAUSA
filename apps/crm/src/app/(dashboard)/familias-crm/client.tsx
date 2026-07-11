@@ -26,6 +26,7 @@ import {
   FamilyDetailModal,
   type FamilyModalData,
 } from "@/components/familias-shared/FamilyDetailModal";
+import { type JourneyConfigMap } from "@/lib/fases-familia";
 import { type AlertaInatividade } from "@/lib/actions/experiencia";
 import { NovaFamiliaModal } from "@/components/familias-shared/NovaFamiliaModal";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,8 @@ interface FamiliasCrmClientProps {
   canManage: boolean;
   /** Deep-link ?familia=<experiencia_id>: abre a modal da família direto */
   familiaInicial: string | null;
+  /** Config das fases (rótulo/ordem configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
 const STATUS_TONE: Record<FamilyStatus, BadgeTone> = {
@@ -89,14 +92,16 @@ function ScoreBar({
 
 function FamilyCard({
   family,
+  journeyConfig,
   onSelect,
 }: {
   family: Family;
+  journeyConfig: JourneyConfigMap;
   onSelect: (f: Family) => void;
 }) {
   const statusCfg = FAMILY_STATUS_CONFIG[family.family_status];
   const tempCfg = TEMPERATURE_CONFIG[family.temperature];
-  const stageCfg = JOURNEY_STAGE_CONFIG[family.journey_stage];
+  const stageCfg = journeyConfig[family.journey_stage];
   const accent =
     family.family_status === "crise"
       ? "red"
@@ -264,6 +269,7 @@ export function FamiliasCrmClient({
   alertas,
   canManage,
   familiaInicial,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
 }: FamiliasCrmClientProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<Family | null>(
@@ -316,6 +322,7 @@ export function FamiliasCrmClient({
       {canManage && (
         <NovaFamiliaModal
           open={showNovaModal}
+          journeyConfig={journeyConfig}
           onClose={() => setShowNovaModal(false)}
         />
       )}
@@ -423,7 +430,11 @@ export function FamiliasCrmClient({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {filtered.map((family) => (
           <div key={family.id} className="relative">
-            <FamilyCard family={family} onSelect={setSelected} />
+            <FamilyCard
+              family={family}
+              journeyConfig={journeyConfig}
+              onSelect={setSelected}
+            />
             {alertasByExperiencia.has(family.id) && (
               <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-md bg-sys-orange/15 border border-sys-orange/30 px-1.5 py-0.5 text-[10px] font-bold text-sys-orange">
                 <Bell className="h-2.5 w-2.5" />
@@ -448,6 +459,7 @@ export function FamiliasCrmClient({
             selected,
             tiposRiscoByFamilia[selected.id] ?? [],
           )}
+          journeyConfig={journeyConfig}
           onClose={() => setSelected(null)}
           onChanged={() => router.refresh()}
         />

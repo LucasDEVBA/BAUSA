@@ -3,28 +3,28 @@
 import { X, MessageCircle, Phone, Calendar, CheckCircle2, Circle, MapPin } from "lucide-react";
 import { type Family, JOURNEY_STAGE_CONFIG } from "@/types/family";
 import { getInitials, formatRelativeTime, formatDate } from "@/lib/utils";
+import { orderedStages, type JourneyConfigMap } from "@/lib/fases-familia";
 import { RiskBadge } from "./RiskBadge";
 import { EmotionalTempBadge } from "./EmotionalTempBadge";
 import { JourneyProgress } from "./JourneyProgress";
-
-const STAGES_ORDER = [
-  "admissao",
-  "aprovado",
-  "pre_embarque",
-  "embarcado_inicial",
-  "acompanhamento",
-  "encerrado",
-] as const;
 
 interface FamilyDetailSheetProps {
   family: Family;
   open: boolean;
   onClose: () => void;
+  /** Config das fases (rótulo/ordem configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
-export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetProps) {
+export function FamilyDetailSheet({
+  family,
+  open,
+  onClose,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
+}: FamilyDetailSheetProps) {
   if (!open) return null;
 
+  const STAGES_ORDER = orderedStages(journeyConfig);
   const currentIndex = STAGES_ORDER.indexOf(family.journey_stage);
 
   return (
@@ -99,14 +99,17 @@ export function FamilyDetailSheet({ family, open, onClose }: FamilyDetailSheetPr
           {/* Jornada */}
           <div className="rounded-lg p-3 border border-border/70 bg-card/60">
             <p className="mb-3 text-xs font-semibold text-foreground/80">Progresso da Jornada</p>
-            <JourneyProgress currentStage={family.journey_stage} />
+            <JourneyProgress
+              currentStage={family.journey_stage}
+              journeyConfig={journeyConfig}
+            />
 
             {/* Timeline vertical */}
             <div className="mt-4 space-y-2">
               {STAGES_ORDER.map((stage, index) => {
                 const isPast = index < currentIndex;
                 const isCurrent = index === currentIndex;
-                const stageConfig = JOURNEY_STAGE_CONFIG[stage];
+                const stageConfig = journeyConfig[stage];
 
                 return (
                   <div key={stage} className="flex items-start gap-3">

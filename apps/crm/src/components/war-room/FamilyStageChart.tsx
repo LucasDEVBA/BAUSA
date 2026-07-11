@@ -11,6 +11,7 @@ import {
   Cell,
 } from "recharts";
 import { type Family, JOURNEY_STAGE_CONFIG } from "@/types/family";
+import { orderedStages, type JourneyConfigMap } from "@/lib/fases-familia";
 
 interface TooltipProps {
   active?: boolean;
@@ -34,23 +35,21 @@ const STAGE_COLORS = [
 
 interface FamilyStageChartProps {
   families: Family[];
+  /** Config das fases (rótulo/ordem configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
-export function FamilyStageChart({ families }: FamilyStageChartProps) {
-  const STAGES_ORDER = [
-    "admissao",
-    "aprovado",
-    "pre_embarque",
-    "embarcado_inicial",
-    "acompanhamento",
-    "encerrado",
-  ] as const;
-
-  const data = STAGES_ORDER.map((stage, idx) => ({
-    label: JOURNEY_STAGE_CONFIG[stage].label,
-    count: families.filter((f) => f.journey_stage === stage).length,
-    color: STAGE_COLORS[idx],
-  })).filter((d) => d.count > 0);
+export function FamilyStageChart({
+  families,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
+}: FamilyStageChartProps) {
+  const data = orderedStages(journeyConfig)
+    .map((stage, idx) => ({
+      label: journeyConfig[stage].label,
+      count: families.filter((f) => f.journey_stage === stage).length,
+      color: STAGE_COLORS[idx],
+    }))
+    .filter((d) => d.count > 0);
 
   return (
     <div className="rounded-2xl glass-card p-4">

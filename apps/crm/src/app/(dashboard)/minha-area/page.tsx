@@ -3,11 +3,12 @@ import { getUserProfile } from "@/lib/auth";
 import { isCeoLevel } from "@/lib/papel";
 import { listarOnboardingsAtivos } from "@/lib/actions/onboarding";
 import { listarProximasReunioes } from "@/lib/actions/reunioes";
+import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { mergeJourneyConfig, normalizarFase } from "@/lib/fases-familia";
 import { redirect } from "next/navigation";
 import { MinhaAreaClient } from "./client";
 import type {
   Family,
-  FamilyJourneyStage,
   FamilyStatus,
   FamilyTemperature,
 } from "@/types/family";
@@ -40,7 +41,7 @@ function mapExperienciaToFamily(
   const planoRaw = (primeiroContrato?.plano as string) ?? "";
   const plan = planMap[planoRaw] ?? "Journey";
 
-  const fase = (row.fase as string) ?? "admissao";
+  const fase = normalizarFase((row.fase as string) ?? "admissao");
   const temperatura = (row.temperatura as string) ?? "verde";
   const status = (row.status as string) ?? "satisfeita";
 
@@ -61,7 +62,7 @@ function mapExperienciaToFamily(
       (atleta?.whatsapp as string) ??
       "",
     plan,
-    journey_stage: fase as FamilyJourneyStage,
+    journey_stage: fase,
     family_status: status as FamilyStatus,
     temperature: temperatura as FamilyTemperature,
     anxiety_level: Number(row.ansiedade) || 1,
@@ -158,10 +159,12 @@ export default async function MinhaAreaPage() {
   // Onboardings + próximas reuniões (server actions já filtram por papel).
   // Buscados ANTES do mapeamento: a próxima etapa do onboarding vira o
   // marco real (next_milestone) de cada família.
-  const [onboardings, proximasReunioes] = await Promise.all([
+  const [onboardings, proximasReunioes, fasesOverrides] = await Promise.all([
     listarOnboardingsAtivos(),
     listarProximasReunioes(10),
+    getFasesFamiliaConfigOverrides(),
   ]);
+  const journeyConfig = mergeJourneyConfig(fasesOverrides);
 
   const proximaEtapaByExperiencia = new Map(
     onboardings
@@ -243,6 +246,7 @@ export default async function MinhaAreaPage() {
       performance={performance}
       onboardings={onboardings}
       proximasReunioes={proximasReunioes}
+      journeyConfig={journeyConfig}
     />
   );
 }

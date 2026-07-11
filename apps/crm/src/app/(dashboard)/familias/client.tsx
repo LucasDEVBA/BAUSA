@@ -23,10 +23,17 @@ import {
 import { toast } from "sonner";
 import { Card, EmptyState, PageHeader, StatCard, Input } from "@/components/ui";
 import { FamiliasNav } from "@/components/familias/FamiliasNav";
+import { JOURNEY_STAGE_CONFIG } from "@/types/family";
+import {
+  isFamilyJourneyStage,
+  type JourneyConfigMap,
+} from "@/lib/fases-familia";
 import type { FamiliaConsolidada } from "./page";
 
 interface FamiliasConsolidadasClientProps {
   familias: FamiliaConsolidada[];
+  /** Config das fases (rótulo configurado pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
 const CLASSIFICATION_BADGE: Record<string, string> = {
@@ -42,15 +49,6 @@ const FASE_BADGE: Record<string, string> = {
   embarcado_inicial: "bg-plan-legacy/15 text-plan-legacy border-plan-legacy/20",
   acompanhamento: "bg-sys-green/15 text-sys-green border-sys-green/20",
   encerrado: "bg-secondary text-muted-foreground border-border",
-};
-
-const FASE_LABELS: Record<string, string> = {
-  admissao: "Admissão",
-  aprovado: "Aprovado",
-  pre_embarque: "Pré-embarque",
-  embarcado_inicial: "Embarcado",
-  acompanhamento: "Acompanhamento",
-  encerrado: "Encerrado",
 };
 
 const STATUS_BADGE: Record<string, { label: string; bg: string }> = {
@@ -74,7 +72,10 @@ function formatBRL(v: number) {
 
 export function FamiliasConsolidadasClient({
   familias,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
 }: FamiliasConsolidadasClientProps) {
+  const faseLabel = (fase: string): string =>
+    isFamilyJourneyStage(fase) ? journeyConfig[fase].label : fase;
   const [search, setSearch] = useState("");
   const [modalData, setModalData] = useState<FamilyModalData | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -290,7 +291,7 @@ export function FamiliasConsolidadasClient({
                                     "bg-secondary text-muted-foreground border-border",
                                 )}
                               >
-                                {FASE_LABELS[atleta.fase] ?? atleta.fase}
+                                {faseLabel(atleta.fase)}
                               </span>
                             )}
                             {statusCfg && (
@@ -351,6 +352,7 @@ export function FamiliasConsolidadasClient({
       {modalData && (
         <FamilyDetailModal
           family={modalData}
+          journeyConfig={journeyConfig}
           onClose={() => setModalData(null)}
         />
       )}

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { DOCUMENTO_TIPOS, FAQ_CATEGORIAS } from "@/types/crm";
 import { DEAL_STAGE_CONFIG, PIPELINE_STAGE_ORDER } from "@/types/deal";
 import { UsuariosTab } from "@/components/configuracoes/UsuariosTab";
+import { PipelinesTab } from "@/components/configuracoes/PipelinesTab";
 import { PageHeader, BrandTabs, Card, Input, Button } from "@/components/ui";
 
 const TABS = [
@@ -19,6 +20,7 @@ const TABS = [
   { value: "experiencia", label: "Experiencia" },
   { value: "cobranca", label: "Cobranca" },
   { value: "pipeline", label: "Pipeline" },
+  { value: "pipelines", label: "Pipelines" },
   { value: "notificacoes", label: "Notificacoes" },
   { value: "listas", label: "Listas" },
   { value: "usuarios", label: "Usuarios" },
@@ -587,6 +589,21 @@ export function ConfiguracoesClient({ configsIniciais }: ConfiguracoesClientProp
 
         {/* ===== USUARIOS ===== */}
         {activeTab === "usuarios" && <UsuariosTab />}
+
+        {/* ===== PIPELINES (fases da jornada da família) ===== */}
+        {activeTab === "pipelines" && (
+          <PipelinesTab
+            fasesConfigRaw={configs["fases_familia_config"]}
+            inatividadeRaw={configs["inatividade_por_fase"]}
+            onSaved={(fases, inatividade) => {
+              setConfigs((prev) => ({
+                ...prev,
+                fases_familia_config: fases,
+                inatividade_por_fase: inatividade,
+              }));
+            }}
+          />
+        )}
 
         {/* ===== PIPELINE ===== */}
         {activeTab === "pipeline" && (

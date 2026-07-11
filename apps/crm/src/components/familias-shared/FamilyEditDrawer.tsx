@@ -13,12 +13,12 @@ import {
 import {
   JOURNEY_STAGE_CONFIG,
   FAMILY_STATUS_CONFIG,
-  FAMILY_JOURNEY_STAGES,
   TEMPERATURE_CONFIG,
   type FamilyJourneyStage,
   type FamilyStatus,
   type RiskDimension,
 } from "@/types/family";
+import { orderedStages, type JourneyConfigMap } from "@/lib/fases-familia";
 import {
   atualizarExperiencia,
   registrarContato,
@@ -80,12 +80,15 @@ interface FamilyEditDrawerProps {
   family: FamilyDrawerData;
   onClose: () => void;
   onSaved?: () => void;
+  /** Config das fases (rótulo/ordem configurados pelo CEO). Default: estático. */
+  journeyConfig?: JourneyConfigMap;
 }
 
 export function FamilyEditDrawer({
   family,
   onClose,
   onSaved,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
 }: FamilyEditDrawerProps) {
   const router = useRouter();
   const [tab, setTab] = useState<"editar" | "contato" | "escalonar">(
@@ -305,7 +308,7 @@ export function FamilyEditDrawer({
                   {statusCfg.label}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {JOURNEY_STAGE_CONFIG[family.fase].label}
+                  {journeyConfig[family.fase].label}
                 </span>
               </div>
 
@@ -321,9 +324,9 @@ export function FamilyEditDrawer({
                   }
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
                 >
-                  {FAMILY_JOURNEY_STAGES.map((f) => (
+                  {orderedStages(journeyConfig).map((f) => (
                     <option key={f} value={f}>
-                      {JOURNEY_STAGE_CONFIG[f].label}
+                      {journeyConfig[f].label}
                     </option>
                   ))}
                 </select>

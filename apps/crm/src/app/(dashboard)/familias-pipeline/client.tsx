@@ -19,11 +19,11 @@ import {
 import {
   JOURNEY_STAGE_CONFIG,
   FAMILY_STATUS_CONFIG,
-  FAMILY_JOURNEY_STAGES,
   TEMPERATURE_CONFIG,
   type FamilyJourneyStage,
   type RiskDimension,
 } from "@/types/family";
+import { orderedStages, type JourneyConfigMap } from "@/lib/fases-familia";
 import { moverFaseFamilia } from "@/lib/actions/experiencia";
 import {
   FamilyDetailModal,
@@ -73,16 +73,18 @@ export interface FamiliaPipelineCard {
 
 function PipelineCard({
   card,
+  journeyConfig,
   onDragStart,
   onClick,
 }: {
   card: FamiliaPipelineCard;
+  journeyConfig: JourneyConfigMap;
   onDragStart: (id: string) => void;
   onClick: () => void;
 }) {
   const statusCfg = FAMILY_STATUS_CONFIG[card.status];
   const tempCfg = TEMPERATURE_CONFIG[card.temperatura];
-  const stageCfg = JOURNEY_STAGE_CONFIG[card.fase];
+  const stageCfg = journeyConfig[card.fase];
   const isInactive =
     card.dias_sem_contato != null &&
     stageCfg.alertDays > 0 &&
@@ -257,8 +259,10 @@ function cardToModalData(card: FamiliaPipelineCard): FamilyModalData {
 
 export function FamiliasPipelineClient({
   cards: initialCards,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
 }: {
   cards: FamiliaPipelineCard[];
+  journeyConfig?: JourneyConfigMap;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -347,7 +351,7 @@ export function FamiliasPipelineClient({
     startTransition(async () => {
       const result = await moverFaseFamilia(id, fase);
       if (result.success) {
-        toast.success(`Movida para ${JOURNEY_STAGE_CONFIG[fase].label}`, {
+        toast.success(`Movida para ${journeyConfig[fase].label}`, {
           description: card.athlete_name,
         });
         router.refresh();
@@ -371,7 +375,9 @@ export function FamiliasPipelineClient({
     setSelectedCard(card);
   };
 
-  const byFase = FAMILY_JOURNEY_STAGES.reduce(
+  const stages = orderedStages(journeyConfig);
+
+  const byFase = stages.reduce(
     (acc, fase) => {
       acc[fase] = filteredCards.filter((c) => c.fase === fase);
       return acc;
@@ -450,6 +456,7 @@ export function FamiliasPipelineClient({
       {view === "tabela" ? (
         <FamiliasPipelineTable
           cards={filteredCards}
+          journeyConfig={journeyConfig}
           onCardClick={(c) => {
             const full = cards.find((x) => x.id === c.id);
             if (full) setSelectedCard(full);
@@ -457,8 +464,8 @@ export function FamiliasPipelineClient({
         />
       ) : (
       <div className="grid grid-flow-col auto-cols-[260px] gap-3 overflow-x-auto pb-3">
-        {FAMILY_JOURNEY_STAGES.map((fase) => {
-          const cfg = JOURNEY_STAGE_CONFIG[fase];
+        {stages.map((fase) => {
+          const cfg = journeyConfig[fase];
           const list = byFase[fase];
           const isHovering = hoverFase === fase;
           return (
@@ -498,6 +505,7 @@ export function FamiliasPipelineClient({
                   <PipelineCard
                     key={c.id}
                     card={c}
+                    journeyConfig={journeyConfig}
                     onDragStart={(id) => setDragId(id)}
                     onClick={() => handleCardClick(c)}
                   />
@@ -519,12 +527,14 @@ export function FamiliasPipelineClient({
       {selectedCard && (
         <FamilyDetailModal
           family={cardToModalData(selectedCard)}
+          journeyConfig={journeyConfig}
           onClose={() => setSelectedCard(null)}
         />
       )}
 
       <NovaFamiliaModal
         open={showNovaModal}
+        journeyConfig={journeyConfig}
         onClose={() => setShowNovaModal(false)}
       />
     </div>

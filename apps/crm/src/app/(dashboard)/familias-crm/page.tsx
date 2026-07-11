@@ -1,6 +1,8 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
 import { listarAlertasInatividade } from "@/lib/actions/experiencia";
+import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { mergeJourneyConfig, normalizarFase } from "@/lib/fases-familia";
 import { FamiliasCrmClient } from "./client";
 import { FamiliasNav } from "@/components/familias/FamiliasNav";
 import { FamiliasViewSwitcher } from "@/components/familias/FamiliasViewSwitcher";
@@ -10,7 +12,6 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 import type {
   Family,
-  FamilyJourneyStage,
   FamilyStatus,
   FamilyTemperature,
   RiskDimension,
@@ -24,22 +25,6 @@ const RISK_DIMENSIONS: RiskDimension[] = [
   "relacional",
   "comunicacao",
 ];
-
-function normalizarFase(fase: string): FamilyJourneyStage {
-  switch (fase) {
-    case "admissao":
-    case "aprovado":
-    case "pre_embarque":
-    case "embarcado_inicial":
-    case "acompanhamento":
-    case "encerrado":
-      return fase;
-    case "embarcado":
-      return "embarcado_inicial";
-    default:
-      return "admissao";
-  }
-}
 
 function mapExperienciaToFamily(row: Record<string, unknown>): Family {
   const atleta = row.atleta as Record<string, unknown> | null;
@@ -317,6 +302,9 @@ export default async function FamiliasCrmPage({
   });
 
   const alertas = await listarAlertasInatividade();
+  const journeyConfig = mergeJourneyConfig(
+    await getFasesFamiliaConfigOverrides(),
+  );
 
   const metrics = {
     total: families.length,
@@ -361,6 +349,7 @@ export default async function FamiliasCrmPage({
         alertas={alertas}
         canManage={canManage}
         familiaInicial={familiaInicial ?? null}
+        journeyConfig={journeyConfig}
       />
     </div>
   );

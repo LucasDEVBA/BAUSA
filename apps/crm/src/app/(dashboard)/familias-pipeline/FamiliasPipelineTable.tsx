@@ -16,6 +16,7 @@ import {
   JOURNEY_STAGE_CONFIG,
   type FamilyJourneyStage,
 } from "@/types/family";
+import type { JourneyConfigMap } from "@/lib/fases-familia";
 import { Card, EmptyState } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ interface Card {
 
 interface Props {
   cards: Card[];
+  journeyConfig?: JourneyConfigMap;
   onCardClick: (card: Card) => void;
 }
 
@@ -75,7 +77,11 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   );
 }
 
-export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
+export function FamiliasPipelineTable({
+  cards,
+  journeyConfig = JOURNEY_STAGE_CONFIG,
+  onCardClick,
+}: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("status");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -96,8 +102,8 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
           bv = b.athlete_name;
           break;
         case "fase":
-          av = JOURNEY_STAGE_CONFIG[a.fase].order;
-          bv = JOURNEY_STAGE_CONFIG[b.fase].order;
+          av = journeyConfig[a.fase].order;
+          bv = journeyConfig[b.fase].order;
           break;
         case "status":
           av = statusOrder[a.status];
@@ -118,7 +124,7 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
     });
     return arr;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, sortKey, sortDir]);
+  }, [cards, sortKey, sortDir, journeyConfig]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -207,7 +213,7 @@ export function FamiliasPipelineTable({ cards, onCardClick }: Props) {
           </thead>
           <tbody>
             {sorted.map((c, i) => {
-              const stageCfg = JOURNEY_STAGE_CONFIG[c.fase];
+              const stageCfg = journeyConfig[c.fase];
               const StatusIcon = STATUS_ICON[c.status];
               const semContato = (c.dias_sem_contato ?? 0) > 30;
               const semContatoMedio = (c.dias_sem_contato ?? 0) > 15;
