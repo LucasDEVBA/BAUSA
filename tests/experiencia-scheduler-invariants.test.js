@@ -63,10 +63,13 @@ test('experiencia-scheduler: NPS respeita os 6 meses (180 dias sobre created_at)
 });
 
 test('experiencia-scheduler: CAS atômico do NPS com filtro =is.null antes do envio', () => {
+  // Ancorado na URL do PATCH (id=eq.<id>&nps_enviado_at=is.null) — o mesmo
+  // filtro também existe no SELECT de elegibilidade, e um regex solto seria
+  // tautológico (removê-lo só do CAS não quebraria o teste).
   assert.match(
     src,
-    /nps_enviado_at=is\.null/,
-    'O PATCH do CAS DEVE incluir `nps_enviado_at=is.null` (só o primeiro marca — atomicidade; envio único por família).',
+    /id=eq\.\$\{experienciaId\}[^;]*nps_enviado_at=is\.null/,
+    'A URL do PATCH do CAS DEVE incluir `id=eq.<id>` + `nps_enviado_at=is.null` (só o primeiro marca — atomicidade; envio único por família).',
   );
   assert.match(
     src,
@@ -77,6 +80,17 @@ test('experiencia-scheduler: CAS atômico do NPS com filtro =is.null antes do en
     src,
     /if\s*\(\s*!won\s*\)/,
     'Se o CAS não venceu a corrida (!won), DEVE pular — evita pesquisa duplicada.',
+  );
+});
+
+test('experiencia-scheduler: payload do WhatsApp carrega record.athlete_name', () => {
+  // O handler do send-whatsapp valida data.athlete_name ANTES do branch
+  // custom — sem record.athlete_name, 100% dos envios morrem com 400 e o
+  // CAS já consumiu o marco (incidente pego em revisão adversarial).
+  assert.match(
+    src,
+    /record:\s*\{\s*athlete_name:/,
+    'O payload do send-whatsapp DEVE incluir record.athlete_name (o handler exige antes do caminho custom).',
   );
 });
 

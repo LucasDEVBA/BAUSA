@@ -108,7 +108,7 @@ const lerConfig = async (chave) => {
 const fetchNpsElegiveis = async () => {
   const corte = new Date(Date.now() - NPS_MIN_DIAS * DIA_MS).toISOString();
   const select =
-    'id,created_at,atleta:atletas(nome_completo,whatsapp,responsavel:responsaveis(nome,whatsapp))';
+    'id,created_at,atleta:atletas(nome_completo,whatsapp,responsavel:responsaveis(nome,whatsapp,aceite_whatsapp))';
   const url =
     `${SUPABASE_URL}/rest/v1/crm_experiencia?select=${encodeURIComponent(select)}` +
     `&fase=in.(embarcado_inicial,acompanhamento)` +
@@ -120,13 +120,16 @@ const fetchNpsElegiveis = async () => {
   return JSON.parse(r.body);
 };
 
-// Telefone: responsável (responsaveis.whatsapp) com fallback atletas.whatsapp
+// Telefone: responsável (responsaveis.whatsapp) com fallback atletas.whatsapp.
+// Consentimento: outreach exige responsaveis.aceite_whatsapp = true (mesmo
+// gate da billing-reminders) — sem opt-in, pula SEM marcar.
 const extractContatoNps = (exp) => {
   const atleta = exp.atleta;
   if (!atleta) return null;
   const resp = atleta.responsavel;
   const phone = resp?.whatsapp || atleta.whatsapp || null;
   if (!phone) return null;
+  if (resp && resp.aceite_whatsapp !== true) return { semOptin: true };
   return {
     phone,
     responsavelNome: resp?.nome || 'família',
@@ -153,11 +156,18 @@ const casMarcarNpsEnviado = async (experienciaId) => {
 
 // Envio: o CAS já marcou ANTES daqui — falha 4xx/5xx NÃO reenvia (sem spam),
 // mas logamos para o marco não se perder em silêncio.
-const sendWhatsApp = async (phone, message, experienciaId) => {
+const sendWhatsApp = async (phone, message, experienciaId, athleteName) => {
   if (!SEND_WHATSAPP_URL || !phone) return { skipped: true };
-  // Contrato do caminho custom da CF send-whatsapp (mesmo da billing-reminders):
-  // messageType meeting_confirmed + customMessage + phone → envia direto.
-  const payload = JSON.stringify({ messageType: 'meeting_confirmed', customMessage: message, phone });
+  // Contrato do caminho custom da CF send-whatsapp: o handler valida
+  // `data.athlete_name` (via payload.record || payload) ANTES do branch
+  // custom — sem `record.athlete_name` o envio morre com 400 (mesmo
+  // contrato usado por automation-engine e mensagem-direta.ts).
+  const payload = JSON.stringify({
+    messageType: 'meeting_confirmed',
+    customMessage: message,
+    phone,
+    record: { athlete_name: athleteName || 'família' },
+  });
   const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) };
   if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
   const r = await httpRequest(SEND_WHATSAPP_URL, { method: 'POST', headers }, payload);
@@ -225,11 +235,14 @@ const insertNotificacoes = async (destinatarioIds, titulo, mensagem, experiencia
     link: `/familias-crm?familia=${experienciaId}`,
   }));
   try {
-    await httpRequest(
+    const r = await httpRequest(
       `${SUPABASE_URL}/rest/v1/notificacoes`,
       { method: 'POST', headers: { ...supaHeaders(true), Prefer: 'return=minimal' } },
       JSON.stringify(rows),
     );
+    if (r.statusCode >= 400) {
+      log('WARN', 'notificacao_failed', { experienciaId, statusCode: r.statusCode, body: r.body });
+    }
   } catch (e) {
     log('WARN', 'notificacao_failed', { experienciaId, error: e.message });
   }
@@ -292,14 +305,19 @@ functions.http('experienciaScheduler', async (req, res) => {
     const alertaDesligado = ativas.alerta_inatividade === false;
 
     const stats = {
-      npsVerificadas: 0, npsEnviados: 0, npsPulados: 0,
+      npsVerificadas: 0, npsEnviados: 0, npsPulados: 0, npsFalhas: 0,
       alertasDetectados: 0, alertasEmitidos: 0, alertasPulados: 0,
       erros: 0,
     };
 
     // ── Check 1: pesquisa NPS aos 6 meses ─────────────────────────────────
+    // SEND_WHATSAPP_URL ausente = config incompleta: pular o check INTEIRO
+    // antes de qualquer CAS (senão o 1º tick queimaria nps_enviado_at de
+    // todas as famílias elegíveis sem enviar nada).
     if (npsDesligado) {
       log('INFO', 'nps_desligado', {});
+    } else if (!SEND_WHATSAPP_URL) {
+      log('CRITICAL', 'nps_missing_env', { env: 'SEND_WHATSAPP_URL' });
     } else {
       const npsCfg = await lerConfig('nps_mensagem');
       const template =
@@ -316,6 +334,13 @@ functions.http('experienciaScheduler', async (req, res) => {
             // for cadastrado depois, a família entra no próximo tick).
             stats.npsPulados++;
             log('INFO', 'nps_skipped_no_phone', { experienciaId: exp.id });
+            continue;
+          }
+          if (contato.semOptin) {
+            // Sem aceite_whatsapp do responsável: outreach não sai (LGPD/
+            // opt-in — mesmo gate da billing-reminders). Não marca.
+            stats.npsPulados++;
+            log('INFO', 'nps_skipped_no_optin', { experienciaId: exp.id });
             continue;
           }
 
@@ -337,9 +362,15 @@ functions.http('experienciaScheduler', async (req, res) => {
             continue;
           }
 
-          await sendWhatsApp(contato.phone, mensagem, exp.id);
-          stats.npsEnviados++;
-          log('INFO', 'nps_sent', { experienciaId: exp.id });
+          const envio = await sendWhatsApp(contato.phone, mensagem, exp.id, contato.atletaNome);
+          if (envio.skipped || (envio.statusCode && envio.statusCode >= 400)) {
+            // CAS já consumiu o marco — conta como falha para o tick_done
+            // não mascarar um incidente de entrega (recuperação manual).
+            stats.npsFalhas++;
+          } else {
+            stats.npsEnviados++;
+            log('INFO', 'nps_sent', { experienciaId: exp.id });
+          }
           await delay(DELAY_MS);
         } catch (e) {
           stats.erros++;
