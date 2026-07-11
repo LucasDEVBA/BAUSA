@@ -290,20 +290,20 @@ export function AutomacoesClient({
           <section className="space-y-3">
             <p className="text-eyebrow text-label-tertiary">Suas automações</p>
 
+            {/* Sem automações CUSTOM: dica compacta (as de sistema seguem
+                logo abaixo na mesma lista — um estado vazio gigante aqui
+                mentiria "nenhuma automação" com a lista cheia). */}
             {automacoes.length === 0 ? (
-              <Card variant="plain" padding="none">
-                <EmptyState
-                  icon={Workflow}
-                  title="Nenhuma automação criada"
-                  description="Monte seu primeiro fluxo: escolha um gatilho, adicione condições e defina as ações."
-                  action={
-                    <Button onClick={() => setBuilder(emptyBuilder())}>
-                      <Plus className="h-4 w-4" />
-                      Criar automação
-                    </Button>
-                  }
-                />
-              </Card>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-secondary/40 px-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  Você ainda não criou automações personalizadas — abaixo estão as automações
+                  nativas do sistema.
+                </p>
+                <Button size="sm" onClick={() => setBuilder(emptyBuilder())}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Criar automação
+                </Button>
+              </div>
             ) : (
               automacoes.map((a) => {
                 const gatilho = GATILHO_CATALOG[a.gatilho];
