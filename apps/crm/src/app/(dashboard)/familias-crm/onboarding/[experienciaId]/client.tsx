@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowLeft,
   CalendarPlus,
   CheckCircle2,
   CheckSquare,
@@ -167,44 +168,61 @@ export function OnboardingExecucaoClient({
 
   const ativa = etapas.find((e) => e.id === activeId) ?? etapas[0];
 
+  const handleVoltar = () => {
+    // Fallback para a lista quando a tela foi aberta sem histórico (deep-link).
+    if (window.history.length > 1) router.back();
+    else router.push("/familias-crm");
+  };
+
   return (
     <div className="space-y-5">
-      <PageHeader
-        eyebrow="Famílias · Onboarding"
-        title={familia.atletaNome}
-        description={`Responsável: ${familia.responsavelNome ?? "—"} · Iniciado em ${formatDate(instancia.iniciado_at)}`}
-        actions={
-          <div className="w-44">
-            <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>
-                Progresso
-                {instancia.status === "concluido" && (
-                  <span className="ml-1.5 font-semibold text-sys-green">✓ Concluído</span>
-                )}
-              </span>
-              <span className="font-semibold tabular-nums text-foreground">
-                {finalizadas}/{total}
-              </span>
-            </div>
-            <div
-              role="progressbar"
-              aria-label="Progresso do onboarding"
-              aria-valuenow={percent}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              className="h-1.5 overflow-hidden rounded-full bg-fill-4"
-            >
+      <div className="space-y-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleVoltar}
+          className="-ml-2 w-fit"
+        >
+          <ArrowLeft aria-hidden className="h-4 w-4" />
+          Voltar
+        </Button>
+        <PageHeader
+          eyebrow="Famílias · Onboarding"
+          title={familia.atletaNome}
+          description={`Responsável: ${familia.responsavelNome ?? "—"} · Iniciado em ${formatDate(instancia.iniciado_at)}`}
+          actions={
+            <div className="w-44">
+              <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+                <span>
+                  Progresso
+                  {instancia.status === "concluido" && (
+                    <span className="ml-1.5 font-semibold text-sys-green">✓ Concluído</span>
+                  )}
+                </span>
+                <span className="font-semibold tabular-nums text-foreground">
+                  {finalizadas}/{total}
+                </span>
+              </div>
               <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-500",
-                  percent === 100 ? "bg-sys-green" : "bg-primary",
-                )}
-                style={{ width: `${percent}%` }}
-              />
+                role="progressbar"
+                aria-label="Progresso do onboarding"
+                aria-valuenow={percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                className="h-1.5 overflow-hidden rounded-full bg-fill-4"
+              >
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    percent === 100 ? "bg-sys-green" : "bg-primary",
+                  )}
+                  style={{ width: `${percent}%` }}
+                />
+              </div>
             </div>
-          </div>
-        }
-      />
+          }
+        />
+      </div>
 
       <BrandTabs
         variant="underline"
