@@ -24,7 +24,7 @@ import {
 import { type JourneyConfigMap } from "@/lib/fases-familia";
 import type { Tarefa } from "@/types/crm";
 import type { OnboardingResumo } from "@/lib/actions/onboarding";
-import { Card, EmptyState, PageHeader, ScrollList, StatCard } from "@/components/ui";
+import { Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { MinhaAreaTabNav } from "./MinhaAreaTabNav";
 import type { MinhaAreaTab } from "./tabs";
@@ -80,8 +80,10 @@ interface UpcomingContact {
 const ROW_NEUTRAL =
   "flex w-full items-center gap-3 rounded-lg border border-border bg-popover px-3 py-2.5 text-left transition-colors hover:bg-accent";
 
-// Lista rolável só quando passa do teto — abaixo disso o card encolhe (sem vão).
-const LIST_MAX = "space-y-2 max-h-[22rem]";
+// Lista content-sized: encolhe com poucos itens (sem vão) e rola só ao passar do
+// teto. `div` simples com max-h+overflow (NÃO flex-1) — robusto em card de altura
+// automática, sem o colapso ambíguo do flex-1 dentro de coluna flex sem altura.
+const LIST_MAX = "space-y-2 max-h-[22rem] overflow-y-auto crm-scroll -mr-1 pr-1";
 
 // --- Helpers ---
 
@@ -189,7 +191,7 @@ function UrgentActionsSection({
       {totalUrgent === 0 ? (
         <EmptyState icon={Flame} title="Tudo em dia! Nenhuma ação urgente." className="py-8" />
       ) : (
-        <ScrollList className={LIST_MAX}>
+        <div className={LIST_MAX}>
           {urgentFamilies.map((f) => {
             const statusCfg = FAMILY_STATUS_CONFIG[f.family_status];
             return (
@@ -238,7 +240,7 @@ function UrgentActionsSection({
               </span>
             </div>
           ))}
-        </ScrollList>
+        </div>
       )}
     </Card>
   );
@@ -336,7 +338,7 @@ function MyFamiliesSection({
       {families.length === 0 ? (
         <EmptyState icon={Users} title="Nenhuma família atribuída ainda." className="py-8" />
       ) : (
-        <ScrollList className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-h-[26rem]">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-h-[26rem] overflow-y-auto crm-scroll -mr-1 pr-1">
           {sorted.map((f) => (
             <FamilyCard
               key={f.id}
@@ -345,7 +347,7 @@ function MyFamiliesSection({
               onClick={() => onFamilyClick(f.id)}
             />
           ))}
-        </ScrollList>
+        </div>
       )}
     </Card>
   );
@@ -378,7 +380,7 @@ function OnboardingsSection({
           className="py-8"
         />
       ) : (
-        <ScrollList className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[26rem]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[26rem] overflow-y-auto crm-scroll -mr-1 pr-1">
           {onboardings.map((o) => {
             const atrasada = o.atrasadas > 0;
             const proximaPrazo = o.proxima_prazo
@@ -449,7 +451,7 @@ function OnboardingsSection({
               </a>
             );
           })}
-        </ScrollList>
+        </div>
       )}
     </Card>
   );
@@ -477,7 +479,7 @@ function ProximasReunioesSection({
       {reunioes.length === 0 ? (
         <EmptyState icon={Video} title="Nenhuma reunião agendada nos próximos dias." className="py-8" />
       ) : (
-        <ScrollList className={LIST_MAX}>
+        <div className={LIST_MAX}>
           {reunioes.map((r) => {
             const data = new Date(r.data_hora);
             const isToday = data.toDateString() === new Date().toDateString();
@@ -534,7 +536,7 @@ function ProximasReunioesSection({
               </div>
             );
           })}
-        </ScrollList>
+        </div>
       )}
     </Card>
   );
@@ -558,7 +560,7 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
       {contacts.length === 0 ? (
         <EmptyState icon={Calendar} title="Nenhum contato agendado para os próximos 7 dias." className="py-8" />
       ) : (
-        <ScrollList className={LIST_MAX}>
+        <div className={LIST_MAX}>
           {contacts.map((c, i) => {
             const statusCfg = FAMILY_STATUS_CONFIG[c.status];
             const dateObj = new Date(c.date);
@@ -611,7 +613,7 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
               </div>
             );
           })}
-        </ScrollList>
+        </div>
       )}
     </Card>
   );
@@ -661,7 +663,7 @@ function NeedContactSection({
       {needContact.length === 0 ? (
         <EmptyState icon={Phone} title="Todas as famílias estão dentro do prazo de contato." className="py-8" />
       ) : (
-        <ScrollList className={LIST_MAX}>
+        <div className={LIST_MAX}>
           {needContact.map((f) => {
             const threshold = inactivityThreshold(journeyConfig, f.journey_stage);
             const isOverThreshold = f.days_without_contact >= threshold;
@@ -693,7 +695,7 @@ function NeedContactSection({
               </button>
             );
           })}
-        </ScrollList>
+        </div>
       )}
     </Card>
   );
@@ -729,7 +731,7 @@ function AdmissaoSection({
       {admissaoFamilies.length === 0 ? (
         <EmptyState icon={GraduationCap} title="Nenhum processo de admissão ativo no momento." className="py-8" />
       ) : (
-        <ScrollList className={LIST_MAX}>
+        <div className={LIST_MAX}>
           {admissaoFamilies.map((f) => {
             const stageCfg = journeyConfig[f.journey_stage];
             const hasSchool = Boolean(f.escola_confirmada_id);
@@ -758,7 +760,7 @@ function AdmissaoSection({
               </button>
             );
           })}
-        </ScrollList>
+        </div>
       )}
     </Card>
   );
