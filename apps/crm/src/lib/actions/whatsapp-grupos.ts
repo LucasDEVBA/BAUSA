@@ -55,6 +55,41 @@ type MensagensResult =
   | { success: true; mensagens: GrupoMensagem[] }
   | { success: false; error: string };
 
+export interface GrupoParticipante {
+  nome: string;
+  total: number;
+}
+
+export interface GrupoAtividadeDia {
+  /** Data ISO (YYYY-MM-DD, BRT) — rótulo do bucket diário. */
+  dia: string;
+  total: number;
+}
+
+export interface MetricasGrupo {
+  total: number;
+  enviadasNos: number;
+  recebidas: number;
+  /** % das mensagens que partiram de nós (from_me). null = sem mensagens. */
+  pctEnviadasNos: number | null;
+  /** Nº de participantes distintos que já falaram (fora nós). */
+  participantesAtivos: number;
+  /** Quem mais fala (top 5, desc). */
+  topParticipantes: GrupoParticipante[];
+  ultimaAtividadeMs: number | null;
+  /** Mensagens nos últimos 7 / 30 dias (dentro da janela lida). */
+  ativos7d: number;
+  ativos30d: number;
+  /** Série diária dos últimos DIAS_SERIE dias (p/ mini-timeline). */
+  serie: GrupoAtividadeDia[];
+  /** A conversa excede o limite lido: contadores refletem só a janela recente. */
+  janelaTruncada: boolean;
+}
+
+type MetricasGrupoResult =
+  | { success: true; metricas: MetricasGrupo }
+  | { success: false; error: string };
+
 interface GrupoRow {
   id: string;
   grupo_id: string;
@@ -69,6 +104,7 @@ interface GrupoRow {
 }
 
 const NEGADO = "Apenas o CEO." as const;
+const NEGADO_ACESSO = "Você não tem acesso aos grupos." as const;
 const ERRO_GENERICO = "Não foi possível concluir a operação." as const;
 
 async function garantirCeo(): Promise<boolean> {
@@ -76,9 +112,21 @@ async function garantirCeo(): Promise<boolean> {
   return papel === "ceo";
 }
 
-/** Lista os grupos detectados (não deletados), com vínculo e contadores. */
+/**
+ * Leitura dos grupos (listar/mensagens/métricas): CEO ou Head de Sucesso.
+ * O ESCOPO do Head (só grupos vinculados) é imposto pela RLS — a policy
+ * `whatsapp_grupos_head_select` / `whatsapp_msg_head_grupo_select`. Mutações
+ * (captura/vínculo) seguem CEO-only via garantirCeo().
+ */
+async function garantirAcessoGrupos(): Promise<boolean> {
+  const papel = await getUserPapel();
+  return papel === "ceo" || papel === "head_sucesso";
+}
+
+/** Lista os grupos detectados (não deletados), com vínculo e contadores.
+ *  CEO vê todos; Head só os grupos vinculados a uma família (imposto pela RLS). */
 export async function listarGrupos(): Promise<ListarGruposResult> {
-  if (!(await garantirCeo())) return { success: false, error: NEGADO };
+  if (!(await garantirAcessoGrupos())) return { success: false, error: NEGADO_ACESSO };
 
   try {
     const supabase = await createAuditedSupabaseClient();
@@ -222,9 +270,10 @@ export async function vincularGrupoFamilia(
   }
 }
 
-/** Mensagens capturadas de UM grupo (ordem cronológica). CEO-only. */
+/** Mensagens capturadas de UM grupo (ordem cronológica). CEO ou Head (Head só
+ *  de grupo vinculado — a RLS de whatsapp_mensagens escopa a leitura). */
 export async function listarMensagensGrupo(grupoId: string): Promise<MensagensResult> {
-  if (!(await garantirCeo())) return { success: false, error: NEGADO };
+  if (!(await garantirAcessoGrupos())) return { success: false, error: NEGADO_ACESSO };
   if (!grupoId || grupoId.trim().length === 0) {
     return { success: false, error: "Grupo inválido." };
   }
@@ -272,4 +321,156 @@ export async function listarMensagensGrupo(grupoId: string): Promise<MensagensRe
   } catch {
     return { success: false, error: ERRO_GENERICO };
   }
+}
+
+// ─── Métricas do grupo (painel direito) ──────────────────────────────────
+
+const METRICAS_MAX_MENSAGENS = 3000;
+const DIAS_SERIE = 14;
+const TOP_PARTICIPANTES = 5;
+const MS_DIA = 86_400_000;
+
+interface MetricaRow {
+  from_me: boolean;
+  momment: string | null;
+  created_at: string;
+  participante_nome: string | null;
+  participante_phone: string | null;
+}
+
+/**
+ * Métricas de UM grupo (volume, participantes ativos, top faladores, atividade
+ * 7/30 dias + série diária, última atividade, % enviadas por nós). CEO ou Head
+ * (Head só de grupo vinculado — a RLS de whatsapp_mensagens escopa a leitura).
+ */
+export async function metricasGrupo(grupoId: string): Promise<MetricasGrupoResult> {
+  if (!(await garantirAcessoGrupos())) return { success: false, error: NEGADO_ACESSO };
+  if (!grupoId || grupoId.trim().length === 0) {
+    return { success: false, error: "Grupo inválido." };
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data, error } = await supabase
+      .from("whatsapp_mensagens")
+      .select("from_me, momment, created_at, participante_nome, participante_phone")
+      .eq("grupo_id", grupoId)
+      .eq("is_grupo", true)
+      .order("created_at", { ascending: false })
+      .limit(METRICAS_MAX_MENSAGENS);
+
+    if (error) return { success: false, error: "Não foi possível carregar as métricas." };
+
+    const rows = (data as MetricaRow[] | null) ?? [];
+    const tempoMs = (r: MetricaRow) => Date.parse(r.momment ?? r.created_at);
+
+    if (rows.length === 0) {
+      return {
+        success: true,
+        metricas: {
+          total: 0,
+          enviadasNos: 0,
+          recebidas: 0,
+          pctEnviadasNos: null,
+          participantesAtivos: 0,
+          topParticipantes: [],
+          ultimaAtividadeMs: null,
+          ativos7d: 0,
+          ativos30d: 0,
+          serie: serieVazia(),
+          janelaTruncada: false,
+        },
+      };
+    }
+
+    const agora = Date.now();
+    const diaFmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+    let enviadasNos = 0;
+    let recebidas = 0;
+    let ativos7d = 0;
+    let ativos30d = 0;
+    let ultimaAtividadeMs = 0;
+    const porParticipante = new Map<string, { nome: string; total: number }>();
+    const porDia = new Map<string, number>();
+
+    for (const r of rows) {
+      const t = tempoMs(r);
+      if (Number.isFinite(t)) {
+        if (t > ultimaAtividadeMs) ultimaAtividadeMs = t;
+        const idade = agora - t;
+        if (idade <= 7 * MS_DIA) ativos7d++;
+        if (idade <= 30 * MS_DIA) ativos30d++;
+        const dia = diaFmt.format(new Date(t));
+        porDia.set(dia, (porDia.get(dia) ?? 0) + 1);
+      }
+
+      if (r.from_me) {
+        enviadasNos++;
+        continue;
+      }
+      recebidas++;
+      // Participante distinto por telefone (fallback nome); rótulo = nome.
+      const chave =
+        (r.participante_phone ?? "").trim() ||
+        (r.participante_nome ?? "").trim().toLowerCase() ||
+        "desconhecido";
+      const nome = (r.participante_nome ?? "").trim() || "Participante";
+      const atual = porParticipante.get(chave);
+      if (atual) atual.total++;
+      else porParticipante.set(chave, { nome, total: 1 });
+    }
+
+    const topParticipantes = [...porParticipante.values()]
+      .sort((a, b) => b.total - a.total)
+      .slice(0, TOP_PARTICIPANTES)
+      .map((p) => ({ nome: p.nome, total: p.total }));
+
+    // Série diária dos últimos DIAS_SERIE dias (mais antigo → mais recente).
+    const serie: GrupoAtividadeDia[] = [];
+    for (let i = DIAS_SERIE - 1; i >= 0; i--) {
+      const dia = diaFmt.format(new Date(agora - i * MS_DIA));
+      serie.push({ dia, total: porDia.get(dia) ?? 0 });
+    }
+
+    const total = rows.length;
+    return {
+      success: true,
+      metricas: {
+        total,
+        enviadasNos,
+        recebidas,
+        pctEnviadasNos: total > 0 ? (enviadasNos / total) * 100 : null,
+        participantesAtivos: porParticipante.size,
+        topParticipantes,
+        ultimaAtividadeMs: ultimaAtividadeMs > 0 ? ultimaAtividadeMs : null,
+        ativos7d,
+        ativos30d,
+        serie,
+        janelaTruncada: rows.length >= METRICAS_MAX_MENSAGENS,
+      },
+    };
+  } catch {
+    return { success: false, error: ERRO_GENERICO };
+  }
+}
+
+function serieVazia(): GrupoAtividadeDia[] {
+  const diaFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const agora = Date.now();
+  const serie: GrupoAtividadeDia[] = [];
+  for (let i = DIAS_SERIE - 1; i >= 0; i--) {
+    serie.push({ dia: diaFmt.format(new Date(agora - i * MS_DIA)), total: 0 });
+  }
+  return serie;
 }

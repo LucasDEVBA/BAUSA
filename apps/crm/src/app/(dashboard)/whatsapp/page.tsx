@@ -9,12 +9,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * Módulo WhatsApp (CEO-only, cto resolve p/ ceo): espelho das conversas 1:1
- * (proxy Z-API /api/whatsapp/*) + coletor de grupos de clientes (Fase A dos
- * agents — captura opt-in por grupo + vínculo à família).
+ * Módulo WhatsApp:
+ *  • CEO (cto resolve p/ ceo) → espelho das conversas 1:1 (proxy Z-API
+ *    /api/whatsapp/*) + coletor/painel de grupos de clientes.
+ *  • Head de Sucesso → SÓ a aba Grupos (grupos vinculados às famílias que
+ *    acompanha). A aba Conversas 1:1 fica escondida (e a RLS já a bloqueia).
  */
 export default async function WhatsAppPage() {
-  await requirePapel("ceo");
+  const papel = await requirePapel(["ceo", "head_sucesso"]);
 
-  return <WhatsAppModule />;
+  return <WhatsAppModule papel={papel} />;
 }
