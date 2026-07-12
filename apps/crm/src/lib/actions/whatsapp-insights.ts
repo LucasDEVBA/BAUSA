@@ -104,6 +104,7 @@ export async function gerarInsightsConversa(input: {
         .from("whatsapp_mensagens")
         .select("from_me, texto, tipo, momment")
         .in("phone", chaves)
+        .eq("is_grupo", false) // insights da conversa 1:1 — não incluir mensagens de grupo
         .order("momment", { ascending: false, nullsFirst: false })
         .limit(MAX_MENSAGENS),
     ]);

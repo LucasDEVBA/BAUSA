@@ -38,6 +38,7 @@ async function enriquecer(chats: EspelhoChat[]): Promise<EspelhoChat[]> {
         .select("phone, momment")
         .in("phone", chaves)
         .eq("from_me", false)
+        .eq("is_grupo", false) // badge de não-lida é do 1:1 — ignora mensagens de grupo
         .order("momment", { ascending: false }),
     ]);
 
