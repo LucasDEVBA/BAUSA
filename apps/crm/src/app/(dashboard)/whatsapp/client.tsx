@@ -35,6 +35,7 @@ import {
 import { toast } from "sonner";
 
 import { uploadMensagemArquivo, uploadMensagemAudio } from "@/lib/actions/mensagem-media";
+import { sugerirRespostaChatbot } from "@/lib/actions/chatbot-sugestao";
 import {
   gerarInsightsConversa,
   type InsightsConversa,
@@ -979,6 +980,7 @@ export function WhatsAppEspelhoClient() {
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [sugerindo, setSugerindo] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -1015,6 +1017,8 @@ export function WhatsAppEspelhoClient() {
   /** Ecos de envios da sessão, por conversa — sobrevivem à troca de chat (multi-device). */
   const sessionEchoesRef = useRef<Map<string, EspelhoMessage[]>>(new Map());
   const threadRef = useRef<HTMLDivElement>(null);
+  /** Nome exibido da conversa aberta — lido no clique do chatbot (contexto do prompt). */
+  const selectedNameRef = useRef<string>("");
 
   useEffect(() => {
     selectedPhoneRef.current = selectedPhone;
@@ -1384,6 +1388,32 @@ export function WhatsAppEspelhoClient() {
     }
   }, [selectedPhone, insightsLoading]);
 
+  // Chatbot assistido (IA sugere a resposta; humano revisa e envia). Preenche o
+  // compositor — NUNCA envia. Guard contra troca de chat em voo.
+  const handleSugerirResposta = useCallback(async () => {
+    if (!selectedPhone || sugerindo) return;
+    const phone = selectedPhone;
+    setSugerindo(true);
+    try {
+      const r = await sugerirRespostaChatbot({
+        phone,
+        lid: phoneToLidRef.current[phone] ?? null,
+        leadNome: selectedNameRef.current || undefined,
+      });
+      if (selectedPhoneRef.current !== phone) return; // trocou de conversa
+      if (!r.success) {
+        toast.error(r.notConfigured ? "IA não configurada neste ambiente." : r.error);
+        return;
+      }
+      setDraft(r.sugestao);
+      toast.success("Sugestão preenchida — revise e envie.");
+    } catch {
+      toast.error("Não foi possível gerar a sugestão agora.");
+    } finally {
+      setSugerindo(false);
+    }
+  }, [selectedPhone, sugerindo]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     // Ação explícita do usuário: re-tenta contatos que falharam (cache null) —
@@ -1742,6 +1772,11 @@ export function WhatsAppEspelhoClient() {
     selectedChat?.leadName ??
     (selectedPhone ? formatPhoneDisplay(selectedPhone) : "");
 
+  // Nome exibido acessível ao handler do chatbot (fora do render).
+  useEffect(() => {
+    selectedNameRef.current = selectedDisplayName;
+  }, [selectedDisplayName]);
+
   // ── Render ──
 
   return (
@@ -2011,6 +2046,17 @@ export function WhatsAppEspelhoClient() {
                       onClick={() => attachRef.current?.click()}
                     >
                       {attaching ? <Loader2 className="animate-spin" /> : <Paperclip />}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={sugerindo || sending}
+                      aria-label="Sugerir resposta com IA"
+                      title="A IA sugere; você revisa e envia."
+                      onClick={() => void handleSugerirResposta()}
+                    >
+                      {sugerindo ? <Loader2 className="animate-spin" /> : <Sparkles />}
                     </Button>
                     <Input
                       value={draft}

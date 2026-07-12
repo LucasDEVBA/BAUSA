@@ -94,7 +94,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/agenda", label: "Agenda", icon: CalendarDays, roles: ["ceo"] },
       { href: "/financeiro", label: "Financeiro", icon: DollarSign, roles: ["ceo"] },
       { href: "/remarketing", label: "Re-marketing", icon: Megaphone, roles: ["ceo"] },
-      { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["ceo"] },
+      { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["ceo", "head_sucesso"] },
       { href: "/automacoes", label: "Automações", icon: Workflow, roles: ["ceo"] },
     ],
   },
