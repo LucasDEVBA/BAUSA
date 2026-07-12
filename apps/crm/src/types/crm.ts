@@ -477,6 +477,12 @@ export interface DocumentoAtleta {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  // Proveniência da captura por IA (F2 — Agent de Memória & Documentos).
+  origem?: string;
+  fonte_ref?: string | null;
+  identificado_por_ia?: boolean;
+  confianca?: string | null;
+  identificacao_resumo?: string | null;
 }
 
 export interface FaqArtigo {

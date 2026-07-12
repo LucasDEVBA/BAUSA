@@ -85,6 +85,8 @@ export default async function AgentsPage() {
   const insightsPrompt = lerPromptSistema(configs, "insights_conversa_prompt");
   const transcricaoPrompt = lerPromptSistema(configs, "transcricao_resumo_prompt");
   const cacPrompt = lerPromptSistema(configs, "cac_insights_prompt");
+  const memoriaPrompt = lerPromptSistema(configs, "memoria_extracao_prompt");
+  const docPrompt = lerPromptSistema(configs, "doc_classificacao_prompt");
 
   // Prompts com editor especializado (mora em /automacoes) — só sinalizamos se há override.
   const qualificacaoRaw = (configs.qualificacao_prompt ?? {}) as Record<string, unknown>;
@@ -102,6 +104,8 @@ export default async function AgentsPage() {
       insightsPrompt={insightsPrompt}
       transcricaoPrompt={transcricaoPrompt}
       cacPrompt={cacPrompt}
+      memoriaPrompt={memoriaPrompt}
+      docPrompt={docPrompt}
       qualificacaoCustom={qualificacaoCustom}
       npsCustom={npsCustom}
       automacoesIA={automacoesIA}

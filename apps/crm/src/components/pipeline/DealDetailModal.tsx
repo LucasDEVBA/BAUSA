@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import {
   X,
   Sparkles,
+  Brain,
   HeartPulse,
   User,
   Users,
@@ -71,6 +72,7 @@ import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
 import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
+import { MemoriaLeadSection } from "@/components/leads/MemoriaLeadSection";
 
 interface DealDetailModalProps {
   deal: Deal | null;
@@ -82,6 +84,7 @@ interface DealDetailModalProps {
 type SectionId =
   | "executiva"
   | "acompanhamento"
+  | "memoria"
   | "atleta"
   | "academico"
   | "esporte"
@@ -107,6 +110,7 @@ const NAV_ITEMS: NavItem[] = [
   // Estratégia
   { id: "executiva", label: "Visão Executiva", icon: Sparkles, group: "estrategia" },
   { id: "acompanhamento", label: "Acompanhamento Head", icon: HeartPulse, group: "estrategia" },
+  { id: "memoria", label: "Memória & Insights", icon: Brain, group: "estrategia" },
   // Perfil
   { id: "atleta", label: "Atleta", icon: User, group: "perfil" },
   { id: "academico", label: "Acadêmico", icon: GraduationCap, group: "perfil" },
@@ -533,6 +537,13 @@ export function DealDetailModal({
               {section === "executiva" && <VisaoExecutivaPanel deal={deal} />}
               {section === "acompanhamento" && (
                 <AcompanhamentoHeadPanel atletaId={deal.atleta_id} />
+              )}
+              {section === "memoria" && (
+                <MemoriaLeadSection
+                  atletaId={deal.atleta_id}
+                  formSubmissionId={deal.lead_id}
+                  telefone={deal.whatsapp}
+                />
               )}
               {section === "atleta" && <AtletaSection deal={deal} />}
               {section === "academico" && <AcademicoSection deal={deal} />}

@@ -20,6 +20,7 @@ import {
   ShieldOff,
   Send,
   Sparkles,
+  Brain,
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ import { toast } from "sonner";
 import { Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { sugerirRespostaChatbot } from "@/lib/actions/chatbot-sugestao";
+import { extrairMemoriaConversa } from "@/lib/actions/lead-memoria";
 import { gerarInsightsGrupo, type InsightsConversa } from "@/lib/actions/whatsapp-insights";
 import {
   definirCapturaGrupo,
@@ -264,18 +266,87 @@ function GrupoInsightsBlock({
   );
 }
 
+/** Extração SOB DEMANDA de memória + documentos do grupo vinculado (CEO). */
+function GrupoMemoriaBlock({
+  grupo,
+  podeGerenciar,
+}: {
+  grupo: GrupoItem;
+  podeGerenciar: boolean;
+}) {
+  const [extraindo, setExtraindo] = useState(false);
+  const vinculado = Boolean(grupo.atletaId);
+
+  // Escrita da memória é CEO-only (RLS) — só o gestor vê a ação.
+  if (!podeGerenciar) return null;
+
+  const handleExtrair = async () => {
+    if (!vinculado || extraindo) return;
+    setExtraindo(true);
+    try {
+      const r = await extrairMemoriaConversa({
+        grupoId: grupo.grupoId,
+        atletaId: grupo.atletaId ?? undefined,
+        experienciaId: grupo.experienciaId ?? undefined,
+      });
+      if (!r.success) {
+        toast.error(r.notConfigured ? "IA não configurada neste ambiente." : r.error);
+        return;
+      }
+      toast.success(
+        `Memória atualizada: ${r.fatosNovos} ${r.fatosNovos === 1 ? "fato" : "fatos"}, ${r.documentosNovos} ${r.documentosNovos === 1 ? "documento" : "documentos"}.`,
+        {
+          description:
+            r.documentosNovos > 0
+              ? "Os documentos aparecem no detalhe do lead (seção Documentos)."
+              : undefined,
+        },
+      );
+    } catch {
+      toast.error("Não foi possível extrair a memória agora.");
+    } finally {
+      setExtraindo(false);
+    }
+  };
+
+  return (
+    <section className="space-y-2">
+      <p className="text-eyebrow text-label-tertiary">Memória & Documentos</p>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="w-full"
+        disabled={!vinculado || extraindo}
+        onClick={() => void handleExtrair()}
+      >
+        {extraindo ? <Loader2 className="animate-spin" /> : <Brain />}
+        Extrair memória & docs
+      </Button>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        {vinculado
+          ? "A IA extrai fatos/insights para a memória da família e identifica documentos enviados. Ela nunca envia nada."
+          : "Vincule o grupo a uma família (à esquerda) para extrair memória & documentos."}
+      </p>
+    </section>
+  );
+}
+
 function MetricasGrupoPanel({
+  grupo,
   metricas,
   loading,
   insights,
   insightsLoading,
+  podeGerenciar,
   onGerarInsights,
   onLimparInsights,
 }: {
+  grupo: GrupoItem;
   metricas: MetricasGrupo | null;
   loading: boolean;
   insights: InsightsConversa | null;
   insightsLoading: boolean;
+  podeGerenciar: boolean;
   onGerarInsights: () => void;
   onLimparInsights: () => void;
 }) {
@@ -338,6 +409,9 @@ function MetricasGrupoPanel({
         onGerar={onGerarInsights}
         onLimpar={onLimparInsights}
       />
+
+      {/* Memória & Documentos (sob demanda; a IA nunca envia). */}
+      <GrupoMemoriaBlock grupo={grupo} podeGerenciar={podeGerenciar} />
     </div>
   );
 }
@@ -994,10 +1068,12 @@ export function GruposClient({ podeGerenciar }: { podeGerenciar: boolean }) {
               className="flex flex-col overflow-hidden lg:col-span-2 xl:col-span-1 h-[26rem] xl:h-[calc(100vh-13rem)] xl:min-h-[26rem]"
             >
               <MetricasGrupoPanel
+                grupo={grupoSelecionado}
                 metricas={metricas}
                 loading={metricasLoading}
                 insights={insights}
                 insightsLoading={insightsLoading}
+                podeGerenciar={podeGerenciar}
                 onGerarInsights={handleGerarInsights}
                 onLimparInsights={() => setInsights(null)}
               />
