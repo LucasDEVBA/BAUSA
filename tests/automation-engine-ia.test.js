@@ -117,3 +117,150 @@ test('automation-engine: chamada Gemini tem deadline por run (IA_DEADLINE_MS)', 
       `pode gastar o tick inteiro numa única chamada de IA.`,
   );
 });
+
+// ════════════════════════════════════════════════════════════════════════
+// GUARD DE INVARIANTE — passo ia_condicao (IA como CONDIÇÃO / gate) + fluxo
+// por PASSOS. A ia_condicao é DECISÓRIA (SIM/NÃO) e fail-closed. Os invariantes:
+//   A. GATE fail-closed: TRUE só se a resposta começar com 'SIM'/'YES'; o
+//      resto (ou erro) NÃO prossegue (finishRun 'ignorado').
+//   B. TETO por tick: ia_condicao consome o MESMO IA_MAX_PER_TICK do ia_prompt
+//      (tickState.iaCalls++ + contarChamadasIA conta ia_condicao).
+//   C. SEM ENVIO EXTERNO: o gate NUNCA referencia SEND_*/customMessage/
+//      customEmail/ZAPI — só decide, não envia.
+//   D. BACKWARD-COMPAT: o fluxo por passos SÓ ativa com auto.passos não-vazio;
+//      sem passos, o caminho LEGADO (condicoes → ações) fica intacto.
+//   E. FAIL-CLEAR SEM KEY: sem GEMINI_API_KEY o passo ia_condicao marca o run
+//      com o erro claro "IA não configurada (GEMINI_API_KEY)".
+// ════════════════════════════════════════════════════════════════════════
+
+/** Recorta o corpo de avaliarIaCondicao (até o próximo const de nível 0). */
+function blocoAvaliarIaCondicao(src) {
+  const inicio = src.indexOf('const avaliarIaCondicao = async');
+  assert.ok(inicio >= 0, 'INVARIANTE VIOLADO: avaliarIaCondicao deve existir na engine.');
+  const fim = src.indexOf('\nconst ', inicio + 1);
+  return fim > inicio ? src.slice(inicio, fim) : src.slice(inicio);
+}
+
+/** Recorta o corpo de processarPassos (até o próximo const de nível 0). */
+function blocoProcessarPassos(src) {
+  const inicio = src.indexOf('const processarPassos = async');
+  assert.ok(inicio >= 0, 'INVARIANTE VIOLADO: processarPassos deve existir na engine.');
+  const fim = src.indexOf('\nconst ', inicio + 1);
+  return fim > inicio ? src.slice(inicio, fim) : src.slice(inicio);
+}
+
+// ─── Invariante A: gate fail-closed (só 'SIM' prossegue) ─────────────────
+test('automation-engine: ia_condicao é um GATE fail-closed (só SIM prossegue)', () => {
+  const src = loadExecutableSource();
+  const gate = blocoAvaliarIaCondicao(src);
+  assert.ok(
+    gate.includes(`startsWith('SIM')`),
+    `INVARIANTE VIOLADO: avaliarIaCondicao deve retornar TRUE apenas quando a ` +
+      `resposta normalizada começar com 'SIM' — qualquer outra coisa é FALSE ` +
+      `(fail-closed: na dúvida, o fluxo NÃO prossegue).`,
+  );
+  const passos = blocoProcessarPassos(src);
+  // Resposta não-SIM (veredito.passou = false) → run 'ignorado', fluxo para.
+  const idxNao = passos.indexOf('if (!veredito.passou)');
+  const idxIgnorado = passos.indexOf(`'ignorado'`, idxNao);
+  assert.ok(
+    idxNao >= 0 && idxIgnorado > idxNao,
+    `INVARIANTE VIOLADO: quando a IA NÃO decide SIM (!veredito.passou), o passo ` +
+      `ia_condicao deve finalizar o run como 'ignorado' e PARAR o fluxo.`,
+  );
+  // Erro na chamada de IA também é fail-closed (catch → 'ignorado', não age).
+  assert.ok(
+    passos.includes('ia_condicao_failed_closed'),
+    `INVARIANTE VIOLADO: erro na avaliação da ia_condicao deve ser fail-closed ` +
+      `(gate não prossegue) — não pode virar sucesso/ação indevida.`,
+  );
+});
+
+// ─── Invariante B: ia_condicao conta no teto IA_MAX_PER_TICK ─────────────
+test('automation-engine: ia_condicao consome o teto de IA por tick', () => {
+  const src = loadExecutableSource();
+  const gate = blocoAvaliarIaCondicao(src);
+  assert.ok(
+    gate.includes('tickState.iaCalls++'),
+    `INVARIANTE VIOLADO: avaliarIaCondicao deve incrementar tickState.iaCalls — ` +
+      `sem isso a ia_condicao não conta no teto IA_MAX_PER_TICK e um lote ` +
+      `estoura o timeout da engine.`,
+  );
+  assert.ok(
+    src.includes('const contarChamadasIA') && src.includes(`p.tipo === 'ia_condicao'`),
+    `INVARIANTE VIOLADO: contarChamadasIA deve contar os passos ia_condicao ` +
+      `(além de ia_prompt) no defer do teto de IA antes do claim.`,
+  );
+  // O defer usa contarChamadasIA (que inclui ia_condicao), ANTES do claim.
+  const idxContar = src.indexOf('contarChamadasIA(autoDoRun)');
+  const idxClaim = src.indexOf('await claimRun(run)');
+  assert.ok(
+    idxContar >= 0 && idxClaim > idxContar,
+    `INVARIANTE VIOLADO: o teto de IA (contarChamadasIA, incl. ia_condicao) ` +
+      `deve ser avaliado ANTES do claimRun — depois do claim queimaria tentativa.`,
+  );
+});
+
+// ─── Invariante C: o gate NUNCA envia mensagem externa ───────────────────
+test('automation-engine: ia_condicao não referencia canais de envio externo', () => {
+  const src = loadExecutableSource();
+  const gate = blocoAvaliarIaCondicao(src);
+  for (const proibido of ['SEND_WHATSAPP_URL', 'SEND_MESSAGES_URL', 'ZAPI', 'customMessage', 'customEmail']) {
+    assert.ok(
+      !gate.includes(proibido),
+      `INVARIANTE VIOLADO: o gate ia_condicao referencia "${proibido}" — a IA ` +
+        `aqui SÓ decide SIM/NÃO (interno). NUNCA envia WhatsApp/e-mail.`,
+    );
+  }
+});
+
+// ─── Invariante D: passos só ativa com passos não-vazio (legado intacto) ─
+test('automation-engine: fluxo por passos só ativa com auto.passos não-vazio', () => {
+  const src = loadExecutableSource();
+  assert.ok(
+    src.includes('Array.isArray(auto.passos) && auto.passos.length > 0') &&
+      src.includes('processarPassos(run, auto'),
+    `INVARIANTE VIOLADO: processRun só deve rodar o fluxo por passos quando ` +
+      `auto.passos é não-vazio — sem passos, cai no fluxo LEGADO (backward-compat).`,
+  );
+  // O legado (evaluateCondicoes(auto.condicoes) → ações) segue presente.
+  assert.ok(
+    src.includes('evaluateCondicoes(auto.condicoes'),
+    `INVARIANTE VIOLADO: o fluxo LEGADO (evaluateCondicoes(auto.condicoes) → ` +
+      `for acao of auto.acoes) NÃO pode ser removido — automações existentes ` +
+      `(passos vazio) devem seguir idênticas.`,
+  );
+  // O branch de passos vem ANTES da avaliação legada de condições.
+  const idxPassos = src.indexOf('auto.passos.length > 0');
+  const idxLegado = src.indexOf('evaluateCondicoes(auto.condicoes');
+  assert.ok(
+    idxPassos >= 0 && idxLegado > idxPassos,
+    `INVARIANTE VIOLADO: o desvio para o fluxo por passos deve preceder a ` +
+      `avaliação legada de condições no processRun.`,
+  );
+  // Passo de condição usa avaliação POR passo (não a lista legada inteira).
+  assert.ok(
+    src.includes('evaluateCondicoes([passo.condicao]'),
+    `INVARIANTE VIOLADO: a condição de um passo deve ser avaliada isolada ` +
+      `(evaluateCondicoes([passo.condicao])) — cada passo para o fluxo por si.`,
+  );
+});
+
+// ─── Invariante E: fail-clear sem GEMINI_API_KEY no passo ia_condicao ────
+test('automation-engine: ia_condicao sem GEMINI_API_KEY marca erro claro', () => {
+  const src = loadExecutableSource();
+  const passos = blocoProcessarPassos(src);
+  assert.ok(
+    passos.includes('IA não configurada (GEMINI_API_KEY)'),
+    `INVARIANTE VIOLADO: sem GEMINI_API_KEY o passo ia_condicao deve marcar o ` +
+      `run com o erro "IA não configurada (GEMINI_API_KEY)" (fail-clear).`,
+  );
+  // A checagem da key vem ANTES de chamar avaliarIaCondicao.
+  const idxKey = passos.indexOf('!GEMINI_API_KEY');
+  const idxChamada = passos.indexOf('avaliarIaCondicao(passo.prompt');
+  assert.ok(
+    idxKey >= 0 && idxChamada > idxKey,
+    `INVARIANTE VIOLADO: a checagem de GEMINI_API_KEY deve vir ANTES da ` +
+      `chamada avaliarIaCondicao no passo ia_condicao.`,
+  );
+});

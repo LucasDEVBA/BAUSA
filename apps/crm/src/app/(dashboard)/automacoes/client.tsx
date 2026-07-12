@@ -20,6 +20,7 @@ import {
   Info,
   ChevronDown,
   ExternalLink,
+  GitBranch,
   Shield,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -51,6 +52,7 @@ import {
   builderFromAutomacao,
   emptyBuilder,
   normalizarAcaoParaSalvar,
+  normalizarPassoParaSalvar,
   type BuilderState,
   type UsuarioRow,
 } from "@/components/automacoes/builder-shared";
@@ -174,14 +176,18 @@ export function AutomacoesClient({
       // Filtro por etapa do deal_etapa_mudou — vazio = qualquer transição
       gatilhoConfig.etapa_para = builder.gatilhoEtapaPara;
     }
+    // Modo por passos ativo → o modelo simples é zerado (mutuamente exclusivo;
+    // a action revalida e força a exclusividade server-side também).
+    const temPassos = builder.passos.length > 0;
     const input: AutomacaoInput = {
       nome: builder.nome,
       descricao: builder.descricao || undefined,
       gatilho: builder.gatilho,
       gatilho_config: gatilhoConfig,
-      condicoes: builder.condicoes,
+      condicoes: temPassos ? [] : builder.condicoes,
       // Link/mídia das ações custom: "" nos forms = ausente no payload
-      acoes: builder.acoes.map(normalizarAcaoParaSalvar),
+      acoes: temPassos ? [] : builder.acoes.map(normalizarAcaoParaSalvar),
+      passos: temPassos ? builder.passos.map(normalizarPassoParaSalvar) : [],
     };
     startTransition(async () => {
       const result = builder.id
@@ -349,11 +355,21 @@ export function AutomacoesClient({
                           <p className="mt-1 text-xs text-muted-foreground">{a.descricao}</p>
                         )}
                         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <ListChecks className="h-3 w-3" />
-                            {a.condicoes.length} condição{a.condicoes.length !== 1 ? "es" : ""} ·{" "}
-                            {a.acoes.map((ac) => ACAO_CATALOG[ac.tipo].label).join(" + ")}
-                          </span>
+                          {a.passos && a.passos.length > 0 ? (
+                            <span className="inline-flex items-center gap-1">
+                              <GitBranch className="h-3 w-3" />
+                              {a.passos.length} passo{a.passos.length !== 1 ? "s" : ""} ·{" "}
+                              {a.passos
+                                .flatMap((p) => (p.tipo === "acao" ? [ACAO_CATALOG[p.acao.tipo].label] : []))
+                                .join(" + ")}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              <ListChecks className="h-3 w-3" />
+                              {a.condicoes.length} condição{a.condicoes.length !== 1 ? "es" : ""} ·{" "}
+                              {a.acoes.map((ac) => ACAO_CATALOG[ac.tipo].label).join(" + ")}
+                            </span>
+                          )}
                           <span className="inline-flex items-center gap-1">
                             <CheckCircle2 className="h-3 w-3 text-sys-green" />
                             {a.runs_sucesso} sucesso{a.runs_sucesso !== 1 ? "s" : ""}

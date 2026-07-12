@@ -59,7 +59,14 @@ const WHATSAPP_DELAY_MS = () => 45000 + Math.floor(Math.random() * 15000); // 45
 // Teto de execuções de IA por tick: cada run de IA custa até IA_DEADLINE_MS —
 // acima do teto, o run é ADIADO (fica pendente, sem claim) e roda no próximo
 // tick, logando o excedente. Protege o timeout de 540s da engine.
+// Conta ia_prompt (ação) E ia_condicao (passo) juntos — ambos consomem a Gemini.
 const IA_MAX_PER_TICK = 10;
+
+// Fluxo por PASSOS (ordenado): teto de passos por automação (cabe no tick) —
+// espelha PASSOS_MAX do Zod do builder. O teto de passos de IA por automação
+// (ia_condicao + ia_prompt) é imposto no Zod (PASSOS_IA_MAX): mantém cada run
+// dentro do orçamento de tempo e abaixo do IA_MAX_PER_TICK.
+const PASSOS_MAX = 12;
 
 // ─── Log estruturado ────────────────────────────────────────────
 const log = (level, action, details = {}) => {
@@ -112,6 +119,12 @@ const IA_DEADLINE_MS = 30000;            // orçamento total por run de IA
 const IA_MAX_TENTATIVAS_POR_MODELO = 2;
 const IA_BACKOFF_BASE_MS = 1000;
 const IA_MAX_OUTPUT_TOKENS = 1024;       // texto simples, sem JSON mode
+// ia_condicao é um GATE: só precisa de 'SIM'/'NAO'. Teto de saída pequeno +
+// thinking DESLIGADO (thinkingBudget:0) — sem isso um modelo com "thinking"
+// gastaria todo o orçamento pensando e devolveria texto vazio (gotcha do
+// gemini-2.5-*), que o parser leria como não-SIM (fail-closed) e o gate NUNCA
+// prosseguiria. Com thinking off, os poucos tokens saem como a resposta.
+const IA_CONDICAO_MAX_OUTPUT_TOKENS = 16;
 const STATUS_TRANSIENTE = new Set([429, 500, 502, 503, 504]);
 
 // 'retry' → transitório: re-tenta o mesmo modelo (com backoff)
@@ -672,6 +685,70 @@ const resolveNomesLead = async (contexto) => {
   return nomes;
 };
 
+// ─── Passo ia_condicao: a IA decide SIM/NÃO (GATE, fail-closed) ─────────────
+// A IA avalia o CONTEXTO factual do registro (MESMA whitelist IA_CONTEXTO_CAMPOS
+// + nomes do ia_prompt) + o critério do CEO e responde SIM/NÃO. É DECISÓRIA e
+// NUNCA envia nada externo (sem SEND_*/customMessage/customEmail — guard de CI).
+// Retorno estritamente booleano: TRUE só se a resposta normalizada começar com
+// 'SIM' (ou 'YES'); qualquer outra coisa (ou parse vazio) → FALSE. O ERRO da
+// chamada é propagado (throw) para o chamador decidir — que também é
+// fail-closed (na dúvida, NÃO prossegue). Conta no MESMO teto IA_MAX_PER_TICK
+// (tickState.iaCalls++). Deadline por chamada = IA_DEADLINE_MS (callGemini...).
+const avaliarIaCondicao = async (prompt, contexto, tickState) => {
+  tickState.iaCalls++;
+
+  const nomes = await resolveNomesLead(contexto);
+  const vars = {
+    '{atleta_nome}': nomes.atleta || 'atleta',
+    '{responsavel_nome}': nomes.responsavel || 'responsável',
+  };
+  let instrucoes = String(prompt || '');
+  for (const [placeholder, valor] of Object.entries(vars)) {
+    instrucoes = instrucoes.split(placeholder).join(valor);
+  }
+
+  // Bloco de contexto factual — só campos da whitelist (não sensíveis).
+  const linhasContexto = [];
+  if (nomes.atleta) linhasContexto.push(`Atleta: ${nomes.atleta}`);
+  if (nomes.responsavel) linhasContexto.push(`Responsável: ${nomes.responsavel}`);
+  for (const [campo, rotulo] of Object.entries(IA_CONTEXTO_CAMPOS)) {
+    const v = contexto[campo];
+    if (v !== undefined && v !== null && v !== '') linhasContexto.push(`${rotulo}: ${v}`);
+  }
+
+  const promptFinal =
+    `${instrucoes}\n\n`
+    + 'CONTEXTO FACTUAL DO REGISTRO (dados do CRM — use apenas o que for relevante):\n'
+    + `${linhasContexto.length > 0 ? linhasContexto.join('\n') : '(sem dados adicionais)'}\n\n`
+    + 'Decida objetivamente com base no critério acima e no contexto. '
+    + 'Responda APENAS com SIM ou NAO (sem pontuação, sem explicação).';
+
+  const postData = JSON.stringify({
+    contents: [{ parts: [{ text: promptFinal }] }],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: IA_CONDICAO_MAX_OUTPUT_TOKENS,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+  // NUNCA logar o prompt inteiro — só métricas.
+  log('INFO', 'ia_condicao_start', { promptChars: promptFinal.length, contextoLinhas: linhasContexto.length });
+  const { result, modelUsed } = await callGeminiWithResilience(postData);
+
+  let texto = '';
+  try {
+    const parsed = JSON.parse(result.body);
+    const parts = parsed?.candidates?.[0]?.content?.parts || [];
+    texto = parts.map((pt) => pt.text || '').join('').trim();
+  } catch (e) {
+    texto = ''; // parse inválido → normalizado vazio → FALSE (fail-closed)
+  }
+  const normalizado = texto.toUpperCase().replace(/[^A-Z]/g, '');
+  const passou = normalizado.startsWith('SIM') || normalizado.startsWith('YES');
+  log('INFO', 'ia_condicao_done', { modelUsed, passou, resposta: texto.slice(0, 20) });
+  return { passou, modelUsed, resposta: texto.slice(0, 40) };
+};
+
 // INVARIANTES de elegibilidade do WhatsApp (guard de CI cobre estas cláusulas).
 // Espelha as regras dos schedulers: classe Gemini sempre; timing por template;
 // casColumn = coluna *_sent_at marcada com CAS ANTES do envio (idempotência no
@@ -1216,6 +1293,103 @@ const retryOrExhaust = async (run, engineConfig, resultado) => {
   );
 };
 
+// Total de chamadas de IA que UMA automação faz por run — usado no defer do
+// teto IA_MAX_PER_TICK ANTES de claimar o run. No fluxo por passos conta
+// ia_condicao (gate) + ia_prompt (ação); no legado, só as ações ia_prompt.
+const contarChamadasIA = (auto) => {
+  if (!auto) return 0;
+  const passos = auto.passos || [];
+  if (passos.length > 0) {
+    return passos.filter(
+      (p) => p && (p.tipo === 'ia_condicao' || (p.tipo === 'acao' && p.acao && p.acao.tipo === 'ia_prompt')),
+    ).length;
+  }
+  return (auto.acoes || []).filter((a) => a.tipo === 'ia_prompt').length;
+};
+
+// ─── Fluxo por PASSOS (ordenado, novo) ──────────────────────────────────────
+// Executa auto.passos na ordem: condicao/ia_condicao que FALHA → run 'ignorado'
+// (o fluxo para); acao → executa e continua. Preserva CAS/anti-ban/retry das
+// ações (reusa executeAcao). Só é chamado quando auto.passos é não-vazio — sem
+// passos, processRun cai no fluxo LEGADO idêntico ao histórico (backward-compat).
+const processarPassos = async (run, auto, contexto, engineConfig, tickState) => {
+  const resultados = [];
+  let houveErro = false;
+  let whatsappSent = false;
+
+  for (const passo of auto.passos) {
+    const tipo = passo && passo.tipo;
+
+    if (tipo === 'condicao') {
+      const cond = await evaluateCondicoes([passo.condicao], contexto);
+      if (!cond.pass) {
+        await finishRun(run.id, 'ignorado', {
+          motivo: 'condição do passo não satisfeita',
+          campo: cond.campo, valor_atual: cond.atual, valor_esperado: cond.esperado,
+          passos: resultados,
+        });
+        return { outcome: 'ignorado', whatsappSent };
+      }
+      resultados.push({ tipo: 'condicao', status: 'ok' });
+
+    } else if (tipo === 'ia_condicao') {
+      // Fail-clear sem key (mesmo padrão do ia_prompt): erro claro e para.
+      if (!GEMINI_API_KEY) {
+        resultados.push({ tipo: 'ia_condicao', status: 'erro', detalhe: 'IA não configurada (GEMINI_API_KEY)' });
+        houveErro = true;
+        break;
+      }
+      try {
+        const veredito = await avaliarIaCondicao(passo.prompt, contexto, tickState);
+        if (!veredito.passou) {
+          await finishRun(run.id, 'ignorado', {
+            motivo: `IA decidiu NÃO prosseguir${passo.rotulo ? ` (${passo.rotulo})` : ''}`,
+            ia_resposta: veredito.resposta, passos: resultados,
+          });
+          return { outcome: 'ignorado', whatsappSent };
+        }
+        resultados.push({ tipo: 'ia_condicao', status: 'ok', detalhe: `IA (${veredito.modelUsed}) → SIM` });
+      } catch (e) {
+        // GATE fail-closed: erro na IA → NÃO prossegue (não age em dúvida).
+        // O run fecha como 'ignorado' (não 'erro'): reprocessar poderia agir
+        // indevidamente; se o CEO quiser, reenfileira manualmente.
+        log('WARN', 'ia_condicao_failed_closed', { runId: run.id, error: e.message });
+        await finishRun(run.id, 'ignorado', {
+          motivo: 'IA indisponível — gate fail-closed (não prosseguiu)',
+          erro_ia: e.message, passos: resultados,
+        });
+        return { outcome: 'ignorado', whatsappSent };
+      }
+
+    } else if (tipo === 'acao') {
+      try {
+        const r = await executeAcao(passo.acao, contexto, run.id, tickState);
+        resultados.push(r);
+        if ((r.tipo === 'enviar_whatsapp' || r.tipo === 'enviar_whatsapp_custom') && r.status === 'ok') {
+          whatsappSent = true;
+        }
+        if (r.status === 'erro') houveErro = true;
+      } catch (e) {
+        houveErro = true;
+        const t = passo.acao && passo.acao.tipo;
+        resultados.push({ tipo: t, status: 'erro', detalhe: e.message });
+        log('ERROR', 'passo_acao_failed', { runId: run.id, automacao: auto.nome, tipo: t, error: e.message });
+      }
+
+    } else {
+      resultados.push({ tipo: 'desconhecido', status: 'erro', detalhe: `passo inválido: ${tipo}` });
+      houveErro = true;
+    }
+  }
+
+  if (houveErro) {
+    await retryOrExhaust(run, engineConfig, { passos: resultados });
+    return { outcome: 'erro', whatsappSent };
+  }
+  await finishRun(run.id, 'sucesso', { passos: resultados });
+  return { outcome: 'sucesso', whatsappSent };
+};
+
 const processRun = async (run, automacoesById, engineConfig, tickState) => {
   const auto = automacoesById[run.automacao_id];
 
@@ -1244,6 +1418,13 @@ const processRun = async (run, automacoesById, engineConfig, tickState) => {
       await finishRun(run.id, 'ignorado', { motivo: 'loop_guard: 3+ disparos da mesma origem em 24h' });
       log('WARN', 'loop_guard_hit', { runId: run.id, automacao: auto.nome });
       return { outcome: 'ignorado', whatsappSent: false };
+    }
+
+    // Fluxo por PASSOS (novo): intercala condições, condições-IA e ações na
+    // ordem do array. Só ativa quando há passos — SEM passos, cai no fluxo
+    // LEGADO abaixo (condições → ações) idêntico ao histórico (backward-compat).
+    if (Array.isArray(auto.passos) && auto.passos.length > 0) {
+      return await processarPassos(run, auto, contexto, engineConfig, tickState);
     }
 
     const cond = await evaluateCondicoes(auto.condicoes, contexto);
@@ -1302,7 +1483,7 @@ functions.http('automationEngine', async (req, res) => {
 
     // Automações ativas (uma vez por tick)
     const automacoes = await sbGet(
-      'automacoes?select=id,nome,gatilho,gatilho_config,condicoes,acoes,ativo,deleted_at'
+      'automacoes?select=id,nome,gatilho,gatilho_config,condicoes,acoes,passos,ativo,deleted_at'
       + '&ativo=is.true&deleted_at=is.null'
     );
     const automacoesById = {};
@@ -1358,9 +1539,8 @@ functions.http('automationEngine', async (req, res) => {
       // ADIADO SEM CLAIM (segue pendente/erro-retry) — roda no próximo tick,
       // sem queimar tentativa. Loga o excedente para monitoramento.
       const autoDoRun = automacoesById[run.automacao_id];
-      const iaCount = autoDoRun
-        ? (autoDoRun.acoes || []).filter((a) => a.tipo === 'ia_prompt').length
-        : 0;
+      // Conta ia_prompt (ação) E ia_condicao (passo) — ambos chamam a Gemini.
+      const iaCount = contarChamadasIA(autoDoRun);
       if (iaCount > 0 && tickState.iaCalls + iaCount > IA_MAX_PER_TICK) {
         counters.deferred_ia++;
         log('WARN', 'ia_budget_deferred', {
