@@ -16,7 +16,12 @@ import { getUserPapel } from "@/lib/auth";
 const INSTRUCOES_MAX = 4000;
 
 /** Whitelist: só chaves deste formato podem ser escritas por aqui. */
-const CHAVES_PERMITIDAS = ["transcricao_resumo_prompt", "cac_insights_prompt"] as const;
+const CHAVES_PERMITIDAS = [
+  "transcricao_resumo_prompt",
+  "cac_insights_prompt",
+  "memoria_extracao_prompt",
+  "doc_classificacao_prompt",
+] as const;
 export type ChaveInstrucoesIA = (typeof CHAVES_PERMITIDAS)[number];
 
 export type AtualizarInstrucoesIAResult = { success: boolean; error?: string };

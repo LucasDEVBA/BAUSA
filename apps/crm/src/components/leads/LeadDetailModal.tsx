@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   X,
   Sparkles,
+  Brain,
   User,
   Users,
   GraduationCap,
@@ -36,6 +37,7 @@ import {
 import { AcoesRapidasCard } from "@/components/mensagem/AcoesRapidasCard";
 import { TranscricaoReuniaoCard } from "@/components/shared/TranscricaoReuniaoCard";
 import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
+import { MemoriaLeadSection } from "@/components/leads/MemoriaLeadSection";
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -44,6 +46,7 @@ interface LeadDetailModalProps {
 
 type SectionId =
   | "executiva"
+  | "memoria"
   | "atleta"
   | "academico"
   | "esporte"
@@ -66,6 +69,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "executiva", label: "Visão Executiva", icon: Sparkles, group: "estrategia" },
+  { id: "memoria", label: "Memória & Insights", icon: Brain, group: "estrategia" },
   { id: "atleta", label: "Atleta", icon: User, group: "perfil" },
   { id: "academico", label: "Acadêmico", icon: GraduationCap, group: "perfil" },
   { id: "esporte", label: "Esporte", icon: Trophy, group: "perfil" },
@@ -293,6 +297,13 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
 
             <main className="min-w-0 flex-1 overflow-y-auto px-4 py-3">
               {section === "executiva" && <ExecutivaSection lead={lead} />}
+              {section === "memoria" && (
+                <MemoriaLeadSection
+                  atletaId={lead.pipeline_atleta_id}
+                  formSubmissionId={lead.id}
+                  telefone={lead.guardian_whatsapp ?? lead.athlete_whatsapp}
+                />
+              )}
               {section === "atleta" && <AtletaSection lead={lead} />}
               {section === "academico" && <AcademicoSection lead={lead} />}
               {section === "esporte" && <EsporteSection lead={lead} />}

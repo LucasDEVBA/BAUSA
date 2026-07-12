@@ -4,11 +4,13 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   Bot,
+  Brain,
   MessageCircle,
   Users,
   Sparkles,
   GraduationCap,
   FileText,
+  FileSearch,
   BarChart3,
   Star,
   MessageSquareText,
@@ -30,6 +32,10 @@ import { CHATBOT_PERSONA_DEFAULT } from "@/lib/automacoes/chatbot-persona";
 import { INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT } from "@/lib/automacoes/insights-conversa-prompt";
 import { TRANSCRICAO_RESUMO_INSTRUCOES_DEFAULT } from "@/lib/automacoes/transcricao-resumo-prompt";
 import { CAC_INSIGHTS_INSTRUCOES_DEFAULT } from "@/lib/automacoes/cac-insights-prompt";
+import {
+  MEMORIA_EXTRACAO_INSTRUCOES_DEFAULT,
+  DOC_CLASSIFICACAO_INSTRUCOES_DEFAULT,
+} from "@/lib/automacoes/memoria-prompts";
 import { atualizarPersonasChatbot } from "@/lib/actions/chatbot-agents";
 import { atualizarInsightsConversaPrompt } from "@/lib/actions/whatsapp-insights";
 import { atualizarInstrucoesIA } from "@/lib/actions/prompts-ia";
@@ -49,7 +55,9 @@ const PERSONA_MAX = 4000;
 export type SistemaPromptChave =
   | "insights_conversa_prompt"
   | "transcricao_resumo_prompt"
-  | "cac_insights_prompt";
+  | "cac_insights_prompt"
+  | "memoria_extracao_prompt"
+  | "doc_classificacao_prompt";
 
 interface PromptOverride {
   seeded: boolean;
@@ -63,6 +71,8 @@ interface AgentsClientProps {
   insightsPrompt: PromptOverride;
   transcricaoPrompt: PromptOverride;
   cacPrompt: PromptOverride;
+  memoriaPrompt: PromptOverride;
+  docPrompt: PromptOverride;
   qualificacaoCustom: boolean;
   npsCustom: boolean;
   automacoesIA: AutomacaoComStats[];
@@ -428,6 +438,8 @@ export function AgentsClient({
   insightsPrompt,
   transcricaoPrompt,
   cacPrompt,
+  memoriaPrompt,
+  docPrompt,
   qualificacaoCustom,
   npsCustom,
   automacoesIA,
@@ -521,7 +533,39 @@ export function AgentsClient({
         </div>
       </section>
 
-      {/* 3. Agents de automação */}
+      {/* 3. Agent de Memória & Documentos */}
+      <section className="space-y-3">
+        <SecaoTitulo
+          titulo="Agent de Memória & Documentos"
+          sub="Acionado sob demanda na conversa do lead (1:1/grupo): extrai fatos/insights para a memória e identifica os documentos enviados. Nunca envia nada."
+        />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <SistemaPromptCard
+            icon={Brain}
+            chave="memoria_extracao_prompt"
+            titulo="Extração de memória"
+            rotulo="O que a IA deve lembrar da conversa"
+            descricao="Fatos, preferências, insights e alertas duradouros extraídos das conversas do lead."
+            defaultTexto={MEMORIA_EXTRACAO_INSTRUCOES_DEFAULT}
+            rodape="O transcript e o formato de saída (JSON) são fixos — só as instruções acima são editáveis. Apagar tudo volta ao padrão do sistema."
+            seeded={memoriaPrompt.seeded}
+            override={memoriaPrompt.override}
+          />
+          <SistemaPromptCard
+            icon={FileSearch}
+            chave="doc_classificacao_prompt"
+            titulo="Identificação de documentos"
+            rotulo="Como a IA deve classificar o documento"
+            descricao="Identifica o tipo do arquivo que o lead enviou (histórico, passaporte, comprovante…) pelo contexto."
+            defaultTexto={DOC_CLASSIFICACAO_INSTRUCOES_DEFAULT}
+            rodape="A classificação usa só o contexto textual (nome/legenda/vizinhas) e o formato de saída (JSON) é fixo — só as instruções acima são editáveis."
+            seeded={docPrompt.seeded}
+            override={docPrompt.override}
+          />
+        </div>
+      </section>
+
+      {/* 4. Agents de automação */}
       <section className="space-y-3">
         <SecaoTitulo
           titulo="Agents de automação"
