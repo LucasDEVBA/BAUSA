@@ -83,10 +83,16 @@ function isAbortError(error: unknown): boolean {
 
 /** Renderiza o conteúdo de mídia (foto/áudio/vídeo/documento); fallback textual. */
 function MessageMedia({ message }: { message: EspelhoMessage }) {
-  const { tipo, mediaUrl, fileName } = message;
+  const { tipo, fileName } = message;
   // URLs da Z-API podem expirar/ser bloqueadas (CSP, adblock). Sem onError o
   // browser mostra ícone quebrado — pior que o rótulo textual.
   const [failed, setFailed] = useState(false);
+  // Só aceita http(s): impede que um media_url malicioso (ex.: `javascript:`)
+  // vindo do webhook Z-API vire XSS ao clicar/renderizar. Origem semiconfiável.
+  const mediaUrl =
+    message.mediaUrl && /^https?:\/\//i.test(message.mediaUrl)
+      ? message.mediaUrl
+      : null;
 
   const rotuloTextual = () => {
     if (tipo === "location") {
