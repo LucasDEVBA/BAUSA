@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   AlertTriangle,
   Clock,
@@ -27,6 +26,8 @@ import type { Tarefa } from "@/types/crm";
 import type { OnboardingResumo } from "@/lib/actions/onboarding";
 import { Card, EmptyState, PageHeader, ScrollList, StatCard } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { MinhaAreaTabNav } from "./MinhaAreaTabNav";
+import type { MinhaAreaTab } from "./tabs";
 
 // --- Tipos ---
 
@@ -48,6 +49,8 @@ interface ProximaReuniao {
 }
 
 interface MinhaAreaClientProps {
+  /** Aba ativa (resolvida da URL `/minha-area/<slug>` no server). */
+  activeTab: MinhaAreaTab;
   families: Family[];
   tarefas: Tarefa[];
   userName: string;
@@ -82,15 +85,6 @@ function sortFamilies(a: Family, b: Family): number {
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-}
-
-function formatRelative(dateStr: string): string {
-  const diff = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / 86400000
-  );
-  if (diff <= 0) return "hoje";
-  if (diff === 1) return "ontem";
-  return `ha ${diff}d`;
 }
 
 function isOverdue(prazo: string): boolean {
@@ -833,6 +827,7 @@ function PerformanceSection({ performance }: { performance: PerformanceMetrics }
 // --- Main Component ---
 
 export function MinhaAreaClient({
+  activeTab,
   families,
   tarefas,
   userName,
@@ -841,8 +836,6 @@ export function MinhaAreaClient({
   proximasReunioes,
   journeyConfig = JOURNEY_STAGE_CONFIG,
 }: MinhaAreaClientProps) {
-  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
-
   // Familias urgentes: crise ou atencao
   const urgentFamilies = families
     .filter((f) => f.family_status === "crise" || f.family_status === "atencao")
@@ -892,78 +885,88 @@ export function MinhaAreaClient({
   ).length;
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <PageHeader dense
-        eyebrow={`${greeting}, ${userName.split(" ")[0]}`}
-        title="Sua Area"
-        description={`Voce tem ${families.length} ${
-          families.length === 1 ? "familia" : "familias"
-        } sob seu acompanhamento`}
-      />
+    <div>
+      {/* Sub-nav sticky — cada aba é uma sub-rota real (subpágina no sidebar). */}
+      <MinhaAreaTabNav />
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total" value={families.length} icon={Users} accent="brand" />
-        <StatCard
-          label="Satisfeitas"
-          value={satisfeitaCount}
-          icon={Activity}
-          accent="green"
+      <div className="space-y-5 pt-4">
+        {/* Header + Quick Stats — sempre visíveis (contexto em toda aba) */}
+        <PageHeader dense
+          eyebrow={`${greeting}, ${userName.split(" ")[0]}`}
+          title="Sua Area"
+          description={`Voce tem ${families.length} ${
+            families.length === 1 ? "familia" : "familias"
+          } sob seu acompanhamento`}
         />
-        <StatCard
-          label="Atencao"
-          value={atencaoCount}
-          icon={Clock}
-          accent="orange"
-        />
-        <StatCard
-          label="Crise"
-          value={criseCount}
-          icon={AlertTriangle}
-          accent="red"
-        />
+
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatCard label="Total" value={families.length} icon={Users} accent="brand" />
+          <StatCard
+            label="Satisfeitas"
+            value={satisfeitaCount}
+            icon={Activity}
+            accent="green"
+          />
+          <StatCard
+            label="Atencao"
+            value={atencaoCount}
+            icon={Clock}
+            accent="orange"
+          />
+          <StatCard
+            label="Crise"
+            value={criseCount}
+            icon={AlertTriangle}
+            accent="red"
+          />
+        </div>
+
+        {/* Aba HOJE — o dia a dia: o que fazer agora, reuniões e a semana */}
+        {activeTab === "hoje" && (
+          <>
+            <UrgentActionsSection
+              urgentFamilies={urgentFamilies}
+              overdueTasks={overdueTasks}
+              onFamilyClick={handleFamilyClick}
+            />
+            <ProximasReunioesSection reunioes={proximasReunioes} />
+            <WeekSection contacts={upcomingContacts} />
+          </>
+        )}
+
+        {/* Aba FAMÍLIAS — carteira + quem precisa de contato */}
+        {activeTab === "familias" && (
+          <>
+            <NeedContactSection
+              families={families}
+              journeyConfig={journeyConfig}
+              onFamilyClick={handleFamilyClick}
+            />
+            <MyFamiliesSection
+              families={families}
+              journeyConfig={journeyConfig}
+              onFamilyClick={handleFamilyClick}
+            />
+          </>
+        )}
+
+        {/* Aba ONBOARDING — onboardings ativos + processos de admissão */}
+        {activeTab === "onboarding" && (
+          <>
+            <OnboardingsSection onboardings={onboardings} />
+            <AdmissaoSection
+              families={families}
+              journeyConfig={journeyConfig}
+              onFamilyClick={handleFamilyClick}
+            />
+          </>
+        )}
+
+        {/* Aba DESEMPENHO — métricas da Head */}
+        {activeTab === "desempenho" && (
+          <PerformanceSection performance={performance} />
+        )}
       </div>
-
-      {/* Section 1: Fazer Agora */}
-      <UrgentActionsSection
-        urgentFamilies={urgentFamilies}
-        overdueTasks={overdueTasks}
-        onFamilyClick={handleFamilyClick}
-      />
-
-      {/* NEW: Onboardings ativos */}
-      <OnboardingsSection onboardings={onboardings} />
-
-      {/* NEW: Próximas reuniões */}
-      <ProximasReunioesSection reunioes={proximasReunioes} />
-
-      {/* Section 2: Familias que precisam de contato */}
-      <NeedContactSection
-        families={families}
-        journeyConfig={journeyConfig}
-        onFamilyClick={handleFamilyClick}
-      />
-
-      {/* Section 3: Processos de admissao ativos */}
-      <AdmissaoSection
-        families={families}
-        journeyConfig={journeyConfig}
-        onFamilyClick={handleFamilyClick}
-      />
-
-      {/* Section 4: Meu desempenho */}
-      <PerformanceSection performance={performance} />
-
-      {/* Section 5: Minhas Familias */}
-      <MyFamiliesSection
-        families={families}
-        journeyConfig={journeyConfig}
-        onFamilyClick={handleFamilyClick}
-      />
-
-      {/* Section 6: Minha Semana */}
-      <WeekSection contacts={upcomingContacts} />
     </div>
   );
 }

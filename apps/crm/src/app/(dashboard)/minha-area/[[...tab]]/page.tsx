@@ -6,7 +6,8 @@ import { listarProximasReunioes } from "@/lib/actions/reunioes";
 import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
 import { mergeJourneyConfig, normalizarFase } from "@/lib/fases-familia";
 import { redirect } from "next/navigation";
-import { MinhaAreaClient } from "./client";
+import { MinhaAreaClient } from "../client";
+import { MINHA_AREA_TABS, type MinhaAreaTab } from "../tabs";
 import type {
   Family,
   FamilyStatus,
@@ -127,7 +128,20 @@ function mapExperienciaToFamily(
   };
 }
 
-export default async function MinhaAreaPage() {
+/** Resolve o segmento de URL (`/minha-area/<tab>`) para uma aba válida. */
+function resolveTab(seg: string | undefined): MinhaAreaTab {
+  const found = MINHA_AREA_TABS.find((t) => t.slug === seg);
+  return found ? found.id : "hoje";
+}
+
+export default async function MinhaAreaPage({
+  params,
+}: {
+  params: Promise<{ tab?: string[] }>;
+}) {
+  const { tab } = await params;
+  const activeTab = resolveTab(tab?.[0]);
+
   const profile = await getUserProfile();
 
   if (!profile) {
@@ -240,6 +254,7 @@ export default async function MinhaAreaPage() {
 
   return (
     <MinhaAreaClient
+      activeTab={activeTab}
       families={families}
       tarefas={tarefas}
       userName={profile.nome}
