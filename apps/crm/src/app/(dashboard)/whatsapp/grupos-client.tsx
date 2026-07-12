@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { sugerirRespostaChatbot } from "@/lib/actions/chatbot-sugestao";
+import { gerarInsightsGrupo, type InsightsConversa } from "@/lib/actions/whatsapp-insights";
 import {
   definirCapturaGrupo,
   listarAtletasParaVinculo,
@@ -159,13 +160,126 @@ function MiniTimeline({ serie }: { serie: MetricasGrupo["serie"] }) {
   );
 }
 
+/** Bloco de insights de IA do grupo (sob demanda) — espelha o bloco 1:1. */
+function GrupoInsightsBlock({
+  insights,
+  insightsLoading,
+  temMensagens,
+  onGerar,
+  onLimpar,
+}: {
+  insights: InsightsConversa | null;
+  insightsLoading: boolean;
+  temMensagens: boolean;
+  onGerar: () => void;
+  onLimpar: () => void;
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-eyebrow text-label-tertiary">Insights de IA</p>
+        {insights && (
+          <button
+            type="button"
+            onClick={onLimpar}
+            className="text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            limpar
+          </button>
+        )}
+      </div>
+
+      {insights ? (
+        <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Sparkles className="size-3.5 text-primary" />
+            <span
+              className={cn(
+                "rounded px-1.5 py-px text-[10px] font-semibold",
+                insights.sentimento === "positivo" && "bg-sys-green/12 text-sys-green",
+                insights.sentimento === "negativo" && "bg-sys-red/12 text-sys-red",
+                (insights.sentimento === "neutro" || insights.sentimento === "indeciso") &&
+                  "bg-sys-orange/12 text-sys-orange",
+              )}
+            >
+              {insights.sentimento}
+            </span>
+            <span
+              className={cn(
+                "rounded px-1.5 py-px text-[10px] font-semibold",
+                insights.interesse === "alto" && "bg-sys-green/12 text-sys-green",
+                insights.interesse === "medio" && "bg-sys-orange/12 text-sys-orange",
+                insights.interesse === "baixo" && "bg-sys-red/12 text-sys-red",
+              )}
+            >
+              interesse {insights.interesse}
+            </span>
+          </div>
+          <p className="text-xs leading-relaxed text-foreground">{insights.resumo}</p>
+          <p className="text-xs leading-relaxed text-foreground">
+            <span className="font-semibold text-primary">Próxima ação:</span> {insights.proxima_acao}
+          </p>
+          {insights.sinais.length > 0 && (
+            <ul className="space-y-0.5 border-t border-primary/15 pt-2">
+              {insights.sinais.map((sinal, i) => (
+                <li
+                  key={`${i}-${sinal.slice(0, 24)}`}
+                  className="text-[11px] leading-relaxed text-muted-foreground"
+                >
+                  • {sinal}
+                </li>
+              ))}
+            </ul>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            disabled={insightsLoading}
+            onClick={onGerar}
+          >
+            {insightsLoading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+            Regenerar
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            disabled={insightsLoading || !temMensagens}
+            onClick={onGerar}
+          >
+            {insightsLoading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+            Gerar insights do grupo
+          </Button>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            A IA resume o clima do grupo, o interesse e sugere a próxima ação. Edite o prompt em
+            Agents.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 function MetricasGrupoPanel({
   metricas,
   loading,
+  insights,
+  insightsLoading,
+  onGerarInsights,
+  onLimparInsights,
 }: {
   metricas: MetricasGrupo | null;
   loading: boolean;
+  insights: InsightsConversa | null;
+  insightsLoading: boolean;
+  onGerarInsights: () => void;
+  onLimparInsights: () => void;
 }) {
+  const temMensagens = (metricas?.total ?? 0) > 0;
   return (
     <div className="crm-scroll flex h-full flex-col gap-3 overflow-y-auto p-3">
       <p className="text-eyebrow text-label-tertiary">Métricas do grupo</p>
@@ -215,6 +329,15 @@ function MetricasGrupoPanel({
           Sem mensagens capturadas neste grupo ainda. As métricas aparecem a partir da captura.
         </p>
       )}
+
+      {/* Insights de IA (sob demanda; NÃO auto-dispara). Bloco separado do ✨ do compositor. */}
+      <GrupoInsightsBlock
+        insights={insights}
+        insightsLoading={insightsLoading}
+        temMensagens={temMensagens}
+        onGerar={onGerarInsights}
+        onLimpar={onLimparInsights}
+      />
     </div>
   );
 }
@@ -594,6 +717,8 @@ export function GruposClient({ podeGerenciar }: { podeGerenciar: boolean }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [metricas, setMetricas] = useState<MetricasGrupo | null>(null);
   const [metricasLoading, setMetricasLoading] = useState(false);
+  const [insights, setInsights] = useState<InsightsConversa | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
   const [, startTransition] = useTransition();
   const selectedIdRef = useRef<string | null>(null);
 
@@ -643,10 +768,31 @@ export function GruposClient({ podeGerenciar }: { podeGerenciar: boolean }) {
   const handleSelect = useCallback(
     (grupo: GrupoItem) => {
       setSelectedId(grupo.grupoId);
+      setInsights(null); // insights são do grupo anterior
+      setInsightsLoading(false);
       carregarMetricas(grupo.grupoId);
     },
     [carregarMetricas],
   );
+
+  const handleGerarInsights = useCallback(async () => {
+    const grupoId = selectedIdRef.current;
+    if (!grupoId || insightsLoading) return;
+    setInsightsLoading(true);
+    try {
+      const r = await gerarInsightsGrupo(grupoId);
+      if (selectedIdRef.current !== grupoId) return; // trocou de grupo em voo
+      if (!r.success) {
+        toast.error(r.notConfigured ? "IA não configurada neste ambiente." : r.error);
+        return;
+      }
+      setInsights(r.insights);
+    } catch {
+      toast.error("Não foi possível gerar os insights agora.");
+    } finally {
+      if (selectedIdRef.current === grupoId) setInsightsLoading(false);
+    }
+  }, [insightsLoading]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -847,7 +993,14 @@ export function GruposClient({ podeGerenciar }: { podeGerenciar: boolean }) {
               padding="none"
               className="flex flex-col overflow-hidden lg:col-span-2 xl:col-span-1 h-[26rem] xl:h-[calc(100vh-13rem)] xl:min-h-[26rem]"
             >
-              <MetricasGrupoPanel metricas={metricas} loading={metricasLoading} />
+              <MetricasGrupoPanel
+                metricas={metricas}
+                loading={metricasLoading}
+                insights={insights}
+                insightsLoading={insightsLoading}
+                onGerarInsights={handleGerarInsights}
+                onLimparInsights={() => setInsights(null)}
+              />
             </Card>
           )}
         </div>
