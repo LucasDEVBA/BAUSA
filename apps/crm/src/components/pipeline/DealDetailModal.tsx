@@ -10,6 +10,7 @@ import {
   Briefcase,
   CalendarDays,
   MessageSquare,
+  MessageCircle,
   FileText,
   History,
   Award,
@@ -69,6 +70,7 @@ import {
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
+import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 
 interface DealDetailModalProps {
   deal: Deal | null;
@@ -86,6 +88,7 @@ type SectionId =
   | "familia"
   | "comercial"
   | "reuniao"
+  | "conversa"
   | "comunicacoes"
   | "atribuicao"
   | "financeiro"
@@ -114,6 +117,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "reuniao", label: "Reunião", icon: CalendarDays, group: "comercial" },
   { id: "financeiro", label: "Financeiro", icon: PiggyBank, group: "comercial" },
   // Operação
+  { id: "conversa", label: "Conversa", icon: MessageCircle, group: "operacao" },
   { id: "comunicacoes", label: "Comunicações", icon: MessageSquare, group: "operacao" },
   { id: "atribuicao", label: "Atribuição & UTM", icon: BarChart3, group: "operacao" },
   { id: "documentos", label: "Documentos", icon: FileText, group: "operacao" },
@@ -538,6 +542,9 @@ export function DealDetailModal({
                 <ComercialSection deal={deal} stageConfig={stageConfig} />
               )}
               {section === "reuniao" && <ReuniaoSection deal={deal} />}
+              {section === "conversa" && (
+                <ConversaLeadPanel telefone={deal.whatsapp} />
+              )}
               {section === "comunicacoes" && <ComunicacoesSection deal={deal} />}
               {section === "atribuicao" && <AtribuicaoSection deal={deal} />}
               {section === "financeiro" && (

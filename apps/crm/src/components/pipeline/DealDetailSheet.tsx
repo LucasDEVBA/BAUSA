@@ -52,6 +52,7 @@ import {
   useDocumentosAtleta,
 } from "@/components/documentos/DocumentosChecklist";
 import { DealContratoTab } from "./DealContratoTab";
+import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 
 interface DealDetailSheetProps {
   deal: Deal | null;
@@ -60,10 +61,11 @@ interface DealDetailSheetProps {
   stageConfig?: DealStageConfigMap;
 }
 
-type TabId = "resumo" | "reuniao" | "dados" | "historico" | "notas" | "documentos" | "contrato";
+type TabId = "resumo" | "conversa" | "reuniao" | "dados" | "historico" | "notas" | "documentos" | "contrato";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "resumo", label: "Resumo" },
+  { id: "conversa", label: "Conversa" },
   { id: "reuniao", label: "Reuniao" },
   { id: "dados", label: "Dados" },
   { id: "historico", label: "Historico" },
@@ -1089,6 +1091,11 @@ export function DealDetailSheet({
                 Salvar
               </button>
             </>
+          )}
+
+          {/* TAB: CONVERSA */}
+          {activeTab === "conversa" && (
+            <ConversaLeadPanel telefone={deal.whatsapp} />
           )}
 
           {/* TAB: REUNIAO */}
