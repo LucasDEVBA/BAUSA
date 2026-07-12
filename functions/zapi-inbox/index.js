@@ -63,6 +63,11 @@ const httpRequest = (url, options, postData) =>
 
 const cleanPhone = (v) => String(v || '').replace(/\D/g, '');
 
+// Id do grupo na Z-API: em grupo o `phone` do payload é o id do grupo
+// (ex.: '1203...@g.us' ou '5511...-1203...@g.us'). Normaliza tirando só o
+// sufixo '@...' (mantém hífen de ids legados) → chave estável em UNIQUE(grupo_id).
+const cleanGroupId = (v) => String(v || '').trim().split('@')[0].trim();
+
 const toEpochMs = (v) => {
   const n = Number(v);
   if (!Number.isFinite(n) || n <= 0) return null;
@@ -142,6 +147,85 @@ function normalizarMensagem(p) {
   };
 }
 
+/**
+ * Normaliza um webhook de MENSAGEM DE GRUPO; null = não é mensagem de grupo
+ * espelhável. A existência do grupo é sempre registrada (id + nome); o CONTEÚDO
+ * só é gravado quando o CEO ligou a captura (decidido pela RPC, não aqui).
+ */
+function normalizarGrupo(p) {
+  if (!p || typeof p !== 'object') return null;
+  // Mesma allowlist do 1:1: status/presença/conexão de grupo não viram registro.
+  if (typeof p.type === 'string' && !TIPOS_CALLBACK_MENSAGEM.includes(p.type)) return null;
+  if (p.isGroup !== true && p.isGroup !== 'true') return null;
+
+  const grupoId = cleanGroupId(p.phone);
+  const messageId = typeof p.messageId === 'string' && p.messageId ? p.messageId : null;
+  // Sem id do grupo → nada a fazer (não dá p/ registrar existência nem casar UNIQUE).
+  if (!grupoId) return null;
+
+  const { tipo, texto, mediaUrl, mimeType, fileName } = extrairConteudo(p);
+  const momment = toEpochMs(p.momment);
+  return {
+    grupo_id: grupoId,
+    // chatName é o nome do grupo (senderName/participantPhone = quem falou dentro).
+    nome: (typeof p.chatName === 'string' && p.chatName.trim()) || null,
+    message_id: messageId,
+    from_me: p.fromMe === true || p.fromMe === 'true',
+    tipo,
+    texto,
+    media_url: mediaUrl,
+    mime_type: mimeType,
+    media_filename: fileName,
+    participante_nome:
+      (typeof p.senderName === 'string' && p.senderName.trim()) || null,
+    participante_phone: cleanPhone(p.participantPhone) || null,
+    momment: momment ? new Date(momment).toISOString() : null,
+  };
+}
+
+// ─── Ingestão de grupo (RPC atômica + idempotente) ───────────────────────
+// A RPC public.whatsapp_grupo_ingest faz, numa transação: upsert do grupo
+// (existência SEMPRE registrada) + INSERT da mensagem SÓ se capturar=true, com
+// incremento do contador apenas quando a linha foi de fato inserida
+// (ON CONFLICT message_id DO NOTHING → reprocessar não duplica nem conta em
+// dobro). Retorna { capturar, inserted }.
+async function ingestGrupo(g) {
+  const r = await httpRequest(
+    `${SUPABASE_URL}/rest/v1/rpc/whatsapp_grupo_ingest`,
+    {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        'Content-Profile': SUPABASE_SCHEMA,
+        Accept: 'application/json',
+      },
+    },
+    JSON.stringify({
+      p_grupo_id: g.grupo_id,
+      p_nome: g.nome,
+      p_message_id: g.message_id,
+      p_from_me: g.from_me,
+      p_tipo: g.tipo,
+      p_texto: g.texto,
+      p_media_url: g.media_url,
+      p_mime_type: g.mime_type,
+      p_media_filename: g.media_filename,
+      p_participante_nome: g.participante_nome,
+      p_participante_phone: g.participante_phone,
+      p_momment: g.momment,
+    }),
+  );
+  if (r.statusCode >= 400) {
+    // NÃO logar o body cru (pode conter o texto da mensagem = PII).
+    let pgCode = 'unknown';
+    try { pgCode = JSON.parse(r.body).code || 'unknown'; } catch { /* body não-JSON */ }
+    throw new Error(`Supabase rpc grupo ${r.statusCode} (code ${pgCode})`);
+  }
+  try { return JSON.parse(r.body) || {}; } catch { return {}; }
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────
 
 functions.http('zapiInbox', async (req, res) => {
@@ -158,9 +242,24 @@ functions.http('zapiInbox', async (req, res) => {
     const payload = req.body || {};
     const tipoCallback = typeof payload.type === 'string' ? payload.type : 'desconhecido';
 
+    // ── Grupo: registra a existência sempre; conteúdo só com opt-in (RPC) ──
+    const grupo = normalizarGrupo(payload);
+    if (grupo) {
+      const out = await ingestGrupo(grupo);
+      log('INFO', 'grupo_ingerido', {
+        grupoId: maskPhone(grupo.grupo_id),
+        capturar: out.capturar === true,
+        gravada: out.inserted === true,
+        fromMe: grupo.from_me,
+        tipo: grupo.tipo,
+      });
+      return res.status(200).send({ success: true, grupo: true });
+    }
+
+    // ── 1:1 (fluxo original, 100% intacto — grupos já saíram acima) ──
     const row = normalizarMensagem(payload);
     if (!row) {
-      // Callback de status/presença/grupo — reconhece e encerra (sem retry).
+      // Callback de status/presença — reconhece e encerra (sem retry).
       log('INFO', 'callback_ignorado', { tipoCallback });
       return res.status(200).send({ success: true, ignored: true });
     }

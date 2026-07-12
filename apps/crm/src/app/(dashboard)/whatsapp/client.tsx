@@ -68,7 +68,10 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 /** Aceitos ao anexar (foto ou PDF). */
 const ATTACH_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf";
 /** 100vh − header (4rem) − padding do main (2rem) − PageHeader denso + gap (~3.75rem). */
-const PANEL_HEIGHT = "h-[calc(100vh-9.75rem)] min-h-[26rem]";
+// -13rem: desconta a faixa de abas (BrandTabs + gap) inserida pelo módulo
+// /whatsapp acima do espelho — sem isso o painel estoura o viewport e o
+// compositor cai abaixo da dobra (igual ao PANEL_HEIGHT da aba Grupos).
+const PANEL_HEIGHT = "h-[calc(100vh-13rem)] min-h-[26rem]";
 
 type LoadStatus = "loading" | "ready" | "error" | "unconfigured";
 
@@ -2043,7 +2046,7 @@ export function WhatsAppEspelhoClient() {
           {selectedPhone && (
             <Card
               padding="none"
-              className="flex flex-col overflow-hidden lg:col-span-2 xl:col-span-1 h-[30rem] xl:h-[calc(100vh-9.75rem)] xl:min-h-[26rem]"
+              className="flex flex-col overflow-hidden lg:col-span-2 xl:col-span-1 h-[30rem] xl:h-[calc(100vh-13rem)] xl:min-h-[26rem]"
             >
               <ConversaPanel
                 metricas={metricas}
