@@ -9,6 +9,7 @@ import {
   GraduationCap,
   Target,
   MessageSquare,
+  MessageCircle,
   BarChart3,
   FileText,
   History,
@@ -34,6 +35,7 @@ import {
 } from "@/components/documentos/DocumentosChecklist";
 import { AcoesRapidasCard } from "@/components/mensagem/AcoesRapidasCard";
 import { TranscricaoReuniaoCard } from "@/components/shared/TranscricaoReuniaoCard";
+import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -48,6 +50,7 @@ type SectionId =
   | "familia"
   | "endereco"
   | "atribuicao"
+  | "conversa"
   | "comunicacoes"
   | "timing"
   | "documentos"
@@ -68,6 +71,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "esporte", label: "Esporte", icon: Trophy, group: "perfil" },
   { id: "familia", label: "Família", icon: Users, group: "perfil" },
   { id: "endereco", label: "Endereço", icon: Layers, group: "perfil" },
+  { id: "conversa", label: "Conversa", icon: MessageCircle, group: "operacao" },
   { id: "comunicacoes", label: "Comunicações", icon: MessageSquare, group: "operacao" },
   { id: "atribuicao", label: "Atribuição & UTM", icon: BarChart3, group: "operacao" },
   { id: "timing", label: "Timing", icon: CalendarClock, group: "operacao" },
@@ -295,6 +299,11 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
               {section === "familia" && <FamiliaSection lead={lead} />}
               {section === "endereco" && <EnderecoSection lead={lead} />}
               {section === "atribuicao" && <AtribuicaoSection lead={lead} />}
+              {section === "conversa" && (
+                <ConversaLeadPanel
+                  telefone={lead.guardian_whatsapp ?? lead.athlete_whatsapp}
+                />
+              )}
               {section === "comunicacoes" && <ComunicacoesSection lead={lead} />}
               {section === "timing" && <TimingSection lead={lead} />}
               {section === "documentos" &&
