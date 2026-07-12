@@ -48,6 +48,13 @@ interface ProximaReuniao {
   experiencia: { atleta: { nome_completo: string } | null } | null;
 }
 
+interface StatusCounts {
+  satisfeitas: number;
+  atencao: number;
+  crise: number;
+  total: number;
+}
+
 interface MinhaAreaClientProps {
   /** Aba ativa (resolvida da URL `/minha-area/<slug>` no server). */
   activeTab: MinhaAreaTab;
@@ -67,6 +74,14 @@ interface UpcomingContact {
   date: string;
   status: Family["family_status"];
 }
+
+// --- Estilos compartilhados (padrão war-room: linha leve dentro de card glass) ---
+
+const ROW_NEUTRAL =
+  "flex w-full items-center gap-3 rounded-lg border border-border bg-popover px-3 py-2.5 text-left transition-colors hover:bg-accent";
+
+// Lista rolável só quando passa do teto — abaixo disso o card encolhe (sem vão).
+const LIST_MAX = "space-y-2 max-h-[22rem]";
 
 // --- Helpers ---
 
@@ -89,6 +104,33 @@ function formatDate(dateStr: string): string {
 
 function isOverdue(prazo: string): boolean {
   return new Date(prazo).getTime() < Date.now();
+}
+
+/** Cabeçalho denso de card: caixinha colorida + título + subtítulo. */
+function SectionHeader({
+  icon: Icon,
+  iconWrap,
+  iconColor,
+  title,
+  subtitle,
+}: {
+  icon: typeof Flame;
+  iconWrap: string;
+  iconColor: string;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="mb-4 flex shrink-0 items-center gap-2">
+      <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", iconWrap)}>
+        <Icon className={cn("h-4 w-4", iconColor)} />
+      </div>
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <p className="text-[11px] text-muted-foreground">{subtitle}</p>
+      </div>
+    </div>
+  );
 }
 
 function ScoreBar({
@@ -131,91 +173,74 @@ function UrgentActionsSection({
   const totalUrgent = urgentFamilies.length + overdueTasks.length;
 
   return (
-    <section className="flex flex-col h-[24rem]">
-      <div className="flex items-center gap-2 mb-4 shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-red/10">
-          <Flame className="h-4 w-4 text-sys-red" />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Fazer Agora</h2>
-          <p className="text-[11px] text-muted-foreground">
-            {totalUrgent === 0
-              ? "Nenhuma acao urgente"
-              : `${totalUrgent} ${totalUrgent === 1 ? "item requer" : "itens requerem"} atencao`}
-          </p>
-        </div>
-      </div>
+    <Card className="flex flex-col">
+      <SectionHeader
+        icon={Flame}
+        iconWrap="bg-sys-red/10"
+        iconColor="text-sys-red"
+        title="Fazer Agora"
+        subtitle={
+          totalUrgent === 0
+            ? "Nenhuma ação urgente"
+            : `${totalUrgent} ${totalUrgent === 1 ? "item requer" : "itens requerem"} atenção`
+        }
+      />
 
-      {totalUrgent === 0 && (
-        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
-          <EmptyState icon={Flame} title="Tudo em dia! Nenhuma acao urgente." />
-        </Card>
-      )}
+      {totalUrgent === 0 ? (
+        <EmptyState icon={Flame} title="Tudo em dia! Nenhuma ação urgente." className="py-8" />
+      ) : (
+        <ScrollList className={LIST_MAX}>
+          {urgentFamilies.map((f) => {
+            const statusCfg = FAMILY_STATUS_CONFIG[f.family_status];
+            return (
+              <button key={`fam-${f.id}`} onClick={() => onFamilyClick(f.id)} className={ROW_NEUTRAL}>
+                <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", statusCfg.bg)}>
+                  <AlertTriangle className={cn("h-4 w-4", statusCfg.color)} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{f.athlete_name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {statusCfg.label} — {f.days_without_contact}d sem contato
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full",
+                    f.family_status === "crise"
+                      ? "bg-sys-red/15 text-sys-red"
+                      : "bg-sys-orange/15 text-sys-orange"
+                  )}
+                >
+                  {statusCfg.label}
+                </span>
+                <ChevronRight className="h-4 w-4 text-label-tertiary" />
+              </button>
+            );
+          })}
 
-      <ScrollList className="space-y-2">
-        {urgentFamilies.map((f) => {
-          const statusCfg = FAMILY_STATUS_CONFIG[f.family_status];
-          return (
-            <button
-              key={`fam-${f.id}`}
-              onClick={() => onFamilyClick(f.id)}
-              className="w-full flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-accent"
+          {overdueTasks.map((t) => (
+            <div
+              key={`task-${t.id}`}
+              className="flex items-center gap-3 rounded-lg border border-sys-red/20 bg-sys-red/5 px-3 py-2.5"
             >
-              <div
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-lg text-xs",
-                  statusCfg.bg
-                )}
-              >
-                <AlertTriangle className={cn("h-4 w-4", statusCfg.color)} />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-red/10">
+                <Clock className="h-4 w-4 text-sys-red" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {f.athlete_name}
-                </p>
+                <p className="text-sm font-medium text-foreground truncate">{t.titulo}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  {statusCfg.label} — {f.days_without_contact}d sem contato
+                  Venceu em {formatDate(t.prazo)} —{" "}
+                  {t.prioridade === "critica" ? "Prioridade crítica" : `Prioridade ${t.prioridade}`}
                 </p>
               </div>
-              <span
-                className={cn(
-                  "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full",
-                  f.family_status === "crise"
-                    ? "bg-sys-red/15 text-sys-red"
-                    : "bg-sys-orange/15 text-sys-orange"
-                )}
-              >
-                {f.family_status}
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sys-red/15 text-sys-red">
+                atrasada
               </span>
-              <ChevronRight className="h-4 w-4 text-label-tertiary" />
-            </button>
-          );
-        })}
-
-        {overdueTasks.map((t) => (
-          <div
-            key={`task-${t.id}`}
-            className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-red/10">
-              <Clock className="h-4 w-4 text-sys-red" />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">
-                {t.titulo}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                Venceu em {formatDate(t.prazo)} —{" "}
-                {t.prioridade === "critica" ? "Prioridade critica" : `Prioridade ${t.prioridade}`}
-              </p>
-            </div>
-            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sys-red/15 text-sys-red">
-              atrasada
-            </span>
-          </div>
-        ))}
-      </ScrollList>
-    </section>
+          ))}
+        </ScrollList>
+      )}
+    </Card>
   );
 }
 
@@ -235,7 +260,7 @@ function FamilyCard({
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-2xl border border-border bg-card p-3.5 text-left shadow-sm transition-all hover:bg-accent hover:shadow-md"
+      className="w-full rounded-2xl border border-border bg-popover p-3.5 text-left shadow-sm transition-all hover:bg-accent hover:shadow-md"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -299,26 +324,19 @@ function MyFamiliesSection({
   const sorted = [...families].sort(sortFamilies);
 
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-          <Users className="h-4 w-4 text-primary" />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Minhas Familias</h2>
-          <p className="text-[11px] text-muted-foreground">
-            {families.length}{" "}
-            {families.length === 1 ? "familia" : "familias"} ativas
-          </p>
-        </div>
-      </div>
+    <Card className="flex flex-col">
+      <SectionHeader
+        icon={Users}
+        iconWrap="bg-primary/10"
+        iconColor="text-primary"
+        title="Minhas Famílias"
+        subtitle={`${families.length} ${families.length === 1 ? "família" : "famílias"} ativas`}
+      />
 
       {families.length === 0 ? (
-        <Card variant="ghost" padding="none">
-          <EmptyState icon={Users} title="Nenhuma familia atribuida ainda." />
-        </Card>
+        <EmptyState icon={Users} title="Nenhuma família atribuída ainda." className="py-8" />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ScrollList className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-h-[26rem]">
           {sorted.map((f) => (
             <FamilyCard
               key={f.id}
@@ -327,9 +345,9 @@ function MyFamiliesSection({
               onClick={() => onFamilyClick(f.id)}
             />
           ))}
-        </div>
+        </ScrollList>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -339,33 +357,28 @@ function OnboardingsSection({
   onboardings: OnboardingResumo[];
 }) {
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-          <Sparkles className="h-4 w-4 text-primary" />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">
-            Onboardings Ativos
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            {onboardings.length === 0
-              ? "Nenhum onboarding em andamento"
-              : `${onboardings.length} família${onboardings.length === 1 ? "" : "s"} em onboarding`}
-          </p>
-        </div>
-      </div>
+    <Card className="flex flex-col">
+      <SectionHeader
+        icon={Sparkles}
+        iconWrap="bg-primary/10"
+        iconColor="text-primary"
+        title="Onboardings Ativos"
+        subtitle={
+          onboardings.length === 0
+            ? "Nenhum onboarding em andamento"
+            : `${onboardings.length} família${onboardings.length === 1 ? "" : "s"} em onboarding`
+        }
+      />
 
       {onboardings.length === 0 ? (
-        <Card variant="ghost" padding="none">
-          <EmptyState
-            icon={Sparkles}
-            title="Nenhum onboarding em andamento"
-            description="Famílias entrarão aqui quando o deal atingir admission_process."
-          />
-        </Card>
+        <EmptyState
+          icon={Sparkles}
+          title="Nenhum onboarding em andamento"
+          description="Famílias entrarão aqui quando o deal atingir admission_process."
+          className="py-8"
+        />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <ScrollList className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[26rem]">
           {onboardings.map((o) => {
             const atrasada = o.atrasadas > 0;
             const proximaPrazo = o.proxima_prazo
@@ -378,7 +391,7 @@ function OnboardingsSection({
               <a
                 key={o.instancia_id}
                 href={`/familias-crm/onboarding/${o.experiencia_id}`}
-                className="block rounded-2xl border border-border bg-card p-3.5 shadow-sm transition-all hover:bg-accent hover:shadow-md"
+                className="block rounded-2xl border border-border bg-popover p-3.5 shadow-sm transition-all hover:bg-accent hover:shadow-md"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="min-w-0 flex-1">
@@ -436,9 +449,9 @@ function OnboardingsSection({
               </a>
             );
           })}
-        </div>
+        </ScrollList>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -448,29 +461,23 @@ function ProximasReunioesSection({
   reunioes: ProximaReuniao[];
 }) {
   return (
-    <section className="flex flex-col h-[20rem]">
-      <div className="flex items-center gap-2 mb-4 shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/10">
-          <Video className="h-4 w-4 text-sys-blue" />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">
-            Próximas Reuniões
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            {reunioes.length === 0
-              ? "Nenhuma reunião agendada"
-              : `${reunioes.length} reunião${reunioes.length === 1 ? "" : "ões"} agendada${reunioes.length === 1 ? "" : "s"}`}
-          </p>
-        </div>
-      </div>
+    <Card className="flex flex-col">
+      <SectionHeader
+        icon={Video}
+        iconWrap="bg-sys-blue/10"
+        iconColor="text-sys-blue"
+        title="Próximas Reuniões"
+        subtitle={
+          reunioes.length === 0
+            ? "Nenhuma reunião agendada"
+            : `${reunioes.length} reunião${reunioes.length === 1 ? "" : "ões"} agendada${reunioes.length === 1 ? "" : "s"}`
+        }
+      />
 
       {reunioes.length === 0 ? (
-        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
-          <EmptyState icon={Video} title="Nenhuma reunião agendada nos próximos dias." />
-        </Card>
+        <EmptyState icon={Video} title="Nenhuma reunião agendada nos próximos dias." className="py-8" />
       ) : (
-        <ScrollList className="space-y-2">
+        <ScrollList className={LIST_MAX}>
           {reunioes.map((r) => {
             const data = new Date(r.data_hora);
             const isToday = data.toDateString() === new Date().toDateString();
@@ -478,7 +485,7 @@ function ProximasReunioesSection({
             return (
               <div
                 key={r.id}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                className="flex items-center gap-3 rounded-lg border border-border bg-popover px-3 py-2.5 transition-colors hover:bg-accent"
               >
                 <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-sys-blue/10 text-sys-blue">
                   <span className="text-[10px] font-semibold uppercase">
@@ -529,33 +536,29 @@ function ProximasReunioesSection({
           })}
         </ScrollList>
       )}
-    </section>
+    </Card>
   );
 }
 
 function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
   return (
-    <section className="flex flex-col h-[20rem]">
-      <div className="flex items-center gap-2 mb-4 shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-plan-legacy/10">
-          <Calendar className="h-4 w-4 text-plan-legacy" />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Minha Semana</h2>
-          <p className="text-[11px] text-muted-foreground">
-            {contacts.length === 0
-              ? "Nenhum contato agendado"
-              : `${contacts.length} ${contacts.length === 1 ? "contato" : "contatos"} nos proximos 7 dias`}
-          </p>
-        </div>
-      </div>
+    <Card className="flex flex-col">
+      <SectionHeader
+        icon={Calendar}
+        iconWrap="bg-plan-legacy/10"
+        iconColor="text-plan-legacy"
+        title="Minha Semana"
+        subtitle={
+          contacts.length === 0
+            ? "Nenhum contato agendado"
+            : `${contacts.length} ${contacts.length === 1 ? "contato" : "contatos"} nos próximos 7 dias`
+        }
+      />
 
       {contacts.length === 0 ? (
-        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
-          <EmptyState icon={Calendar} title="Nenhum contato agendado para os proximos 7 dias." />
-        </Card>
+        <EmptyState icon={Calendar} title="Nenhum contato agendado para os próximos 7 dias." className="py-8" />
       ) : (
-        <ScrollList className="space-y-2">
+        <ScrollList className={LIST_MAX}>
           {contacts.map((c, i) => {
             const statusCfg = FAMILY_STATUS_CONFIG[c.status];
             const dateObj = new Date(c.date);
@@ -567,7 +570,7 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
             const dateLabel = isToday
               ? "Hoje"
               : isTomorrow
-                ? "Amanha"
+                ? "Amanhã"
                 : dateObj.toLocaleDateString("pt-BR", {
                     weekday: "short",
                     day: "2-digit",
@@ -577,7 +580,7 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
             return (
               <div
                 key={`wk-${c.familyId}-${i}`}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                className="flex items-center gap-3 rounded-lg border border-border bg-popover px-3 py-2.5 transition-colors hover:bg-accent"
               >
                 <div
                   className={cn(
@@ -610,7 +613,7 @@ function WeekSection({ contacts }: { contacts: UpcomingContact[] }) {
           })}
         </ScrollList>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -642,29 +645,23 @@ function NeedContactSection({
     .sort((a, b) => b.days_without_contact - a.days_without_contact);
 
   return (
-    <section className="flex flex-col h-[24rem]">
-      <div className="flex items-center gap-2 mb-4 shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-orange/10">
-          <Phone className="h-4 w-4 text-sys-orange" />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">
-            Familias que precisam de contato
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            {needContact.length === 0
-              ? "Todas em dia"
-              : `${needContact.length} ${needContact.length === 1 ? "familia" : "familias"} acima do limite de inatividade`}
-          </p>
-        </div>
-      </div>
+    <Card className="flex flex-col">
+      <SectionHeader
+        icon={Phone}
+        iconWrap="bg-sys-orange/10"
+        iconColor="text-sys-orange"
+        title="Famílias que precisam de contato"
+        subtitle={
+          needContact.length === 0
+            ? "Todas em dia"
+            : `${needContact.length} ${needContact.length === 1 ? "família" : "famílias"} acima do limite de inatividade`
+        }
+      />
 
       {needContact.length === 0 ? (
-        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
-          <EmptyState icon={Phone} title="Todas as familias estao dentro do prazo de contato." />
-        </Card>
+        <EmptyState icon={Phone} title="Todas as famílias estão dentro do prazo de contato." className="py-8" />
       ) : (
-        <ScrollList className="space-y-2">
+        <ScrollList className={LIST_MAX}>
           {needContact.map((f) => {
             const threshold = inactivityThreshold(journeyConfig, f.journey_stage);
             const isOverThreshold = f.days_without_contact >= threshold;
@@ -672,11 +669,7 @@ function NeedContactSection({
             const stageCfg = journeyConfig[f.journey_stage];
 
             return (
-              <button
-                key={`nc-${f.id}`}
-                onClick={() => onFamilyClick(f.id)}
-                className="w-full flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-accent"
-              >
+              <button key={`nc-${f.id}`} onClick={() => onFamilyClick(f.id)} className={ROW_NEUTRAL}>
                 <span className="text-base" title={tempCfg.label}>
                   {tempCfg.icon}
                 </span>
@@ -702,7 +695,7 @@ function NeedContactSection({
           })}
         </ScrollList>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -720,39 +713,29 @@ function AdmissaoSection({
   );
 
   return (
-    <section className="flex flex-col h-[20rem]">
-      <div className="flex items-center gap-2 mb-4 shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/15">
-          <GraduationCap className="h-4 w-4 text-sys-blue" />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">
-            Processos de admissao ativos
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            {admissaoFamilies.length === 0
-              ? "Nenhum processo ativo"
-              : `${admissaoFamilies.length} ${admissaoFamilies.length === 1 ? "processo" : "processos"}`}
-          </p>
-        </div>
-      </div>
+    <Card className="flex flex-col">
+      <SectionHeader
+        icon={GraduationCap}
+        iconWrap="bg-sys-blue/15"
+        iconColor="text-sys-blue"
+        title="Processos de admissão ativos"
+        subtitle={
+          admissaoFamilies.length === 0
+            ? "Nenhum processo ativo"
+            : `${admissaoFamilies.length} ${admissaoFamilies.length === 1 ? "processo" : "processos"}`
+        }
+      />
 
       {admissaoFamilies.length === 0 ? (
-        <Card variant="ghost" padding="none" className="flex flex-1 items-center justify-center">
-          <EmptyState icon={GraduationCap} title="Nenhum processo de admissao ativo no momento." />
-        </Card>
+        <EmptyState icon={GraduationCap} title="Nenhum processo de admissão ativo no momento." className="py-8" />
       ) : (
-        <ScrollList className="space-y-2">
+        <ScrollList className={LIST_MAX}>
           {admissaoFamilies.map((f) => {
             const stageCfg = journeyConfig[f.journey_stage];
             const hasSchool = Boolean(f.escola_confirmada_id);
 
             return (
-              <button
-                key={`adm-${f.id}`}
-                onClick={() => onFamilyClick(f.id)}
-                className="w-full flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-accent"
-              >
+              <button key={`adm-${f.id}`} onClick={() => onFamilyClick(f.id)} className={ROW_NEUTRAL}>
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-blue/15">
                   <FileText className="h-4 w-4 text-sys-blue" />
                 </div>
@@ -777,38 +760,36 @@ function AdmissaoSection({
           })}
         </ScrollList>
       )}
-    </section>
+    </Card>
   );
 }
 
 function PerformanceSection({ performance }: { performance: PerformanceMetrics }) {
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sys-green/15">
-          <BarChart3 className="h-4 w-4 text-sys-green" />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Meu desempenho</h2>
-          <p className="text-[11px] text-muted-foreground">Resumo da semana</p>
-        </div>
-      </div>
+    <Card className="flex flex-col">
+      <SectionHeader
+        icon={BarChart3}
+        iconWrap="bg-sys-green/15"
+        iconColor="text-sys-green"
+        title="Meu desempenho"
+        subtitle="Resumo da semana"
+      />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
-          label="Total familias"
+          label="Total famílias"
           value={performance.totalFamilias}
           icon={Users}
           accent="brand"
         />
         <StatCard
-          label="Media satisfacao"
+          label="Média satisfação"
           value={performance.mediaSatisfacao}
           icon={Activity}
           accent="green"
         />
         <StatCard
-          label="Media ansiedade"
+          label="Média ansiedade"
           value={performance.mediaAnsiedade}
           icon={AlertTriangle}
           accent="orange"
@@ -820,7 +801,54 @@ function PerformanceSection({ performance }: { performance: PerformanceMetrics }
           accent="blue"
         />
       </div>
-    </section>
+    </Card>
+  );
+}
+
+/** Distribuição da carteira por situação — reusa os counts já calculados (sem dado novo). */
+function StatusDistributionSection({ counts }: { counts: StatusCounts }) {
+  const rows = [
+    { key: "satisfeitas", label: "Satisfeitas", value: counts.satisfeitas, bar: "bg-sys-green", tint: "text-sys-green" },
+    { key: "atencao", label: "Atenção", value: counts.atencao, bar: "bg-sys-orange", tint: "text-sys-orange" },
+    { key: "crise", label: "Crise", value: counts.crise, bar: "bg-sys-red", tint: "text-sys-red" },
+  ];
+
+  return (
+    <Card className="flex flex-col">
+      <SectionHeader
+        icon={Users}
+        iconWrap="bg-primary/10"
+        iconColor="text-primary"
+        title="Distribuição da carteira"
+        subtitle={
+          counts.total === 0
+            ? "Sem famílias na carteira"
+            : `${counts.total} ${counts.total === 1 ? "família" : "famílias"} por situação`
+        }
+      />
+
+      <div className="space-y-3">
+        {rows.map((r) => {
+          const pct = counts.total > 0 ? Math.round((r.value / counts.total) * 100) : 0;
+          return (
+            <div key={r.key} className="space-y-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground">{r.label}</span>
+                <span className={cn("font-semibold tabular-nums", r.tint)}>
+                  {r.value} · {pct}%
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                <div
+                  className={cn("h-full rounded-full transition-all", r.bar)}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -884,6 +912,13 @@ export function MinhaAreaClient({
     (f) => f.family_status === "satisfeita"
   ).length;
 
+  const statusCounts: StatusCounts = {
+    satisfeitas: satisfeitaCount,
+    atencao: atencaoCount,
+    crise: criseCount,
+    total: families.length,
+  };
+
   return (
     <div>
       {/* Sub-nav sticky — cada aba é uma sub-rota real (subpágina no sidebar). */}
@@ -893,9 +928,9 @@ export function MinhaAreaClient({
         {/* Header + Quick Stats — sempre visíveis (contexto em toda aba) */}
         <PageHeader dense
           eyebrow={`${greeting}, ${userName.split(" ")[0]}`}
-          title="Sua Area"
-          description={`Voce tem ${families.length} ${
-            families.length === 1 ? "familia" : "familias"
+          title="Sua Área"
+          description={`Você tem ${families.length} ${
+            families.length === 1 ? "família" : "famílias"
           } sob seu acompanhamento`}
         />
 
@@ -908,7 +943,7 @@ export function MinhaAreaClient({
             accent="green"
           />
           <StatCard
-            label="Atencao"
+            label="Atenção"
             value={atencaoCount}
             icon={Clock}
             accent="orange"
@@ -921,9 +956,10 @@ export function MinhaAreaClient({
           />
         </div>
 
-        {/* Aba HOJE — o dia a dia: o que fazer agora, reuniões e a semana */}
+        {/* Aba HOJE — o dia a dia: o que fazer agora, reuniões e a semana.
+            Grid de cards content-sized, topo alinhado (items-start) — sem vãos. */}
         {activeTab === "hoje" && (
-          <>
+          <div className="grid gap-4 lg:grid-cols-3 items-start">
             <UrgentActionsSection
               urgentFamilies={urgentFamilies}
               overdueTasks={overdueTasks}
@@ -931,12 +967,12 @@ export function MinhaAreaClient({
             />
             <ProximasReunioesSection reunioes={proximasReunioes} />
             <WeekSection contacts={upcomingContacts} />
-          </>
+          </div>
         )}
 
         {/* Aba FAMÍLIAS — carteira + quem precisa de contato */}
         {activeTab === "familias" && (
-          <>
+          <div className="space-y-4">
             <NeedContactSection
               families={families}
               journeyConfig={journeyConfig}
@@ -947,24 +983,27 @@ export function MinhaAreaClient({
               journeyConfig={journeyConfig}
               onFamilyClick={handleFamilyClick}
             />
-          </>
+          </div>
         )}
 
         {/* Aba ONBOARDING — onboardings ativos + processos de admissão */}
         {activeTab === "onboarding" && (
-          <>
+          <div className="space-y-4">
             <OnboardingsSection onboardings={onboardings} />
             <AdmissaoSection
               families={families}
               journeyConfig={journeyConfig}
               onFamilyClick={handleFamilyClick}
             />
-          </>
+          </div>
         )}
 
-        {/* Aba DESEMPENHO — métricas da Head */}
+        {/* Aba DESEMPENHO — métricas da Head + distribuição da carteira */}
         {activeTab === "desempenho" && (
-          <PerformanceSection performance={performance} />
+          <div className="space-y-4">
+            <PerformanceSection performance={performance} />
+            <StatusDistributionSection counts={statusCounts} />
+          </div>
         )}
       </div>
     </div>
