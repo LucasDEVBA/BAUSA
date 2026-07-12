@@ -189,6 +189,34 @@ const acaoSchema = z.discriminatedUnion("tipo", [
   }),
 ]);
 
+// Passo de CONDIÇÃO POR IA (ia_condicao): prompt DECISÓRIO (a IA responde
+// SIM/NÃO). Mesma whitelist de placeholders das demais ações de IA. A IA aqui
+// NUNCA envia nada externo — só decide se o fluxo prossegue (fail-closed na
+// engine). Limites menores que o ia_prompt (é um gate, não um texto longo).
+const IA_CONDICAO_PROMPT_MIN = 10;
+const IA_CONDICAO_PROMPT_MAX = 2000;
+const IA_CONDICAO_ROTULO_MAX = 80;
+// Teto de passos no fluxo (protege o timeout da engine — espelhado no PASSOS_MAX
+// da CF) e de passos de IA por automação (cada chamada de IA custa deadline +
+// conta no teto IA_MAX_PER_TICK da engine). Sem `export`: arquivo "use server"
+// só exporta funções async (o builder-shared tem as próprias cópias p/ a UI).
+const PASSOS_MAX = 12;
+const PASSOS_IA_MAX = 4;
+
+const passoSchema = z.discriminatedUnion("tipo", [
+  z.object({ tipo: z.literal("condicao"), condicao: condicaoSchema }),
+  z.object({
+    tipo: z.literal("ia_condicao"),
+    prompt: z
+      .string()
+      .min(IA_CONDICAO_PROMPT_MIN, `Prompt da IA muito curto (mínimo ${IA_CONDICAO_PROMPT_MIN} caracteres)`)
+      .max(IA_CONDICAO_PROMPT_MAX, `Prompt da IA muito longo (máximo ${IA_CONDICAO_PROMPT_MAX} caracteres)`)
+      .superRefine(semPlaceholderDesconhecido),
+    rotulo: z.string().max(IA_CONDICAO_ROTULO_MAX, "Rótulo muito longo").optional(),
+  }),
+  z.object({ tipo: z.literal("acao"), acao: acaoSchema }),
+]);
+
 const automacaoSchema = z
   .object({
     nome: z.string().min(3, "Nome muito curto").max(120),
@@ -211,7 +239,34 @@ const automacaoSchema = z
     ]),
     gatilho_config: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
     condicoes: z.array(condicaoSchema).max(10).default([]),
-    acoes: z.array(acaoSchema).min(1, "Adicione pelo menos uma ação").max(5),
+    // acoes deixa de ser obrigatório no schema: o fluxo por passos leva a ação
+    // dentro de `passos`. O superRefine abaixo exige ação em UM dos dois modos.
+    acoes: z.array(acaoSchema).max(5).default([]),
+    passos: z.array(passoSchema).max(PASSOS_MAX, `Máximo de ${PASSOS_MAX} passos`).default([]),
+  })
+  // Modo por PASSOS vs LEGADO: exatamente um deles precisa ter ação.
+  //  - passos não-vazio  → precisa de ≥1 passo de ação; teto de passos de IA.
+  //  - passos vazio       → precisa de ≥1 ação (regra histórica do modo simples).
+  .superRefine((v, ctx) => {
+    if (v.passos.length > 0) {
+      if (!v.passos.some((p) => p.tipo === "acao")) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "O fluxo por passos precisa de pelo menos uma ação.",
+        });
+      }
+      const iaPassos = v.passos.filter(
+        (p) => p.tipo === "ia_condicao" || (p.tipo === "acao" && p.acao.tipo === "ia_prompt"),
+      ).length;
+      if (iaPassos > PASSOS_IA_MAX) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Máximo de ${PASSOS_IA_MAX} passos de IA por automação (custo e tempo da engine).`,
+        });
+      }
+    } else if (v.acoes.length < 1) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Adicione pelo menos uma ação" });
+    }
   })
   // Gatilho deal_etapa_mudou: etapa_para é OPCIONAL (ausente = qualquer
   // transição), mas quando presente precisa ser uma etapa válida do pipeline
@@ -305,8 +360,9 @@ export async function criarAutomacao(input: AutomacaoInput): Promise<ActionResul
         descricao: parsed.data.descricao ?? null,
         gatilho: parsed.data.gatilho,
         gatilho_config: parsed.data.gatilho_config,
-        condicoes: parsed.data.condicoes,
-        acoes: parsed.data.acoes,
+        // Mutuamente exclusivo: com passos, o modelo legado zera (a engine
+        // roda por passos e ignoraria condicoes/acoes — não guardar lixo).
+        ...camposModelo(parsed.data),
         ativo: false, // nasce pausada — ativar é gesto explícito
       })
       .select("id")
@@ -319,6 +375,17 @@ export async function criarAutomacao(input: AutomacaoInput): Promise<ActionResul
     console.error({ level: "error", action: "criar_automacao", error: String(err) });
     return { success: false, error: "Erro inesperado ao criar automação." };
   }
+}
+
+/** Grava exatamente UM modelo: com passos, o legado (condicoes/acoes) é zerado;
+ *  sem passos, passos fica []. Fonte única da regra de exclusividade. */
+function camposModelo(data: { condicoes: unknown[]; acoes: unknown[]; passos: unknown[] }) {
+  const temPassos = data.passos.length > 0;
+  return {
+    condicoes: temPassos ? [] : data.condicoes,
+    acoes: temPassos ? [] : data.acoes,
+    passos: temPassos ? data.passos : [],
+  };
 }
 
 /** Clona uma automação existente — a cópia nasce PAUSADA com nome "(cópia)".
@@ -334,7 +401,7 @@ export async function duplicarAutomacao(id: string): Promise<ActionResult> {
     const supabase = await createAuditedSupabaseClient();
     const { data: origem, error: origemError } = await supabase
       .from("automacoes")
-      .select("nome, descricao, gatilho, gatilho_config, condicoes, acoes")
+      .select("nome, descricao, gatilho, gatilho_config, condicoes, acoes, passos")
       .eq("id", id)
       .is("deleted_at", null)
       .neq("gatilho", "sistema")
@@ -356,6 +423,7 @@ export async function duplicarAutomacao(id: string): Promise<ActionResult> {
         gatilho_config: origem.gatilho_config,
         condicoes: origem.condicoes,
         acoes: origem.acoes,
+        passos: origem.passos ?? [],
         ativo: false, // cópia nasce pausada — ativar é gesto explícito
       })
       .select("id")
@@ -394,8 +462,7 @@ export async function atualizarAutomacao(
         descricao: parsed.data.descricao ?? null,
         gatilho: parsed.data.gatilho,
         gatilho_config: parsed.data.gatilho_config,
-        condicoes: parsed.data.condicoes,
-        acoes: parsed.data.acoes,
+        ...camposModelo(parsed.data),
       })
       .eq("id", id)
       .is("deleted_at", null)

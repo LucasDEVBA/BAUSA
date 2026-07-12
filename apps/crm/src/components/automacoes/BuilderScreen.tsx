@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Clock,
   Diamond,
+  GitBranch,
   ListChecks,
   Plus,
   Trash2,
@@ -20,9 +21,11 @@ import { ACAO_CATALOG, GATILHO_CATALOG, type AutomacaoAcaoTipo } from "@/types/a
 import { cn } from "@/lib/utils";
 
 import { AcaoForm, CondicaoForm, GatilhoForm } from "./BuilderForms";
+import { PassosBuilder } from "./PassosBuilder";
 import {
   CONDICAO_CAMPOS,
   acaoPendencia,
+  builderTemAcao,
   camposCondicaoDoGatilho,
   defaultAcao,
   resumoAcao,
@@ -39,7 +42,7 @@ import { ACAO_ICON, FlowCanvas, type FlowSelection, type GhostMenu } from "./Flo
  * - Formulário: os mesmos forms empilhados (gatilho → condições → ações)
  */
 
-type BuilderView = "fluxo" | "formulario";
+type BuilderView = "fluxo" | "formulario" | "passos";
 
 interface BuilderScreenProps {
   builder: BuilderState;
@@ -66,7 +69,8 @@ export function BuilderScreen({
   onSave,
 }: BuilderScreenProps) {
   const confirm = useConfirm();
-  const [view, setView] = useState<BuilderView>("fluxo");
+  // Automação já em modo por passos abre direto na visão Passos.
+  const [view, setView] = useState<BuilderView>(builder.passos.length > 0 ? "passos" : "fluxo");
   const [selection, setSelection] = useState<FlowSelection | null>(null);
   const [ghostMenu, setGhostMenu] = useState<GhostMenu>(null);
   /** Ação expandida na visão Fluxo vertical (formulário) — null = todas recolhidas. */
@@ -191,8 +195,11 @@ export function BuilderScreen({
     });
   };
 
-  const salvarDesabilitado = isPending || !builder.nome || builder.acoes.length === 0;
+  const temAcao = builderTemAcao(builder);
+  const salvarDesabilitado = isPending || !builder.nome || !temAcao;
   const camposDisponiveis = camposCondicaoDoGatilho(builder.gatilho);
+  // Modo por passos ativo: o modelo simples (Fluxo/Formulário) fica inativo.
+  const passosMode = builder.passos.length > 0;
 
   return (
     <div
@@ -228,6 +235,7 @@ export function BuilderScreen({
           items={[
             { id: "fluxo", label: "Fluxo", icon: Workflow },
             { id: "formulario", label: "Formulário", icon: ListChecks },
+            { id: "passos", label: "Passos", icon: GitBranch },
           ]}
           activeId={view}
           onSelect={(id) => setView(id as BuilderView)}
@@ -242,7 +250,7 @@ export function BuilderScreen({
             onClick={onSave}
             disabled={salvarDesabilitado}
             title={
-              builder.acoes.length === 0
+              !temAcao
                 ? "Adicione pelo menos uma ação"
                 : !builder.nome
                   ? "Dê um nome à automação"
@@ -254,9 +262,29 @@ export function BuilderScreen({
         </div>
       </header>
 
+      {/* Aviso: modo por passos ativo, mas o CEO está numa visão do modo simples */}
+      {passosMode && view !== "passos" && (
+        <div className="shrink-0 border-b border-border bg-sys-orange/10 px-4 py-2 md:px-6">
+          <p className="text-[11px] leading-relaxed text-foreground">
+            Esta automação usa o <strong>fluxo avançado (Passos)</strong> — edite na aba{" "}
+            <strong>Passos</strong>. As condições e ações do modo simples abaixo estão{" "}
+            <strong>inativas</strong> (serão descartadas ao salvar).{" "}
+            <button
+              type="button"
+              onClick={() => setView("passos")}
+              className="font-semibold text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Ir para Passos
+            </button>
+          </p>
+        </div>
+      )}
+
       {/* Corpo */}
       <div className="relative flex min-h-0 flex-1">
-        {view === "fluxo" ? (
+        {view === "passos" ? (
+          <PassosBuilder builder={builder} usuarios={usuarios} onChange={onChange} />
+        ) : view === "fluxo" ? (
           <>
             <FlowCanvas
               builder={builder}

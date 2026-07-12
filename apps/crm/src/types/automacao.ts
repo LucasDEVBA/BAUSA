@@ -334,6 +334,58 @@ export type AutomacaoAcao =
   | AcaoMoverDeal
   | AcaoIaPrompt;
 
+// ─── Passos (fluxo avançado, ordenado) ───────────────────────────────────────
+
+/** Passo de CONDIÇÃO normal (campo/operador/valor). Se falhar, o fluxo PARA
+ *  (run 'ignorado' com o motivo). */
+export interface PassoCondicao {
+  tipo: "condicao";
+  condicao: AutomacaoCondicao;
+}
+
+/** Passo de CONDIÇÃO POR IA (ia_condicao): a Gemini avalia o CONTEXTO factual
+ *  do registro (mesma whitelist do ia_prompt) + o prompt e responde SIM/NÃO.
+ *  Se NÃO, o fluxo PARA. É DECISÓRIA e fail-closed no gate (na dúvida/erro,
+ *  não prossegue). SEGURANÇA POR DESIGN: NUNCA envia nada externo — só decide.
+ *  Requer GEMINI_API_KEY na engine (sem ela o run marca erro claro). */
+export interface PassoIaCondicao {
+  tipo: "ia_condicao";
+  /** Instruções do CEO para a IA decidir SIM/NÃO (10–2000 chars).
+   *  Placeholders {atleta_nome}/{responsavel_nome} valem aqui. */
+  prompt: string;
+  /** Rótulo curto opcional exibido no resumo do fluxo. */
+  rotulo?: string;
+}
+
+/** Passo de AÇÃO: qualquer ação do catálogo (inclui ia_prompt). Executa e o
+ *  fluxo continua. */
+export interface PassoAcao {
+  tipo: "acao";
+  acao: AutomacaoAcao;
+}
+
+/** União discriminada por `tipo` — ordem do array = ordem de execução. */
+export type AutomacaoPasso = PassoCondicao | PassoIaCondicao | PassoAcao;
+
+export type AutomacaoPassoTipo = AutomacaoPasso["tipo"];
+
+/** Rótulos/descrições dos tipos de passo (usados nos botões do builder). */
+export const PASSO_CATALOG: Record<AutomacaoPassoTipo, { label: string; descricao: string }> = {
+  condicao: {
+    label: "Condição",
+    descricao: "Só continua se o campo do registro satisfizer a comparação.",
+  },
+  ia_condicao: {
+    label: "Condição IA",
+    descricao:
+      "A IA (Gemini) decide SIM/NÃO com base no contexto e no seu critério — ramifica o fluxo. Interno: não envia nada.",
+  },
+  acao: {
+    label: "Ação",
+    descricao: "Executa uma ação (tarefa, notificação, WhatsApp, e-mail, mover deal ou gerar com IA).",
+  },
+};
+
 export const ACAO_CATALOG: Record<AutomacaoAcaoTipo, { label: string; descricao: string }> = {
   criar_tarefa: {
     label: "Criar tarefa",
@@ -378,6 +430,9 @@ export interface Automacao {
   gatilho_config: Record<string, number | string>;
   condicoes: AutomacaoCondicao[];
   acoes: AutomacaoAcao[];
+  /** Fluxo avançado ordenado. Não-vazio = a engine roda por passos (o modelo
+   *  condicoes/acoes é ignorado). Vazio/ausente = fluxo legado. */
+  passos: AutomacaoPasso[];
   ativo: boolean;
   created_at: string;
   updated_at: string;

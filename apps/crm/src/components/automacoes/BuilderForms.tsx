@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useId, useRef, useTransition } from "react";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,6 +11,8 @@ import {
   GATILHO_CATEGORIAS,
   GATILHO_CATEGORIA_LABEL,
   type AgendamentoFrequencia,
+  type AutomacaoAcao,
+  type AutomacaoCondicao,
   type AutomacaoGatilho,
   type CondicaoOperador,
   type GatilhoInfo,
@@ -251,14 +253,41 @@ export function CondicaoForm({
 }) {
   const cond = builder.condicoes[index];
   if (!cond) return null;
+  return (
+    <CondicaoFields
+      gatilho={builder.gatilho}
+      cond={cond}
+      prefixo={index === 0 ? "Se" : "e"}
+      onChange={(next) =>
+        onChange({
+          ...builder,
+          condicoes: builder.condicoes.map((c, idx) => (idx === index ? next : c)),
+        })
+      }
+      onRemove={onRemove}
+    />
+  );
+}
 
-  const camposDisponiveis = camposCondicaoDoGatilho(builder.gatilho);
+/** Editor de UMA condição por VALOR (reusado pelo modo simples e por passos).
+ *  gatilho define os campos disponíveis; prefixo é o rótulo "Se"/"e" à esquerda. */
+export function CondicaoFields({
+  gatilho,
+  cond,
+  onChange,
+  prefixo = "Se",
+  onRemove,
+}: {
+  gatilho: AutomacaoGatilho;
+  cond: AutomacaoCondicao;
+  onChange: (next: AutomacaoCondicao) => void;
+  prefixo?: string;
+  onRemove?: () => void;
+}) {
+  const camposDisponiveis = camposCondicaoDoGatilho(gatilho);
   const campoInfo = CONDICAO_CAMPOS.find((c) => c.value === cond.campo);
 
-  const setCondicao = (patch: Partial<(typeof builder.condicoes)[number]>) => {
-    const next = builder.condicoes.map((c, idx) => (idx === index ? { ...c, ...patch } : c));
-    onChange({ ...builder, condicoes: next });
-  };
+  const setCondicao = (patch: Partial<AutomacaoCondicao>) => onChange({ ...cond, ...patch });
 
   return (
     <div className="flex items-center gap-2">
@@ -266,7 +295,7 @@ export function CondicaoForm({
         aria-hidden
         className="w-5 shrink-0 text-center text-[10px] font-semibold uppercase text-label-tertiary"
       >
-        {index === 0 ? "Se" : "e"}
+        {prefixo}
       </span>
       <select
         aria-label="Campo"
@@ -356,14 +385,34 @@ export function AcaoForm({
 }) {
   const acao = builder.acoes[index];
   if (!acao) return null;
+  return (
+    <AcaoFields
+      acao={acao}
+      usuarios={usuarios}
+      onChange={(next) =>
+        onChange({
+          ...builder,
+          acoes: builder.acoes.map((a, idx) => (idx === index ? next : a)),
+        })
+      }
+    />
+  );
+}
 
+/** Campos de UMA ação por VALOR (reusado pelo modo simples e por passos). */
+export function AcaoFields({
+  acao,
+  usuarios,
+  onChange,
+}: {
+  acao: AutomacaoAcao;
+  usuarios: UsuarioRow[];
+  onChange: (next: AutomacaoAcao) => void;
+}) {
+  // id estável (label ↔ controle) — antes vinha do índice da ação no builder.
+  const fieldId = useId();
   const setParametro = (campo: string, valor: string | number) => {
-    const next = builder.acoes.map((a, idx) =>
-      idx === index
-        ? ({ ...a, parametros: { ...a.parametros, [campo]: valor } } as typeof a)
-        : a,
-    );
-    onChange({ ...builder, acoes: next });
+    onChange({ ...acao, parametros: { ...acao.parametros, [campo]: valor } } as AutomacaoAcao);
   };
 
   return (
@@ -489,7 +538,7 @@ export function AcaoForm({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label
-              htmlFor={`whatsapp-custom-${index}`}
+              htmlFor={`whatsapp-custom-${fieldId}`}
               className="text-[11px] font-semibold text-foreground"
             >
               Mensagem (texto livre)
@@ -507,7 +556,7 @@ export function AcaoForm({
             </span>
           </div>
           <textarea
-            id={`whatsapp-custom-${index}`}
+            id={`whatsapp-custom-${fieldId}`}
             className={cn(FIELD_CLASS, "min-h-28 resize-y leading-relaxed")}
             placeholder="Ex.: Olá {responsavel_nome}, temos novidades sobre o projeto de {atleta_nome}…"
             value={acao.parametros.mensagem}
@@ -572,7 +621,7 @@ export function AcaoForm({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label
-              htmlFor={`email-custom-assunto-${index}`}
+              htmlFor={`email-custom-assunto-${fieldId}`}
               className="text-[11px] font-semibold text-foreground"
             >
               Assunto
@@ -590,14 +639,14 @@ export function AcaoForm({
             </span>
           </div>
           <Input
-            id={`email-custom-assunto-${index}`}
+            id={`email-custom-assunto-${fieldId}`}
             placeholder="Ex.: Novidades sobre o projeto de {atleta_nome}"
             value={acao.parametros.assunto}
             onChange={(e) => setParametro("assunto", e.target.value)}
           />
           <div className="flex items-center justify-between">
             <label
-              htmlFor={`email-custom-mensagem-${index}`}
+              htmlFor={`email-custom-mensagem-${fieldId}`}
               className="text-[11px] font-semibold text-foreground"
             >
               Mensagem (texto livre)
@@ -615,7 +664,7 @@ export function AcaoForm({
             </span>
           </div>
           <textarea
-            id={`email-custom-mensagem-${index}`}
+            id={`email-custom-mensagem-${fieldId}`}
             className={cn(FIELD_CLASS, "min-h-28 resize-y leading-relaxed")}
             placeholder="Ex.: Olá {responsavel_nome}, temos novidades sobre o projeto de {atleta_nome}…"
             value={acao.parametros.mensagem}
@@ -678,7 +727,7 @@ export function AcaoForm({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label
-              htmlFor={`ia-prompt-${index}`}
+              htmlFor={`ia-prompt-${fieldId}`}
               className="text-[11px] font-semibold text-foreground"
             >
               Prompt para a IA (Gemini)
@@ -696,7 +745,7 @@ export function AcaoForm({
             </span>
           </div>
           <textarea
-            id={`ia-prompt-${index}`}
+            id={`ia-prompt-${fieldId}`}
             className={cn(FIELD_CLASS, "min-h-32 resize-y leading-relaxed")}
             placeholder="Ex.: Analise a situação de {atleta_nome} e sugira, em até 5 linhas, os próximos passos para o time…"
             value={acao.parametros.prompt}
