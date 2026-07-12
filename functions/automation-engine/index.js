@@ -744,7 +744,9 @@ const avaliarIaCondicao = async (prompt, contexto, tickState) => {
     texto = ''; // parse inválido → normalizado vazio → FALSE (fail-closed)
   }
   const normalizado = texto.toUpperCase().replace(/[^A-Z]/g, '');
-  const passou = normalizado.startsWith('SIM') || normalizado.startsWith('YES');
+  // Igualdade EXATA (não startsWith): "SIMPLESMENTE"/"SIMILAR" não podem
+  // abrir o gate — num gate fail-closed, só "SIM"/"YES" limpo prossegue.
+  const passou = normalizado === 'SIM' || normalizado === 'YES';
   log('INFO', 'ia_condicao_done', { modelUsed, passou, resposta: texto.slice(0, 20) });
   return { passou, modelUsed, resposta: texto.slice(0, 40) };
 };
@@ -1316,6 +1318,9 @@ const processarPassos = async (run, auto, contexto, engineConfig, tickState) => 
   const resultados = [];
   let houveErro = false;
   let whatsappSent = false;
+  // Alguma ação (com possível side-effect externo) já rodou? Se sim, um erro
+  // transitório num gate posterior NÃO pode ir p/ retry (re-executaria a ação).
+  let acaoJaExecutada = false;
 
   for (const passo of auto.passos) {
     const tipo = passo && passo.tipo;
@@ -1350,18 +1355,28 @@ const processarPassos = async (run, auto, contexto, engineConfig, tickState) => 
         }
         resultados.push({ tipo: 'ia_condicao', status: 'ok', detalhe: `IA (${veredito.modelUsed}) → SIM` });
       } catch (e) {
-        // GATE fail-closed: erro na IA → NÃO prossegue (não age em dúvida).
-        // O run fecha como 'ignorado' (não 'erro'): reprocessar poderia agir
-        // indevidamente; se o CEO quiser, reenfileira manualmente.
-        log('WARN', 'ia_condicao_failed_closed', { runId: run.id, error: e.message });
+        // GATE fail-closed. Se NENHUMA ação rodou ainda, o erro é transitório
+        // (Gemini indisponível) e re-tentar é seguro (o gate não tem side-
+        // effect) → retryOrExhaust, para não DROPAR o lead em silêncio (um
+        // blip de IA parecia um "NÃO" legítimo). Se já houve ação, manter
+        // 'ignorado' (reprocessar re-executaria a ação anterior).
+        log('WARN', 'ia_condicao_gate_error', { runId: run.id, acaoJaExecutada, error: e.message });
+        if (!acaoJaExecutada) {
+          await retryOrExhaust(run, engineConfig, {
+            motivo: 'IA indisponível no gate (retry seguro — sem ação anterior)',
+            erro_ia: e.message, passos: resultados,
+          });
+          return { outcome: 'erro', whatsappSent };
+        }
         await finishRun(run.id, 'ignorado', {
-          motivo: 'IA indisponível — gate fail-closed (não prosseguiu)',
+          motivo: 'IA indisponível — gate fail-closed (ação anterior já executada)',
           erro_ia: e.message, passos: resultados,
         });
         return { outcome: 'ignorado', whatsappSent };
       }
 
     } else if (tipo === 'acao') {
+      acaoJaExecutada = true;
       try {
         const r = await executeAcao(passo.acao, contexto, run.id, tickState);
         resultados.push(r);
@@ -1541,7 +1556,12 @@ functions.http('automationEngine', async (req, res) => {
       const autoDoRun = automacoesById[run.automacao_id];
       // Conta ia_prompt (ação) E ia_condicao (passo) — ambos chamam a Gemini.
       const iaCount = contarChamadasIA(autoDoRun);
-      if (iaCount > 0 && tickState.iaCalls + iaCount > IA_MAX_PER_TICK) {
+      // Um run cujo iaCount SOZINHO excede o teto do tick nunca caberia →
+      // adiá-lo o prende para sempre (nunca claimado). Nesse caso, processa
+      // mesmo (aceita overrun pontual — o deadline por run protege o tick).
+      // O Zod já limita a 4 IA/automação; isto só ocorre via escrita direta.
+      const excedeSozinho = iaCount > IA_MAX_PER_TICK;
+      if (iaCount > 0 && !excedeSozinho && tickState.iaCalls + iaCount > IA_MAX_PER_TICK) {
         counters.deferred_ia++;
         log('WARN', 'ia_budget_deferred', {
           runId: run.id, iaCalls: tickState.iaCalls, iaMax: IA_MAX_PER_TICK,
