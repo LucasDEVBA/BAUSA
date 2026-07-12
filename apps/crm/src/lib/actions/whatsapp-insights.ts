@@ -253,7 +253,8 @@ export async function gerarInsightsGrupo(grupoId: string): Promise<InsightsConve
       const quem = m.from_me
         ? "BAUSA"
         : m.participante_nome
-          ? sanitizar(m.participante_nome).slice(0, 40) || "Participante"
+          ? sanitizar(m.participante_nome).replace(/[[\]]/g, "").slice(0, 40) ||
+            "Participante"
           : "Participante";
       const corpo =
         (m.texto ? sanitizar(m.texto) : "") || TIPO_LABEL[m.tipo ?? "other"] || "[mídia]";

@@ -186,7 +186,8 @@ export async function sugerirRespostaChatbot(
       const quem = m.from_me
         ? "BAUSA"
         : isGrupo && m.participante_nome
-          ? sanitizar(m.participante_nome).slice(0, 40) || "Participante"
+          ? sanitizar(m.participante_nome).replace(/[[\]]/g, "").slice(0, 40) ||
+            "Participante"
           : isGrupo
             ? "Participante"
             : "Lead";
