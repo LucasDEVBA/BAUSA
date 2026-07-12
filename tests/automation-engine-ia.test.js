@@ -154,10 +154,10 @@ test('automation-engine: ia_condicao é um GATE fail-closed (só SIM prossegue)'
   const src = loadExecutableSource();
   const gate = blocoAvaliarIaCondicao(src);
   assert.ok(
-    gate.includes(`startsWith('SIM')`),
-    `INVARIANTE VIOLADO: avaliarIaCondicao deve retornar TRUE apenas quando a ` +
-      `resposta normalizada começar com 'SIM' — qualquer outra coisa é FALSE ` +
-      `(fail-closed: na dúvida, o fluxo NÃO prossegue).`,
+    gate.includes(`=== 'SIM'`) && !gate.includes(`startsWith('SIM')`),
+    `INVARIANTE VIOLADO: avaliarIaCondicao deve retornar TRUE apenas por ` +
+      `IGUALDADE EXATA ('SIM'/'YES') — startsWith abriria falso-positivo ` +
+      `('SIMPLESMENTE'). Fail-closed: na dúvida, o fluxo NÃO prossegue.`,
   );
   const passos = blocoProcessarPassos(src);
   // Resposta não-SIM (veredito.passou = false) → run 'ignorado', fluxo para.
@@ -168,11 +168,20 @@ test('automation-engine: ia_condicao é um GATE fail-closed (só SIM prossegue)'
     `INVARIANTE VIOLADO: quando a IA NÃO decide SIM (!veredito.passou), o passo ` +
       `ia_condicao deve finalizar o run como 'ignorado' e PARAR o fluxo.`,
   );
-  // Erro na chamada de IA também é fail-closed (catch → 'ignorado', não age).
+  // Erro na chamada de IA é fail-closed: o fluxo NUNCA prossegue com ação após
+  // um gate que falhou. Sem ação anterior → retry seguro (não dropa o lead);
+  // com ação anterior → 'ignorado' (não re-executa side-effect). Em nenhum
+  // caso vira 'sucesso' com ação indevida.
   assert.ok(
-    passos.includes('ia_condicao_failed_closed'),
-    `INVARIANTE VIOLADO: erro na avaliação da ia_condicao deve ser fail-closed ` +
-      `(gate não prossegue) — não pode virar sucesso/ação indevida.`,
+    passos.includes('ia_condicao_gate_error'),
+    `INVARIANTE VIOLADO: o catch de erro da ia_condicao deve existir e tratar ` +
+      `o gate de forma fail-closed (não prosseguir com ação).`,
+  );
+  assert.ok(
+    passos.includes('acaoJaExecutada') && passos.includes('retryOrExhaust'),
+    `INVARIANTE VIOLADO: erro transitório no gate SEM ação anterior deve ir p/ ` +
+      `retryOrExhaust (não dropar o lead em silêncio); com ação anterior, ` +
+      `manter 'ignorado' (não re-executar a ação).`,
   );
 });
 
