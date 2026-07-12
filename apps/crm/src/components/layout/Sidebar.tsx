@@ -56,7 +56,25 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "MINHA ÁREA",
     items: [
-      { href: "/minha-area", label: "Minha Área", icon: Home, roles: ["head_sucesso"] },
+      {
+        href: "/minha-area",
+        label: "Minha Área",
+        icon: Home,
+        roles: ["head_sucesso"],
+        // Cada aba de /minha-area é uma sub-rota real → subpágina no sidebar.
+        activeRoutes: [
+          "/minha-area",
+          "/minha-area/familias",
+          "/minha-area/onboarding",
+          "/minha-area/desempenho",
+        ],
+        subItems: [
+          { href: "/minha-area", label: "Hoje" },
+          { href: "/minha-area/familias", label: "Famílias" },
+          { href: "/minha-area/onboarding", label: "Onboarding" },
+          { href: "/minha-area/desempenho", label: "Desempenho" },
+        ],
+      },
     ],
   },
   {
@@ -115,9 +133,12 @@ const NAV_GROUPS: NavGroup[] = [
         icon: UserCheck,
         roles: ["ceo", "head_sucesso"],
         activeRoutes: ["/familias", "/familias-crm", "/familias-pipeline", "/war-room/familias"],
-        // Sub-itens só p/ CEO/CTO: alternam entre a área do Head e o painel gerencial.
+        // Sub-itens = as 3 visões da FamiliasNav (Experiência/Jornada/Lista),
+        // acessíveis a CEO e Head (subpáginas no sidebar). "Gerencial" só CEO/CTO.
         subItems: [
-          { href: "/familias-crm", label: "Head", roles: ["ceo"] },
+          { href: "/familias-crm", label: "Experiência" },
+          { href: "/familias-pipeline", label: "Jornada" },
+          { href: "/familias", label: "Lista" },
           { href: "/war-room/familias", label: "Gerencial", roles: ["ceo"] },
         ],
       },
