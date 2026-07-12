@@ -203,11 +203,13 @@ export async function extrairMemoriaConversa(
   const isGrupo = Boolean(grupoId);
   const origem: "whatsapp_1a1" | "whatsapp_grupo" = isGrupo ? "whatsapp_grupo" : "whatsapp_1a1";
 
-  // Autorização (defense-in-depth sobre a RLS): grupo → CEO ou Head; 1:1 → CEO.
+  // Autorização: a EXTRAÇÃO (escrita em lead_memoria) é CEO-only — alinhada à
+  // RLS de INSERT (só CEO) e à UI (botão de grupo gateado a CEO). O Head VÊ a
+  // memória de família (RLS de SELECT), mas não a gera. Evita o meio-caminho em
+  // que o Head gravaria documento (RLS docs = authenticated) mas não memória.
   const papel = await getUserPapel();
-  const autorizado = isGrupo ? papel === "ceo" || papel === "head_sucesso" : papel === "ceo";
-  if (!autorizado) {
-    return { success: false, error: "Você não tem acesso a esta conversa." };
+  if (papel !== "ceo") {
+    return { success: false, error: "Apenas o CEO pode extrair memória das conversas." };
   }
 
   const phone = (phoneRaw ?? "").replace(/\D/g, "");
@@ -493,7 +495,12 @@ function rotularLinha(m: MensagemRow, isGrupo: boolean): string {
       : isGrupo
         ? "Participante"
         : "Lead";
-  const corpo = (m.texto ? sanitizar(m.texto) : "") || TIPO_LABEL[m.tipo ?? "other"] || "[mídia]";
+  // Escapa colchetes no texto do lead para ele não forjar um rótulo [BAUSA]/[Lead]
+  // dentro do transcript (anti-injeção — o corpo é DADO, não instrução).
+  const corpo =
+    (m.texto ? sanitizar(m.texto).replace(/\[/g, "(").replace(/\]/g, ")") : "") ||
+    TIPO_LABEL[m.tipo ?? "other"] ||
+    "[mídia]";
   return `[${quem}] ${corpo}`;
 }
 
@@ -519,10 +526,15 @@ export async function listarMemoriaLead(input: ListarMemoriaInput): Promise<Memo
   const papel = await getUserPapel();
   if (papel !== "ceo" && papel !== "head_sucesso") return [];
 
+  // Valida UUID antes de interpolar no filtro .or() do PostgREST (evita
+  // filter-injection; a RLS já limita, mas defense-in-depth).
+  const ehUuid = (v: string) => z.string().uuid().safeParse(v).success;
   const filtros: string[] = [];
-  if (input.atletaId) filtros.push(`atleta_id.eq.${input.atletaId}`);
-  if (input.experienciaId) filtros.push(`experiencia_id.eq.${input.experienciaId}`);
-  if (input.formSubmissionId) filtros.push(`form_submission_id.eq.${input.formSubmissionId}`);
+  if (input.atletaId && ehUuid(input.atletaId)) filtros.push(`atleta_id.eq.${input.atletaId}`);
+  if (input.experienciaId && ehUuid(input.experienciaId))
+    filtros.push(`experiencia_id.eq.${input.experienciaId}`);
+  if (input.formSubmissionId && ehUuid(input.formSubmissionId))
+    filtros.push(`form_submission_id.eq.${input.formSubmissionId}`);
   if (filtros.length === 0) return [];
 
   try {

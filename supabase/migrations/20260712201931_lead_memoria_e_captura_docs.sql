@@ -71,9 +71,17 @@ CREATE INDEX IF NOT EXISTS idx_lead_memoria_experiencia
 ALTER TABLE public.lead_memoria ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "lead_memoria_select" ON public.lead_memoria;
+-- CEO vê toda a memória; Head de Sucesso vê a memória de FAMÍLIA (grupo/manual/
+-- reunião) mas NÃO a derivada de conversa 1:1 (que ele não lê crua) — alinha a
+-- visibilidade da memória à visibilidade do dado bruto.
 CREATE POLICY "lead_memoria_select" ON public.lead_memoria
   FOR SELECT TO authenticated
-  USING (deleted_at IS NULL AND public.get_user_papel() IN ('ceo','head_sucesso'));
+  USING (
+    deleted_at IS NULL AND (
+      public.get_user_papel() = 'ceo'
+      OR (public.get_user_papel() = 'head_sucesso' AND origem <> 'whatsapp_1a1')
+    )
+  );
 
 DROP POLICY IF EXISTS "lead_memoria_insert_ceo" ON public.lead_memoria;
 CREATE POLICY "lead_memoria_insert_ceo" ON public.lead_memoria
@@ -127,7 +135,12 @@ BEGIN
     EXECUTE 'DROP POLICY IF EXISTS "lead_memoria_select" ON uat.lead_memoria';
     EXECUTE 'CREATE POLICY "lead_memoria_select" ON uat.lead_memoria
       FOR SELECT TO authenticated
-      USING (deleted_at IS NULL AND public.get_user_papel() IN (''ceo'',''head_sucesso''))';
+      USING (
+        deleted_at IS NULL AND (
+          public.get_user_papel() = ''ceo''
+          OR (public.get_user_papel() = ''head_sucesso'' AND origem <> ''whatsapp_1a1'')
+        )
+      )';
     EXECUTE 'DROP POLICY IF EXISTS "lead_memoria_insert_ceo" ON uat.lead_memoria';
     EXECUTE 'CREATE POLICY "lead_memoria_insert_ceo" ON uat.lead_memoria
       FOR INSERT TO authenticated
@@ -182,7 +195,12 @@ BEGIN
     EXECUTE 'DROP POLICY IF EXISTS "lead_memoria_select" ON dev.lead_memoria';
     EXECUTE 'CREATE POLICY "lead_memoria_select" ON dev.lead_memoria
       FOR SELECT TO authenticated
-      USING (deleted_at IS NULL AND public.get_user_papel() IN (''ceo'',''head_sucesso''))';
+      USING (
+        deleted_at IS NULL AND (
+          public.get_user_papel() = ''ceo''
+          OR (public.get_user_papel() = ''head_sucesso'' AND origem <> ''whatsapp_1a1'')
+        )
+      )';
     EXECUTE 'DROP POLICY IF EXISTS "lead_memoria_insert_ceo" ON dev.lead_memoria';
     EXECUTE 'CREATE POLICY "lead_memoria_insert_ceo" ON dev.lead_memoria
       FOR INSERT TO authenticated
@@ -215,10 +233,12 @@ ALTER TABLE public.documentos_atleta ADD COLUMN IF NOT EXISTS identificacao_resu
 COMMENT ON COLUMN public.documentos_atleta.fonte_ref IS
   'message_id da mensagem de origem (WhatsApp) — idempotência da captura por IA via UNIQUE(atleta_id, fonte_ref).';
 
--- Não recaptura o mesmo arquivo (idempotência da captura por IA).
+-- Não recaptura o mesmo arquivo (idempotência da captura por IA). Abrange
+-- soft-deleted: um doc capturado e depois dispensado pelo CEO NÃO volta ao
+-- reprocessar (mesma semântica do dedupe_key da lead_memoria).
 CREATE UNIQUE INDEX IF NOT EXISTS uq_documentos_atleta_fonte
   ON public.documentos_atleta (atleta_id, fonte_ref)
-  WHERE fonte_ref IS NOT NULL AND deleted_at IS NULL;
+  WHERE fonte_ref IS NOT NULL;
 
 -- ─── UAT ───
 DO $$
@@ -232,7 +252,7 @@ BEGIN
     EXECUTE 'ALTER TABLE uat.documentos_atleta ADD COLUMN IF NOT EXISTS identificacao_resumo TEXT';
     EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS uq_documentos_atleta_fonte
       ON uat.documentos_atleta (atleta_id, fonte_ref)
-      WHERE fonte_ref IS NOT NULL AND deleted_at IS NULL';
+      WHERE fonte_ref IS NOT NULL';
   END IF;
 END $$;
 
@@ -248,7 +268,7 @@ BEGIN
     EXECUTE 'ALTER TABLE dev.documentos_atleta ADD COLUMN IF NOT EXISTS identificacao_resumo TEXT';
     EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS uq_documentos_atleta_fonte
       ON dev.documentos_atleta (atleta_id, fonte_ref)
-      WHERE fonte_ref IS NOT NULL AND deleted_at IS NULL';
+      WHERE fonte_ref IS NOT NULL';
   END IF;
 END $$;
 
