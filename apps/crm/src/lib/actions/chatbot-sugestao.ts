@@ -168,11 +168,18 @@ export async function sugerirRespostaChatbot(
       };
     }
 
-    const cfg = (cfgRow?.valor ?? {}) as { persona?: string };
-    const persona =
-      typeof cfg.persona === "string" && cfg.persona.trim()
-        ? cfg.persona.trim()
-        : CHATBOT_PERSONA_DEFAULT;
+    // Multi-persona (editável no hub /agents): grupo usa personaGrupo (fallback
+    // → persona → default); 1:1 usa persona (fallback → default). Fail-open.
+    const cfg = (cfgRow?.valor ?? {}) as { persona?: string; personaGrupo?: string };
+    const personaBase =
+      typeof cfg.persona === "string" && cfg.persona.trim() ? cfg.persona.trim() : "";
+    const personaGrupo =
+      typeof cfg.personaGrupo === "string" && cfg.personaGrupo.trim()
+        ? cfg.personaGrupo.trim()
+        : "";
+    const persona = isGrupo
+      ? personaGrupo || personaBase || CHATBOT_PERSONA_DEFAULT
+      : personaBase || CHATBOT_PERSONA_DEFAULT;
 
     // Transcript compacto (o fim é o mais relevante — corta do início se estourar).
     const linhas = mensagens.map((m) => {

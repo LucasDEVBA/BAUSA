@@ -43,6 +43,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/whatsapp": { label: "WhatsApp", parent: "Comercial" },
   "/automacoes": { label: "Automações", parent: "Comercial" },
   "/automacoes-monitor": { label: "Monitor de filas", parent: "Sistema" },
+  "/agents": { label: "Agents de IA", parent: "Sistema" },
   "/sistema": { label: "Sistema" },
 };
 

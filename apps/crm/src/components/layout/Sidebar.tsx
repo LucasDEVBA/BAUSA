@@ -22,6 +22,7 @@ import {
   MessageCircle,
   Workflow,
   CalendarDays,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
@@ -125,6 +126,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "SISTEMA",
     items: [
+      { href: "/agents", label: "Agents de IA", icon: Bot, roles: ["ceo"] },
       {
         href: "/sistema",
         label: "Sistema",

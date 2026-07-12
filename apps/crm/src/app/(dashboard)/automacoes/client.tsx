@@ -87,6 +87,7 @@ import {
 } from "@/lib/automacoes/qualificacao-prompt-defaults";
 import { atualizarInsightsConversaPrompt } from "@/lib/actions/whatsapp-insights";
 import { atualizarInstrucoesIA } from "@/lib/actions/prompts-ia";
+import { InstrucoesIAEditor } from "@/components/agents/InstrucoesIAEditor";
 import { TRANSCRICAO_RESUMO_INSTRUCOES_DEFAULT } from "@/lib/automacoes/transcricao-resumo-prompt";
 import { CAC_INSIGHTS_INSTRUCOES_DEFAULT } from "@/lib/automacoes/cac-insights-prompt";
 import { INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT } from "@/lib/automacoes/insights-conversa-prompt";
@@ -1177,56 +1178,6 @@ function VariaveisLegenda({ variaveis }: { variaveis: string[] }) {
  *  card juntos. Cards sem nada editável viram "Detalhes" (só leitura). */
 /** Editor genérico de instruções de prompt de IA (textarea + contagem +
  *  badge "Personalizada" quando difere do default do código). */
-function InstrucoesIAEditor({
-  id,
-  titulo,
-  rotulo,
-  valor,
-  onChange,
-  defaultTexto,
-  rodape,
-}: {
-  id: string;
-  titulo: string;
-  rotulo: string;
-  valor: string;
-  onChange: (v: string) => void;
-  defaultTexto: string;
-  rodape: string;
-}) {
-  const personalizada = valor.trim() !== defaultTexto.trim() && valor.trim() !== "";
-  return (
-    <section className="space-y-2">
-      <p className={SECTION_LABEL}>{titulo}</p>
-      <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-[11px] font-semibold text-foreground">
-          {rotulo}
-          {personalizada && (
-            <Badge tone="blue" size="sm" className="ml-1.5">
-              Personalizada
-            </Badge>
-          )}
-        </label>
-        <span
-          className={cn(
-            "text-[11px] tabular-nums",
-            valor.length > 4000 ? "text-sys-red" : "text-muted-foreground",
-          )}
-        >
-          {valor.length}/4000
-        </span>
-      </div>
-      <textarea
-        id={id}
-        className={cn(FIELD_CLASS, "min-h-40 resize-y font-mono text-[11px] leading-relaxed")}
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      <p className="text-[11px] text-muted-foreground">{rodape}</p>
-    </section>
-  );
-}
-
 function SistemaModal({
   card,
   intervalos,
