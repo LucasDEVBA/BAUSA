@@ -56,6 +56,24 @@ interface GeminiOptions {
   json?: boolean;
 }
 
+/** Uma mídia inline (base64) enviada à Gemini multimodal (vision). */
+export interface GeminiMidia {
+  /** MIME do arquivo (ex.: image/jpeg, application/pdf). */
+  mimeType: string;
+  /** Conteúdo binário já em base64, SEM prefixo `data:`. */
+  base64: string;
+}
+
+/** MIMEs que os modelos flash aceitam via inlineData no generateContent (v1beta). */
+const MIMETYPES_MULTIMODAIS = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+/** Teto por mídia inline (comprimento do base64). Acima disso, não manda inline. */
+const MAX_MIDIA_BASE64_LEN = 15 * 1024 * 1024;
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Backoff exponencial com jitter (base pequena p/ não travar a UI). */
@@ -132,29 +150,25 @@ async function chamarModelo(
   }
 }
 
+/** Monta o generationConfig comum (texto e multimodal compartilham a config). */
+function montarGenerationConfig(opts: GeminiOptions): Record<string, unknown> {
+  const { temperature = 0.2, maxOutputTokens = 2048, json = true } = opts;
+  return {
+    temperature,
+    maxOutputTokens,
+    ...(json ? { responseMimeType: "application/json" } : {}),
+  };
+}
+
 /**
- * Gera conteúdo textual via Gemini. Retorna o texto bruto do primeiro candidato.
- * Lança GeminiNotConfiguredError se a chave faltar. Em falha transitória
- * (capacidade/rede/timeout) re-tenta com backoff; em modelo indisponível cai
- * para o fallback; erros definitivos (MAX_TOKENS, request inválido) sobem na
- * hora. Todo o processo respeita um deadline global.
+ * Executa o request (body pronto) com a resiliência do cliente: retry com
+ * backoff em transitórios, fallback de modelo em indisponibilidade, deadline
+ * global. Texto e multimodal usam EXATAMENTE este laço — só o body difere.
+ * Lança GeminiNotConfiguredError se a chave faltar.
  */
-export async function gerarConteudoGemini(
-  prompt: string,
-  opts: GeminiOptions = {},
-): Promise<string> {
+async function gerarComResiliencia(body: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new GeminiNotConfiguredError();
-
-  const { temperature = 0.2, maxOutputTokens = 2048, json = true } = opts;
-  const body = JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature,
-      maxOutputTokens,
-      ...(json ? { responseMimeType: "application/json" } : {}),
-    },
-  });
 
   const inicio = Date.now();
   const restante = () => DEADLINE_MS - (Date.now() - inicio);
@@ -184,4 +198,54 @@ export async function gerarConteudoGemini(
   }
 
   throw ultimoErro ?? new GeminiError("Falha ao chamar a Gemini após retries.", "retry");
+}
+
+/**
+ * Gera conteúdo textual via Gemini. Retorna o texto bruto do primeiro candidato.
+ * Lança GeminiNotConfiguredError se a chave faltar. Em falha transitória
+ * (capacidade/rede/timeout) re-tenta com backoff; em modelo indisponível cai
+ * para o fallback; erros definitivos (MAX_TOKENS, request inválido) sobem na
+ * hora. Todo o processo respeita um deadline global.
+ */
+export async function gerarConteudoGemini(
+  prompt: string,
+  opts: GeminiOptions = {},
+): Promise<string> {
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: montarGenerationConfig(opts),
+  });
+  return gerarComResiliencia(body);
+}
+
+/**
+ * Gera conteúdo via Gemini MULTIMODAL (vision): texto + mídias inline (base64).
+ * Só aceita image/jpeg, image/png, image/webp e application/pdf; ignora demais
+ * MIMEs e mídias vazias/acima do teto. Se sobrar NENHUMA mídia legível, lança
+ * GeminiError("fatal") para o chamador cair no fallback textual sem gastar
+ * chamada. Reusa a mesma resiliência do texto (retry/backoff/fallback/deadline).
+ */
+export async function gerarConteudoGeminiMultimodal(
+  prompt: string,
+  midias: readonly GeminiMidia[],
+  opts: GeminiOptions = {},
+): Promise<string> {
+  const partesMidia = midias
+    .filter(
+      (m) =>
+        MIMETYPES_MULTIMODAIS.has(m.mimeType) &&
+        m.base64.length > 0 &&
+        m.base64.length <= MAX_MIDIA_BASE64_LEN,
+    )
+    .map((m) => ({ inlineData: { mimeType: m.mimeType, data: m.base64 } }));
+
+  if (partesMidia.length === 0) {
+    throw new GeminiError("Nenhuma mídia suportada para leitura multimodal.", "fatal");
+  }
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }, ...partesMidia] }],
+    generationConfig: montarGenerationConfig(opts),
+  });
+  return gerarComResiliencia(body);
 }
