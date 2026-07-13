@@ -310,4 +310,36 @@ gcloud scheduler jobs update http "${JOB_ES}" \
   --attempt-deadline=300s
 
 echo "✓ ${JOB_ES} configurado"
+
+# ─── Job 12: Chatbot AUTÔNOMO de WhatsApp (a cada 2 min) ──────────────
+# A CF `chatbot-autonomo` acorda a cada ~2min e, SÓ se o modo global for
+# sombra/ativo (configuracoes_sistema.chatbot_autonomo.modo), decide responder
+# leads. NASCE DESLIGADO (modo=off) → o tick não faz nada até o CEO ligar.
+# Header x-webhook-secret OBRIGATÓRIO: a CF nega (401) sem ele. O segredo vem do
+# ambiente (nunca hardcode) — exporte WEBHOOK_SECRET antes de rodar o script:
+#   WEBHOOK_SECRET=... bash infra/scheduler.sh <env>
+JOB_CB="chatbot-autonomo-job${SUFFIX}"
+CHATBOT_AUTONOMO_URL="${CHATBOT_AUTONOMO_URL:-https://chatbot-autonomo${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_CB}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/2 * * * *" \
+  --uri="${CHATBOT_AUTONOMO_URL}" \
+  --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET:-}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_CB}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/2 * * * *" \
+  --uri="${CHATBOT_AUTONOMO_URL}" \
+  --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET:-}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s
+
+echo "✓ ${JOB_CB} configurado"
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"
