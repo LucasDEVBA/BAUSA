@@ -1,0 +1,12 @@
+{
+  "name": "chatbot-autonomo",
+  "version": "1.0.0",
+  "description": "Cloud Function - Motor do chatbot AUTÔNOMO de WhatsApp: em modo ativo a IA responde leads sozinha (categorias seguras), com gate fail-closed, escalonamento de dinheiro/negociação, override por conversa, idempotência e loop-guard. Nasce desligado (modo off).",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  }
+}
