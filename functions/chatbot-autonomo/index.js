@@ -14,7 +14,9 @@
  *   • sombra → gera um rascunho e notifica o CEO; NUNCA envia ao lead.
  *   • ativo  → a IA envia sozinha, SÓ em categorias seguras.
  * Override por conversa (chatbot_autonomo_conversa.modo): 'ativo'/'desligado'
- * sobrepõem o global; 'padrao' segue o global.
+ * refinam o global QUANDO ele é sombra/ativo; 'padrao' segue o global.
+ * `off` global é SOBERANO (kill-switch) — a CF curto-circuita antes de olhar
+ * overrides. Para validar 1 conversa: global em `sombra` + a conversa em `ativo`.
  *
  * INVARIANTES (guard de CI tests/chatbot-autonomo-invariants.test.js):
  *   1. NASCE off: sem config, o tick retorna sem enviar nada.
@@ -343,7 +345,7 @@ const classificarEGerar = async ({ criterio, persona, transcript, nome, etapa },
 
 // ─── Resolução do lead pelo telefone (tail-10, mesmo do calendar-webhook) ────
 const resolveLead = async (phone) => {
-  const vazio = { fsId: null, nome: null, atletaId: null, etapa: null };
+  const vazio = { fsId: null, nome: null, atletaId: null, etapa: null, lookupFailed: false };
   const suffix = tail(phone, phone.replace(/\D/g, '').length >= 10 ? 10 : 9);
   if (!suffix) return vazio;
   let fs;
@@ -353,12 +355,13 @@ const resolveLead = async (phone) => {
       + '&select=id,athlete_name,guardian_name&order=created_at.desc&limit=1'
     );
   } catch (e) {
+    // Erro de DB (não "sem match") → não sabemos quem é o lead → fail-closed.
     log('WARN', 'resolve_lead_failed', { phone: maskPhone(phone), error: e.message });
-    return vazio;
+    return { ...vazio, lookupFailed: true };
   }
   if (!fs.length) return vazio;
   const nome = fs[0].athlete_name || fs[0].guardian_name || null;
-  const out = { fsId: fs[0].id, nome, atletaId: null, etapa: null };
+  const out = { fsId: fs[0].id, nome, atletaId: null, etapa: null, lookupFailed: false };
   try {
     const atletas = await sbGet(`atletas?form_submission_id=eq.${fs[0].id}&select=id&limit=1`);
     if (atletas.length) {
@@ -369,7 +372,9 @@ const resolveLead = async (phone) => {
       if (deals.length) out.etapa = deals[0].etapa;
     }
   } catch (e) {
+    // Erro ao ler o deal: não sabemos a etapa (pode ser negociação) → fail-closed.
     log('WARN', 'resolve_deal_failed', { phone: maskPhone(phone), error: e.message });
+    out.lookupFailed = true;
   }
   return out;
 };
@@ -618,6 +623,19 @@ const processarConversa = async (conv, config, tickState) => {
     return { enviouAoLead: false };
   }
 
+  // ── FAIL-CLOSED: resolução do lead/deal falhou (erro de DB, não "sem match").
+  // Sem a etapa não dá p/ garantir o gate de dinheiro — pode ser um lead em
+  // negociação. Escala em vez de arriscar responder.
+  if (lead.lookupFailed) {
+    if (!(await claimConversa(phone, messageId, lead.atletaId))) return { enviouAoLead: false };
+    await escalar(lead, 'resolução do lead falhou (fail-closed)');
+    await registrarLog({
+      phone, atletaId: lead.atletaId, mensagemLead: ultimaTexto, decisao: 'escalou',
+      motivo: 'resolução do lead/deal falhou (fail-closed)', modoEfetivo,
+    });
+    return { enviouAoLead: false };
+  }
+
   // ── ESCALONAMENTO DURO por ETAPA (dinheiro/negociação/contrato): nunca responde
   if (lead.etapa && ESCALACAO_ETAPAS.has(lead.etapa)) {
     if (!(await claimConversa(phone, messageId, lead.atletaId))) return { enviouAoLead: false };
@@ -693,7 +711,28 @@ const processarConversa = async (conv, config, tickState) => {
     return { enviouAoLead: false };
   }
 
-  await enviarRespostaAoLead(phone, lead.nome, resultado.resposta);
+  try {
+    await enviarRespostaAoLead(phone, lead.nome, resultado.resposta);
+  } catch (e) {
+    // Envio falhou APÓS o claim (Z-API fora, etc.). Não reenvia (claim já feito
+    // → sem risco de duplicar), mas não deixa o lead no ar em silêncio: avisa o
+    // CEO p/ resposta manual.
+    log('ERROR', 'envio_ao_lead_falhou', { phone: maskPhone(phone), error: e.message });
+    const destErro = await fetchDestinatariosInternos();
+    await notificar(
+      destErro,
+      `Chatbot NÃO conseguiu responder ${lead.nome || 'lead'}`,
+      `Falha no envio automático — responda manualmente. (${e.message})`.slice(0, 300),
+      'media',
+      null
+    );
+    await registrarLog({
+      phone, atletaId: lead.atletaId, mensagemLead: ultimaTexto, decisao: 'erro',
+      categoria: resultado.categoria, resposta: resultado.resposta, enviado: false,
+      motivo: `falha no envio: ${e.message}`.slice(0, 200), modoEfetivo,
+    });
+    return { enviouAoLead: false };
+  }
   await bumpRespostasNoDia(phone, countHoje + 1);
   // Espelha ao CEO (a mensagem enviada também é capturada pelo zapi-inbox).
   const destinatariosCeo = await fetchDestinatariosInternos();
