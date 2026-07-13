@@ -36,6 +36,7 @@ import { toast } from "sonner";
 
 import { uploadMensagemArquivo, uploadMensagemAudio } from "@/lib/actions/mensagem-media";
 import { sugerirRespostaChatbot } from "@/lib/actions/chatbot-sugestao";
+import { ConversaAutonomoToggle } from "@/components/whatsapp/ConversaAutonomoToggle";
 import {
   gerarInsightsConversa,
   type InsightsConversa,
@@ -1936,6 +1937,9 @@ export function WhatsAppEspelhoClient() {
                       ) : null}
                     </p>
                   </div>
+                  {/* Override do chatbot autônomo SÓ desta conversa (CEO-only; a
+                      tela 1:1 já é CEO). Não interfere no envio manual/sugestão. */}
+                  <ConversaAutonomoToggle key={selectedPhone} phone={selectedPhone} />
                 </div>
 
                 {messagesStatus === "loading" ? (
