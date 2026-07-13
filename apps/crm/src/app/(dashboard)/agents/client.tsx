@@ -27,6 +27,7 @@ import { toast } from "sonner";
 
 import { PageHeader, Card, Button, Badge, EmptyState } from "@/components/ui";
 import { InstrucoesIAEditor } from "@/components/agents/InstrucoesIAEditor";
+import { CopilotoAutonomoSection } from "@/components/agents/CopilotoAutonomoSection";
 import { FIELD_CLASS, contarPassosIA } from "@/components/automacoes/builder-shared";
 import { CHATBOT_PERSONA_DEFAULT } from "@/lib/automacoes/chatbot-persona";
 import { INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT } from "@/lib/automacoes/insights-conversa-prompt";
@@ -39,15 +40,23 @@ import {
 import { atualizarPersonasChatbot } from "@/lib/actions/chatbot-agents";
 import { atualizarInsightsConversaPrompt } from "@/lib/actions/whatsapp-insights";
 import { atualizarInstrucoesIA } from "@/lib/actions/prompts-ia";
+import type {
+  ChatbotAutonomoLogItem,
+  ChatbotAutonomoModo,
+} from "@/lib/actions/chatbot-autonomo";
 import { GATILHO_CATALOG, type AutomacaoAcao, type AutomacaoComStats } from "@/types/automacao";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
 // ════════════════════════════════════════════════════════════════════════
 // Hub /agents — famílias de agents de IA do BAU Engine (CEO-only).
 //   1. Copilotos de conversa  → personas editáveis (1:1 + grupo)
-//   2. Agents de sistema      → prompts de IA das automações nativas
-//   3. Agents de automação    → automações do builder que usam IA
-// INVARIANTE: a IA SUGERE/ANALISA; o humano revisa e envia. Nunca envia sozinha.
+//   2. Copiloto autônomo      → modo global + critério + monitor (CF responde)
+//   3. Agents de sistema      → prompts de IA das automações nativas
+//   4. Memória & Documentos   → extração/classificação sob demanda
+//   5. Agents de automação    → automações do builder que usam IA
+// INVARIANTE: a IA SUGERE/ANALISA; o humano revisa e envia — EXCETO o copiloto
+// autônomo em modo "ativo" (única IA que envia sozinha; nasce off). Esta UI só
+// LÊ/ESCREVE config; quem envia é a CF `chatbot-autonomo`.
 // ════════════════════════════════════════════════════════════════════════
 
 const PERSONA_MAX = 4000;
@@ -76,6 +85,10 @@ interface AgentsClientProps {
   qualificacaoCustom: boolean;
   npsCustom: boolean;
   automacoesIA: AutomacaoComStats[];
+  autonomoSeeded: boolean;
+  autonomoModo: ChatbotAutonomoModo;
+  autonomoCriterio: string;
+  autonomoLog: ChatbotAutonomoLogItem[];
 }
 
 /** Aviso reutilizável quando o seed da config ainda não existe no ambiente. */
@@ -443,17 +456,21 @@ export function AgentsClient({
   qualificacaoCustom,
   npsCustom,
   automacoesIA,
+  autonomoSeeded,
+  autonomoModo,
+  autonomoCriterio,
+  autonomoLog,
 }: AgentsClientProps) {
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Sistema"
         title="Agents de IA"
-        description="Onde a IA do BAU Engine trabalha — copilotos de conversa, prompts das automações nativas e agents do builder. A IA sugere e analisa; você revisa e envia. Ela nunca envia sozinha."
+        description="Onde a IA do BAU Engine trabalha — copilotos de conversa, prompts das automações nativas, agents do builder e o copiloto autônomo. Você controla o que ela sugere e o que, se autorizado, ela envia."
       />
 
       {/* 1. Copilotos de conversa */}
-      <section className="space-y-3">
+      <section id="copilotos-conversa" className="space-y-3">
         <SecaoTitulo
           titulo="Copilotos de conversa"
           sub="A persona que a IA usa para SUGERIR respostas no WhatsApp (1:1 e grupo). Você revisa antes de enviar."
@@ -478,7 +495,21 @@ export function AgentsClient({
         </div>
       </section>
 
-      {/* 2. Agents de sistema */}
+      {/* 2. Copiloto autônomo — a IA pode RESPONDER leads sozinha (nasce off) */}
+      <section className="space-y-3">
+        <SecaoTitulo
+          titulo="Copiloto Autônomo"
+          sub="A única IA que pode ENVIAR mensagens a leads sozinha. Nasce desligada; em sombra gera rascunhos para você revisar; só em ativo ela responde por conta própria (categorias seguras)."
+        />
+        <CopilotoAutonomoSection
+          seeded={autonomoSeeded}
+          modoInicial={autonomoModo}
+          criterioInicial={autonomoCriterio}
+          logInicial={autonomoLog}
+        />
+      </section>
+
+      {/* 3. Agents de sistema */}
       <section className="space-y-3">
         <SecaoTitulo
           titulo="Agents de sistema"
@@ -533,7 +564,7 @@ export function AgentsClient({
         </div>
       </section>
 
-      {/* 3. Agent de Memória & Documentos */}
+      {/* 4. Agent de Memória & Documentos */}
       <section className="space-y-3">
         <SecaoTitulo
           titulo="Agent de Memória & Documentos"
@@ -565,7 +596,7 @@ export function AgentsClient({
         </div>
       </section>
 
-      {/* 4. Agents de automação */}
+      {/* 5. Agents de automação */}
       <section className="space-y-3">
         <SecaoTitulo
           titulo="Agents de automação"

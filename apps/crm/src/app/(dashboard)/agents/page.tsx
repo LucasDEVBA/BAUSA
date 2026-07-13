@@ -1,6 +1,11 @@
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getConfiguracoes } from "@/lib/actions/configuracoes";
+import {
+  listarChatbotAutonomoLog,
+  type ChatbotAutonomoLogItem,
+  type ChatbotAutonomoModo,
+} from "@/lib/actions/chatbot-autonomo";
 import { contarPassosIA } from "@/components/automacoes/builder-shared";
 import type { Automacao, AutomacaoComStats } from "@/types/automacao";
 
@@ -96,6 +101,20 @@ export default async function AgentsPage() {
   const npsRaw = (configs.nps_mensagem ?? {}) as { texto?: string };
   const npsCustom = typeof npsRaw.texto === "string" && npsRaw.texto.trim().length > 0;
 
+  // Chatbot AUTÔNOMO (a feature mais sensível — a IA pode responder leads sozinha).
+  // A config nasce off; o critério é editável (campo `criterio`, fail-open na CF).
+  const autonomoRaw = configs.chatbot_autonomo;
+  const autonomoSeeded = autonomoRaw !== undefined && autonomoRaw !== null;
+  const autonomoModoRaw = (autonomoRaw as { modo?: unknown } | undefined)?.modo;
+  const autonomoModo: ChatbotAutonomoModo =
+    autonomoModoRaw === "sombra" || autonomoModoRaw === "ativo" ? autonomoModoRaw : "off";
+  const autonomoCriterioRaw = (configs.chatbot_autonomo_criterio ?? {}) as { criterio?: unknown };
+  const autonomoCriterio =
+    typeof autonomoCriterioRaw.criterio === "string" ? autonomoCriterioRaw.criterio : "";
+
+  const logResult = await listarChatbotAutonomoLog({ limit: 50 });
+  const autonomoLog: ChatbotAutonomoLogItem[] = logResult.success ? logResult.items : [];
+
   return (
     <AgentsClient
       personaSeeded={personaSeeded}
@@ -109,6 +128,10 @@ export default async function AgentsPage() {
       qualificacaoCustom={qualificacaoCustom}
       npsCustom={npsCustom}
       automacoesIA={automacoesIA}
+      autonomoSeeded={autonomoSeeded}
+      autonomoModo={autonomoModo}
+      autonomoCriterio={autonomoCriterio}
+      autonomoLog={autonomoLog}
     />
   );
 }
