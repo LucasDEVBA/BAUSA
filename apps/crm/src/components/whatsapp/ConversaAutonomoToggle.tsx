@@ -9,6 +9,7 @@ import {
   setConversaAutonomoModo,
   type ConversaAutonomoModo,
 } from "@/lib/actions/chatbot-autonomo";
+import { useConfirm } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 // ════════════════════════════════════════════════════════════════════════
@@ -58,6 +59,7 @@ export function ConversaAutonomoToggle({ phone }: { phone: string }) {
   // null = carregando o estado atual desta conversa.
   const [modo, setModo] = useState<ConversaAutonomoModo | null>(null);
   const [saving, setSaving] = useState(false);
+  const confirm = useConfirm();
 
   useEffect(() => {
     let active = true;
@@ -77,6 +79,17 @@ export function ConversaAutonomoToggle({ phone }: { phone: string }) {
 
   const aplicar = async (novo: ConversaAutonomoModo) => {
     if (saving || modo === null || novo === modo) return;
+    if (novo === "ativo") {
+      const ok = await confirm({
+        title: "Ativar o autônomo nesta conversa?",
+        description:
+          "A IA passará a RESPONDER este lead sozinha no WhatsApp (quando o modo global estiver em Sombra ou Ativo), sem revisão humana, nas categorias seguras. Preço, negociação, reclamação e pedidos de falar com uma pessoa são escalados a você. Dá para voltar a Segue global ou Desligado quando quiser.",
+        confirmLabel: "Ativar nesta conversa",
+        cancelLabel: "Cancelar",
+        tone: "danger",
+      });
+      if (!ok) return;
+    }
     const anterior = modo;
     setSaving(true);
     setModo(novo); // otimista — reverte em falha

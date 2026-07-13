@@ -38,12 +38,6 @@ export type ChatbotAutonomoModo = z.infer<typeof modoGlobalSchema>;
 export type ConversaAutonomoModo = z.infer<typeof conversaModoSchema>;
 export type ChatbotAutonomoDecisao = "respondeu" | "sombra" | "escalou" | "ignorou" | "erro";
 
-export interface ChatbotAutonomoConfig {
-  modo: ChatbotAutonomoModo;
-  /** Override do critério (string vazia = default do código na CF). */
-  criterio: string;
-}
-
 export interface ChatbotAutonomoLogItem {
   id: string;
   phone: string | null;
@@ -60,11 +54,6 @@ export interface ChatbotAutonomoLogItem {
 
 export type ChatbotAutonomoActionResult = { success: boolean; error?: string };
 
-interface ConfigRow {
-  chave: string;
-  valor: unknown;
-}
-
 function normalizarTelefone(input: string): string | null {
   const digits = (input ?? "").replace(/\D/g, "");
   return PHONE_RE.test(digits) ? digits : null;
@@ -72,36 +61,6 @@ function normalizarTelefone(input: string): string | null {
 
 // ─── Config global + critério ────────────────────────────────────────────
 
-/** Lê o modo global + o critério atual (fail-open p/ off / default vazio). CEO-only. */
-export async function getChatbotAutonomoConfig(): Promise<ChatbotAutonomoConfig> {
-  if ((await getUserPapel()) !== "ceo") {
-    return { modo: "off", criterio: "" };
-  }
-
-  try {
-    const supabase = await createServerSupabaseClient();
-    const { data } = await supabase
-      .from("configuracoes_sistema")
-      .select("chave, valor")
-      .in("chave", ["chatbot_autonomo", "chatbot_autonomo_criterio"]);
-
-    const map: Record<string, unknown> = {};
-    for (const row of (data ?? []) as ConfigRow[]) map[row.chave] = row.valor;
-
-    const modoRaw = (map.chatbot_autonomo as { modo?: unknown } | undefined)?.modo;
-    const modoParsed = modoGlobalSchema.safeParse(modoRaw);
-    const criterioRaw = (map.chatbot_autonomo_criterio as { criterio?: unknown } | undefined)
-      ?.criterio;
-
-    return {
-      modo: modoParsed.success ? modoParsed.data : "off",
-      criterio: typeof criterioRaw === "string" ? criterioRaw : "",
-    };
-  } catch (err) {
-    console.error({ level: "error", action: "get_chatbot_autonomo_config", error: String(err) });
-    return { modo: "off", criterio: "" };
-  }
-}
 
 /** Grava o modo global (off|sombra|ativo). CEO-only, audited. */
 export async function atualizarChatbotAutonomoModo(
