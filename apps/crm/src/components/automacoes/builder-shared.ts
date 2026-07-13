@@ -14,6 +14,7 @@ import {
   type AutomacaoAcaoTipo,
   type AutomacaoCondicao,
   type AutomacaoGatilho,
+  type AutomacaoPasso,
 } from "@/types/automacao";
 import { ETAPA_LABELS } from "@/types/crm";
 
@@ -157,6 +158,14 @@ export const IA_PROMPT_MAX = 4000;
 export const IA_TITULO_MIN = 3;
 export const IA_TITULO_MAX = 120;
 
+// Passo ia_condicao (gate SIM/NÃO) — espelha o Zod do servidor (prompt 10-2000,
+// rótulo até 80; mesmas variáveis). Tetos do fluxo por passos idem.
+export const IA_CONDICAO_PROMPT_MIN = 10;
+export const IA_CONDICAO_PROMPT_MAX = 2000;
+export const IA_CONDICAO_ROTULO_MAX = 80;
+export const PASSOS_MAX = 12;
+export const PASSOS_IA_MAX = 4;
+
 export const FREQUENCIA_OPCOES: { value: AgendamentoFrequencia; label: string }[] = [
   { value: "diaria", label: "Diária" },
   { value: "semanal", label: "Semanal" },
@@ -196,6 +205,9 @@ export interface BuilderState {
   agDiaMes: number;
   condicoes: AutomacaoCondicao[];
   acoes: AutomacaoAcao[];
+  /** Fluxo avançado ordenado. Não-vazio = modo por passos (condicoes/acoes
+   *  do modo simples ficam inativas e são zeradas ao salvar). */
+  passos: AutomacaoPasso[];
 }
 
 export function emptyBuilder(): BuilderState {
@@ -212,6 +224,7 @@ export function emptyBuilder(): BuilderState {
     agDiaMes: 1,
     condicoes: [],
     acoes: [],
+    passos: [],
   };
 }
 
@@ -233,7 +246,87 @@ export function builderFromAutomacao(a: Automacao): BuilderState {
     agDiaMes: typeof cfg.dia_mes === "number" ? cfg.dia_mes : 1,
     condicoes: a.condicoes,
     acoes: a.acoes,
+    passos: a.passos ?? [],
   };
+}
+
+// ─── Passos (fluxo avançado) — defaults, normalização e resumos ──────────────
+
+/** Condição inicial coerente com o gatilho (1º campo disponível). */
+export function defaultCondicaoParaGatilho(gatilho: AutomacaoGatilho): AutomacaoCondicao {
+  const campo = camposCondicaoDoGatilho(gatilho)[0];
+  return {
+    campo: campo?.value ?? "",
+    operador: "eq",
+    valor: campo?.opcoes?.[0]?.value ?? (campo?.tipo === "numero" ? 0 : ""),
+  };
+}
+
+export type PassoNovoTipo = "condicao" | "ia_condicao" | "acao";
+
+/** Passo novo com valores default — reusa defaultAcao/defaultCondicaoParaGatilho. */
+export function defaultPasso(
+  kind: PassoNovoTipo,
+  gatilho: AutomacaoGatilho,
+  usuarios: UsuarioRow[],
+  acaoTipo?: AutomacaoAcaoTipo,
+): AutomacaoPasso {
+  if (kind === "condicao") {
+    return { tipo: "condicao", condicao: defaultCondicaoParaGatilho(gatilho) };
+  }
+  if (kind === "ia_condicao") {
+    return { tipo: "ia_condicao", prompt: "", rotulo: "" };
+  }
+  return { tipo: "acao", acao: defaultAcao(acaoTipo ?? "criar_tarefa", usuarios) };
+}
+
+/** Normaliza um passo antes de salvar: ações custom (link/mídia "" → ausente)
+ *  e rótulo vazio da ia_condicao (drop). */
+export function normalizarPassoParaSalvar(passo: AutomacaoPasso): AutomacaoPasso {
+  if (passo.tipo === "acao") {
+    return { tipo: "acao", acao: normalizarAcaoParaSalvar(passo.acao) };
+  }
+  if (passo.tipo === "ia_condicao") {
+    const rotulo = passo.rotulo?.trim();
+    return { tipo: "ia_condicao", prompt: passo.prompt, ...(rotulo ? { rotulo } : {}) };
+  }
+  return passo;
+}
+
+/** Quantos passos consomem a IA (ia_condicao + ação ia_prompt) — espelha o Zod. */
+export function contarPassosIA(passos: AutomacaoPasso[]): number {
+  return passos.filter(
+    (p) => p.tipo === "ia_condicao" || (p.tipo === "acao" && p.acao.tipo === "ia_prompt"),
+  ).length;
+}
+
+/** A automação tem pelo menos uma ação? (passos-mode conta passo de ação). */
+export function builderTemAcao(builder: BuilderState): boolean {
+  if (builder.passos.length > 0) return builder.passos.some((p) => p.tipo === "acao");
+  return builder.acoes.length > 0;
+}
+
+/** Pendência de preenchimento de um passo (validação inline). */
+export function passoPendencia(passo: AutomacaoPasso): string | null {
+  if (passo.tipo === "acao") return acaoPendencia(passo.acao);
+  if (passo.tipo === "ia_condicao") {
+    const n = passo.prompt.trim().length;
+    if (n < IA_CONDICAO_PROMPT_MIN) return `Prompt da IA com no mínimo ${IA_CONDICAO_PROMPT_MIN} caracteres`;
+    if (passo.prompt.length > IA_CONDICAO_PROMPT_MAX) return `Prompt da IA acima de ${IA_CONDICAO_PROMPT_MAX} caracteres`;
+    return null;
+  }
+  return null; // condicao: selects sempre têm valor válido
+}
+
+/** Resumo curto de um passo para o card/rótulo do fluxo. */
+export function resumoPasso(passo: AutomacaoPasso): string {
+  if (passo.tipo === "condicao") return `Se ${resumoCondicao(passo.condicao)}`;
+  if (passo.tipo === "ia_condicao") {
+    const p = passo.prompt.trim();
+    const alvo = passo.rotulo?.trim() || (p ? (p.length > 44 ? `${p.slice(0, 44)}…` : p) : "");
+    return alvo ? `Se a IA decidir: ${alvo}` : "Escreva o critério da IA (SIM/NÃO)";
+  }
+  return `Então ${ACAO_CATALOG[passo.acao.tipo].label.toLowerCase()} — ${resumoAcao(passo.acao)}`;
 }
 
 export function defaultAcao(tipo: AutomacaoAcaoTipo, usuarios: UsuarioRow[]): AutomacaoAcao {
@@ -416,6 +509,19 @@ export function resumoAutomacao(builder: BuilderState): string {
       : info.configEtapa && builder.gatilhoEtapaPara
         ? `${info.label.toLowerCase()} (${etapaLabel(builder.gatilhoEtapaPara)})`
         : info.label.toLowerCase();
+
+  // Modo por PASSOS: narra o fluxo na ordem ("se…, então…, se a IA…, então…").
+  if (builder.passos.length > 0) {
+    const trechos = builder.passos.map((p) => {
+      if (p.tipo === "condicao") return `se ${resumoCondicao(p.condicao)}`;
+      if (p.tipo === "ia_condicao") {
+        const alvo = p.rotulo?.trim() || "o critério for atendido";
+        return `se a IA decidir que ${alvo}`;
+      }
+      return `então ${ACAO_CATALOG[p.acao.tipo].label.toLowerCase()}`;
+    });
+    return `Quando ${quando}: ${trechos.join(", ")}.`;
+  }
 
   const partes = [`Quando ${quando}`];
   if (builder.condicoes.length > 0) {

@@ -20,6 +20,7 @@ import {
   Info,
   ChevronDown,
   ExternalLink,
+  GitBranch,
   Shield,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -51,6 +52,7 @@ import {
   builderFromAutomacao,
   emptyBuilder,
   normalizarAcaoParaSalvar,
+  normalizarPassoParaSalvar,
   type BuilderState,
   type UsuarioRow,
 } from "@/components/automacoes/builder-shared";
@@ -85,6 +87,7 @@ import {
 } from "@/lib/automacoes/qualificacao-prompt-defaults";
 import { atualizarInsightsConversaPrompt } from "@/lib/actions/whatsapp-insights";
 import { atualizarInstrucoesIA } from "@/lib/actions/prompts-ia";
+import { InstrucoesIAEditor } from "@/components/agents/InstrucoesIAEditor";
 import { TRANSCRICAO_RESUMO_INSTRUCOES_DEFAULT } from "@/lib/automacoes/transcricao-resumo-prompt";
 import { CAC_INSIGHTS_INSTRUCOES_DEFAULT } from "@/lib/automacoes/cac-insights-prompt";
 import { INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT } from "@/lib/automacoes/insights-conversa-prompt";
@@ -174,14 +177,18 @@ export function AutomacoesClient({
       // Filtro por etapa do deal_etapa_mudou — vazio = qualquer transição
       gatilhoConfig.etapa_para = builder.gatilhoEtapaPara;
     }
+    // Modo por passos ativo → o modelo simples é zerado (mutuamente exclusivo;
+    // a action revalida e força a exclusividade server-side também).
+    const temPassos = builder.passos.length > 0;
     const input: AutomacaoInput = {
       nome: builder.nome,
       descricao: builder.descricao || undefined,
       gatilho: builder.gatilho,
       gatilho_config: gatilhoConfig,
-      condicoes: builder.condicoes,
+      condicoes: temPassos ? [] : builder.condicoes,
       // Link/mídia das ações custom: "" nos forms = ausente no payload
-      acoes: builder.acoes.map(normalizarAcaoParaSalvar),
+      acoes: temPassos ? [] : builder.acoes.map(normalizarAcaoParaSalvar),
+      passos: temPassos ? builder.passos.map(normalizarPassoParaSalvar) : [],
     };
     startTransition(async () => {
       const result = builder.id
@@ -349,11 +356,21 @@ export function AutomacoesClient({
                           <p className="mt-1 text-xs text-muted-foreground">{a.descricao}</p>
                         )}
                         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <ListChecks className="h-3 w-3" />
-                            {a.condicoes.length} condição{a.condicoes.length !== 1 ? "es" : ""} ·{" "}
-                            {a.acoes.map((ac) => ACAO_CATALOG[ac.tipo].label).join(" + ")}
-                          </span>
+                          {a.passos && a.passos.length > 0 ? (
+                            <span className="inline-flex items-center gap-1">
+                              <GitBranch className="h-3 w-3" />
+                              {a.passos.length} passo{a.passos.length !== 1 ? "s" : ""} ·{" "}
+                              {a.passos
+                                .flatMap((p) => (p.tipo === "acao" ? [ACAO_CATALOG[p.acao.tipo].label] : []))
+                                .join(" + ")}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              <ListChecks className="h-3 w-3" />
+                              {a.condicoes.length} condição{a.condicoes.length !== 1 ? "es" : ""} ·{" "}
+                              {a.acoes.map((ac) => ACAO_CATALOG[ac.tipo].label).join(" + ")}
+                            </span>
+                          )}
                           <span className="inline-flex items-center gap-1">
                             <CheckCircle2 className="h-3 w-3 text-sys-green" />
                             {a.runs_sucesso} sucesso{a.runs_sucesso !== 1 ? "s" : ""}
@@ -1161,56 +1178,6 @@ function VariaveisLegenda({ variaveis }: { variaveis: string[] }) {
  *  card juntos. Cards sem nada editável viram "Detalhes" (só leitura). */
 /** Editor genérico de instruções de prompt de IA (textarea + contagem +
  *  badge "Personalizada" quando difere do default do código). */
-function InstrucoesIAEditor({
-  id,
-  titulo,
-  rotulo,
-  valor,
-  onChange,
-  defaultTexto,
-  rodape,
-}: {
-  id: string;
-  titulo: string;
-  rotulo: string;
-  valor: string;
-  onChange: (v: string) => void;
-  defaultTexto: string;
-  rodape: string;
-}) {
-  const personalizada = valor.trim() !== defaultTexto.trim() && valor.trim() !== "";
-  return (
-    <section className="space-y-2">
-      <p className={SECTION_LABEL}>{titulo}</p>
-      <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-[11px] font-semibold text-foreground">
-          {rotulo}
-          {personalizada && (
-            <Badge tone="blue" size="sm" className="ml-1.5">
-              Personalizada
-            </Badge>
-          )}
-        </label>
-        <span
-          className={cn(
-            "text-[11px] tabular-nums",
-            valor.length > 4000 ? "text-sys-red" : "text-muted-foreground",
-          )}
-        >
-          {valor.length}/4000
-        </span>
-      </div>
-      <textarea
-        id={id}
-        className={cn(FIELD_CLASS, "min-h-40 resize-y font-mono text-[11px] leading-relaxed")}
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      <p className="text-[11px] text-muted-foreground">{rodape}</p>
-    </section>
-  );
-}
-
 function SistemaModal({
   card,
   intervalos,

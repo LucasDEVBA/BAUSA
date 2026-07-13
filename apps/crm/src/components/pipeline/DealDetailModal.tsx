@@ -4,12 +4,14 @@ import { useEffect, useState, useTransition } from "react";
 import {
   X,
   Sparkles,
+  Brain,
   HeartPulse,
   User,
   Users,
   Briefcase,
   CalendarDays,
   MessageSquare,
+  MessageCircle,
   FileText,
   History,
   Award,
@@ -69,6 +71,8 @@ import {
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
+import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
+import { MemoriaLeadSection } from "@/components/leads/MemoriaLeadSection";
 
 interface DealDetailModalProps {
   deal: Deal | null;
@@ -80,12 +84,14 @@ interface DealDetailModalProps {
 type SectionId =
   | "executiva"
   | "acompanhamento"
+  | "memoria"
   | "atleta"
   | "academico"
   | "esporte"
   | "familia"
   | "comercial"
   | "reuniao"
+  | "conversa"
   | "comunicacoes"
   | "atribuicao"
   | "financeiro"
@@ -104,6 +110,7 @@ const NAV_ITEMS: NavItem[] = [
   // Estratégia
   { id: "executiva", label: "Visão Executiva", icon: Sparkles, group: "estrategia" },
   { id: "acompanhamento", label: "Acompanhamento Head", icon: HeartPulse, group: "estrategia" },
+  { id: "memoria", label: "Memória & Insights", icon: Brain, group: "estrategia" },
   // Perfil
   { id: "atleta", label: "Atleta", icon: User, group: "perfil" },
   { id: "academico", label: "Acadêmico", icon: GraduationCap, group: "perfil" },
@@ -114,6 +121,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "reuniao", label: "Reunião", icon: CalendarDays, group: "comercial" },
   { id: "financeiro", label: "Financeiro", icon: PiggyBank, group: "comercial" },
   // Operação
+  { id: "conversa", label: "Conversa", icon: MessageCircle, group: "operacao" },
   { id: "comunicacoes", label: "Comunicações", icon: MessageSquare, group: "operacao" },
   { id: "atribuicao", label: "Atribuição & UTM", icon: BarChart3, group: "operacao" },
   { id: "documentos", label: "Documentos", icon: FileText, group: "operacao" },
@@ -530,6 +538,13 @@ export function DealDetailModal({
               {section === "acompanhamento" && (
                 <AcompanhamentoHeadPanel atletaId={deal.atleta_id} />
               )}
+              {section === "memoria" && (
+                <MemoriaLeadSection
+                  atletaId={deal.atleta_id}
+                  formSubmissionId={deal.lead_id}
+                  telefone={deal.whatsapp}
+                />
+              )}
               {section === "atleta" && <AtletaSection deal={deal} />}
               {section === "academico" && <AcademicoSection deal={deal} />}
               {section === "esporte" && <EsporteSection deal={deal} />}
@@ -538,6 +553,9 @@ export function DealDetailModal({
                 <ComercialSection deal={deal} stageConfig={stageConfig} />
               )}
               {section === "reuniao" && <ReuniaoSection deal={deal} />}
+              {section === "conversa" && (
+                <ConversaLeadPanel telefone={deal.whatsapp} />
+              )}
               {section === "comunicacoes" && <ComunicacoesSection deal={deal} />}
               {section === "atribuicao" && <AtribuicaoSection deal={deal} />}
               {section === "financeiro" && (

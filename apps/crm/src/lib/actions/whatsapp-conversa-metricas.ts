@@ -307,6 +307,7 @@ export async function fetchMetricasConversa(input: {
         .from("whatsapp_mensagens")
         .select("from_me, momment, created_at, tipo")
         .in("phone", chaves)
+        .eq("is_grupo", false) // métricas da conversa 1:1 — grupos têm coletor próprio
         .order("created_at", { ascending: false })
         .limit(MAX_MENSAGENS),
       buscarAgendamento(supabase, phone),

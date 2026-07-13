@@ -25,6 +25,9 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/familias-crm/onboarding": { label: "Onboarding da família", parent: "Famílias" },
   "/messages": { label: "Mensagens" },
   "/minha-area": { label: "Minha Área" },
+  "/minha-area/familias": { label: "Famílias", parent: "Minha Área" },
+  "/minha-area/onboarding": { label: "Onboarding", parent: "Minha Área" },
+  "/minha-area/desempenho": { label: "Desempenho", parent: "Minha Área" },
   "/settings": { label: "Configurações" },
   "/proposals": { label: "Propostas" },
   "/revenue": { label: "Financeiro" },
@@ -43,6 +46,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/whatsapp": { label: "WhatsApp", parent: "Comercial" },
   "/automacoes": { label: "Automações", parent: "Comercial" },
   "/automacoes-monitor": { label: "Monitor de filas", parent: "Sistema" },
+  "/agents": { label: "Agents de IA", parent: "Sistema" },
   "/sistema": { label: "Sistema" },
 };
 

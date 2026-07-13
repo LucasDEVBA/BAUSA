@@ -42,7 +42,7 @@ export default async function AutomacoesPage() {
   ] = await Promise.all([
     supabase
       .from("automacoes")
-      .select("id, nome, descricao, gatilho, gatilho_config, condicoes, acoes, ativo, created_at, updated_at")
+      .select("id, nome, descricao, gatilho, gatilho_config, condicoes, acoes, passos, ativo, created_at, updated_at")
       .is("deleted_at", null)
       // Âncoras de SISTEMA (Fase 2b) ficam fora da lista do builder — seus
       // runs aparecem na aba Execuções via embed; a gestão é pelos cards.

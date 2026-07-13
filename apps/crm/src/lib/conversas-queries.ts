@@ -111,6 +111,7 @@ export async function fetchConversaMetrics(period: ConversaPeriod): Promise<Conv
   const { data, error } = await supabase
     .from("whatsapp_mensagens")
     .select("from_me, phone, momment, created_at, tipo")
+    .eq("is_grupo", false) // só 1:1 — mensagens de grupo (coletor) nunca entram nas métricas de conversa
     .order("created_at", { ascending: false })
     .limit(FETCH_LIMIT);
 
@@ -500,6 +501,7 @@ export async function fetchCadenciaPosReuniao(period: ConversaPeriod): Promise<C
       .from("whatsapp_mensagens")
       .select("phone, momment, created_at")
       .eq("from_me", true)
+      .eq("is_grupo", false) // 1:1 apenas — não misturar mensagens de grupo no índice por telefone
       .order("created_at", { ascending: false })
       .limit(FETCH_LIMIT),
   ]);

@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import {
   X,
   Sparkles,
+  Brain,
   User,
   Users,
   GraduationCap,
   Target,
   MessageSquare,
+  MessageCircle,
   BarChart3,
   FileText,
   History,
@@ -34,6 +36,8 @@ import {
 } from "@/components/documentos/DocumentosChecklist";
 import { AcoesRapidasCard } from "@/components/mensagem/AcoesRapidasCard";
 import { TranscricaoReuniaoCard } from "@/components/shared/TranscricaoReuniaoCard";
+import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
+import { MemoriaLeadSection } from "@/components/leads/MemoriaLeadSection";
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -42,12 +46,14 @@ interface LeadDetailModalProps {
 
 type SectionId =
   | "executiva"
+  | "memoria"
   | "atleta"
   | "academico"
   | "esporte"
   | "familia"
   | "endereco"
   | "atribuicao"
+  | "conversa"
   | "comunicacoes"
   | "timing"
   | "documentos"
@@ -63,11 +69,13 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "executiva", label: "Visão Executiva", icon: Sparkles, group: "estrategia" },
+  { id: "memoria", label: "Memória & Insights", icon: Brain, group: "estrategia" },
   { id: "atleta", label: "Atleta", icon: User, group: "perfil" },
   { id: "academico", label: "Acadêmico", icon: GraduationCap, group: "perfil" },
   { id: "esporte", label: "Esporte", icon: Trophy, group: "perfil" },
   { id: "familia", label: "Família", icon: Users, group: "perfil" },
   { id: "endereco", label: "Endereço", icon: Layers, group: "perfil" },
+  { id: "conversa", label: "Conversa", icon: MessageCircle, group: "operacao" },
   { id: "comunicacoes", label: "Comunicações", icon: MessageSquare, group: "operacao" },
   { id: "atribuicao", label: "Atribuição & UTM", icon: BarChart3, group: "operacao" },
   { id: "timing", label: "Timing", icon: CalendarClock, group: "operacao" },
@@ -289,12 +297,24 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
 
             <main className="min-w-0 flex-1 overflow-y-auto px-4 py-3">
               {section === "executiva" && <ExecutivaSection lead={lead} />}
+              {section === "memoria" && (
+                <MemoriaLeadSection
+                  atletaId={lead.pipeline_atleta_id}
+                  formSubmissionId={lead.id}
+                  telefone={lead.guardian_whatsapp ?? lead.athlete_whatsapp}
+                />
+              )}
               {section === "atleta" && <AtletaSection lead={lead} />}
               {section === "academico" && <AcademicoSection lead={lead} />}
               {section === "esporte" && <EsporteSection lead={lead} />}
               {section === "familia" && <FamiliaSection lead={lead} />}
               {section === "endereco" && <EnderecoSection lead={lead} />}
               {section === "atribuicao" && <AtribuicaoSection lead={lead} />}
+              {section === "conversa" && (
+                <ConversaLeadPanel
+                  telefone={lead.guardian_whatsapp ?? lead.athlete_whatsapp}
+                />
+              )}
               {section === "comunicacoes" && <ComunicacoesSection lead={lead} />}
               {section === "timing" && <TimingSection lead={lead} />}
               {section === "documentos" &&

@@ -61,6 +61,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .from("whatsapp_mensagens")
       .select("message_id, phone, from_me, texto, momment, tipo, media_url, mime_type, media_filename")
       .in("phone", chaves)
+      .eq("is_grupo", false) // espelho 1:1 — mensagens de grupo têm sua própria thread (coletor)
       .order("momment", { ascending: false, nullsFirst: false })
       .limit(MIRROR_LIMIT);
 
