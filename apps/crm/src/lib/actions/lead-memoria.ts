@@ -57,8 +57,9 @@ const PG_UNIQUE_VIOLATION = "23505";
 
 /** Download da mídia p/ leitura multimodal: timeout curto e teto de tamanho. */
 const MEDIA_FETCH_TIMEOUT_MS = 8000;
-/** Teto do arquivo baixado (bytes). Acima disso não lê inline → fallback textual. */
-const MEDIA_MAX_BYTES = 15 * 1024 * 1024;
+/** Teto do arquivo baixado (bytes). 11MB → base64 (~14.7M chars) fica sob o teto
+ *  do multimodal (15M chars). Acima disso não lê inline → fallback textual. */
+const MEDIA_MAX_BYTES = 11 * 1024 * 1024;
 /** MIMEs que a Gemini lê inline (imagem/PDF). Demais → fallback textual. */
 const MIME_SUPORTADOS_LEITURA = new Set([
   "image/jpeg",
@@ -180,9 +181,37 @@ function parseJson(raw: string): unknown {
   }
 }
 
-/** Só http(s): impede que um media_url malicioso (javascript:) vire href/XSS. */
+/** Host interno/privado/link-local — anti-SSRF (metadata de cloud, loopback, LAN). */
+function hostInternoOuPrivado(hostname: string): boolean {
+  const h = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) {
+    return true;
+  }
+  if (h === "::1") return true;
+  if (h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80:")) return true; // ULA + link-local IPv6
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    if (a === 0 || a === 127) return true; // this-host / loopback
+    if (a === 10) return true; // privado
+    if (a === 169 && b === 254) return true; // link-local (metadata 169.254.169.254)
+    if (a === 172 && b >= 16 && b <= 31) return true; // privado
+    if (a === 192 && b === 168) return true; // privado
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  }
+  return false;
+}
+
+/** Só http(s) E host externo — impede javascript:/XSS e SSRF (fetch server-side
+ *  de URL de origem externa: webhook Z-API → whatsapp_mensagens.media_url). */
 function ehUrlSegura(url: string | null): url is string {
-  return !!url && /^https?:\/\//i.test(url);
+  if (!url || !/^https?:\/\//i.test(url)) return false;
+  try {
+    return !hostInternoOuPrivado(new URL(url).hostname);
+  } catch {
+    return false;
+  }
 }
 
 /** Mapeia o tipo devolvido pela IA à taxonomia (fallback "Outro"). */
@@ -504,7 +533,9 @@ async function baixarMidia(midia: MensagemRow): Promise<GeminiMidia | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), MEDIA_FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(midia.media_url, { signal: controller.signal, redirect: "follow" });
+    // redirect:manual — um 3xx vira !res.ok (não segue), impedindo que um
+    // redirect para host interno fure o bloqueio anti-SSRF do URL inicial.
+    const res = await fetch(midia.media_url, { signal: controller.signal, redirect: "manual" });
     if (!res.ok) return null;
 
     const declarado = Number(res.headers.get("content-length") ?? "");
@@ -513,10 +544,28 @@ async function baixarMidia(midia: MensagemRow): Promise<GeminiMidia | null> {
     const mimeType = deduzirMimeType(res.headers.get("content-type") ?? "", midia.media_filename);
     if (!mimeType) return null; // tipo não suportado → fallback textual
 
-    const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.byteLength === 0 || buffer.byteLength > MEDIA_MAX_BYTES) return null;
+    // Lê em stream cortando por bytes acumulados — não confia no content-length
+    // (pode faltar/mentir) e não carrega arquivo gigante na memória da função.
+    const body = res.body;
+    if (!body) return null;
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        total += value.byteLength;
+        if (total > MEDIA_MAX_BYTES) {
+          await reader.cancel();
+          return null;
+        }
+        chunks.push(value);
+      }
+    }
+    if (total === 0) return null;
 
-    return { mimeType, base64: buffer.toString("base64") };
+    return { mimeType, base64: Buffer.concat(chunks).toString("base64") };
   } catch (err) {
     console.error({
       level: "warn",
