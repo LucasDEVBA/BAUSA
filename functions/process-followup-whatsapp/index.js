@@ -661,13 +661,11 @@ const processFollowupBatch = async (followupNumber, executionStartTime) => {
 functions.http('processFollowupWhatsApp', async (req, res) => {
   const startTime = Date.now();
 
-  // Permite chamadas do Cloud Scheduler (sem secret) e chamadas autenticadas
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret']) {
-    const incoming = req.headers['x-webhook-secret'];
-    if (incoming !== WEBHOOK_SECRET) {
-      log('WARN', 'auth_failed', { ip: req.ip });
-      return res.status(401).send({ success: false, error: 'Unauthorized' });
-    }
+  // Auth FAIL-CLOSED: secret obrigatório — os jobs do Cloud Scheduler enviam
+  // o header x-webhook-secret (infra/scheduler.sh).
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+    log('WARN', 'auth_failed', { ip: req.ip });
+    return res.status(401).send({ success: false, error: 'Unauthorized' });
   }
 
   try {

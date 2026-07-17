@@ -352,7 +352,9 @@ const processarCampanha = async (campanhaId, dryRun) => {
 //  - com campanha_id  → processa essa campanha (chamada do Engine; dryRun opcional)
 //  - sem campanha_id   → processa TODAS as campanhas 'enviando' (Cloud Scheduler)
 functions.http('sendRemarketing', async (req, res) => {
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+  // Auth FAIL-CLOSED: secret obrigatório — os jobs do Cloud Scheduler enviam
+  // o header x-webhook-secret (infra/scheduler.sh).
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     log('WARN', 'auth_failed');
     return res.status(401).send({ success: false, error: 'Unauthorized' });
   }

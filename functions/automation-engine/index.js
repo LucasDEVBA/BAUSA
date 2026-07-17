@@ -1486,8 +1486,8 @@ const processRun = async (run, automacoesById, engineConfig, tickState) => {
 
 // ─── Entry point ────────────────────────────────────────────────
 functions.http('automationEngine', async (req, res) => {
-  // Auth entre serviços
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+  // Auth entre serviços — FAIL-CLOSED: sem WEBHOOK_SECRET configurado, rejeita.
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     log('WARN', 'auth_failed');
     return res.status(401).send({ success: false, error: 'unauthorized' });
   }

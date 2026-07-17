@@ -752,7 +752,8 @@ const processarConversa = async (conv, config, tickState) => {
 
 // ─── Entry point ────────────────────────────────────────────────
 functions.http('chatbotAutonomo', async (req, res) => {
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+  // FAIL-CLOSED: sem WEBHOOK_SECRET configurado, rejeita.
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     log('WARN', 'auth_failed');
     return res.status(401).send({ success: false, error: 'unauthorized' });
   }
