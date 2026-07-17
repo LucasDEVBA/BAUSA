@@ -120,16 +120,19 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     // Pendentes de qualificacao (submitted > 1h sem qualified_at)
     supabase
       .from("form_submissions")
-      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, created_at")
+      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
       .is("qualified_at", null)
-      .lt("created_at", h1atras)
-      .order("created_at", { ascending: true })
+      // form_submissions NÃO tem created_at — a coluna de entrada é submitted_at.
+      // (Bug histórico: o PostgREST devolvia 400 sem lançar e as filas ficavam
+      // silenciosamente vazias — foi assim que o monitor não viu o incidente.)
+      .lt("submitted_at", h1atras)
+      .order("submitted_at", { ascending: true })
       .limit(50),
 
     // Fila WhatsApp inicial: qualificados QUENTE/MORNO, >22h, sem whatsapp
     supabase
       .from("form_submissions")
-      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, created_at")
+      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("qualified_at", "is", null)
       .lt("qualified_at", h22atras)
@@ -140,7 +143,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     // Fila Follow-up 1: whatsapp >48h, sem followup_1, sem reuniao
     supabase
       .from("form_submissions")
-      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, created_at")
+      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("whatsapp_sent_at", "is", null)
       .lt("whatsapp_sent_at", h48atras)
@@ -152,7 +155,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     // Fila Follow-up 2: whatsapp >7d, followup_1 enviado, sem followup_2, sem reuniao
     supabase
       .from("form_submissions")
-      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, created_at")
+      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("whatsapp_sent_at", "is", null)
       .lt("whatsapp_sent_at", d7atras)
@@ -165,7 +168,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     // Leads trancados: qualificados QUENTE/MORNO >48h sem whatsapp (possivel bug)
     supabase
       .from("form_submissions")
-      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, created_at")
+      .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("qualified_at", "is", null)
       .lt("qualified_at", h48atras)
@@ -260,7 +263,9 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     followup_1_sent_at: item.followup_1_sent_at as string | null,
     followup_2_sent_at: item.followup_2_sent_at as string | null,
     meeting_scheduled: item.meeting_scheduled as boolean | null,
-    created_at: item.created_at as string,
+    // Campo mantém o nome created_at (contrato da UI), mas o valor vem de
+    // submitted_at — única coluna de entrada que existe em form_submissions.
+    created_at: item.submitted_at as string,
     motivo,
   });
 
