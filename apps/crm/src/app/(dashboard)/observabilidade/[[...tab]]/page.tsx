@@ -1,7 +1,10 @@
 import {
   Activity,
   AlertTriangle,
+  Bot,
+  Calendar,
   CheckCircle,
+  Clock,
   Info,
   ListChecks,
   MessageCircle,
@@ -12,14 +15,15 @@ import {
   ShieldAlert,
   Wifi,
   XCircle,
+  Zap,
 } from "lucide-react";
 
 import { Badge, Card, PageHeader, ScrollList, StatCard } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui";
 import type { CardAccent } from "@/components/ui/Card";
 import { requirePapel } from "@/lib/auth";
-import { fetchMonitorData } from "@/lib/automacoes-queries";
-import type { FilaItem } from "@/lib/automacoes-queries";
+import { fetchMonitorData, tempoDesde } from "@/lib/automacoes-queries";
+import type { AutomacaoStatus, FilaItem } from "@/lib/automacoes-queries";
 import {
   runChecksFilas,
   runChecksGeral,
@@ -72,6 +76,42 @@ function fmtHorario(iso: string): string {
   }).format(new Date(iso));
 }
 
+// ─── Config visual das automações (herdada do monitor antigo) ────────────────
+
+const AUTOMACAO_ICONS: Record<string, typeof Bot> = {
+  "Qualificacao Gemini": Bot,
+  "WhatsApp Inicial (22h)": MessageCircle,
+  "Follow-up 1 (48h)": Send,
+  "Follow-up 2 (7 dias)": RefreshCw,
+  "Calendar Webhook": Calendar,
+};
+
+type AutomacaoStatusKey = AutomacaoStatus["status"];
+
+const AUTOMACAO_STATUS_CONFIG: Record<
+  AutomacaoStatusKey,
+  { label: string; tone: BadgeTone; accent: CardAccent; icon: typeof CheckCircle }
+> = {
+  operacional: { label: "Operacional", tone: "green", accent: "green", icon: CheckCircle },
+  atencao: { label: "Atenção", tone: "orange", accent: "orange", icon: AlertTriangle },
+  critico: { label: "Crítico", tone: "red", accent: "red", icon: XCircle },
+  inativo: { label: "Inativo", tone: "neutral", accent: "neutral", icon: Clock },
+} as const;
+
+// Dot pulsante por status (fill sólido — literais p/ Tailwind v4).
+const AUTOMACAO_DOT: Record<AutomacaoStatusKey, string> = {
+  operacional: "bg-sys-green",
+  atencao: "bg-sys-orange",
+  critico: "bg-sys-red",
+  inativo: "bg-muted-foreground",
+};
+
+function classificationBadgeClass(classification: string): string {
+  if (classification === "QUENTE") return "bg-lead-hot/15 text-lead-hot";
+  if (classification === "MORNO") return "bg-lead-warm/15 text-lead-warm";
+  return "bg-lead-cold/15 text-lead-cold";
+}
+
 // ─── Page (catch-all: /observabilidade e /observabilidade/geral) ─────────────
 
 function resolveTab(seg: string | undefined): ObservabilidadeTab {
@@ -95,11 +135,22 @@ export default async function ObservabilidadePage({
 
 async function FilasTab() {
   const [obs, monitor] = await Promise.all([runChecksFilas(), fetchMonitorData()]);
-  const statusGeral = statusGeralDe(obs.checks);
+
+  // Status geral = pior entre os checks novos e o status das automações (antigo).
+  const statusChecks = statusGeralDe(obs.checks);
+  const temAutomacaoCritica = monitor.automacoes.some((a) => a.status === "critico");
+  const temAutomacaoAtencao = monitor.automacoes.some((a) => a.status === "atencao");
+  const statusGeral: CheckStatus =
+    statusChecks === "critico" || temAutomacaoCritica
+      ? "critico"
+      : statusChecks === "atencao" || temAutomacaoAtencao
+        ? "atencao"
+        : "ok";
   const geralStyle = CHECK_STYLE[statusGeral];
 
   const conexaoValor =
     obs.kpis.conexaoOnline === true ? "Online" : obs.kpis.conexaoOnline === false ? "OFFLINE" : "—";
+  const { metrics } = monitor;
 
   return (
     <div className="space-y-5">
@@ -121,8 +172,8 @@ async function FilasTab() {
         }
       />
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      {/* KPI strip — conexão/entrega (novo) + atividade do dia (antigo) */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         <StatCard
           icon={Wifi}
           label="Conexão Z-API"
@@ -136,12 +187,13 @@ async function FilasTab() {
           accent={(obs.kpis.filaInternaZapi ?? 0) > 0 && obs.kpis.conexaoOnline === false ? "red" : "blue"}
           context="mensagens aguardando"
         />
+        <StatCard icon={Bot} label="Qualificados hoje" value={metrics.qualificadosHoje} accent="purple" />
         <StatCard icon={Send} label="Envios marcados 24h" value={obs.kpis.enviosMarcados24h} accent="brand" />
         <StatCard
           icon={MessageCircle}
           label="Espelhadas 24h"
           value={obs.kpis.espelhadasEnviadas24h}
-          accent="purple"
+          accent="green"
           context="entrega confirmada"
         />
         <StatCard
@@ -152,7 +204,17 @@ async function FilasTab() {
         />
       </div>
 
-      {/* Verificações */}
+      {/* Status das automações (visual do monitor antigo) */}
+      <section className="space-y-3">
+        <p className="text-eyebrow text-primary">Status das Automações</p>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+          {monitor.automacoes.map((automacao) => (
+            <AutomacaoCard key={automacao.nome} automacao={automacao} />
+          ))}
+        </div>
+      </section>
+
+      {/* Verificações (motor novo) */}
       <section className="space-y-3">
         <p className="text-eyebrow text-primary">Verificações</p>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -161,6 +223,56 @@ async function FilasTab() {
           ))}
         </div>
       </section>
+
+      {/* Alertas com detalhe por lead (visual do monitor antigo) */}
+      {monitor.leadsTrancados.length > 0 && (
+        <Card variant="plain" padding="lg" accent="red" className="space-y-3">
+          <div className="flex items-center gap-2">
+            <XCircle aria-hidden className="h-4 w-4 text-sys-red" />
+            <p className="text-sm font-semibold text-sys-red">
+              {monitor.leadsTrancados.length} lead{monitor.leadsTrancados.length !== 1 ? "s" : ""} trancado{monitor.leadsTrancados.length !== 1 ? "s" : ""} na fila
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Leads QUENTE/MORNO qualificados há mais de 48h que não receberam WhatsApp.
+            Possível falha no scheduler ou Z-API.
+          </p>
+          <div className="space-y-1.5">
+            {monitor.leadsTrancados.slice(0, 10).map((lead) => (
+              <LeadAlertRow key={lead.id} lead={lead} variant="critico" />
+            ))}
+            {monitor.leadsTrancados.length > 10 && (
+              <p className="pt-1 text-[11px] text-label-tertiary">
+                + {monitor.leadsTrancados.length - 10} mais...
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {monitor.leadsPendentesQualificacao.length > 0 && (
+        <Card variant="plain" padding="lg" accent="orange" className="space-y-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle aria-hidden className="h-4 w-4 text-sys-orange" />
+            <p className="text-sm font-semibold text-sys-orange">
+              {monitor.leadsPendentesQualificacao.length} lead{monitor.leadsPendentesQualificacao.length !== 1 ? "s" : ""} sem qualificação
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Leads submetidos há mais de 1 hora sem qualificação Gemini. Verificar Cloud Function qualify-lead.
+          </p>
+          <div className="space-y-1.5">
+            {monitor.leadsPendentesQualificacao.slice(0, 10).map((lead) => (
+              <LeadAlertRow key={lead.id} lead={lead} variant="atencao" />
+            ))}
+            {monitor.leadsPendentesQualificacao.length > 10 && (
+              <p className="pt-1 text-[11px] text-label-tertiary">
+                + {monitor.leadsPendentesQualificacao.length - 10} mais...
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Filas normais (dentro do prazo) */}
       <section className="space-y-3">
@@ -188,6 +300,26 @@ async function FilasTab() {
             tone="purple"
           />
         </div>
+      </section>
+
+      {/* Fluxo visual (herdado do monitor antigo) */}
+      <section className="space-y-3">
+        <p className="text-eyebrow text-primary">Fluxo de Automações</p>
+        <Card variant="plain" padding="lg">
+          <div className="flex items-center justify-between gap-2 overflow-x-auto">
+            <FlowStep label="Formulário" sublabel="Lead submete" icon={Zap} active />
+            <FlowArrow />
+            <FlowStep label="Qualificação" sublabel="Gemini IA" icon={Bot} active={metrics.qualificadosHoje > 0} />
+            <FlowArrow />
+            <FlowStep label="WhatsApp 22h" sublabel="Envio inicial" icon={MessageCircle} active={metrics.whatsappEnviadosHoje > 0} />
+            <FlowArrow />
+            <FlowStep label="Follow-up 48h" sublabel="Sem reunião" icon={Send} active={metrics.followupsEnviadosHoje > 0} />
+            <FlowArrow />
+            <FlowStep label="Follow-up 7d" sublabel="Último contato" icon={RefreshCw} active />
+            <FlowArrow />
+            <FlowStep label="Reunião" sublabel="Calendar webhook" icon={Calendar} active={metrics.reunioesDetectadas > 0} />
+          </div>
+        </Card>
       </section>
     </div>
   );
@@ -410,6 +542,121 @@ function FunilStep({
 }
 
 function FunilArrow() {
+  return (
+    <div aria-hidden className="flex flex-shrink-0 items-center text-label-tertiary">
+      <div className="h-px w-4 bg-border" />
+      <span className="text-[10px]">&rarr;</span>
+      <div className="h-px w-4 bg-border" />
+    </div>
+  );
+}
+
+// ─── Componentes herdados do monitor antigo (visual preservado) ──────────────
+
+function AutomacaoCard({ automacao }: { automacao: AutomacaoStatus }) {
+  const config = AUTOMACAO_STATUS_CONFIG[automacao.status];
+  const AutomacaoIcon = AUTOMACAO_ICONS[automacao.nome] ?? Activity;
+
+  return (
+    <Card variant="plain" padding="md" accent={config.accent} className="flex flex-col gap-3">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <AutomacaoIcon aria-hidden className="h-4 w-4 text-muted-foreground" />
+          <p className="text-xs font-semibold text-foreground">{automacao.nome}</p>
+        </div>
+        <Badge tone={config.tone} size="sm">
+          <span
+            aria-hidden
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              AUTOMACAO_DOT[automacao.status],
+              automacao.status === "operacional" && "animate-pulse",
+            )}
+          />
+          {config.label}
+        </Badge>
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-muted-foreground">{automacao.detalhes}</p>
+
+      <div className="mt-auto flex items-center justify-between border-t border-border pt-2">
+        <div className="flex items-center gap-1">
+          <Clock aria-hidden className="h-3 w-3 text-label-tertiary" />
+          <p className="text-[10px] text-label-tertiary">
+            {automacao.ultimaExecucao ? tempoDesde(automacao.ultimaExecucao) : "Nunca"}
+          </p>
+        </div>
+        <Badge tone={config.tone} size="sm">
+          <span className="font-bold">{automacao.metrica}</span>
+          <span className="font-normal opacity-70">{automacao.metricaLabel}</span>
+        </Badge>
+      </div>
+    </Card>
+  );
+}
+
+function LeadAlertRow({ lead, variant }: { lead: FilaItem; variant: "critico" | "atencao" }) {
+  const isCritico = variant === "critico";
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between rounded-lg px-3 py-2",
+        isCritico ? "bg-sys-red/5" : "bg-sys-orange/5",
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          aria-hidden
+          className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", isCritico ? "bg-sys-red" : "bg-sys-orange")}
+        />
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium text-foreground">{lead.athlete_name}</p>
+          <p className="truncate text-[10px] text-muted-foreground">{lead.email}</p>
+        </div>
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-3">
+        {lead.classification !== "N/A" && (
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[9px] font-semibold",
+              classificationBadgeClass(lead.classification),
+            )}
+          >
+            {lead.classification}
+          </span>
+        )}
+        <p className="text-[10px] text-label-tertiary">{formatRelativeTime(lead.created_at)}</p>
+      </div>
+    </div>
+  );
+}
+
+function FlowStep({
+  label,
+  sublabel,
+  icon: Icon,
+  active,
+}: {
+  label: string;
+  sublabel: string;
+  icon: typeof Zap;
+  active: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-[100px] flex-col items-center gap-1.5 rounded-lg border px-4 py-3",
+        active ? "border-primary/30 bg-primary/5" : "border-border bg-background",
+      )}
+    >
+      <Icon aria-hidden className={cn("h-4 w-4", active ? "text-primary" : "text-label-tertiary")} />
+      <p className={cn("text-[11px] font-semibold", active ? "text-foreground" : "text-label-tertiary")}>{label}</p>
+      <p className="text-[9px] text-label-tertiary">{sublabel}</p>
+    </div>
+  );
+}
+
+function FlowArrow() {
   return (
     <div aria-hidden className="flex flex-shrink-0 items-center text-label-tertiary">
       <div className="h-px w-4 bg-border" />
