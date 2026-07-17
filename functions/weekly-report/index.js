@@ -213,9 +213,9 @@ const buildReportHtml = (kpis, weekLabel, nome) => {
 // ─── Handler ────────────────────────────────────────────────────────────
 functions.http('weeklyReport', async (req, res) => {
   // Auth: valida o secret APENAS se o header foi enviado (chamadas externas).
-  // O Cloud Scheduler chama sem header — não pode tomar 401 (padrão idêntico
-  // ao retry-qualification e demais crons do projeto).
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+  // Auth FAIL-CLOSED: secret obrigatório — os jobs do Cloud Scheduler enviam
+  // o header x-webhook-secret (infra/scheduler.sh).
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     log('WARN', 'auth_failed');
     return res.status(401).send({ success: false, error: 'Unauthorized' });
   }

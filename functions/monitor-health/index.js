@@ -240,12 +240,11 @@ const runChecks = async () => {
 
 // ─── Cloud Function principal ─────────────────────────────────
 functions.http('monitorHealth', async (req, res) => {
-  // Scheduler chama sem secret; chamadas com secret também aceitas
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret']) {
-    if (req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
-      log('WARN', 'auth_failed');
-      return res.status(401).send({ success: false });
-    }
+  // Auth FAIL-CLOSED: secret obrigatório — os jobs do Cloud Scheduler enviam
+  // o header x-webhook-secret (infra/scheduler.sh).
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+    log('WARN', 'auth_failed');
+    return res.status(401).send({ success: false });
   }
 
   const startTime = Date.now();

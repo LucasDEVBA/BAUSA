@@ -269,12 +269,11 @@ const insertTranscript = async (row) => {
 
 // ─── Cloud Function principal ─────────────────────────────────
 functions.http('meetingTranscripts', async (req, res) => {
-  // Permite chamadas do Cloud Scheduler (sem secret) e chamadas autenticadas
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret']) {
-    if (req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
-      log('WARN', 'auth_failed');
-      return res.status(401).send({ success: false, error: 'Unauthorized' });
-    }
+  // Auth FAIL-CLOSED: secret obrigatório — os jobs do Cloud Scheduler enviam
+  // o header x-webhook-secret (infra/scheduler.sh).
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+    log('WARN', 'auth_failed');
+    return res.status(401).send({ success: false, error: 'Unauthorized' });
   }
 
   const startTime = Date.now();
