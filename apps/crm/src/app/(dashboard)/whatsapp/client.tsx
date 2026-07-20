@@ -684,6 +684,7 @@ function ConversaPanel({
   onFecharInsights,
   agentsAnalise,
   phone,
+  lid,
   leadNome,
 }: {
   metricas: MetricasConversa | null;
@@ -694,6 +695,8 @@ function ConversaPanel({
   onFecharInsights: () => void;
   agentsAnalise: AgentResumo[];
   phone: string;
+  /** LID da conversa (quando migrada) — a análise por agent precisa dele. */
+  lid?: string;
   leadNome?: string;
 }) {
   return (
@@ -966,7 +969,7 @@ function ConversaPanel({
       </section>
 
       {/* Analista sob demanda (agents custom com capacidade `analise`) */}
-      <AnaliseAgentBlock key={phone} agents={agentsAnalise} phone={phone} leadNome={leadNome} />
+      <AnaliseAgentBlock key={phone} agents={agentsAnalise} phone={phone} lid={lid} leadNome={leadNome} />
     </div>
   );
 }
@@ -2144,6 +2147,7 @@ export function WhatsAppEspelhoClient({
                 onFecharInsights={() => setInsights(null)}
                 agentsAnalise={agentsAnalise}
                 phone={selectedPhone}
+                lid={phoneToLidRef.current[selectedPhone] ?? undefined}
                 leadNome={selectedDisplayName || undefined}
               />
             </Card>

@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS public.agents (
   prompt       TEXT NOT NULL CHECK (char_length(prompt) BETWEEN 10 AND 4000),
   capacidades  TEXT[] NOT NULL CHECK (
     capacidades <@ ARRAY['conversa','automacao','analise','chatbot_autonomo']::text[]
-    AND array_length(capacidades, 1) >= 1
+    AND cardinality(capacidades) >= 1
   ),
   ativo        BOOLEAN NOT NULL DEFAULT TRUE,
   deleted_at   TIMESTAMPTZ,
@@ -99,7 +99,7 @@ BEGIN
         prompt       TEXT NOT NULL CHECK (char_length(prompt) BETWEEN 10 AND 4000),
         capacidades  TEXT[] NOT NULL CHECK (
           capacidades <@ ARRAY[''conversa'',''automacao'',''analise'',''chatbot_autonomo'']::text[]
-          AND array_length(capacidades, 1) >= 1
+          AND cardinality(capacidades) >= 1
         ),
         ativo        BOOLEAN NOT NULL DEFAULT TRUE,
         deleted_at   TIMESTAMPTZ,
@@ -137,7 +137,7 @@ BEGIN
         prompt       TEXT NOT NULL CHECK (char_length(prompt) BETWEEN 10 AND 4000),
         capacidades  TEXT[] NOT NULL CHECK (
           capacidades <@ ARRAY[''conversa'',''automacao'',''analise'',''chatbot_autonomo'']::text[]
-          AND array_length(capacidades, 1) >= 1
+          AND cardinality(capacidades) >= 1
         ),
         ativo        BOOLEAN NOT NULL DEFAULT TRUE,
         deleted_at   TIMESTAMPTZ,

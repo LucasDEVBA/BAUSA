@@ -15,13 +15,15 @@ import type { AgentResumo } from "@/types/agent";
  * não renderiza. Reset ao trocar de conversa via `key` no ponto de uso.
  */
 export interface AnaliseAgentBlockProps {
+  /** LID da conversa 1:1 (quando existir) — sem ele, conversas LID vêm vazias. */
+  lid?: string | null;
   agents: AgentResumo[];
   phone?: string;
   grupoId?: string;
   leadNome?: string;
 }
 
-export function AnaliseAgentBlock({ agents, phone, grupoId, leadNome }: AnaliseAgentBlockProps) {
+export function AnaliseAgentBlock({ lid, agents, phone, grupoId, leadNome }: AnaliseAgentBlockProps) {
   const [agentId, setAgentId] = useState<string>(agents[0]?.id ?? "");
   const [analise, setAnalise] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -34,7 +36,7 @@ export function AnaliseAgentBlock({ agents, phone, grupoId, leadNome }: AnaliseA
     if (!agentId || loading) return;
     setLoading(true);
     try {
-      const r = await analisarComAgent({ agentId, phone, grupoId, leadNome });
+      const r = await analisarComAgent({ agentId, phone, lid: lid ?? null, grupoId, leadNome });
       if (!r.success) {
         toast.error(r.notConfigured ? "IA não configurada neste ambiente." : r.error);
         return;

@@ -186,7 +186,9 @@ test('migration agents: CHECK do domínio de capacidades', () => {
     );
   }
   assert.ok(
-    /array_length\(capacidades,\s*1\)\s*>=\s*1/.test(sql),
+    // cardinality (NÃO array_length): array_length('{}',1) devolve NULL e o
+    // CHECK passa com NULL — array vazio entraria no banco (achado da revisão).
+    /cardinality\(capacidades\)\s*>=\s*1/.test(sql),
     'INVARIANTE VIOLADO: o CHECK deve exigir pelo menos 1 capacidade.',
   );
 });

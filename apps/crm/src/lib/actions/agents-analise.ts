@@ -34,6 +34,8 @@ const grupoIdRe = /^[\d-]{5,40}@g\.us$/i;
 const inputSchema = z
   .object({
     agentId: z.string().uuid("Agent inválido."),
+    /** LID da conversa (conversas migradas p/ LID ficam keyed por ele). */
+    lid: z.string().trim().nullish(),
     grupoId: z.string().trim().optional(),
     phone: z.string().trim().optional(),
     /** Nome do lead/família já resolvido pela UI (não vaza PII nova). */
@@ -103,17 +105,23 @@ export async function analisarComAgent(input: AnaliseAgentInput): Promise<Analis
   if (!parsedInput.success) {
     return { success: false, error: parsedInput.error.issues[0]?.message ?? "Dados inválidos." };
   }
-  const { agentId, grupoId, phone: phoneRaw, leadNome } = parsedInput.data;
+  const { agentId, grupoId, phone: phoneRaw, lid, leadNome } = parsedInput.data;
   const isGrupo = Boolean(grupoId);
 
+  const phone = (phoneRaw ?? "").replace(/\D/g, "");
   if (isGrupo) {
     if (!grupoId || !grupoIdRe.test(grupoId)) {
       return { success: false, error: "Grupo inválido." };
     }
-  } else {
-    const phone = (phoneRaw ?? "").replace(/\D/g, "");
-    if (!phoneRe.test(phone)) return { success: false, error: "Telefone inválido." };
+  } else if (!phoneRe.test(phone)) {
+    return { success: false, error: "Telefone inválido." };
   }
+
+  // Conversas migradas para LID ficam keyed pelo LID em whatsapp_mensagens —
+  // buscar só pelo phone devolveria transcript vazio/parcial (mesma classe do
+  // incidente PGRST/LID que pegou 6 arquivos). Padrão de chatbot-sugestao.ts.
+  const lidNorm = (lid ?? "").trim();
+  const chavesConversa = lidNorm && lidNorm !== phone ? [phone, lidNorm] : [phone];
 
   try {
     const supabase = await createServerSupabaseClient();
@@ -131,7 +139,7 @@ export async function analisarComAgent(input: AnaliseAgentInput): Promise<Analis
       : supabase
           .from("whatsapp_mensagens")
           .select("from_me, texto, tipo, momment, participante_nome")
-          .eq("phone", (phoneRaw ?? "").replace(/\D/g, ""))
+          .in("phone", chavesConversa)
           .eq("is_grupo", false)
           .order("momment", { ascending: false, nullsFirst: false })
           .limit(MAX_MENSAGENS);
