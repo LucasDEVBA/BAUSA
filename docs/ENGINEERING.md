@@ -62,10 +62,34 @@ Em maio/2026 tivemos **dois incidentes silenciosos** que custaram caro e passara
 
 ## Runbook de Incidentes
 
-### Detecção
-- `/automacoes-monitor` no Engine — estado atual das filas
+### Detecção (cobertura total — 2026-07-20)
+Lição do incidente Z-API 2026-07-15/17: **ausência de erro ≠ funcionando** — os
+checks buscam sinais POSITIVOS de vida (conexão real, espelho de entrega,
+heartbeats), nunca só a ausência de pendências.
+
+- **`/observabilidade` no Engine (CEO, on-demand)** — 3 abas: **Monitor de
+  filas** (conexão Z-API real, fila interna, envios sem espelho, timing entre
+  etapas, filas presas), **Geral** (funil 24h envios×espelhadas, pings das CFs,
+  Supabase, Gemini, +13 checks de fluxo) e **Saúde das automações**
+  (auto-instrumentação: TODA automação criada nasce vigiada — erro crônico,
+  runs presos, silêncio; `sla_horas` opcional no builder).
+- **CF `monitor-health` v2 (AUTOMÁTICO, 30min)** — 18 checks (paridade com a
+  tela, travada por guard). Alerta por **WhatsApp + in-app + E-MAIL**
+  (Resend→Brevo — canal independente da Z-API monitorada). Cooldown 6h/check.
+  Supressão consciente: `configuracoes_sistema.monitor_checks_desativados`
+  (nasce com régua+NPS, jobs pausados de propósito — remover ao ativar).
+- **Dead-man's switch** — workflow `.github/workflows/deadman-monitor.yml`
+  (cron 30min, SÓ roda na main): lê o heartbeat `monitor_last_tick_at` via
+  anon key + policy restrita; tick >90min = falha ruidosa → GitHub e-maila o
+  dono. Teste do canal: `workflow_dispatch` com `max_age_min=0`.
+- Sinais no banco (F2): `calendar_watch_state` (watch do Google expira em ≤7d
+  — check crítico <24h), `form_submissions.sheets_synced_at` (sync planilha
+  por lead, CAS), `weekly_report_state`, `billing_last_tick_at`.
 - Cloud Logging GCP — `gcloud logging read 'resource.labels.service_name="<fn>"'`
-- (futuro #19) Cloud Monitoring — alertas proativos de volume zero
+- Guards de CI da observabilidade: `tests/monitor-health-invariants.test.js`
+  (paridade CF↔tela, e-mail, tick sem PII), `tests/deadman-invariants.test.js`,
+  `tests/automacoes-saude-invariants.test.js` (heurística NUNCA no alerta
+  automático), `tests/observabilidade-invariants.test.js`.
 
 ### Contenção (ordem)
 1. **Pausar o que está sangrando:** `gcloud scheduler jobs pause <job> --location=us-central1`
@@ -87,6 +111,13 @@ Em maio/2026 tivemos **dois incidentes silenciosos** que custaram caro e passara
 - **Calendar data loss:** `functions/calendar-webhook/` — `SELECT` parcial. Lição: `SELECT *` quando reescreve registro inteiro.
 - **Develop deletado:** `--delete-branch` em PR `develop→main`. Lição: NUNCA usar a flag em PR cujo HEAD é branch permanente.
 - **FRIO recebeu mensagem timing / follow-up timing:** filtro de elegibilidade ausente em scheduler. Lição: guard `tests/scheduler-eligibility.test.js`.
+- **Z-API caída 2 dias sem detecção (2026-07-15/17):** a Z-API desconectada aceita envios (200+messageId) e enfileira; o CAS marca `*_sent_at` antes do envio; filas pareciam vazias. Lição: checks de sinal POSITIVO (conexão `/status`, espelho `whatsapp_mensagens`), canal de alerta independente do sistema monitorado, dead-man p/ o próprio vigia. Bônus: `form_submissions` NÃO tem `created_at` (é `submitted_at`) e o PostgREST devolve erro sem lançar — SEMPRE checar `res.error`.
+- **12 CFs com auth fail-open:** `if (WEBHOOK_SECRET && header)` pulava auth sem header — qualquer request anônimo executava o job. Lição: padrão canônico `!WEBHOOK_SECRET || header !== SECRET` + guard `tests/cf-auth-invariants.test.js` + jobs do scheduler SEMPRE com `--headers x-webhook-secret`.
+
+### Regra para CF nova
+Toda CF nova DECLARA seu **sinal observável** (coluna/chave que prova execução)
+e ganha um check consumidor no `monitor-health` + tela — ver checklist da skill
+`bausa-cloud-function`. Fluxo sem sinal = incidente invisível esperando data.
 
 ---
 

@@ -62,6 +62,9 @@ functions.http('nomeDaFuncao', async (req, res) => {
 
 ## ⛔ Checklist anti-regressão (OBRIGATÓRIO — lições de incidentes reais)
 
+- [ ] **Sinal observável declarado.** Toda CF nova define QUAL coluna/chave do banco prova que ela executou (ex.: `*_sent_at` CAS, `configuracoes_sistema.<x>_state`, heartbeat `<x>_last_tick_at`) e ganha um check consumidor na CF `monitor-health` + na tela `/observabilidade` (paridade travada por `tests/monitor-health-invariants.test.js`). Fluxo sem sinal = incidente invisível (lição Z-API 2026-07-15/17: a falha não gera erro nenhum). Escritores de sinal são FAIL-OPEN (telemetria nunca quebra a função).
+- [ ] **Auth fail-closed canônica:** `if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) return 401` — NUNCA o padrão fail-open `if (WEBHOOK_SECRET && header)` (12 CFs corrigidas em 2026-07-19; guard `tests/cf-auth-invariants.test.js`). Job do scheduler SEMPRE com `--headers x-webhook-secret`.
+
 - [ ] **`SELECT *` quando o registro será reescrito inteiro.** Incidente `calendar-webhook`: SELECT parcial → sync ao Sheets sobrescreveu linha com `undefined`, data loss em 43 leads. Se você lê para depois reescrever/sincronizar, leia TUDO.
 - [ ] **Toda variável referenciada existe no escopo.** Incidente `send-messages`: `payload?.messageType` mas só `req.body` existia → `ReferenceError` → 100% dos emails travados 12 dias. `node --check` + ler o escopo.
 - [ ] **Ausência de erro ≠ funcionando.** Se a função tem volume esperado (emails/dia, WhatsApps/dia), o sucesso é silencioso e a falha também. Logar contadores (`action=email_sent`) para monitoramento poder alertar.
