@@ -203,6 +203,9 @@ export interface BuilderState {
   agHora: number;
   agDiaSemana: number;
   agDiaMes: number;
+  /** SLA de silêncio em horas (opcional, qualquer gatilho) — override
+   *  determinístico da saúde derivada em /observabilidade/automacoes. */
+  slaHoras: number | null;
   condicoes: AutomacaoCondicao[];
   acoes: AutomacaoAcao[];
   /** Fluxo avançado ordenado. Não-vazio = modo por passos (condicoes/acoes
@@ -222,6 +225,7 @@ export function emptyBuilder(): BuilderState {
     agHora: 9,
     agDiaSemana: 1,
     agDiaMes: 1,
+    slaHoras: null,
     condicoes: [],
     acoes: [],
     passos: [],
@@ -244,6 +248,7 @@ export function builderFromAutomacao(a: Automacao): BuilderState {
     agHora: typeof cfg.hora === "number" ? cfg.hora : 9,
     agDiaSemana: typeof cfg.dia_semana === "number" ? cfg.dia_semana : 1,
     agDiaMes: typeof cfg.dia_mes === "number" ? cfg.dia_mes : 1,
+    slaHoras: typeof cfg.sla_horas === "number" && cfg.sla_horas >= 1 && cfg.sla_horas <= 720 ? cfg.sla_horas : null,
     condicoes: a.condicoes,
     acoes: a.acoes,
     passos: a.passos ?? [],

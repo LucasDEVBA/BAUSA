@@ -669,6 +669,82 @@ const runChecks = async () => {
         detalhe: `${pendentes} run(s) pendentes ${RUNS_PRESOS_HORAS}h+ e ${retryVencido} retry(s) vencidos — engine de automações possivelmente parada`,
       };
     }),
+
+    // ── Saúde POR automação — auto-instrumentação (F4) ───────
+    // SÓ regras DETERMINÍSTICAS aqui (erro crônico, presos, agendamento/SLA
+    // de silêncio, nunca-rodou): a heurística de baseline/mediana existe
+    // apenas na tela /observabilidade/automacoes — o alerta automático NUNCA
+    // acorda o CEO com heurística.
+    checkSeguro('automacoes_saude', async () => {
+      const [autosRes, runsRes] = await Promise.all([
+        httpRequest(
+          `${SUPABASE_URL}/rest/v1/automacoes?select=id,nome,gatilho,gatilho_config,updated_at&ativo=is.true&deleted_at=is.null`,
+          { method: 'GET', headers: supaHeaders() },
+        ),
+        httpRequest(
+          `${SUPABASE_URL}/rest/v1/automacao_runs?select=automacao_id,status,created_at,proxima_tentativa_at` +
+            `&created_at=gt.${encodeURIComponent(isoAtras(31 * 24))}&order=created_at.desc&limit=1000`,
+          { method: 'GET', headers: supaHeaders() },
+        ),
+      ]);
+      if (autosRes.statusCode >= 400) throw new Error(`automacoes HTTP ${autosRes.statusCode}`);
+      if (runsRes.statusCode >= 400) throw new Error(`automacao_runs HTTP ${runsRes.statusCode}`);
+      const autos = JSON.parse(autosRes.body || '[]');
+      const runs = JSON.parse(runsRes.body || '[]');
+
+      const porAuto = {};
+      for (const r of runs) (porAuto[r.automacao_id] = porAuto[r.automacao_id] || []).push(r);
+
+      const agora = Date.now();
+      const cortePreso = agora - RUNS_PRESOS_HORAS * 3600000;
+      const corte7d = agora - 7 * 86400000;
+      const FREQ_H = { diaria: 24, semanal: 168, mensal: 744 };
+      const problemas = [];
+
+      for (const a of autos) {
+        const rs = porAuto[a.id] || []; // desc
+        const motivos = [];
+
+        const tres = rs.slice(0, 3);
+        if (tres.length === 3 && tres.every((r) => r.status === 'erro')) motivos.push('3 erros consecutivos');
+        const rs7d = rs.filter((r) => Date.parse(r.created_at) >= corte7d);
+        const erros7d = rs7d.filter((r) => r.status === 'erro').length;
+        if (motivos.length === 0 && rs7d.length >= 6 && erros7d / rs7d.length >= 0.5) {
+          motivos.push(`taxa de erro ${Math.round((erros7d / rs7d.length) * 100)}%/7d`);
+        }
+
+        const presos = rs.filter((r) =>
+          (r.status === 'pendente' && Date.parse(r.created_at) < cortePreso) ||
+          (r.status === 'erro' && r.proxima_tentativa_at && Date.parse(r.proxima_tentativa_at) < cortePreso)).length;
+        if (presos > 0) motivos.push(`${presos} run(s) presos`);
+
+        const cfg = a.gatilho_config || {};
+        const sla = typeof cfg.sla_horas === 'number' && cfg.sla_horas >= 1 && cfg.sla_horas <= 720 ? cfg.sla_horas : null;
+        const ultimaMs = rs[0] ? Date.parse(rs[0].created_at) : null;
+        const idadeH = ultimaMs !== null ? (agora - ultimaMs) / 3600000 : null;
+        const carenciaOk = Date.parse(a.updated_at) < agora - 48 * 3600000;
+
+        if (a.gatilho === 'agendamento') {
+          const esperadoH = (FREQ_H[cfg.frequencia] || 24) + 6;
+          if (idadeH !== null && idadeH > esperadoH) motivos.push(`agendamento sem run há ${Math.floor(idadeH)}h`);
+          if (idadeH === null && carenciaOk) motivos.push('agendamento sem NENHUM run em 30d');
+        }
+        if (sla !== null) {
+          if (idadeH !== null && idadeH > sla) motivos.push(`SLA de silêncio ${sla}h estourado (${Math.floor(idadeH)}h)`);
+          if (idadeH === null && carenciaOk) motivos.push(`SLA ${sla}h definido e nenhum run em 30d`);
+        }
+
+        if (motivos.length > 0) problemas.push(`${a.nome} (${motivos.join('; ')})`);
+      }
+
+      return {
+        ok: problemas.length === 0,
+        valor: problemas.length,
+        detalhe: problemas.length === 0
+          ? `${autos.length} automação(ões) ativas saudáveis (regras determinísticas)`
+          : `${problemas.length} automação(ões) com problema: ${problemas.slice(0, 3).join(' · ')}${problemas.length > 3 ? '…' : ''}`,
+      };
+    }),
   ]);
 };
 

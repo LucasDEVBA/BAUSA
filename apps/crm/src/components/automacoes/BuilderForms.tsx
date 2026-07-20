@@ -233,6 +233,26 @@ export function GatilhoForm({
         </span>{" "}
         {gatilhoInfo.descricao}
       </p>
+      {/* F4 — SLA de silêncio (opcional): override determinístico da saúde
+          derivada em /observabilidade/automacoes. Vazio = heurística padrão. */}
+      <Field label="SLA de silêncio em horas (opcional)">
+        <Input
+          type="number"
+          min={1}
+          max={720}
+          placeholder="ex.: 48 — alerta se ficar esse tempo sem executar"
+          className="tabular-nums"
+          value={builder.slaHoras === null ? "" : String(builder.slaHoras)}
+          onChange={(e) => {
+            const v = e.target.value.trim();
+            const n = Number(v);
+            onChange({
+              ...builder,
+              slaHoras: v === "" || !Number.isFinite(n) ? null : Math.min(720, Math.max(1, Math.round(n))),
+            });
+          }}
+        />
+      </Field>
     </div>
   );
 }
