@@ -13,6 +13,7 @@ import {
   PASSO_CATALOG,
   type AutomacaoPassoTipo,
 } from "@/types/automacao";
+import type { AgentResumo } from "@/types/agent";
 import { cn } from "@/lib/utils";
 
 import { AcaoFields, CondicaoFields } from "./BuilderForms";
@@ -58,10 +59,13 @@ function PassoIcon({ passo, className }: { passo: AutomacaoPasso; className?: st
 export function PassosBuilder({
   builder,
   usuarios,
+  agents,
   onChange,
 }: {
   builder: BuilderState;
   usuarios: UsuarioRow[];
+  /** Agents custom (capacidade `automacao`) p/ os seletores dos passos de IA. */
+  agents: AgentResumo[];
   onChange: (b: BuilderState) => void;
 }) {
   const [aberto, setAberto] = useState<number | null>(null);
@@ -236,11 +240,15 @@ export function PassosBuilder({
                         index={i}
                         prompt={passo.prompt}
                         rotulo={passo.rotulo ?? ""}
+                        agentId={passo.agent_id ?? ""}
+                        agents={agents}
                         onChange={(patch) =>
                           updatePasso(i, {
                             tipo: "ia_condicao",
                             prompt: patch.prompt ?? passo.prompt,
                             rotulo: patch.rotulo ?? passo.rotulo,
+                            agent_id:
+                              patch.agent_id !== undefined ? patch.agent_id : passo.agent_id,
                           })
                         }
                       />
@@ -249,6 +257,7 @@ export function PassosBuilder({
                       <AcaoFields
                         acao={passo.acao}
                         usuarios={usuarios}
+                        agents={agents}
                         onChange={(acao: AutomacaoAcao) => updatePasso(i, { tipo: "acao", acao })}
                       />
                     )}
@@ -332,19 +341,51 @@ function IaCondicaoFields({
   index,
   prompt,
   rotulo,
+  agentId,
+  agents,
   onChange,
 }: {
   index: number;
   prompt: string;
   rotulo: string;
-  onChange: (patch: { prompt?: string; rotulo?: string }) => void;
+  agentId: string;
+  agents: AgentResumo[];
+  onChange: (patch: { prompt?: string; rotulo?: string; agent_id?: string }) => void;
 }) {
   const foraDoLimite = prompt.length < IA_CONDICAO_PROMPT_MIN || prompt.length > IA_CONDICAO_PROMPT_MAX;
   return (
     <div className="space-y-1.5">
+      {/* Agent plugável (F5): o prompt do agent substitui o inline na engine;
+          o inline segue OBRIGATÓRIO — é o fallback garantido se o agent for
+          desativado/excluído (o gate nunca quebra por agent). */}
+      {agents.length > 0 && (
+        <div className="space-y-1">
+          <label
+            htmlFor={`ia-condicao-agent-${index}`}
+            className="block text-[10px] font-semibold uppercase tracking-wider text-label-tertiary"
+          >
+            Agent (opcional)
+          </label>
+          <select
+            id={`ia-condicao-agent-${index}`}
+            className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/40"
+            value={agentId}
+            onChange={(e) => onChange({ agent_id: e.target.value })}
+          >
+            <option value="">Prompt inline</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <label htmlFor={`ia-condicao-${index}`} className="text-[11px] font-semibold text-foreground">
-          Critério da IA (decide SIM / NÃO)
+          {agentId
+            ? "Prompt fallback (obrigatório — usado se o agent for desativado)"
+            : "Critério da IA (decide SIM / NÃO)"}
         </label>
         <span
           className={cn(

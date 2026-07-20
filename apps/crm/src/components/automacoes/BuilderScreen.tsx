@@ -18,6 +18,7 @@ import {
 
 import { Badge, BrandTabs, Button, Card, useConfirm } from "@/components/ui";
 import { ACAO_CATALOG, GATILHO_CATALOG, type AutomacaoAcaoTipo } from "@/types/automacao";
+import type { AgentResumo } from "@/types/agent";
 import { cn } from "@/lib/utils";
 
 import { AcaoForm, CondicaoForm, GatilhoForm } from "./BuilderForms";
@@ -47,6 +48,8 @@ type BuilderView = "fluxo" | "formulario" | "passos";
 interface BuilderScreenProps {
   builder: BuilderState;
   usuarios: UsuarioRow[];
+  /** Agents custom (capacidade `automacao`) p/ o seletor das ações de IA. */
+  agents: AgentResumo[];
   isPending: boolean;
   onChange: (b: BuilderState) => void;
   onClose: () => void;
@@ -63,6 +66,7 @@ function tituloSelecao(sel: FlowSelection, builder: BuilderState): string {
 export function BuilderScreen({
   builder,
   usuarios,
+  agents,
   isPending,
   onChange,
   onClose,
@@ -283,7 +287,7 @@ export function BuilderScreen({
       {/* Corpo */}
       <div className="relative flex min-h-0 flex-1">
         {view === "passos" ? (
-          <PassosBuilder builder={builder} usuarios={usuarios} onChange={onChange} />
+          <PassosBuilder builder={builder} usuarios={usuarios} agents={agents} onChange={onChange} />
         ) : view === "fluxo" ? (
           <>
             <FlowCanvas
@@ -336,6 +340,7 @@ export function BuilderScreen({
                       builder={builder}
                       index={selection.index}
                       usuarios={usuarios}
+                      agents={agents}
                       onChange={onChange}
                     />
                   )}
@@ -507,6 +512,7 @@ export function BuilderScreen({
                             builder={builder}
                             index={i}
                             usuarios={usuarios}
+                            agents={agents}
                             onChange={onChange}
                           />
                           {pendencia && (

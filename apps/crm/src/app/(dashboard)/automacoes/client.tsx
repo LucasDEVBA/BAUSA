@@ -45,6 +45,7 @@ import {
   type AutomacaoRunDetalhado,
   type AutomacaoRunStatus,
 } from "@/types/automacao";
+import type { AgentResumo } from "@/types/agent";
 import { BuilderScreen } from "@/components/automacoes/BuilderScreen";
 import {
   FIELD_CLASS,
@@ -119,6 +120,7 @@ const RUN_STATUS_LABEL: Record<AutomacaoRunStatus, string> = {
 export function AutomacoesClient({
   automacoes,
   usuarios,
+  agentsAutomacao,
   runsRecentes,
   leadNomes,
   intervalos,
@@ -134,6 +136,8 @@ export function AutomacoesClient({
 }: {
   automacoes: AutomacaoComStats[];
   usuarios: UsuarioRow[];
+  /** Agents custom (capacidade `automacao`) p/ o seletor das ações de IA. */
+  agentsAutomacao: AgentResumo[];
   runsRecentes: AutomacaoRunDetalhado[];
   leadNomes: Record<string, string>;
   intervalos: SchedulerIntervalos;
@@ -501,6 +505,7 @@ export function AutomacoesClient({
         <BuilderScreen
           builder={builder}
           usuarios={usuarios}
+          agents={agentsAutomacao}
           isPending={isPending}
           onChange={setBuilder}
           onClose={() => setBuilder(null)}

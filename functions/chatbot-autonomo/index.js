@@ -343,6 +343,30 @@ const classificarEGerar = async ({ criterio, persona, transcript, nome, etapa },
   return { segura, categoria, resposta };
 };
 
+// ─── Agents de IA: persona referenciada por agent_id (cache por tick) ────
+// Plataforma de Agents (F5): a conversa pode apontar um agent CUSTOM (tabela
+// agents) — o prompt do agent substitui SÓ a PERSONA. O CRITÉRIO de segurança
+// é GLOBAL e intocável: o agent muda COMO o bot fala, nunca QUANDO pode falar.
+// Filtro SEMPRE ativo+deleted_at+capacidade `chatbot_autonomo`; erro/ausência
+// → null (o chamador cai na persona padrão — fallback GARANTIDO, o tick nunca
+// quebra por agent). Este helper NUNCA envia nada — só lê o prompt.
+const resolveAgentPersona = async (agentId, cache) => {
+  if (!agentId) return null;
+  if (Object.prototype.hasOwnProperty.call(cache, agentId)) return cache[agentId];
+  let prompt = null;
+  try {
+    const rows = await sbGet(
+      `agents?id=eq.${agentId}&ativo=is.true&deleted_at=is.null`
+      + '&capacidades=cs.%7Bchatbot_autonomo%7D&select=prompt'
+    );
+    prompt = (rows[0] && typeof rows[0].prompt === 'string' && rows[0].prompt.trim()) || null;
+  } catch (e) {
+    log('WARN', 'agent_lookup_failed', { agentId, error: e.message });
+  }
+  cache[agentId] = prompt;
+  return prompt;
+};
+
 // ─── Resolução do lead pelo telefone (tail-10, mesmo do calendar-webhook) ────
 const resolveLead = async (phone) => {
   const vazio = { fsId: null, nome: null, atletaId: null, etapa: null, lookupFailed: false };
@@ -383,7 +407,7 @@ const resolveLead = async (phone) => {
 const getConversa = async (phone) => {
   const rows = await sbGet(
     `chatbot_autonomo_conversa?phone=eq.${encodeURIComponent(phone)}`
-    + '&select=phone,modo,respostas_no_dia,dia_ref,ultimo_tratado_message_id,atleta_id&limit=1'
+    + '&select=phone,modo,respostas_no_dia,dia_ref,ultimo_tratado_message_id,atleta_id,agent_id&limit=1'
   );
   return rows[0] || null;
 };
@@ -556,7 +580,7 @@ const buscarConversasElegiveis = async () => {
   try {
     const overrides = await sbGet(
       `chatbot_autonomo_conversa?phone=in.(${phones})`
-      + '&select=phone,modo,respostas_no_dia,dia_ref,ultimo_tratado_message_id,atleta_id'
+      + '&select=phone,modo,respostas_no_dia,dia_ref,ultimo_tratado_message_id,atleta_id,agent_id'
     );
     overridesByPhone = new Map(overrides.map((o) => [o.phone, o]));
   } catch (e) {
@@ -647,11 +671,22 @@ const processarConversa = async (conv, config, tickState) => {
     return { enviouAoLead: false };
   }
 
+  // ── Agent plugável (F5): o agent da conversa substitui SÓ a PERSONA — o
+  // CRITÉRIO de segurança segue GLOBAL e intocável (o agent muda COMO o bot
+  // fala, nunca QUANDO pode falar). Agent indisponível → persona padrão
+  // (fallback SEMPRE vivo; a conversa nunca quebra por agent).
+  let personaEfetiva = config.persona;
+  if (override && override.agent_id) {
+    const agentPrompt = await resolveAgentPersona(override.agent_id, tickState.agentCache);
+    if (agentPrompt) personaEfetiva = agentPrompt;
+    else log('WARN', 'agent_fallback_persona', { phone: maskPhone(phone) });
+  }
+
   // ── Classificação de intenção + geração (Gemini). FAIL-CLOSED em tudo.
   let resultado;
   try {
     resultado = await classificarEGerar({
-      criterio: config.criterio, persona: config.persona, transcript,
+      criterio: config.criterio, persona: personaEfetiva, transcript,
       nome: lead.nome, etapa: lead.etapa,
     }, tickState);
   } catch (e) {
@@ -800,7 +835,9 @@ functions.http('chatbotAutonomo', async (req, res) => {
 
     const elegiveis = (await buscarConversasElegiveis()).slice(0, MAX_CONVERSAS_POR_TICK);
     const counters = { respondeu: 0, sombra: 0, escalou: 0, ignorou: 0, erro: 0, skipped: 0, deferred_ia: 0 };
-    const tickState = { iaCalls: 0 };
+    // agentCache: personas de agents resolvidas por agent_id — 1 lookup por
+    // agent por tick (inclui o null de "indisponível" p/ não re-consultar).
+    const tickState = { iaCalls: 0, agentCache: {} };
 
     for (let i = 0; i < elegiveis.length; i++) {
       if (Date.now() - startedAt > TICK_BUDGET_MS) {

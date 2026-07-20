@@ -25,10 +25,13 @@ export function WhatsAppModule({
   papel,
   agentsConversa,
   agentsAnalise,
+  agentsChatbot,
 }: {
   papel: PapelUsuario;
   agentsConversa: AgentResumo[];
   agentsAnalise: AgentResumo[];
+  /** Agents `chatbot_autonomo` p/ o seletor por conversa do espelho 1:1 (CEO). */
+  agentsChatbot: AgentResumo[];
 }) {
   const [tab, setTab] = useState<WhatsAppTab>("conversas");
   const isCeo = papel === "ceo"; // cto já resolve p/ ceo em getUserPapel()
@@ -58,7 +61,11 @@ export function WhatsAppModule({
       />
 
       {tab === "conversas" ? (
-        <WhatsAppEspelhoClient agentsConversa={agentsConversa} agentsAnalise={agentsAnalise} />
+        <WhatsAppEspelhoClient
+          agentsConversa={agentsConversa}
+          agentsAnalise={agentsAnalise}
+          agentsChatbot={agentsChatbot}
+        />
       ) : (
         <GruposClient podeGerenciar agentsConversa={agentsConversa} agentsAnalise={agentsAnalise} />
       )}
