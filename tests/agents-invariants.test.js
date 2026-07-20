@@ -193,6 +193,178 @@ test('migration agents: CHECK do domínio de capacidades', () => {
   );
 });
 
+// ════════════════════════════════════════════════════════════════════════
+// F5-PR2 — agents plugáveis nas CFs (automation-engine + chatbot-autonomo)
+// REGRA DE OURO: fallback SEMPRE vivo — run/tick NUNCA quebra por agent
+// ausente/inativo/sem capacidade. E o agent NUNCA vira porta de envio.
+// ════════════════════════════════════════════════════════════════════════
+
+const ENGINE_CF = path.join(ROOT, 'functions', 'automation-engine', 'index.js');
+const CHATBOT_CF = path.join(ROOT, 'functions', 'chatbot-autonomo', 'index.js');
+const MIGRATION_AGENT_CONVERSA = path.join(
+  ROOT, 'supabase', 'migrations', '20260720044049_chatbot_autonomo_agent.sql',
+);
+const CHATBOT_ACTIONS = path.join(ROOT, 'apps', 'crm', 'src', 'lib', 'actions', 'chatbot-autonomo.ts');
+
+/** Recorta um trecho [inicio, fim) por marcadores — falha se algum sumir. */
+function slice(src, inicioMarker, fimMarker, contexto) {
+  const inicio = src.indexOf(inicioMarker);
+  assert.ok(inicio >= 0, `INVARIANTE VIOLADO: "${inicioMarker}" deve existir em ${contexto}.`);
+  const fim = src.indexOf(fimMarker, inicio + inicioMarker.length);
+  assert.ok(fim > inicio, `INVARIANTE VIOLADO: "${fimMarker}" deve existir após "${inicioMarker}" em ${contexto}.`);
+  return src.slice(inicio, fim);
+}
+
+// ─── 4. automation-engine: agent plugável com fallback inline ────────────
+
+test('automation-engine: resolveAgentPrompt filtra ativo+deleted_at+capacidade automacao', () => {
+  const src = stripComments(read(ENGINE_CF));
+  const helper = slice(src, 'const resolveAgentPrompt', 'const resolveNomesLead', 'automation-engine');
+  assert.ok(
+    helper.includes('capacidades=cs.') && helper.includes('automacao'),
+    'INVARIANTE VIOLADO: a query do agent na engine deve filtrar a capacidade ' +
+      '`automacao` (capacidades=cs.{automacao}) — senão um agent de outra ' +
+      'superfície viraria prompt de automação.',
+  );
+  assert.ok(
+    helper.includes('ativo=is.true'),
+    'INVARIANTE VIOLADO: a query do agent na engine deve exigir ativo=is.true.',
+  );
+  assert.ok(
+    helper.includes('deleted_at=is.null'),
+    'INVARIANTE VIOLADO: a query do agent na engine deve excluir soft-deletados.',
+  );
+});
+
+test('automation-engine: fallback inline VIVO (agentPrompt || p.prompt) + cache por tick', () => {
+  const src = stripComments(read(ENGINE_CF));
+  assert.ok(
+    src.includes('agentPrompt || p.prompt'),
+    'INVARIANTE VIOLADO: a ação ia_prompt deve cair no prompt INLINE quando o ' +
+      'agent está indisponível (agentPrompt || p.prompt) — o run nunca quebra por agent.',
+  );
+  assert.ok(
+    src.includes('|| passo.prompt'),
+    'INVARIANTE VIOLADO: o gate ia_condicao deve cair no prompt INLINE do passo ' +
+      '(resolveAgentPrompt(...) || passo.prompt) — fallback garantido.',
+  );
+  assert.ok(
+    src.includes('agentCache'),
+    'INVARIANTE VIOLADO: a resolução de agents deve usar o cache por tick ' +
+      '(tickState.agentCache) — 1 lookup por agent por tick.',
+  );
+});
+
+test('automation-engine: resolveAgentPrompt NUNCA referencia canais de envio', () => {
+  const src = stripComments(read(ENGINE_CF));
+  const helper = slice(src, 'const resolveAgentPrompt', 'const resolveNomesLead', 'automation-engine');
+  assert.ok(
+    !/SEND_WHATSAPP_URL|SEND_MESSAGES_URL|ZAPI|customMessage|customEmail/.test(helper),
+    'INVARIANTE VIOLADO: resolveAgentPrompt só LÊ o prompt do agent — não pode ' +
+      'referenciar nenhuma primitiva de envio (SEND_*/Z-API/custom*).',
+  );
+});
+
+// ─── 5. chatbot-autonomo: agent substitui SÓ a persona; critério é GLOBAL ─
+
+test('chatbot-autonomo: o critério de segurança segue GLOBAL (criterio: config.criterio)', () => {
+  const src = stripComments(read(CHATBOT_CF));
+  assert.ok(
+    src.includes('criterio: config.criterio'),
+    'INVARIANTE VIOLADO: a chamada classificarEGerar deve usar LITERALMENTE ' +
+      '`criterio: config.criterio` — o agent muda COMO o bot fala (persona), ' +
+      'NUNCA quando pode falar (critério de segurança é global e intocável).',
+  );
+});
+
+test('chatbot-autonomo: resolveAgentPersona filtra ativo+deleted_at+capacidade chatbot_autonomo', () => {
+  const src = stripComments(read(CHATBOT_CF));
+  const helper = slice(src, 'const resolveAgentPersona', 'const resolveLead', 'chatbot-autonomo');
+  assert.ok(
+    helper.includes('capacidades=cs.') && helper.includes('chatbot_autonomo'),
+    'INVARIANTE VIOLADO: a query do agent do chatbot deve filtrar a capacidade ' +
+      '`chatbot_autonomo` — a mais sensível do sistema (a IA fala com o lead).',
+  );
+  assert.ok(
+    helper.includes('ativo=is.true') && helper.includes('deleted_at=is.null'),
+    'INVARIANTE VIOLADO: a query do agent do chatbot deve exigir ativo + não deletado.',
+  );
+});
+
+test('chatbot-autonomo: fallback da persona VIVO (personaEfetiva = config.persona)', () => {
+  const src = stripComments(read(CHATBOT_CF));
+  assert.ok(
+    src.includes('personaEfetiva = config.persona'),
+    'INVARIANTE VIOLADO: a persona efetiva deve NASCER da persona padrão ' +
+      '(personaEfetiva = config.persona) e só ser trocada com agent válido — ' +
+      'agent indisponível nunca pode virar erro nem persona vazia.',
+  );
+});
+
+test('chatbot-autonomo: a resolução do agent NUNCA toca no envio', () => {
+  const src = stripComments(read(CHATBOT_CF));
+  const helper = slice(src, 'const resolveAgentPersona', 'const resolveLead', 'chatbot-autonomo');
+  const uso = slice(src, 'let personaEfetiva', 'classificarEGerar', 'chatbot-autonomo');
+  for (const bloco of [helper, uso]) {
+    assert.ok(
+      !/enviarResposta|SEND_WHATSAPP_URL/.test(bloco),
+      'INVARIANTE VIOLADO: a resolução do agent (helper e uso) não pode ' +
+        'referenciar o envio ao lead (enviarResposta*/SEND_WHATSAPP_URL) — ' +
+        'agent só troca a persona, nunca abre porta de envio.',
+    );
+  }
+});
+
+// ─── 6. Migration agent_id: coluna + audit trigger recriado ──────────────
+
+test('migration chatbot_autonomo_agent: ADD COLUMN agent_id idempotente', () => {
+  const sql = read(MIGRATION_AGENT_CONVERSA);
+  assert.ok(
+    sql.includes('ADD COLUMN IF NOT EXISTS agent_id'),
+    'INVARIANTE VIOLADO: a migration deve adicionar agent_id com IF NOT EXISTS (idempotente).',
+  );
+});
+
+test('migration chatbot_autonomo_agent: audit trigger recriado com agent_id', () => {
+  const sql = read(MIGRATION_AGENT_CONVERSA);
+  assert.ok(
+    /UPDATE OF modo, atleta_id, agent_id/.test(sql),
+    'INVARIANTE VIOLADO: o audit trigger da chatbot_autonomo_conversa deve ser ' +
+      'recriado incluindo agent_id na lista UPDATE OF (mudança do CEO = trilha).',
+  );
+  assert.ok(
+    /DROP TRIGGER IF EXISTS trg_audit_chatbot_conversa/.test(sql),
+    'INVARIANTE VIOLADO: o trigger deve ser recriado via DROP IF EXISTS + CREATE.',
+  );
+  // uat/dev gateados pelas DUAS tabelas — a FK exige conversa E agents.
+  assert.ok(
+    /to_regclass\('uat\.chatbot_autonomo_conversa'\)[\s\S]*?to_regclass\('uat\.agents'\)/.test(sql),
+    'INVARIANTE VIOLADO: o bloco UAT deve gatear por chatbot_autonomo_conversa E agents.',
+  );
+});
+
+// ─── 7. Action setConversaAutonomoAgent: capacidade validada ANTES do upsert ─
+
+test('setConversaAutonomoAgent: valida ativo+deleted_at+capacidade antes do upsert', () => {
+  const src = stripComments(read(CHATBOT_ACTIONS));
+  const fn = src.slice(src.indexOf('export async function setConversaAutonomoAgent'));
+  assert.ok(
+    fn.includes('.contains("capacidades", ["chatbot_autonomo"])'),
+    'INVARIANTE VIOLADO: setConversaAutonomoAgent deve validar a capacidade ' +
+      '`chatbot_autonomo` do agent antes de gravar.',
+  );
+  assert.ok(
+    fn.includes('.eq("ativo", true)') && fn.includes('deleted_at'),
+    'INVARIANTE VIOLADO: setConversaAutonomoAgent deve exigir agent ativo e não deletado.',
+  );
+  const idxValidacao = fn.indexOf('.contains("capacidades"');
+  const idxUpsert = fn.indexOf('.upsert(');
+  assert.ok(
+    idxValidacao >= 0 && idxUpsert > idxValidacao,
+    'INVARIANTE VIOLADO: a validação de capacidade deve vir ANTES do upsert.',
+  );
+});
+
 // Sanidade: o guard detecta ausência de fato.
 test('guard: detecta corretamente quando o filtro de capacidade está ausente', () => {
   const fake = 'supabase.from("agents").select("prompt").eq("id", agentId)';

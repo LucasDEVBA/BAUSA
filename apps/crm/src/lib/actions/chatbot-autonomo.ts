@@ -182,10 +182,10 @@ export async function listarChatbotAutonomoLog(
 // ─── Override por conversa ────────────────────────────────────────────────
 
 export type GetConversaAutonomoModoResult =
-  | { success: true; modo: ConversaAutonomoModo }
+  | { success: true; modo: ConversaAutonomoModo; agentId: string | null }
   | { success: false; error: string };
 
-/** Lê o modo do override de UMA conversa (ou 'padrao' se não há override). CEO-only. */
+/** Lê o modo + agent do override de UMA conversa ('padrao'/null sem override). CEO-only. */
 export async function getConversaAutonomoModo(
   phone: string,
 ): Promise<GetConversaAutonomoModoResult> {
@@ -201,13 +201,16 @@ export async function getConversaAutonomoModo(
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("chatbot_autonomo_conversa")
-      .select("modo")
+      .select("modo, agent_id")
       .eq("phone", digits)
       .maybeSingle();
 
     if (error) return { success: false, error: error.message };
     const parsed = conversaModoSchema.safeParse(data?.modo);
-    return { success: true, modo: parsed.success ? parsed.data : "padrao" };
+    const agentId = z.string().uuid().safeParse(data?.agent_id).success
+      ? (data?.agent_id as string)
+      : null;
+    return { success: true, modo: parsed.success ? parsed.data : "padrao", agentId };
   } catch (err) {
     console.error({
       level: "error",
@@ -273,5 +276,92 @@ export async function setConversaAutonomoModo(
       error: String(err),
     });
     return { success: false, error: "Erro inesperado ao salvar o modo da conversa." };
+  }
+}
+
+/**
+ * UPSERT do AGENT do chatbot autônomo de UMA conversa (por phone). CEO-only,
+ * audited. Não envia nada. `null` remove o agent (volta à persona padrão).
+ * Antes de gravar, valida que o agent existe, está ATIVO, não foi deletado e
+ * tem a capacidade `chatbot_autonomo` — a CF revalida os mesmos filtros a cada
+ * tick e cai na persona padrão se o agent deixar de atender (fallback vivo).
+ * O agent substitui SÓ a persona; o critério de segurança é GLOBAL e intocável.
+ */
+export async function setConversaAutonomoAgent(
+  phone: string,
+  agentId: string | null,
+  atletaId?: string,
+): Promise<ChatbotAutonomoActionResult> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas o CEO pode alterar o agent da conversa." };
+  }
+  const digits = normalizarTelefone(phone);
+  if (!digits) {
+    return { success: false, error: "Telefone inválido." };
+  }
+  if (agentId !== null && !z.string().uuid().safeParse(agentId).success) {
+    return { success: false, error: "Agent inválido." };
+  }
+
+  let atleta: string | undefined;
+  if (atletaId !== undefined && atletaId !== "") {
+    const parsedAtleta = z.string().uuid().safeParse(atletaId);
+    if (!parsedAtleta.success) {
+      return { success: false, error: "Atleta inválido." };
+    }
+    atleta = parsedAtleta.data;
+  }
+
+  try {
+    const supabase = await createAuditedSupabaseClient();
+
+    // Validação de capacidade ANTES do upsert: agent ativo, não deletado e
+    // com `chatbot_autonomo` — mesma cláusula que a CF aplica por tick.
+    if (agentId !== null) {
+      const { data: agentRow, error: agentErr } = await supabase
+        .from("agents")
+        .select("id")
+        .eq("id", agentId)
+        .eq("ativo", true)
+        .is("deleted_at", null)
+        .contains("capacidades", ["chatbot_autonomo"])
+        .maybeSingle();
+
+      if (agentErr) return { success: false, error: agentErr.message };
+      if (!agentRow) {
+        return {
+          success: false,
+          error:
+            "Agent indisponível — precisa estar ativo e ter a capacidade Chatbot autônomo.",
+        };
+      }
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const payload: {
+      phone: string;
+      agent_id: string | null;
+      updated_by?: string;
+      atleta_id?: string;
+    } = { phone: digits, agent_id: agentId };
+    if (user?.id) payload.updated_by = user.id;
+    if (atleta !== undefined) payload.atleta_id = atleta;
+
+    const { error } = await supabase
+      .from("chatbot_autonomo_conversa")
+      .upsert(payload, { onConflict: "phone" });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "set_conversa_autonomo_agent",
+      error: String(err),
+    });
+    return { success: false, error: "Erro inesperado ao salvar o agent da conversa." };
   }
 }

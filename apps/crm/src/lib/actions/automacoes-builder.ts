@@ -173,6 +173,10 @@ const acaoSchema = z.discriminatedUnion("tipo", [
       // externo — vira notificação in-app ou tarefa interna (o CEO revisa e
       // envia). A engine impõe teto de execuções de IA por tick e, sem
       // GEMINI_API_KEY, marca o run com erro claro (guard de CI).
+      // Agent CUSTOM (capacidade `automacao`): quando presente, a engine usa
+      // o prompt do agent; o prompt inline continua OBRIGATÓRIO e é o
+      // fallback garantido (agent inativo/deletado nunca quebra o run).
+      agent_id: z.string().uuid().optional(),
       prompt: z
         .string()
         .min(10, "Prompt muito curto (mínimo 10 caracteres)")
@@ -207,6 +211,10 @@ const passoSchema = z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("condicao"), condicao: condicaoSchema }),
   z.object({
     tipo: z.literal("ia_condicao"),
+    // Agent CUSTOM (capacidade `automacao`): quando presente, a engine usa o
+    // prompt do agent; o prompt inline continua OBRIGATÓRIO e é o fallback
+    // garantido (agent inativo/deletado nunca quebra o gate).
+    agent_id: z.string().uuid().optional(),
     prompt: z
       .string()
       .min(IA_CONDICAO_PROMPT_MIN, `Prompt da IA muito curto (mínimo ${IA_CONDICAO_PROMPT_MIN} caracteres)`)

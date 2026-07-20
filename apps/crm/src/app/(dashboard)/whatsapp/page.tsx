@@ -18,17 +18,25 @@ export const metadata: Metadata = {
  *
  * Agents custom: `conversa` alimenta o seletor de copiloto da sugestão (CEO e
  * Head); `analise` alimenta o "Analisar com agent" (CEO-only — para o Head a
- * action devolve lista vazia e o bloco não renderiza).
+ * action devolve lista vazia e o bloco não renderiza); `chatbot_autonomo`
+ * alimenta o seletor "Agent do chatbot" por conversa no espelho 1:1 (CEO-only
+ * — substitui SÓ a persona do bot; o critério de segurança segue global).
  */
 export default async function WhatsAppPage() {
   const papel = await requirePapel(["ceo", "head_sucesso"]);
 
-  const [agentsConversa, agentsAnalise] = await Promise.all([
+  const [agentsConversa, agentsAnalise, agentsChatbot] = await Promise.all([
     listarAgentsAtivos("conversa"),
     listarAgentsAtivos("analise"),
+    listarAgentsAtivos("chatbot_autonomo"),
   ]);
 
   return (
-    <WhatsAppModule papel={papel} agentsConversa={agentsConversa} agentsAnalise={agentsAnalise} />
+    <WhatsAppModule
+      papel={papel}
+      agentsConversa={agentsConversa}
+      agentsAnalise={agentsAnalise}
+      agentsChatbot={agentsChatbot}
+    />
   );
 }

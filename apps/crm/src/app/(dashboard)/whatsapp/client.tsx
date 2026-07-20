@@ -979,9 +979,12 @@ function ConversaPanel({
 export function WhatsAppEspelhoClient({
   agentsConversa = [],
   agentsAnalise = [],
+  agentsChatbot = [],
 }: {
   agentsConversa?: AgentResumo[];
   agentsAnalise?: AgentResumo[];
+  /** Agents `chatbot_autonomo` p/ o seletor por conversa (CEO-only). */
+  agentsChatbot?: AgentResumo[];
 }) {
   const [chats, setChats] = useState<EspelhoChat[]>([]);
   const [chatsStatus, setChatsStatus] = useState<LoadStatus>("loading");
@@ -1962,7 +1965,11 @@ export function WhatsAppEspelhoClient({
                   </div>
                   {/* Override do chatbot autônomo SÓ desta conversa (CEO-only; a
                       tela 1:1 já é CEO). Não interfere no envio manual/sugestão. */}
-                  <ConversaAutonomoToggle key={selectedPhone} phone={selectedPhone} />
+                  <ConversaAutonomoToggle
+                    key={selectedPhone}
+                    phone={selectedPhone}
+                    agents={agentsChatbot}
+                  />
                 </div>
 
                 {messagesStatus === "loading" ? (
