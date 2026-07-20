@@ -27,6 +27,8 @@ import { toast } from "sonner";
 
 import { Button, Card, EmptyState, Input, PageHeader, ScrollList, Skeleton } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { AnaliseAgentBlock } from "@/components/agents/AnaliseAgentBlock";
+import type { AgentResumo } from "@/types/agent";
 import { sugerirRespostaChatbot } from "@/lib/actions/chatbot-sugestao";
 import { extrairMemoriaConversa } from "@/lib/actions/lead-memoria";
 import { gerarInsightsGrupo, type InsightsConversa } from "@/lib/actions/whatsapp-insights";
@@ -338,6 +340,7 @@ function MetricasGrupoPanel({
   insights,
   insightsLoading,
   podeGerenciar,
+  agentsAnalise,
   onGerarInsights,
   onLimparInsights,
 }: {
@@ -347,6 +350,7 @@ function MetricasGrupoPanel({
   insights: InsightsConversa | null;
   insightsLoading: boolean;
   podeGerenciar: boolean;
+  agentsAnalise: AgentResumo[];
   onGerarInsights: () => void;
   onLimparInsights: () => void;
 }) {
@@ -410,6 +414,14 @@ function MetricasGrupoPanel({
         onLimpar={onLimparInsights}
       />
 
+      {/* Analista sob demanda (agents custom com capacidade `analise`) */}
+      <AnaliseAgentBlock
+        key={grupo.grupoId}
+        agents={agentsAnalise}
+        grupoId={grupo.grupoId}
+        leadNome={grupo.atletaNome ?? undefined}
+      />
+
       {/* Memória & Documentos (sob demanda; a IA nunca envia). */}
       <GrupoMemoriaBlock grupo={grupo} podeGerenciar={podeGerenciar} />
     </div>
@@ -450,15 +462,19 @@ interface GrupoEcho extends GrupoMensagem {
 function GrupoConversaPanel({
   grupo,
   podeGerenciar,
+  agentsConversa,
 }: {
   grupo: GrupoItem;
   podeGerenciar: boolean;
+  agentsConversa: AgentResumo[];
 }) {
   const [mensagens, setMensagens] = useState<GrupoMensagem[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sugerindo, setSugerindo] = useState(false);
+  /** Copiloto (agent custom `conversa`) usado na sugestão; "" = persona padrão. */
+  const [copilotoId, setCopilotoId] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const echoesRef = useRef<GrupoEcho[]>([]);
   const grupoIdRef = useRef(grupo.grupoId);
@@ -569,6 +585,7 @@ function GrupoConversaPanel({
       const r = await sugerirRespostaChatbot({
         grupoId: grupo.grupoId,
         leadNome: grupo.atletaNome ?? undefined,
+        agentId: copilotoId || undefined,
       });
       if (!r.success) {
         toast.error(r.notConfigured ? "IA não configurada neste ambiente." : r.error);
@@ -581,7 +598,7 @@ function GrupoConversaPanel({
     } finally {
       setSugerindo(false);
     }
-  }, [sugerindo, grupo.grupoId, grupo.atletaNome]);
+  }, [sugerindo, grupo.grupoId, grupo.atletaNome, copilotoId]);
 
   return (
     <>
@@ -648,6 +665,23 @@ function GrupoConversaPanel({
       {/* Compositor + chatbot assistido (IA sugere; humano revisa e envia). */}
       <form onSubmit={handleSend} className="shrink-0 space-y-1.5 border-t border-border p-3">
         <div className="flex items-center gap-2">
+          {agentsConversa.length > 0 && (
+            <select
+              value={copilotoId}
+              onChange={(e) => setCopilotoId(e.target.value)}
+              disabled={sugerindo || sending}
+              aria-label="Copiloto usado na sugestão de resposta"
+              title="Copiloto usado na sugestão de resposta"
+              className="h-9 max-w-[8.5rem] shrink-0 rounded-md border border-border bg-card px-2 text-xs text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            >
+              <option value="">Copiloto: Padrão</option>
+              {agentsConversa.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nome}
+                </option>
+              ))}
+            </select>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -781,7 +815,15 @@ function GrupoListItem({
 
 // ─── Tela de grupos ─────────────────────────────────────────────────────────
 
-export function GruposClient({ podeGerenciar }: { podeGerenciar: boolean }) {
+export function GruposClient({
+  podeGerenciar,
+  agentsConversa = [],
+  agentsAnalise = [],
+}: {
+  podeGerenciar: boolean;
+  agentsConversa?: AgentResumo[];
+  agentsAnalise?: AgentResumo[];
+}) {
   const [grupos, setGrupos] = useState<GrupoItem[]>([]);
   const [atletas, setAtletas] = useState<AtletaOpcao[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -1049,6 +1091,7 @@ export function GruposClient({ podeGerenciar }: { podeGerenciar: boolean }) {
                 key={grupoSelecionado.grupoId}
                 grupo={grupoSelecionado}
                 podeGerenciar={podeGerenciar}
+                agentsConversa={agentsConversa}
               />
             ) : (
               <div className="flex flex-1 items-center justify-center px-6">
@@ -1074,6 +1117,7 @@ export function GruposClient({ podeGerenciar }: { podeGerenciar: boolean }) {
                 insights={insights}
                 insightsLoading={insightsLoading}
                 podeGerenciar={podeGerenciar}
+                agentsAnalise={agentsAnalise}
                 onGerarInsights={handleGerarInsights}
                 onLimparInsights={() => setInsights(null)}
               />

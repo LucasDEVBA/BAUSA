@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { PageHeader, Card, Button, Badge, EmptyState } from "@/components/ui";
 import { InstrucoesIAEditor } from "@/components/agents/InstrucoesIAEditor";
 import { CopilotoAutonomoSection } from "@/components/agents/CopilotoAutonomoSection";
+import { SeusAgentsSection } from "@/components/agents/SeusAgentsSection";
 import { FIELD_CLASS, contarPassosIA } from "@/components/automacoes/builder-shared";
 import { CHATBOT_PERSONA_DEFAULT } from "@/lib/automacoes/chatbot-persona";
 import { INSIGHTS_CONVERSA_INSTRUCOES_DEFAULT } from "@/lib/automacoes/insights-conversa-prompt";
@@ -45,6 +46,7 @@ import type {
   ChatbotAutonomoModo,
 } from "@/lib/actions/chatbot-autonomo";
 import { GATILHO_CATALOG, type AutomacaoAcao, type AutomacaoComStats } from "@/types/automacao";
+import type { Agent } from "@/types/agent";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
 // ════════════════════════════════════════════════════════════════════════
@@ -74,6 +76,7 @@ interface PromptOverride {
 }
 
 interface AgentsClientProps {
+  agents: Agent[];
   personaSeeded: boolean;
   personaAtual: string;
   personaGrupoAtual: string;
@@ -445,6 +448,7 @@ function SecaoTitulo({ titulo, sub }: { titulo: string; sub: string }) {
 // ─── Hub ─────────────────────────────────────────────────────────────────
 
 export function AgentsClient({
+  agents,
   personaSeeded,
   personaAtual,
   personaGrupoAtual,
@@ -468,6 +472,15 @@ export function AgentsClient({
         title="Agents de IA"
         description="Onde a IA do BAU Engine trabalha — copilotos de conversa, prompts das automações nativas, agents do builder e o copiloto autônomo. Você controla o que ela sugere e o que, se autorizado, ela envia."
       />
+
+      {/* 0. Seus agents — agents CUSTOM criados pelo CEO (tabela agents) */}
+      <section id="seus-agents" className="space-y-3">
+        <SecaoTitulo
+          titulo="Seus agents"
+          sub="Agents com prompt próprio criados por você. Escolha onde cada um pluga: copiloto de conversa, análise sob demanda e (em breve) automações e chatbot autônomo."
+        />
+        <SeusAgentsSection agents={agents} />
+      </section>
 
       {/* 1. Copilotos de conversa */}
       <section id="copilotos-conversa" className="space-y-3">

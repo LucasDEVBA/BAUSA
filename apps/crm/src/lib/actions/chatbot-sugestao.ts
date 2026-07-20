@@ -41,6 +41,8 @@ const inputSchema = z
     leadNome: z.string().trim().max(LEAD_NOME_MAX).optional(),
     /** Orientação livre do atendente para steer a sugestão (opcional). */
     contexto: z.string().trim().max(CONTEXTO_MAX).optional(),
+    /** Agent custom (capacidade `conversa`) que substitui a persona (opcional). */
+    agentId: z.string().uuid().optional(),
   })
   .refine((v) => Boolean(v.grupoId) !== Boolean(v.phone), {
     message: "Informe grupoId OU phone (exatamente um).",
@@ -104,7 +106,7 @@ export async function sugerirRespostaChatbot(
   if (!parsedInput.success) {
     return { success: false, error: parsedInput.error.issues[0]?.message ?? "Dados inválidos." };
   }
-  const { grupoId, phone: phoneRaw, lid: lidRaw, leadNome, contexto } = parsedInput.data;
+  const { grupoId, phone: phoneRaw, lid: lidRaw, leadNome, contexto, agentId } = parsedInput.data;
   const isGrupo = Boolean(grupoId);
 
   const papel = await getUserPapel();
@@ -148,14 +150,30 @@ export async function sugerirRespostaChatbot(
             .limit(MAX_MENSAGENS);
         })();
 
-    const [{ data: cfgRow }, { data: msgs, error: msgErr }] = await Promise.all([
-      supabase
-        .from("configuracoes_sistema")
-        .select("valor")
-        .eq("chave", "chatbot_persona")
-        .maybeSingle(),
-      messagesQuery,
-    ]);
+    // Agent custom selecionado (capacidade `conversa`): substitui APENAS a
+    // persona. Indisponível/inválido → fallback SILENCIOSO na cadeia padrão
+    // (nunca erro — a sugestão não pode quebrar por causa do seletor).
+    const agentQuery = agentId
+      ? supabase
+          .from("agents")
+          .select("prompt")
+          .eq("id", agentId)
+          .eq("ativo", true)
+          .is("deleted_at", null)
+          .contains("capacidades", ["conversa"])
+          .maybeSingle()
+      : Promise.resolve({ data: null as { prompt: string } | null });
+
+    const [{ data: cfgRow }, { data: msgs, error: msgErr }, { data: agentRow }] =
+      await Promise.all([
+        supabase
+          .from("configuracoes_sistema")
+          .select("valor")
+          .eq("chave", "chatbot_persona")
+          .maybeSingle(),
+        messagesQuery,
+        agentQuery,
+      ]);
 
     if (msgErr) {
       return { success: false, error: "Não foi possível carregar a conversa." };
@@ -177,9 +195,17 @@ export async function sugerirRespostaChatbot(
       typeof cfg.personaGrupo === "string" && cfg.personaGrupo.trim()
         ? cfg.personaGrupo.trim()
         : "";
-    const persona = isGrupo
-      ? personaGrupo || personaBase || CHATBOT_PERSONA_DEFAULT
-      : personaBase || CHATBOT_PERSONA_DEFAULT;
+    // Agent válido substitui SÓ o segmento persona; os blocos CONTEXTO/
+    // HISTÓRICO/TAREFA/FORMATO (e a anti-injeção) continuam fixos no código.
+    const agentPrompt =
+      typeof agentRow?.prompt === "string" && agentRow.prompt.trim()
+        ? agentRow.prompt.trim()
+        : "";
+    const persona =
+      agentPrompt ||
+      (isGrupo
+        ? personaGrupo || personaBase || CHATBOT_PERSONA_DEFAULT
+        : personaBase || CHATBOT_PERSONA_DEFAULT);
 
     // Transcript compacto (o fim é o mais relevante — corta do início se estourar).
     const linhas = mensagens.map((m) => {

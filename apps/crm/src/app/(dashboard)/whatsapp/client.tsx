@@ -36,7 +36,9 @@ import { toast } from "sonner";
 
 import { uploadMensagemArquivo, uploadMensagemAudio } from "@/lib/actions/mensagem-media";
 import { sugerirRespostaChatbot } from "@/lib/actions/chatbot-sugestao";
+import { AnaliseAgentBlock } from "@/components/agents/AnaliseAgentBlock";
 import { ConversaAutonomoToggle } from "@/components/whatsapp/ConversaAutonomoToggle";
+import type { AgentResumo } from "@/types/agent";
 import {
   gerarInsightsConversa,
   type InsightsConversa,
@@ -680,6 +682,10 @@ function ConversaPanel({
   insightsLoading,
   onGerarInsights,
   onFecharInsights,
+  agentsAnalise,
+  phone,
+  lid,
+  leadNome,
 }: {
   metricas: MetricasConversa | null;
   metricasLoading: boolean;
@@ -687,6 +693,11 @@ function ConversaPanel({
   insightsLoading: boolean;
   onGerarInsights: () => void;
   onFecharInsights: () => void;
+  agentsAnalise: AgentResumo[];
+  phone: string;
+  /** LID da conversa (quando migrada) — a análise por agent precisa dele. */
+  lid?: string;
+  leadNome?: string;
 }) {
   return (
     <div className="crm-scroll flex h-full flex-col gap-3 overflow-y-auto p-3">
@@ -956,13 +967,22 @@ function ConversaPanel({
           </>
         )}
       </section>
+
+      {/* Analista sob demanda (agents custom com capacidade `analise`) */}
+      <AnaliseAgentBlock key={phone} agents={agentsAnalise} phone={phone} lid={lid} leadNome={leadNome} />
     </div>
   );
 }
 
 // ─── Tela ────────────────────────────────────────────────────────
 
-export function WhatsAppEspelhoClient() {
+export function WhatsAppEspelhoClient({
+  agentsConversa = [],
+  agentsAnalise = [],
+}: {
+  agentsConversa?: AgentResumo[];
+  agentsAnalise?: AgentResumo[];
+}) {
   const [chats, setChats] = useState<EspelhoChat[]>([]);
   const [chatsStatus, setChatsStatus] = useState<LoadStatus>("loading");
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
@@ -982,6 +1002,8 @@ export function WhatsAppEspelhoClient() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sugerindo, setSugerindo] = useState(false);
+  /** Copiloto (agent custom `conversa`) usado na sugestão; "" = persona padrão. */
+  const [copilotoId, setCopilotoId] = useState("");
   const [attaching, setAttaching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -1400,6 +1422,7 @@ export function WhatsAppEspelhoClient() {
         phone,
         lid: phoneToLidRef.current[phone] ?? null,
         leadNome: selectedNameRef.current || undefined,
+        agentId: copilotoId || undefined,
       });
       if (selectedPhoneRef.current !== phone) return; // trocou de conversa
       if (!r.success) {
@@ -1413,7 +1436,7 @@ export function WhatsAppEspelhoClient() {
     } finally {
       setSugerindo(false);
     }
-  }, [selectedPhone, sugerindo]);
+  }, [selectedPhone, sugerindo, copilotoId]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -2051,6 +2074,23 @@ export function WhatsAppEspelhoClient() {
                     >
                       {attaching ? <Loader2 className="animate-spin" /> : <Paperclip />}
                     </Button>
+                    {agentsConversa.length > 0 && (
+                      <select
+                        value={copilotoId}
+                        onChange={(event) => setCopilotoId(event.target.value)}
+                        disabled={sugerindo || sending}
+                        aria-label="Copiloto usado na sugestão de resposta"
+                        title="Copiloto usado na sugestão de resposta"
+                        className="h-9 max-w-[8.5rem] shrink-0 rounded-md border border-border bg-card px-2 text-xs text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      >
+                        <option value="">Copiloto: Padrão</option>
+                        {agentsConversa.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.nome}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
@@ -2105,6 +2145,10 @@ export function WhatsAppEspelhoClient() {
                 insightsLoading={insightsLoading}
                 onGerarInsights={() => void handleInsights()}
                 onFecharInsights={() => setInsights(null)}
+                agentsAnalise={agentsAnalise}
+                phone={selectedPhone}
+                lid={phoneToLidRef.current[selectedPhone] ?? undefined}
+                leadNome={selectedDisplayName || undefined}
               />
             </Card>
           )}
