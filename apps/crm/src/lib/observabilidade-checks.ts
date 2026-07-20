@@ -817,6 +817,199 @@ async function checkGemini(): Promise<CheckResult> {
   }
 }
 
+// ─── Checks de fluxo (paridade com o watchdog monitor-health v2) ─────────────
+// A MESMA lógica roda automaticamente na CF a cada 30min (alerta) e aqui
+// on-demand (diagnóstico) — o guard tests/monitor-health-invariants.test.js
+// trava a paridade dos dois lados.
+
+const ENTRADA_ZERO_HORAS = 24;
+const CHATBOT_ERRO_MINIMO = 3;
+const REMARKETING_PRESA_HORAS = 2;
+const REGUA_FOLGA_DIAS = 2;
+const NPS_PRAZO_DIAS = 181;
+const META_FRESCOR_DIAS = 3;
+const TRANSCRICAO_FOLGA_HORAS = 24;
+const RUNS_PRESOS_HORAS = 2;
+
+async function contarSimples(
+  supabase: Supabase,
+  monta: (q: ReturnType<Supabase["from"]>) => PromiseLike<{ count: number | null; error: { message: string } | null }>,
+  tabela: string,
+): Promise<number> {
+  const res = await monta(supabase.from(tabela));
+  if (res.error) throw new Error(`${tabela}: ${res.error.message}`);
+  return res.count ?? 0;
+}
+
+async function checkEntradaZero(supabase: Supabase): Promise<CheckResult> {
+  const n = await contarSimples(
+    supabase,
+    (q) => q.select("id", { count: "exact", head: true }).gte("submitted_at", horasAtrasISO(ENTRADA_ZERO_HORAS)),
+    "form_submissions",
+  );
+  return {
+    id: "entrada_zero",
+    titulo: "Entrada de leads (formulário)",
+    status: n > 0 ? "ok" : "critico",
+    resumo: n > 0
+      ? `${n} submissão(ões) nas últimas ${ENTRADA_ZERO_HORAS}h.`
+      : `ZERO submissões em ${ENTRADA_ZERO_HORAS}h — formulário/funil de entrada possivelmente parado (mídia queimando sem lead).`,
+    detalhes: [],
+  };
+}
+
+async function checkChatbotErro(supabase: Supabase): Promise<CheckResult> {
+  const id = "chatbot_erro";
+  const titulo = "Chatbot autônomo (erros)";
+  const { data } = await supabase.from("configuracoes_sistema").select("valor").eq("chave", "chatbot_autonomo").limit(1);
+  const modo = ((data?.[0]?.valor ?? {}) as Record<string, unknown>).modo;
+  if (modo !== "sombra" && modo !== "ativo") {
+    return { id, titulo, status: "info", resumo: "Chatbot autônomo off — check pulado.", detalhes: [] };
+  }
+  const desde = horasAtrasISO(6);
+  const [erros, falhasEnvio] = await Promise.all([
+    contarSimples(supabase, (q) => q.select("id", { count: "exact", head: true }).eq("decisao", "erro").gte("created_at", desde), "chatbot_autonomo_log"),
+    contarSimples(supabase, (q) => q.select("id", { count: "exact", head: true }).eq("decisao", "respondeu").eq("enviado", false).gte("created_at", desde), "chatbot_autonomo_log"),
+  ]);
+  const soma = erros + falhasEnvio;
+  return {
+    id,
+    titulo,
+    status: soma < CHATBOT_ERRO_MINIMO ? "ok" : "critico",
+    resumo: `Chatbot (${String(modo)}): ${erros} erro(s) + ${falhasEnvio} resposta(s) sem envio nas últimas 6h.`,
+    detalhes: [],
+  };
+}
+
+async function checkRemarketingPresa(supabase: Supabase): Promise<CheckResult> {
+  const n = await contarSimples(
+    supabase,
+    (q) => q.select("id", { count: "exact", head: true }).eq("status", "enviando").is("deleted_at", null).lt("updated_at", horasAtrasISO(REMARKETING_PRESA_HORAS)),
+    "remarketing_campanhas",
+  );
+  return {
+    id: "remarketing_presa",
+    titulo: "Re-marketing (campanha presa)",
+    status: n === 0 ? "ok" : "critico",
+    resumo: n === 0
+      ? "Nenhuma campanha presa em 'enviando'."
+      : `${n} campanha(s) em 'enviando' sem progresso há ${REMARKETING_PRESA_HORAS}h+ (cron de disparo parado?).`,
+    detalhes: [],
+  };
+}
+
+async function checkReguaCobranca(supabase: Supabase): Promise<CheckResult> {
+  const corte = horasAtrasISO(REGUA_FOLGA_DIAS * 24).slice(0, 10);
+  const n = await contarSimples(
+    supabase,
+    (q) => q.select("id", { count: "exact", head: true })
+      .eq("status", "atrasado").is("deleted_at", null).lt("vencimento", corte)
+      .is("regua_dneg3_at", null).is("regua_d0_at", null).is("regua_d1_at", null)
+      .is("regua_d3_at", null).is("regua_d7_at", null).is("regua_d15_at", null),
+    "parcelas",
+  );
+  return {
+    id: "regua_cobranca",
+    titulo: "Régua de cobrança",
+    status: n === 0 ? "ok" : "atencao",
+    resumo: n === 0
+      ? "Nenhuma parcela atrasada sem marco da régua."
+      : `${n} parcela(s) atrasada(s) ${REGUA_FOLGA_DIAS}d+ sem NENHUM marco da régua (job pausado?).`,
+    detalhes: ["Suprimível no monitor via monitor_checks_desativados enquanto a régua estiver pausada de propósito."],
+  };
+}
+
+async function checkExperienciaNps(supabase: Supabase): Promise<CheckResult> {
+  const n = await contarSimples(
+    supabase,
+    (q) => q.select("id", { count: "exact", head: true })
+      .in("fase", ["embarcado_inicial", "acompanhamento"])
+      .is("nps_enviado_at", null)
+      .lt("created_at", horasAtrasISO(NPS_PRAZO_DIAS * 24)),
+    "crm_experiencia",
+  );
+  return {
+    id: "experiencia_nps",
+    titulo: "NPS pós-venda",
+    status: n === 0 ? "ok" : "atencao",
+    resumo: n === 0
+      ? "Nenhuma família elegível a NPS sem envio."
+      : `${n} família(s) elegível(is) a NPS sem envio além do prazo (+24h folga) — job pausado?`,
+    detalhes: ["Suprimível no monitor via monitor_checks_desativados enquanto o job estiver pausado de propósito."],
+  };
+}
+
+async function checkMetaFrescor(supabase: Supabase): Promise<CheckResult> {
+  const id = "meta_frescor";
+  const titulo = "CAC Meta (frescor do sync)";
+  const { data, error } = await supabase.from("meta_ads_campanha").select("data").order("data", { ascending: false }).limit(1);
+  if (error) throw new Error(`meta_ads_campanha: ${error.message}`);
+  if (!data || data.length === 0) {
+    return { id, titulo, status: "info", resumo: "Sem dados de Meta Ads ainda (config pendente) — check pulado.", detalhes: [] };
+  }
+  const idadeDias = Math.floor((Date.now() - new Date(String(data[0].data)).getTime()) / 86_400_000);
+  return {
+    id,
+    titulo,
+    status: idadeDias <= META_FRESCOR_DIAS ? "ok" : "atencao",
+    resumo: `Último gasto Meta sincronizado há ${idadeDias}d ${idadeDias > META_FRESCOR_DIAS ? "— CAC/DRE CONGELADOS (token expirado?)" : "(fresco)."}`,
+    detalhes: [],
+  };
+}
+
+async function checkTranscricaoFaltante(supabase: Supabase): Promise<CheckResult> {
+  const id = "transcricao_faltante";
+  const titulo = "Transcrições do Meet";
+  const { count: total } = await supabase.from("reunioes_transcricoes").select("id", { count: "exact", head: true });
+  if (!total) {
+    return { id, titulo, status: "info", resumo: "Nenhuma transcrição capturada ainda (config pendente) — check pulado.", detalhes: [] };
+  }
+  const { data: deals, error } = await supabase
+    .from("deals")
+    .select("google_calendar_event_id")
+    .eq("etapa", "reuniao_realizada")
+    .not("google_calendar_event_id", "is", null)
+    .is("deleted_at", null)
+    .gte("updated_at", horasAtrasISO(7 * 24))
+    .lt("updated_at", horasAtrasISO(TRANSCRICAO_FOLGA_HORAS))
+    .limit(50);
+  if (error) throw new Error(`deals: ${error.message}`);
+  const ids = (deals ?? []).map((d) => String((d as Record<string, unknown>).google_calendar_event_id)).filter(Boolean);
+  if (ids.length === 0) {
+    return { id, titulo, status: "ok", resumo: "Nenhuma reunião realizada aguardando transcrição.", detalhes: [] };
+  }
+  const { data: capturadas } = await supabase.from("reunioes_transcricoes").select("google_event_id").in("google_event_id", ids);
+  const set = new Set((capturadas ?? []).map((t) => String((t as Record<string, unknown>).google_event_id)));
+  const faltantes = ids.filter((i) => !set.has(i)).length;
+  return {
+    id,
+    titulo,
+    status: faltantes === 0 ? "ok" : "atencao",
+    resumo: faltantes === 0
+      ? "Todas as reuniões realizadas têm transcrição capturada."
+      : `${faltantes} reunião(ões) realizadas há ${TRANSCRICAO_FOLGA_HORAS}h+ sem transcrição capturada.`,
+    detalhes: [],
+  };
+}
+
+async function checkRunsPresos(supabase: Supabase): Promise<CheckResult> {
+  const corte = horasAtrasISO(RUNS_PRESOS_HORAS);
+  const [pendentes, retryVencido] = await Promise.all([
+    contarSimples(supabase, (q) => q.select("id", { count: "exact", head: true }).eq("status", "pendente").lt("created_at", corte), "automacao_runs"),
+    contarSimples(supabase, (q) => q.select("id", { count: "exact", head: true }).eq("status", "erro").lt("proxima_tentativa_at", corte), "automacao_runs"),
+  ]);
+  const soma = pendentes + retryVencido;
+  return {
+    id: "runs_presos",
+    titulo: "Engine de automações (runs presos)",
+    status: soma === 0 ? "ok" : "critico",
+    resumo: soma === 0
+      ? "Nenhum run preso — engine consumindo a fila."
+      : `${pendentes} run(s) pendentes ${RUNS_PRESOS_HORAS}h+ e ${retryVencido} retry(s) vencidos — engine de automações possivelmente parada.`,
+    detalhes: [],
+  };
+}
+
 async function checkCalendar(supabase: Supabase): Promise<CheckResult> {
   const id = "calendar";
   const titulo = "Google Calendar (detecção de reuniões)";
@@ -848,12 +1041,29 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     supabaseCheck,
     gemini,
     calendar,
+    entradaZero,
+    chatbotErro,
+    remarketingPresa,
+    reguaCobranca,
+    experienciaNps,
+    metaFrescor,
+    transcricaoFaltante,
+    runsPresos,
     ...cfsEDados
   ] = await Promise.all([
     zapiPromise,
     seguro("supabase", "Supabase (banco de dados)", () => checkSupabaseConexao(supabase)),
     seguro("gemini", "Gemini (IA)", () => checkGemini()),
     seguro("calendar", "Google Calendar (detecção de reuniões)", () => checkCalendar(supabase)),
+    // Paridade com o watchdog monitor-health v2 (mesma lógica, on-demand)
+    seguro("entrada_zero", "Entrada de leads (formulário)", () => checkEntradaZero(supabase)),
+    seguro("chatbot_erro", "Chatbot autônomo (erros)", () => checkChatbotErro(supabase)),
+    seguro("remarketing_presa", "Re-marketing (campanha presa)", () => checkRemarketingPresa(supabase)),
+    seguro("regua_cobranca", "Régua de cobrança", () => checkReguaCobranca(supabase)),
+    seguro("experiencia_nps", "NPS pós-venda", () => checkExperienciaNps(supabase)),
+    seguro("meta_frescor", "CAC Meta (frescor do sync)", () => checkMetaFrescor(supabase)),
+    seguro("transcricao_faltante", "Transcrições do Meet", () => checkTranscricaoFaltante(supabase)),
+    seguro("runs_presos", "Engine de automações (runs presos)", () => checkRunsPresos(supabase)),
     ...CFS_PING.map((cf) => seguro(`cf_${cf.env.toLowerCase()}`, cf.nome, () => pingCf(cf.nome, cf.env))),
   ]);
 
@@ -875,7 +1085,17 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
   return {
     verificadoEm: new Date().toISOString(),
     conexoes: [zapi.check, supabaseCheck, ...cfs, gemini],
-    fluxos: [calendar],
+    fluxos: [
+      entradaZero,
+      runsPresos,
+      chatbotErro,
+      remarketingPresa,
+      reguaCobranca,
+      experienciaNps,
+      metaFrescor,
+      transcricaoFaltante,
+      calendar,
+    ],
     funil24h: {
       leads: leadsRes.count ?? 0,
       qualificados: qualifRes.count ?? 0,

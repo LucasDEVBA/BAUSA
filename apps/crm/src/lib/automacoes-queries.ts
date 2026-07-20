@@ -62,9 +62,26 @@ function inicioDoDia(): string {
 export async function fetchMonitorData(): Promise<MonitorData> {
   const supabase = await createServerSupabaseClient();
   const inicioHoje = inicioDoDia();
-  const h22atras = horasAtras(22);
-  const h48atras = horasAtras(48);
-  const d7atras = horasAtras(168);
+
+  // Thresholds REAIS do scheduler (fail-open p/ defaults; clamp 1–720h como
+  // nas CFs) — hardcode de 22h/48h aqui gerava falso-positivo quando o CEO
+  // mudava scheduler_intervalos.
+  const { data: intervalosRow } = await supabase
+    .from("configuracoes_sistema")
+    .select("valor")
+    .eq("chave", "scheduler_intervalos")
+    .limit(1);
+  const iv = (intervalosRow?.[0]?.valor ?? {}) as Record<string, unknown>;
+  const num = (v: unknown, padrao: number) =>
+    typeof v === "number" && v >= 1 && v <= 720 ? v : padrao;
+  const hInicial = num(iv.whatsapp_inicial_horas, 22);
+  const hFu1 = num(iv.followup_1_horas, 48);
+  const hFu2 = num(iv.followup_2_horas, 168);
+
+  const h22atras = horasAtras(hInicial);
+  const h48atras = horasAtras(hFu1);
+  const d7atras = horasAtras(hFu2);
+  const hTrancado = horasAtras(hInicial * 2);
   const h1atras = horasAtras(1);
 
   // ─── Queries paralelas ──────────────────────────────────────────────────
@@ -137,6 +154,9 @@ export async function fetchMonitorData(): Promise<MonitorData> {
       .not("qualified_at", "is", null)
       .lt("qualified_at", h22atras)
       .is("whatsapp_sent_at", null)
+      // INVARIANTE: fluxo ideal ≠ timing alternativo — sem este filtro, lead
+      // muito_cedo legítimo (48h) aparecia como "na fila" (falso-positivo).
+      .or("timing_status.is.null,timing_status.eq.ideal")
       .order("qualified_at", { ascending: true })
       .limit(50),
 
@@ -149,6 +169,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
       .lt("whatsapp_sent_at", h48atras)
       .is("followup_1_sent_at", null)
       .or("meeting_scheduled.is.null,meeting_scheduled.eq.false")
+      .or("timing_status.is.null,timing_status.eq.ideal")
       .order("whatsapp_sent_at", { ascending: true })
       .limit(50),
 
@@ -162,6 +183,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
       .not("followup_1_sent_at", "is", null)
       .is("followup_2_sent_at", null)
       .or("meeting_scheduled.is.null,meeting_scheduled.eq.false")
+      .or("timing_status.is.null,timing_status.eq.ideal")
       .order("whatsapp_sent_at", { ascending: true })
       .limit(50),
 
@@ -171,8 +193,9 @@ export async function fetchMonitorData(): Promise<MonitorData> {
       .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("qualified_at", "is", null)
-      .lt("qualified_at", h48atras)
+      .lt("qualified_at", hTrancado)
       .is("whatsapp_sent_at", null)
+      .or("timing_status.is.null,timing_status.eq.ideal")
       .order("qualified_at", { ascending: true })
       .limit(50),
 

@@ -2,15 +2,28 @@ const functions = require('@google-cloud/functions-framework');
 const https = require('https');
 
 // ─── Configuração ─────────────────────────────────────────────
-// Watchdog do funil (Cloud Scheduler a cada 30 min): detecta silêncio que
-// custa dinheiro — "ausência de erro ≠ funcionando". Checa:
-//   1. qualificacao_travada — leads novos sem classe Gemini há 2h+ (funil de
-//      entrada parado; foi exatamente o incidente do modelo deprecado).
-//   2. fila_whatsapp_presa — QUENTE/MORNO elegíveis sem o WhatsApp inicial
-//      além do intervalo configurado + folga (scheduler parado/quebrado).
-//   3. runs_erro — 3+ erros de automação nas últimas 6h.
-// Alerta o CEO por WhatsApp (Z-API) + notificação in-app, com COOLDOWN de 6h
-// por check (estado em configuracoes_sistema.monitor_state) — sem spam.
+// Watchdog do funil (Cloud Scheduler a cada 30 min) — v2 pós-incidente
+// 2026-07-15/17 (Z-API caída 2 dias sem detecção): "ausência de erro ≠
+// funcionando" — os checks buscam sinais POSITIVOS de vida. Checks:
+//   qualificacao_travada · fila_whatsapp_presa · runs_erro (originais)
+//   zapi_conexao         — estado REAL da instância (GET /status)
+//   envios_sem_espelho   — *_sent_at recente sem SentCallback espelhado
+//   entrada_zero         — 0 submissões em 24h (formulário/funil parado)
+//   chatbot_erro         — erros do chatbot autônomo (condicional modo≠off)
+//   remarketing_presa    — campanha 'enviando' sem progresso
+//   regua_cobranca       — parcela atrasada sem nenhum marco da régua
+//   experiencia_nps      — NPS elegível sem envio além do prazo
+//   meta_frescor         — sync Meta Ads congelado
+//   transcricao_faltante — reunião realizada sem transcrição capturada
+//   runs_presos          — runs pendentes/retry vencido (engine parada)
+// Alertas: WhatsApp (Z-API) + notificação in-app + E-MAIL (Resend→Brevo, canal
+// INDEPENDENTE da Z-API — se a falha for a própria Z-API, só o e-mail chega).
+// COOLDOWN de 6h por check (configuracoes_sistema.monitor_state).
+// `monitor_checks_desativados` (array de chaves) suprime checks de features
+// pausadas de propósito (ex.: régua/NPS) — filtrado ANTES do cooldown.
+// HEARTBEAT: todo tick de produção grava `monitor_last_tick_at` — o dead-man
+// (workflow GitHub Actions) alerta se o tick sumir. Instância UAT/dry NÃO
+// grava o tick (não pode mascarar um monitor de produção morto).
 //
 // SÓ AGE EM PRODUÇÃO: os dados observados vivem em public; a instância UAT
 // (SUPABASE_SCHEMA=uat) roda em modo dry (loga e responde, não alerta) para
@@ -23,6 +36,10 @@ const ZAPI_INSTANCE_ID     = process.env.ZAPI_INSTANCE_ID;
 const ZAPI_TOKEN           = process.env.ZAPI_TOKEN;
 const ZAPI_CLIENT_TOKEN    = process.env.ZAPI_CLIENT_TOKEN;
 const CEO_WHATSAPP         = process.env.CEO_WHATSAPP || '';
+// Canal de e-mail (config manual pós-deploy — o CI só seta WEBHOOK_SECRET)
+const RESEND_API_KEY       = process.env.RESEND_API_KEY;
+const BREVO_API_KEY        = process.env.BREVO_API_KEY;
+const FROM_EMAIL           = process.env.FROM_EMAIL || 'Bolsa Atleta USA <contato@bolsaatletausa.com>';
 
 // Os DADOS monitorados são os de produção — sempre public (padrão do Engine).
 const DATA_SCHEMA = 'public';
@@ -34,6 +51,19 @@ const RUNS_ERRO_JANELA_HORAS = 6;
 const RUNS_ERRO_MINIMO = 3;
 const JANELA_MAX_DIAS = 7;         // ignora pendências históricas antigas
 const COOLDOWN_HORAS = 6;
+// Espelho (versão enxuta do check da tela /observabilidade)
+const ESPELHO_JANELA_HORAS = 6;    // marcas de envio consideradas
+const ESPELHO_MARGEM_MIN = 5;      // janela antes da marca
+const ESPELHO_POS_MIN = 15;        // janela depois da marca
+const ESPELHO_IDADE_MIN_MIN = 10;  // lag normal do webhook — recente demais não é suspeito
+const ENTRADA_ZERO_HORAS = 24;
+const CHATBOT_ERRO_MINIMO = 3;
+const REMARKETING_PRESA_HORAS = 2;
+const REGUA_FOLGA_DIAS = 2;
+const NPS_PRAZO_DIAS = 181;        // 180d de jornada + 24h de folga
+const META_FRESCOR_DIAS = 3;
+const TRANSCRICAO_FOLGA_HORAS = 24;
+const RUNS_PRESOS_HORAS = 2;       // engine roda 1x/h — 2h sem consumir = parada
 
 // ─── Log estruturado ──────────────────────────────────────────
 const log = (level, action, details = {}) => {
@@ -101,10 +131,11 @@ const lerConfig = async (chave) => {
   }
 };
 
-const salvarMonitorState = async (state) => {
-  const postData = JSON.stringify({ valor: state });
+/** PATCH genérico de uma chave de configuracoes_sistema (fail-open: só loga). */
+const salvarConfigKey = async (chave, valor) => {
+  const postData = JSON.stringify({ valor });
   const result = await httpRequest(
-    `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.monitor_state`,
+    `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.${chave}`,
     {
       method: 'PATCH',
       headers: supaHeaders({
@@ -117,8 +148,200 @@ const salvarMonitorState = async (state) => {
     postData,
   );
   if (result.statusCode >= 400) {
-    log('WARN', 'monitor_state_save_failed', { statusCode: result.statusCode });
+    log('WARN', 'config_save_failed', { chave, statusCode: result.statusCode });
   }
+};
+
+const salvarMonitorState = (state) => salvarConfigKey('monitor_state', state);
+
+/**
+ * HEARTBEAT do dead-man's switch (workflow GitHub Actions): gravado em TODO
+ * tick de PRODUÇÃO real. Gate crítico: instância UAT ou dry-run NÃO grava —
+ * um monitor de produção morto não pode ser mascarado por outra instância.
+ * O valor contém APENAS campos agregados seguros (a chave é legível por anon
+ * via policy restrita do dead-man — nunca incluir dados de leads aqui).
+ */
+const registrarTick = async (falhas, checksTotal, durationMs, dryRun) => {
+  if (SUPABASE_SCHEMA !== 'public' || dryRun) return;
+  await salvarConfigKey('monitor_last_tick_at', {
+    at: new Date().toISOString(),
+    falhas,
+    checks_total: checksTotal,
+    duration_ms: durationMs,
+  });
+};
+
+// ─── E-mail (Resend primário → Brevo fallback) ────────────────
+// Canal de alerta INDEPENDENTE da Z-API — quando a falha é a própria Z-API,
+// o WhatsApp de alerta cai junto e o e-mail é o único que chega.
+const parseFromEmail = (raw) => {
+  const m = String(raw).match(/^(.*)<(.+)>$/);
+  return m
+    ? { name: m[1].trim(), email: m[2].trim() }
+    : { name: 'Bolsa Atleta USA', email: String(raw).trim() };
+};
+
+const sendViaResend = async (to, subject, html) => {
+  const postData = JSON.stringify({ from: FROM_EMAIL, to: [to], subject, html });
+  const result = await httpRequest('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData),
+    },
+  }, postData);
+  if (result.statusCode >= 400) throw new Error(`Resend HTTP ${result.statusCode}`);
+  return true;
+};
+
+const sendViaBrevo = async (to, subject, html) => {
+  const from = parseFromEmail(FROM_EMAIL);
+  const postData = JSON.stringify({
+    sender: { name: from.name, email: from.email },
+    to: [{ email: to }],
+    subject,
+    htmlContent: html,
+  });
+  const result = await httpRequest('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData),
+    },
+  }, postData);
+  if (result.statusCode >= 400) throw new Error(`Brevo HTTP ${result.statusCode}`);
+  return true;
+};
+
+const sendEmailWithFallback = async (to, subject, html) => {
+  const providers = [
+    { name: 'resend', fn: sendViaResend, available: !!RESEND_API_KEY },
+    { name: 'brevo', fn: sendViaBrevo, available: !!BREVO_API_KEY },
+  ];
+  for (const p of providers) {
+    if (!p.available) continue;
+    try {
+      await p.fn(to, subject, html);
+      log('INFO', 'monitor_email_sent', { provider: p.name, to });
+      return true;
+    } catch (error) {
+      log('WARN', 'monitor_email_failed', { provider: p.name, error: error.message });
+    }
+  }
+  return false;
+};
+
+/** Destinatários de alerta: CEO/CTO ativos com e-mail. */
+const fetchAlertRecipients = async () => {
+  try {
+    const result = await httpRequest(
+      `${SUPABASE_URL}/rest/v1/user_profiles?papel=in.(ceo,cto)&ativo=is.true&select=email`,
+      { method: 'GET', headers: supaHeaders() },
+    );
+    if (result.statusCode >= 400) return [];
+    const rows = JSON.parse(result.body || '[]');
+    return rows.map((r) => r.email).filter((e) => typeof e === 'string' && e.includes('@'));
+  } catch (error) {
+    log('WARN', 'monitor_recipients_failed', { error: error.message });
+    return [];
+  }
+};
+
+// ─── Sinais positivos de vida (lições do incidente 2026-07-15/17) ──
+/** Estado REAL da conexão Z-API — a Z-API caída aceita envios com 200. */
+const checkZapiConexao = async () => {
+  if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
+    return { ok: true, valor: 0, detalhe: 'Z-API não configurada nesta instância (check pulado)' };
+  }
+  try {
+    const result = await httpRequest(
+      `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/status`,
+      { method: 'GET', headers: { 'Client-Token': ZAPI_CLIENT_TOKEN }, timeoutMs: 15000 },
+    );
+    const data = JSON.parse(result.body || '{}');
+    const ok = data.connected === true && data.smartphoneConnected === true;
+    return {
+      ok,
+      valor: ok ? 0 : 1,
+      detalhe: ok
+        ? 'Instância Z-API conectada'
+        : `Z-API DESCONECTADA (${data.error || `connected=${data.connected}`}) — mensagens NÃO estão sendo entregues`,
+    };
+  } catch (error) {
+    return { ok: false, valor: 1, detalhe: `Z-API sem resposta: ${error.message}` };
+  }
+};
+
+const COLUNAS_ENVIO = [
+  'whatsapp_sent_at',
+  'followup_1_sent_at',
+  'followup_2_sent_at',
+  'scheduled_followup_sent_at',
+];
+
+const tail10 = (phone) => {
+  if (typeof phone !== 'string') return null;
+  const d = phone.replace(/\D/g, '');
+  return d.length >= 8 ? d.slice(-10) : null;
+};
+
+/**
+ * Envio marcado sem espelho de entrega (versão enxuta do check da tela):
+ * todo envio real gera SentCallback em whatsapp_mensagens (from_me). Uma
+ * marca *_sent_at sem espelho no telefone do lead = a Z-API aceitou (200)
+ * e não entregou — a assinatura exata do incidente fundador.
+ */
+const checkEnviosSemEspelho = async () => {
+  const desde = isoAtras(ESPELHO_JANELA_HORAS);
+  const selects = `id,athlete_name,athlete_whatsapp,guardian_whatsapp,${COLUNAS_ENVIO.join(',')}`;
+  const marcasRes = await Promise.all(COLUNAS_ENVIO.map((col) =>
+    httpRequest(
+      `${SUPABASE_URL}/rest/v1/form_submissions?select=${selects}&${col}=gt.${encodeURIComponent(desde)}&limit=50`,
+      { method: 'GET', headers: supaHeaders() },
+    ),
+  ));
+  const marcas = [];
+  marcasRes.forEach((r, i) => {
+    if (r.statusCode >= 400) throw new Error(`espelho marcas HTTP ${r.statusCode}`);
+    for (const row of JSON.parse(r.body || '[]')) {
+      const tails = [tail10(row.athlete_whatsapp), tail10(row.guardian_whatsapp)].filter(Boolean);
+      marcas.push({ nome: row.athlete_name, quandoMs: Date.parse(row[COLUNAS_ENVIO[i]]), tails });
+    }
+  });
+  if (marcas.length === 0) {
+    return { ok: true, valor: 0, detalhe: `Nenhum envio marcado nas últimas ${ESPELHO_JANELA_HORAS}h` };
+  }
+
+  const minIso = new Date(Math.min(...marcas.map((m) => m.quandoMs)) - ESPELHO_MARGEM_MIN * 60000).toISOString();
+  const espRes = await httpRequest(
+    `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?select=phone,created_at&from_me=is.true&created_at=gt.${encodeURIComponent(minIso)}&limit=500`,
+    { method: 'GET', headers: supaHeaders() },
+  );
+  if (espRes.statusCode >= 400) throw new Error(`espelho HTTP ${espRes.statusCode}`);
+  const espelho = JSON.parse(espRes.body || '[]').map((e) => ({
+    tail: tail10(e.phone),
+    ms: Date.parse(e.created_at),
+  }));
+
+  const limiteIdade = Date.now() - ESPELHO_IDADE_MIN_MIN * 60000;
+  const nomes = [];
+  for (const m of marcas) {
+    if (m.quandoMs > limiteIdade) continue; // webhook pode só estar atrasado
+    const tem = espelho.some((e) =>
+      e.tail && m.tails.includes(e.tail) &&
+      e.ms >= m.quandoMs - ESPELHO_MARGEM_MIN * 60000 &&
+      e.ms <= m.quandoMs + ESPELHO_POS_MIN * 60000);
+    if (!tem) nomes.push(m.nome);
+  }
+  return {
+    ok: nomes.length === 0,
+    valor: nomes.length,
+    detalhe: nomes.length === 0
+      ? `Todos os ${marcas.length} envios das últimas ${ESPELHO_JANELA_HORAS}h têm espelho de entrega`
+      : `${nomes.length} envio(s) SEM espelho de entrega (Z-API aceitou e não entregou?): ${nomes.slice(0, 5).join(', ')}`,
+  };
 };
 
 // ─── Alertas ──────────────────────────────────────────────────
@@ -166,7 +389,7 @@ const criarNotificacoesInApp = async (titulo, mensagem) => {
         mensagem,
         tipo: 'monitor',
         severidade: 'critica',
-        link: '/automacoes-monitor',
+        link: '/observabilidade',
       })),
     );
     await httpRequest(`${SUPABASE_URL}/rest/v1/notificacoes`, {
@@ -186,6 +409,21 @@ const criarNotificacoesInApp = async (titulo, mensagem) => {
 // ─── Checks ───────────────────────────────────────────────────
 const isoAtras = (horas) => new Date(Date.now() - horas * 3600000).toISOString();
 
+/**
+ * Executor de um check com isolamento de falha: um erro de query NUNCA
+ * derruba o watchdog inteiro — vira um check ok=false com o motivo (o
+ * PostgREST devolve erro sem lançar em outros lugares; aqui somos nós que
+ * lançamos no `contar`, então o catch é obrigatório).
+ */
+const checkSeguro = async (chave, fn) => {
+  try {
+    const r = await fn();
+    return { chave, ...r };
+  } catch (error) {
+    return { chave, ok: false, valor: -1, detalhe: `verificação falhou: ${error.message}` };
+  }
+};
+
 const runChecks = async () => {
   const desdeJanela = isoAtras(JANELA_MAX_DIAS * 24);
 
@@ -194,48 +432,175 @@ const runChecks = async () => {
   const intervaloHoras = Number(intervalos.whatsapp_inicial_horas) || INTERVALO_DEFAULT_HORAS;
   const limiteFila = intervaloHoras + FILA_FOLGA_HORAS;
 
-  const [qualificacaoTravada, filaPresa, runsErro] = await Promise.all([
-    // 1. Leads sem classe Gemini há 2h+ (janela de 7d)
-    contar(
-      `form_submissions?select=id&qualification_classification=is.null` +
-        `&submitted_at=lt.${encodeURIComponent(isoAtras(QUALIFICACAO_TRAVADA_HORAS))}` +
-        `&submitted_at=gt.${encodeURIComponent(desdeJanela)}`,
-    ),
-    // 2. QUENTE/MORNO timing ideal sem WhatsApp além do intervalo + folga
-    contar(
-      `form_submissions?select=id&qualification_classification=in.(QUENTE,MORNO)` +
-        `&whatsapp_sent_at=is.null` +
-        `&qualified_at=lt.${encodeURIComponent(isoAtras(limiteFila))}` +
-        `&qualified_at=gt.${encodeURIComponent(desdeJanela)}` +
-        `&or=(timing_status.is.null,timing_status.eq.ideal)`,
-    ),
-    // 3. Erros de automação nas últimas 6h
-    contar(
-      `automacao_runs?select=id&status=eq.erro` +
-        `&created_at=gt.${encodeURIComponent(isoAtras(RUNS_ERRO_JANELA_HORAS))}`,
-    ),
-  ]);
+  return Promise.all([
+    // ── Originais ────────────────────────────────────────────
+    checkSeguro('qualificacao_travada', async () => {
+      const n = await contar(
+        `form_submissions?select=id&qualification_classification=is.null` +
+          `&submitted_at=lt.${encodeURIComponent(isoAtras(QUALIFICACAO_TRAVADA_HORAS))}` +
+          `&submitted_at=gt.${encodeURIComponent(desdeJanela)}`,
+      );
+      return { ok: n === 0, valor: n, detalhe: `${n} lead(s) sem qualificação Gemini há ${QUALIFICACAO_TRAVADA_HORAS}h+` };
+    }),
+    checkSeguro('fila_whatsapp_presa', async () => {
+      const n = await contar(
+        `form_submissions?select=id&qualification_classification=in.(QUENTE,MORNO)` +
+          `&whatsapp_sent_at=is.null` +
+          `&qualified_at=lt.${encodeURIComponent(isoAtras(limiteFila))}` +
+          `&qualified_at=gt.${encodeURIComponent(desdeJanela)}` +
+          `&or=(timing_status.is.null,timing_status.eq.ideal)`,
+      );
+      return { ok: n === 0, valor: n, detalhe: `${n} lead(s) QUENTE/MORNO sem o WhatsApp inicial há ${limiteFila}h+` };
+    }),
+    checkSeguro('runs_erro', async () => {
+      const n = await contar(
+        `automacao_runs?select=id&status=eq.erro` +
+          `&created_at=gt.${encodeURIComponent(isoAtras(RUNS_ERRO_JANELA_HORAS))}`,
+      );
+      return { ok: n < RUNS_ERRO_MINIMO, valor: n, detalhe: `${n} erro(s) de automação nas últimas ${RUNS_ERRO_JANELA_HORAS}h` };
+    }),
 
-  return [
-    {
-      chave: 'qualificacao_travada',
-      ok: qualificacaoTravada === 0,
-      valor: qualificacaoTravada,
-      detalhe: `${qualificacaoTravada} lead(s) sem qualificação Gemini há ${QUALIFICACAO_TRAVADA_HORAS}h+`,
-    },
-    {
-      chave: 'fila_whatsapp_presa',
-      ok: filaPresa === 0,
-      valor: filaPresa,
-      detalhe: `${filaPresa} lead(s) QUENTE/MORNO sem o WhatsApp inicial há ${limiteFila}h+`,
-    },
-    {
-      chave: 'runs_erro',
-      ok: runsErro < RUNS_ERRO_MINIMO,
-      valor: runsErro,
-      detalhe: `${runsErro} erro(s) de automação nas últimas ${RUNS_ERRO_JANELA_HORAS}h`,
-    },
-  ];
+    // ── Anti-incidente (Z-API caída com envios fantasma) ─────
+    checkSeguro('zapi_conexao', checkZapiConexao),
+    checkSeguro('envios_sem_espelho', checkEnviosSemEspelho),
+
+    // ── Funil de entrada ─────────────────────────────────────
+    checkSeguro('entrada_zero', async () => {
+      const n = await contar(
+        `form_submissions?select=id&submitted_at=gt.${encodeURIComponent(isoAtras(ENTRADA_ZERO_HORAS))}`,
+      );
+      return {
+        ok: n > 0,
+        valor: n,
+        detalhe: n > 0
+          ? `${n} submissão(ões) nas últimas ${ENTRADA_ZERO_HORAS}h`
+          : `ZERO submissões em ${ENTRADA_ZERO_HORAS}h — formulário/funil de entrada possivelmente parado (mídia queimando sem lead)`,
+      };
+    }),
+
+    // ── Chatbot autônomo (condicional: só quando modo ≠ off) ─
+    checkSeguro('chatbot_erro', async () => {
+      const cfg = await lerConfig('chatbot_autonomo');
+      const modo = cfg.modo;
+      if (modo !== 'sombra' && modo !== 'ativo') {
+        return { ok: true, valor: 0, detalhe: 'chatbot autônomo off — check pulado' };
+      }
+      const desde6h = encodeURIComponent(isoAtras(RUNS_ERRO_JANELA_HORAS));
+      const [erros, falhasEnvio] = await Promise.all([
+        contar(`chatbot_autonomo_log?select=id&decisao=eq.erro&created_at=gt.${desde6h}`),
+        contar(`chatbot_autonomo_log?select=id&decisao=eq.respondeu&enviado=is.false&created_at=gt.${desde6h}`),
+      ]);
+      const soma = erros + falhasEnvio;
+      return {
+        ok: soma < CHATBOT_ERRO_MINIMO,
+        valor: soma,
+        detalhe: `chatbot (${modo}): ${erros} erro(s) + ${falhasEnvio} resposta(s) sem envio nas últimas ${RUNS_ERRO_JANELA_HORAS}h`,
+      };
+    }),
+
+    // ── Re-marketing ─────────────────────────────────────────
+    checkSeguro('remarketing_presa', async () => {
+      const n = await contar(
+        `remarketing_campanhas?select=id&status=eq.enviando&deleted_at=is.null` +
+          `&updated_at=lt.${encodeURIComponent(isoAtras(REMARKETING_PRESA_HORAS))}`,
+      );
+      return {
+        ok: n === 0,
+        valor: n,
+        detalhe: `${n} campanha(s) em 'enviando' sem progresso há ${REMARKETING_PRESA_HORAS}h+ (cron de disparo parado?)`,
+      };
+    }),
+
+    // ── Régua de cobrança (suprimível via monitor_checks_desativados
+    //    enquanto o job billing-reminders estiver pausado de propósito) ──
+    checkSeguro('regua_cobranca', async () => {
+      const corte = isoAtras(REGUA_FOLGA_DIAS * 24).slice(0, 10);
+      const n = await contar(
+        `parcelas?select=id&status=eq.atrasado&deleted_at=is.null` +
+          `&vencimento=lt.${corte}` +
+          `&regua_dneg3_at=is.null&regua_d0_at=is.null&regua_d1_at=is.null` +
+          `&regua_d3_at=is.null&regua_d7_at=is.null&regua_d15_at=is.null`,
+      );
+      return {
+        ok: n === 0,
+        valor: n,
+        detalhe: `${n} parcela(s) atrasada(s) ${REGUA_FOLGA_DIAS}d+ sem NENHUM marco da régua de cobrança`,
+      };
+    }),
+
+    // ── NPS pós-venda (suprimível enquanto o job estiver pausado) ──
+    checkSeguro('experiencia_nps', async () => {
+      const n = await contar(
+        `crm_experiencia?select=id&fase=in.(embarcado_inicial,acompanhamento)` +
+          `&nps_enviado_at=is.null` +
+          `&created_at=lt.${encodeURIComponent(isoAtras(NPS_PRAZO_DIAS * 24))}`,
+      );
+      return { ok: n === 0, valor: n, detalhe: `${n} família(s) elegível(is) a NPS sem envio além do prazo (+24h folga)` };
+    }),
+
+    // ── CAC Meta (condicional: sem dados = config pendente, não falha) ──
+    checkSeguro('meta_frescor', async () => {
+      const result = await httpRequest(
+        `${SUPABASE_URL}/rest/v1/meta_ads_campanha?select=data&order=data.desc&limit=1`,
+        { method: 'GET', headers: supaHeaders() },
+      );
+      if (result.statusCode >= 400) throw new Error(`meta_ads_campanha HTTP ${result.statusCode}`);
+      const rows = JSON.parse(result.body || '[]');
+      if (rows.length === 0) {
+        return { ok: true, valor: 0, detalhe: 'sem dados de Meta Ads ainda (config pendente) — check pulado' };
+      }
+      const idadeDias = Math.floor((Date.now() - Date.parse(rows[0].data)) / 86400000);
+      return {
+        ok: idadeDias <= META_FRESCOR_DIAS,
+        valor: idadeDias,
+        detalhe: `último gasto Meta sincronizado há ${idadeDias}d (CAC/DRE ${idadeDias > META_FRESCOR_DIAS ? 'CONGELADOS' : 'frescos'})`,
+      };
+    }),
+
+    // ── Transcrições do Meet (condicional: sem histórico = config pendente) ──
+    checkSeguro('transcricao_faltante', async () => {
+      const temAlguma = await contar('reunioes_transcricoes?select=id&limit=1');
+      if (temAlguma === 0) {
+        return { ok: true, valor: 0, detalhe: 'nenhuma transcrição capturada ainda (config pendente) — check pulado' };
+      }
+      const result = await httpRequest(
+        `${SUPABASE_URL}/rest/v1/deals?select=google_calendar_event_id&etapa=eq.reuniao_realizada` +
+          `&google_calendar_event_id=not.is.null&deleted_at=is.null` +
+          `&updated_at=gt.${encodeURIComponent(isoAtras(JANELA_MAX_DIAS * 24))}` +
+          `&updated_at=lt.${encodeURIComponent(isoAtras(TRANSCRICAO_FOLGA_HORAS))}&limit=50`,
+        { method: 'GET', headers: supaHeaders() },
+      );
+      if (result.statusCode >= 400) throw new Error(`deals HTTP ${result.statusCode}`);
+      const ids = JSON.parse(result.body || '[]').map((d) => d.google_calendar_event_id).filter(Boolean);
+      if (ids.length === 0) return { ok: true, valor: 0, detalhe: 'nenhuma reunião realizada aguardando transcrição' };
+      const capturadas = await httpRequest(
+        `${SUPABASE_URL}/rest/v1/reunioes_transcricoes?select=google_event_id&google_event_id=in.(${ids.map(encodeURIComponent).join(',')})`,
+        { method: 'GET', headers: supaHeaders() },
+      );
+      if (capturadas.statusCode >= 400) throw new Error(`transcricoes HTTP ${capturadas.statusCode}`);
+      const capturadasSet = new Set(JSON.parse(capturadas.body || '[]').map((t) => t.google_event_id));
+      const faltantes = ids.filter((id) => !capturadasSet.has(id)).length;
+      return {
+        ok: faltantes === 0,
+        valor: faltantes,
+        detalhe: `${faltantes} reunião(ões) realizadas há ${TRANSCRICAO_FOLGA_HORAS}h+ sem transcrição capturada`,
+      };
+    }),
+
+    // ── Engine de automações parada (runs presos) ────────────
+    checkSeguro('runs_presos', async () => {
+      const [pendentes, retryVencido] = await Promise.all([
+        contar(`automacao_runs?select=id&status=eq.pendente&created_at=lt.${encodeURIComponent(isoAtras(RUNS_PRESOS_HORAS))}`),
+        contar(`automacao_runs?select=id&status=eq.erro&proxima_tentativa_at=lt.${encodeURIComponent(isoAtras(RUNS_PRESOS_HORAS))}`),
+      ]);
+      const soma = pendentes + retryVencido;
+      return {
+        ok: soma === 0,
+        valor: soma,
+        detalhe: `${pendentes} run(s) pendentes ${RUNS_PRESOS_HORAS}h+ e ${retryVencido} retry(s) vencidos — engine de automações possivelmente parada`,
+      };
+    }),
+  ]);
 };
 
 // ─── Cloud Function principal ─────────────────────────────────
@@ -260,8 +625,18 @@ functions.http('monitorHealth', async (req, res) => {
     const ativas = await lerConfig('sistema_automacoes_ativas');
     const alertasDesligados = ativas.monitor_alertas === false;
 
+    // Checks suprimidos de propósito (features pausadas — ex.: régua/NPS).
+    // Filtrado ANTES do cooldown: check desativado nunca vira alerta.
+    const desativadosRaw = await lerConfig('monitor_checks_desativados');
+    const desativados = new Set(Array.isArray(desativadosRaw) ? desativadosRaw : []);
+
     const checks = await runChecks();
-    const falhas = checks.filter((c) => !c.ok);
+    const todasFalhas = checks.filter((c) => !c.ok);
+    const suprimidas = todasFalhas.filter((c) => desativados.has(c.chave));
+    const falhas = todasFalhas.filter((c) => !desativados.has(c.chave));
+    if (suprimidas.length > 0) {
+      log('INFO', 'monitor_checks_suprimidos', { chaves: suprimidas.map((c) => c.chave) });
+    }
 
     let alertasEnviados = 0;
     if (falhas.length > 0 && !dryRun && !alertasDesligados) {
@@ -278,18 +653,30 @@ functions.http('monitorHealth', async (req, res) => {
         const linhas = paraAlertar.map((c) => `• ${c.detalhe}`).join('\n');
         const msg =
           `⚠️ *Monitor BAUSA — atenção no funil*\n\n${linhas}\n\n` +
-          `Ver detalhes: bolsa-atleta-crm → Monitor de automações.`;
+          `Ver detalhes: bolsa-atleta-crm → /observabilidade.`;
+        // WhatsApp + E-MAIL sempre juntos: se a falha for a própria Z-API,
+        // o WhatsApp não chega — o e-mail é o canal independente.
         const enviado = await sendWhatsAppCeo(msg);
         await criarNotificacoesInApp('Monitor: atenção no funil', linhas);
+        const htmlLinhas = paraAlertar.map((c) => `<li>${c.detalhe}</li>`).join('');
+        const html =
+          `<h2>⚠️ Monitor BAUSA — atenção no funil</h2><ul>${htmlLinhas}</ul>` +
+          `<p>Ver detalhes: BAU Engine → <strong>/observabilidade</strong></p>`;
+        const recipients = await fetchAlertRecipients();
+        let emailsEnviados = 0;
+        for (const to of recipients) {
+          if (await sendEmailWithFallback(to, '⚠️ Monitor BAUSA — atenção no funil', html)) emailsEnviados += 1;
+        }
         alertasEnviados = paraAlertar.length;
 
         const novoState = { ...state, ultimo_alerta: { ...ultimo } };
         for (const c of paraAlertar) novoState.ultimo_alerta[c.chave] = new Date().toISOString();
         await salvarMonitorState(novoState);
 
-        log(enviado ? 'INFO' : 'WARN', 'monitor_alerta', {
+        log(enviado || emailsEnviados > 0 ? 'INFO' : 'WARN', 'monitor_alerta', {
           checks: paraAlertar.map((c) => c.chave),
           whatsappEnviado: enviado,
+          emailsEnviados,
         });
       } else {
         log('INFO', 'monitor_alerta_em_cooldown', { falhas: falhas.map((c) => c.chave) });
@@ -301,9 +688,13 @@ functions.http('monitorHealth', async (req, res) => {
       dryRun,
       alertasDesligados,
       falhas: falhas.length,
+      suprimidas: suprimidas.length,
       alertasEnviados,
       durationMs,
     });
+
+    // Heartbeat do dead-man — TODO tick de produção real, com ou sem falhas.
+    await registrarTick(falhas.length, checks.length, durationMs, dryRun);
 
     return res.status(200).send({
       success: true,
