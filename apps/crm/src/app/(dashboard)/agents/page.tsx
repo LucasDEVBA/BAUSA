@@ -8,6 +8,7 @@ import {
 } from "@/lib/actions/chatbot-autonomo";
 import { contarPassosIA } from "@/components/automacoes/builder-shared";
 import type { Automacao, AutomacaoComStats } from "@/types/automacao";
+import type { Agent } from "@/types/agent";
 
 import { AgentsClient, type SistemaPromptChave } from "./client";
 
@@ -51,7 +52,7 @@ export default async function AgentsPage() {
 
   const configs = await getConfiguracoes();
 
-  const [{ data: automacoes }, { data: runs }] = await Promise.all([
+  const [{ data: automacoes }, { data: runs }, { data: agentsData }] = await Promise.all([
     supabase
       .from("automacoes")
       .select("id, nome, descricao, gatilho, gatilho_config, condicoes, acoes, passos, ativo, created_at, updated_at")
@@ -64,7 +65,16 @@ export default async function AgentsPage() {
       .select("automacao_id, status, created_at")
       .order("created_at", { ascending: false })
       .limit(5000),
+    // Agents CUSTOM do CEO (tabela agents) — a página é CEO-only, então o
+    // select completo (com prompt) é seguro aqui (é o editor deles).
+    supabase
+      .from("agents")
+      .select("id, nome, descricao, prompt, capacidades, ativo, created_at, updated_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
   ]);
+
+  const agents = (agentsData as Agent[] | null) ?? [];
 
   const runRows = (runs ?? []) as RunRow[];
   const automacoesIA: AutomacaoComStats[] = ((automacoes ?? []) as Automacao[])
@@ -117,6 +127,7 @@ export default async function AgentsPage() {
 
   return (
     <AgentsClient
+      agents={agents}
       personaSeeded={personaSeeded}
       personaAtual={typeof chatbotCfg.persona === "string" ? chatbotCfg.persona : ""}
       personaGrupoAtual={typeof chatbotCfg.personaGrupo === "string" ? chatbotCfg.personaGrupo : ""}
