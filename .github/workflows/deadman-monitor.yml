@@ -1,0 +1,85 @@
+# ════════════════════════════════════════════════════════════════════
+# Dead-man's switch do monitor-health (F3 do plano de observabilidade).
+#
+# QUEM VIGIA O VIGIA: o monitor-health (Cloud Scheduler 30min) grava um
+# heartbeat `monitor_last_tick_at` em configuracoes_sistema a cada tick de
+# produção. Este workflow — infra INDEPENDENTE do GCP e da Z-API — lê o
+# heartbeat via PostgREST (anon key + policy restrita à chave) e FALHA
+# ruidosamente se o tick estiver velho. Na falha, o GitHub e-maila o dono
+# do repo automaticamente (notification padrão de workflow failure).
+#
+# FAIL-CLOSED: qualquer anomalia (HTTP≠200, resposta vazia, `at` nulo ou
+# imparseável, idade > limite) = exit 1. Um dead-man que falha em silêncio
+# não é dead-man.
+#
+# Limitações conhecidas (documentadas em docs/ENGINEERING.md):
+# - `schedule` só roda na DEFAULT BRANCH (main) → o dead-man ativa de
+#   verdade após o próximo vai-pra-prod.
+# - O GitHub desativa schedules após ~60 dias sem atividade no repo
+#   (repo ativo — risco baixo).
+# - Cron do GitHub tem atraso típico de 5-15min → limite de 90min sobre
+#   tick de 30min absorve isso sem falso alarme.
+#
+# Config (Settings do repo): secret SUPABASE_ANON_KEY + variable SUPABASE_URL.
+# Teste fim-a-fim do canal: workflow_dispatch com max_age_min=0 → falha
+# esperada → confere que o e-mail do GitHub chega.
+# ════════════════════════════════════════════════════════════════════
+name: Dead-man — monitor-health
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      max_age_min:
+        description: "Idade máxima do tick em minutos (0 = forçar falha p/ testar o canal de e-mail)"
+        default: "90"
+
+permissions:
+  contents: none
+
+jobs:
+  verificar-heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verificar heartbeat do monitor-health
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          MAX_AGE_MIN: ${{ github.event.inputs.max_age_min || '90' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::error::Config ausente — crie a variable SUPABASE_URL e o secret SUPABASE_ANON_KEY nas Settings do repo"
+            exit 1
+          fi
+
+          RESP=$(curl -sf --max-time 20 \
+            "${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.monitor_last_tick_at&select=valor" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "Accept-Profile: public") || {
+              echo "::error::VIGIA INALCANÇÁVEL — Supabase não respondeu ao heartbeat (rede/policy/key)"
+              exit 1
+            }
+
+          AT=$(echo "$RESP" | jq -r '.[0].valor.at // empty')
+          if [ -z "$AT" ]; then
+            echo "::error::VIGIA MUDO — monitor_last_tick_at vazio (monitor-health nunca tickou em produção, ou a policy anon sumiu)"
+            exit 1
+          fi
+
+          TICK_S=$(date -u -d "$AT" +%s 2>/dev/null) || {
+            echo "::error::tick imparseável: $AT"
+            exit 1
+          }
+          AGE_MIN=$(( ( $(date -u +%s) - TICK_S ) / 60 ))
+          echo "heartbeat: $AT (idade ${AGE_MIN}min, limite ${MAX_AGE_MIN}min)"
+
+          if [ "$AGE_MIN" -gt "$MAX_AGE_MIN" ]; then
+            echo "::error::VIGIA MORTO — monitor-health sem tick há ${AGE_MIN}min (Cloud Scheduler pausado? CF quebrada? WEBHOOK_SECRET divergente?). Verificar /observabilidade e o job monitor-health-job no GCP."
+            exit 1
+          fi
+
+          echo "✓ vigia vivo"
