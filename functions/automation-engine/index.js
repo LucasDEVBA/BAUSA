@@ -1381,7 +1381,13 @@ const processarPassos = async (run, auto, contexto, engineConfig, tickState) => 
       try {
         // Agent plugável (F5): o prompt do agent substitui o critério inline;
         // fallback GARANTIDO para passo.prompt. Gate fail-closed inalterado.
-        const gatePrompt = (await resolveAgentPrompt(passo.agent_id, tickState.agentCache)) || passo.prompt;
+        const agentGatePrompt = await resolveAgentPrompt(passo.agent_id, tickState.agentCache);
+        if (passo.agent_id && !agentGatePrompt) {
+          // Visibilidade do fallback (espelha o ia_prompt): o CEO precisa saber
+          // que o gate está rodando no prompt inline, não no agent.
+          log('WARN', 'agent_fallback_condicao', { runId: run.id, agentId: passo.agent_id });
+        }
+        const gatePrompt = agentGatePrompt || passo.prompt;
         const veredito = await avaliarIaCondicao(gatePrompt, contexto, tickState);
         if (!veredito.passou) {
           await finishRun(run.id, 'ignorado', {
