@@ -107,6 +107,9 @@ const CFS_PING: { nome: string; env: string }[] = [
   { nome: "calendar-lead-events (relink reunião)", env: "CALENDAR_LEAD_EVENTS_URL" },
   { nome: "retry-qualification (requalificação)", env: "RETRY_QUALIFICATION_URL" },
   { nome: "send-remarketing (re-marketing)", env: "SEND_REMARKETING_URL" },
+  // Opt-out LGPD: se esta rota cair, descadastros param de gravar e os envios
+  // continuam — risco legal sem sintoma interno (auditoria 2026-07-19).
+  { nome: "remarketing-unsubscribe (opt-out LGPD)", env: "REMARKETING_UNSUBSCRIBE_URL" },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -992,6 +995,91 @@ async function checkTranscricaoFaltante(supabase: Supabase): Promise<CheckResult
   };
 }
 
+// ─── Sinais criados na F2 (fluxos que antes não deixavam rastro) ─────────────
+
+async function lerConfigValor(supabase: Supabase, chave: string): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.from("configuracoes_sistema").select("valor").eq("chave", chave).limit(1);
+  if (error) throw new Error(`configuracoes_sistema(${chave}): ${error.message}`);
+  return (data?.[0]?.valor ?? {}) as Record<string, unknown>;
+}
+
+async function checkCalendarWatch(supabase: Supabase): Promise<CheckResult> {
+  const id = "calendar_watch_expirando";
+  const titulo = "Watch do Google Calendar";
+  const state = await lerConfigValor(supabase, "calendar_watch_state");
+  if (typeof state.expiration !== "string") {
+    return { id, titulo, status: "info", resumo: "Aguardando primeiro sinal do renew-calendar-watch (config pendente).", detalhes: [] };
+  }
+  const expMs = new Date(state.expiration).getTime();
+  const renovadoMs = typeof state.renewed_at === "string" ? new Date(state.renewed_at).getTime() : NaN;
+  const expiraEmH = Math.floor((expMs - Date.now()) / 3_600_000);
+  const renovadoHaDias = Number.isFinite(renovadoMs) ? Math.floor((Date.now() - renovadoMs) / 86_400_000) : 999;
+  const ok = expMs > Date.now() + 24 * 3_600_000 && renovadoHaDias <= 8;
+  return {
+    id,
+    titulo,
+    status: ok ? "ok" : "critico",
+    resumo: ok
+      ? `Watch saudável — expira em ${expiraEmH}h (renovado há ${renovadoHaDias}d).`
+      : `Watch ${expMs < Date.now() ? "EXPIRADO" : `expira em ${expiraEmH}h`} (renovação há ${renovadoHaDias}d) — a detecção de reuniões vai morrer em silêncio.`,
+    detalhes: [],
+  };
+}
+
+async function checkSheetsSync(supabase: Supabase): Promise<CheckResult> {
+  const n = await contarSimples(
+    supabase,
+    (q) => q.select("id", { count: "exact", head: true })
+      .is("sheets_synced_at", null)
+      .lt("submitted_at", horasAtrasISO(2))
+      .gte("submitted_at", horasAtrasISO(7 * 24)),
+    "form_submissions",
+  );
+  return {
+    id: "sheets_sync_pendente",
+    titulo: "Sync Google Sheets",
+    status: n === 0 ? "ok" : "critico",
+    resumo: n === 0
+      ? "Todos os leads recentes sincronizados na planilha."
+      : `${n} lead(s) há 2h+ sem sync no Google Sheets — planilha dessincronizada do banco.`,
+    detalhes: [],
+  };
+}
+
+async function checkWeeklyReport(supabase: Supabase): Promise<CheckResult> {
+  const id = "weekly_report_atrasado";
+  const titulo = "Relatório semanal";
+  const state = await lerConfigValor(supabase, "weekly_report_state");
+  if (typeof state.last_sent_at !== "string") {
+    return { id, titulo, status: "info", resumo: "Aguardando primeiro envio do weekly-report.", detalhes: [] };
+  }
+  const dias = Math.floor((Date.now() - new Date(state.last_sent_at).getTime()) / 86_400_000);
+  return {
+    id,
+    titulo,
+    status: dias <= 8 ? "ok" : "atencao",
+    resumo: `Último relatório semanal enviado há ${dias}d${dias > 8 ? " — job parado ou providers de e-mail falhando." : "."}`,
+    detalhes: [],
+  };
+}
+
+async function checkBillingTick(supabase: Supabase): Promise<CheckResult> {
+  const id = "billing_tick_atrasado";
+  const titulo = "Régua de cobrança (heartbeat)";
+  const state = await lerConfigValor(supabase, "billing_last_tick_at");
+  if (typeof state.at !== "string") {
+    return { id, titulo, status: "info", resumo: "Régua nunca tickou (job pausado de propósito).", detalhes: [] };
+  }
+  const horas = Math.floor((Date.now() - new Date(state.at).getTime()) / 3_600_000);
+  return {
+    id,
+    titulo,
+    status: horas <= 26 ? "ok" : "atencao",
+    resumo: `Último tick da régua há ${horas}h${horas > 26 ? " — job pausado/quebrado (parcelas sem cobrança)." : "."}`,
+    detalhes: [],
+  };
+}
+
 async function checkRunsPresos(supabase: Supabase): Promise<CheckResult> {
   const corte = horasAtrasISO(RUNS_PRESOS_HORAS);
   const [pendentes, retryVencido] = await Promise.all([
@@ -1049,6 +1137,10 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     metaFrescor,
     transcricaoFaltante,
     runsPresos,
+    calendarWatch,
+    sheetsSync,
+    weeklyReport,
+    billingTick,
     ...cfsEDados
   ] = await Promise.all([
     zapiPromise,
@@ -1064,6 +1156,10 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     seguro("meta_frescor", "CAC Meta (frescor do sync)", () => checkMetaFrescor(supabase)),
     seguro("transcricao_faltante", "Transcrições do Meet", () => checkTranscricaoFaltante(supabase)),
     seguro("runs_presos", "Engine de automações (runs presos)", () => checkRunsPresos(supabase)),
+    seguro("calendar_watch_expirando", "Watch do Google Calendar", () => checkCalendarWatch(supabase)),
+    seguro("sheets_sync_pendente", "Sync Google Sheets", () => checkSheetsSync(supabase)),
+    seguro("weekly_report_atrasado", "Relatório semanal", () => checkWeeklyReport(supabase)),
+    seguro("billing_tick_atrasado", "Régua de cobrança (heartbeat)", () => checkBillingTick(supabase)),
     ...CFS_PING.map((cf) => seguro(`cf_${cf.env.toLowerCase()}`, cf.nome, () => pingCf(cf.nome, cf.env))),
   ]);
 
@@ -1087,13 +1183,17 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     conexoes: [zapi.check, supabaseCheck, ...cfs, gemini],
     fluxos: [
       entradaZero,
+      calendarWatch,
+      sheetsSync,
       runsPresos,
       chatbotErro,
       remarketingPresa,
       reguaCobranca,
+      billingTick,
       experienciaNps,
       metaFrescor,
       transcricaoFaltante,
+      weeklyReport,
       calendar,
     ],
     funil24h: {

@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const functions = require('@google-cloud/functions-framework');
+const https = require('https');
 
 // ─── Configuração via variáveis de ambiente (NUNCA hardcode) ────
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
@@ -10,11 +11,57 @@ const SERVICE_ACCOUNT_PRIVATE_KEY = RAW_KEY
   .replace(/^["']|["']$/g, '')
   .replace(/\\n/g, '\n')
   .replace(/\\\\n/g, '\n');
+// Sinal de observabilidade (config manual pós-deploy — ver plano F2): sem
+// essas envs a CF sincroniza normalmente, só não carimba sheets_synced_at.
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
 
 // ─── Log estruturado ───────────────────────────────────────────
 const log = (level, action, details = {}) => {
   console.log(JSON.stringify({ level, action, ...details }));
 };
+
+// ─── Sinal observável: form_submissions.sheets_synced_at ───────
+// Antes deste carimbo, a planilha podia dessincronizar do banco PARA SEMPRE
+// sem nenhum sintoma (auditoria 2026-07-19). CAS via sheets_synced_at=is.null
+// (re-sync vira no-op) + FAIL-OPEN: telemetria nunca quebra o sync em si.
+const marcarSheetsSynced = (email, athleteName) => new Promise((resolve) => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !email || !athleteName) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) log('WARN', 'sheets_synced_skip', { reason: 'envs Supabase ausentes' });
+    return resolve(false);
+  }
+  try {
+    const postData = JSON.stringify({ sheets_synced_at: new Date().toISOString() });
+    const q = `email=eq.${encodeURIComponent(email)}&athlete_name=eq.${encodeURIComponent(athleteName)}&sheets_synced_at=is.null`;
+    const u = new URL(`${SUPABASE_URL}/rest/v1/form_submissions?${q}`);
+    const req = https.request({
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        Prefer: 'return=minimal',
+      },
+      timeout: 15000,
+    }, (res) => {
+      res.resume();
+      if (res.statusCode >= 400) log('WARN', 'sheets_synced_save_failed', { statusCode: res.statusCode });
+      resolve(res.statusCode < 400);
+    });
+    req.on('error', (e) => { log('WARN', 'sheets_synced_save_failed', { error: e.message }); resolve(false); });
+    req.on('timeout', () => { req.destroy(); log('WARN', 'sheets_synced_save_failed', { error: 'timeout' }); resolve(false); });
+    req.write(postData);
+    req.end();
+  } catch (e) {
+    log('WARN', 'sheets_synced_save_failed', { error: e.message });
+    resolve(false);
+  }
+});
 
 // ─── Autenticação Google Sheets ────────────────────────────────
 const getAuthClient = () => {
@@ -220,6 +267,8 @@ functions.http('syncLeads', async (req, res) => {
         durationMs: Date.now() - startTime,
       });
 
+      await marcarSheetsSynced(data.email, data.athlete_name);
+
       return res.status(200).send({
         success: true,
         action: 'updated',
@@ -239,6 +288,8 @@ functions.http('syncLeads', async (req, res) => {
         athlete: data.athlete_name,
         durationMs: Date.now() - startTime,
       });
+
+      await marcarSheetsSynced(data.email, data.athlete_name);
 
       return res.status(200).send({
         success: true,
