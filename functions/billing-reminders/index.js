@@ -308,5 +308,21 @@ functions.http('billingReminders', async (req, res) => {
   }
 
   log('INFO', 'tick_done', { ...stats, durationMs: Date.now() - startTime });
+
+  // Heartbeat observável (todo tick, com ou sem envios): a régua não tem
+  // toggle — o liga/desliga é o pause do Cloud Scheduler. Com o tick gravado,
+  // o monitor-health detecta "régua parada" (billing_tick_atrasado). FAIL-OPEN.
+  try {
+    const postData = JSON.stringify({ valor: { at: new Date().toISOString(), ...stats } });
+    const r = await httpRequest(
+      `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.billing_last_tick_at`,
+      { method: 'PATCH', headers: { ...supaHeaders(true), 'Content-Length': Buffer.byteLength(postData), Prefer: 'return=minimal' } },
+      postData,
+    );
+    if (r.statusCode >= 400) log('WARN', 'billing_tick_save_failed', { statusCode: r.statusCode });
+  } catch (e) {
+    log('WARN', 'billing_tick_save_failed', { error: e.message });
+  }
+
   return res.status(200).send({ success: true, ...stats });
 });

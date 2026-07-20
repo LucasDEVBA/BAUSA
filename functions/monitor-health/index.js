@@ -64,6 +64,12 @@ const NPS_PRAZO_DIAS = 181;        // 180d de jornada + 24h de folga
 const META_FRESCOR_DIAS = 3;
 const TRANSCRICAO_FOLGA_HORAS = 24;
 const RUNS_PRESOS_HORAS = 2;       // engine roda 1x/h — 2h sem consumir = parada
+// Sinais criados na F2 (fluxos que antes não deixavam rastro)
+const WATCH_EXPIRACAO_FOLGA_HORAS = 24;  // alerta ANTES do watch do Google morrer
+const WATCH_RENOVACAO_MAX_DIAS = 8;      // cron é a cada 6 dias — 8d sem renovar = parado
+const SHEETS_SYNC_FOLGA_HORAS = 2;
+const WEEKLY_REPORT_MAX_DIAS = 8;        // relatório é semanal
+const BILLING_TICK_MAX_HORAS = 26;       // régua é diária
 
 // ─── Log estruturado ──────────────────────────────────────────
 const log = (level, action, details = {}) => {
@@ -584,6 +590,69 @@ const runChecks = async () => {
         ok: faltantes === 0,
         valor: faltantes,
         detalhe: `${faltantes} reunião(ões) realizadas há ${TRANSCRICAO_FOLGA_HORAS}h+ sem transcrição capturada`,
+      };
+    }),
+
+    // ── Watch do Google Calendar (sinal criado na F2) ────────
+    // A falha mais silenciosa do sistema: watch expira em ≤7d e o push morre.
+    checkSeguro('calendar_watch_expirando', async () => {
+      const state = await lerConfig('calendar_watch_state');
+      if (!state.expiration) {
+        return { ok: true, valor: 0, detalhe: 'aguardando primeiro sinal do renew-calendar-watch (config pendente) — check pulado' };
+      }
+      const expMs = Date.parse(state.expiration);
+      const renovadoMs = Date.parse(state.renewed_at || 0);
+      const expiraEmH = Math.floor((expMs - Date.now()) / 3600000);
+      const renovadoHaDias = Number.isFinite(renovadoMs) ? Math.floor((Date.now() - renovadoMs) / 86400000) : 999;
+      const ok = expMs > Date.now() + WATCH_EXPIRACAO_FOLGA_HORAS * 3600000 && renovadoHaDias <= WATCH_RENOVACAO_MAX_DIAS;
+      return {
+        ok,
+        valor: ok ? 0 : 1,
+        detalhe: ok
+          ? `watch do Calendar saudável (expira em ${expiraEmH}h)`
+          : `watch do Calendar ${expMs < Date.now() ? 'EXPIRADO' : `expira em ${expiraEmH}h`} (última renovação há ${renovadoHaDias}d) — detecção de reuniões vai morrer em silêncio`,
+      };
+    }),
+
+    // ── Google Sheets dessincronizado (sinal criado na F2) ───
+    checkSeguro('sheets_sync_pendente', async () => {
+      const n = await contar(
+        `form_submissions?select=id&sheets_synced_at=is.null` +
+          `&submitted_at=lt.${encodeURIComponent(isoAtras(SHEETS_SYNC_FOLGA_HORAS))}` +
+          `&submitted_at=gt.${encodeURIComponent(desdeJanela)}`,
+      );
+      return {
+        ok: n === 0,
+        valor: n,
+        detalhe: `${n} lead(s) há ${SHEETS_SYNC_FOLGA_HORAS}h+ sem sync no Google Sheets (planilha dessincronizada?)`,
+      };
+    }),
+
+    // ── Relatório semanal (sinal criado na F2) ───────────────
+    checkSeguro('weekly_report_atrasado', async () => {
+      const state = await lerConfig('weekly_report_state');
+      if (!state.last_sent_at) {
+        return { ok: true, valor: 0, detalhe: 'aguardando primeiro envio do weekly-report — check pulado' };
+      }
+      const dias = Math.floor((Date.now() - Date.parse(state.last_sent_at)) / 86400000);
+      return {
+        ok: dias <= WEEKLY_REPORT_MAX_DIAS,
+        valor: dias,
+        detalhe: `último relatório semanal enviado há ${dias}d${dias > WEEKLY_REPORT_MAX_DIAS ? ' — job parado ou providers de e-mail falhando' : ''}`,
+      };
+    }),
+
+    // ── Régua de cobrança parada (heartbeat criado na F2) ────
+    checkSeguro('billing_tick_atrasado', async () => {
+      const state = await lerConfig('billing_last_tick_at');
+      if (!state.at) {
+        return { ok: true, valor: 0, detalhe: 'régua de cobrança nunca tickou (job pausado de propósito) — check pulado' };
+      }
+      const horas = Math.floor((Date.now() - Date.parse(state.at)) / 3600000);
+      return {
+        ok: horas <= BILLING_TICK_MAX_HORAS,
+        valor: horas,
+        detalhe: `último tick da régua de cobrança há ${horas}h${horas > BILLING_TICK_MAX_HORAS ? ' — job pausado/quebrado (parcelas sem cobrança)' : ''}`,
       };
     }),
 

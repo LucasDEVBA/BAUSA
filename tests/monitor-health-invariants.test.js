@@ -36,6 +36,11 @@ const CHAVES_CF = [
   "meta_frescor",
   "transcricao_faltante",
   "runs_presos",
+  // Sinais criados na F2 (fluxos que antes não deixavam rastro)
+  "calendar_watch_expirando",
+  "sheets_sync_pendente",
+  "weekly_report_atrasado",
+  "billing_tick_atrasado",
 ];
 
 test("monitor-health: todos os checks do watchdog presentes", () => {
@@ -116,8 +121,41 @@ test("paridade: os checks novos existem TAMBÉM na tela /observabilidade", () =>
     "meta_ads_campanha",
     "reunioes_transcricoes",
     "regua_dneg3_at",
+    "calendar_watch_state",
+    "sheets_synced_at",
+    "weekly_report_state",
+    "billing_last_tick_at",
+    "REMARKETING_UNSUBSCRIBE_URL",
   ]) {
     assert.ok(tela.includes(token), `paridade quebrada: '${token}' sumiu da tela /observabilidade`);
+  }
+});
+
+test("F2: escritores de sinal presentes nas CFs (fail-open)", () => {
+  const renew = fs.readFileSync(path.join(__dirname, "..", "functions/renew-calendar-watch/index.js"), "utf8");
+  assert.match(renew, /calendar_watch_state/, "renew-calendar-watch deixou de gravar o watch_state");
+  assert.match(renew, /watch_state_save_failed/, "fail-open do watch_state sumiu");
+
+  const sync = fs.readFileSync(path.join(__dirname, "..", "functions/sync-leads/index.js"), "utf8");
+  assert.match(sync, /sheets_synced_at=is\.null/, "CAS do sheets_synced_at sumiu do sync-leads");
+  assert.match(sync, /marcarSheetsSynced/, "carimbo de sync sumiu do sync-leads");
+
+  const weekly = fs.readFileSync(path.join(__dirname, "..", "functions/weekly-report/index.js"), "utf8");
+  assert.match(weekly, /weekly_report_state/, "weekly-report deixou de gravar o state");
+  assert.match(weekly, /if \(sent > 0\)/, "state do weekly-report deve ser gravado SÓ com sent>0");
+
+  const billing = fs.readFileSync(path.join(__dirname, "..", "functions/billing-reminders/index.js"), "utf8");
+  assert.match(billing, /billing_last_tick_at/, "heartbeat da régua sumiu do billing-reminders");
+});
+
+test("F2: migration dos sinais existe (coluna + backfill + seeds)", () => {
+  const arquivos = fs.readdirSync(MIGRATION_DIR).filter((f) => f.includes("sinais_observabilidade"));
+  assert.ok(arquivos.length >= 1, "migration sinais_observabilidade sumiu");
+  const sql = fs.readFileSync(path.join(MIGRATION_DIR, arquivos[0]), "utf8");
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS sheets_synced_at/, "coluna sheets_synced_at sumiu");
+  assert.match(sql, /SET sheets_synced_at = submitted_at/, "backfill do sheets_synced_at sumiu");
+  for (const chave of ["calendar_watch_state", "weekly_report_state", "billing_last_tick_at"]) {
+    assert.ok(sql.includes(chave), `seed da chave ${chave} sumiu`);
   }
 });
 
