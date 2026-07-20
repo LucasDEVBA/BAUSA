@@ -30,6 +30,9 @@ import {
   type CheckResult,
   type CheckStatus,
 } from "@/lib/observabilidade-checks";
+import { avaliarSaudeAutomacoes, type AutomacaoSaude } from "@/lib/observabilidade-automacoes";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import Link from "next/link";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { ObservabilidadeTabNav } from "../ObservabilidadeTabNav";
 import { RefreshButton } from "../RefreshButton";
@@ -128,7 +131,105 @@ export default async function ObservabilidadePage({
   const { tab } = await params;
   const activeTab = resolveTab(tab?.[0]);
 
+  if (activeTab === "automacoes") return <AutomacoesSaudeTab />;
   return activeTab === "filas" ? <FilasTab /> : <GeralTab />;
+}
+
+// ─── Aba 3 — Saúde das automações (auto-instrumentação, F4) ──────────────────
+
+async function AutomacoesSaudeTab() {
+  const supabase = await createServerSupabaseClient();
+  const saude = await avaliarSaudeAutomacoes(supabase);
+
+  const criticas = saude.filter((s) => s.status === "critico").length;
+  const atencao = saude.filter((s) => s.status === "atencao").length;
+  const saudaveis = saude.filter((s) => s.status === "ok").length;
+  const pausadas = saude.filter((s) => s.status === "info").length;
+  const statusGeral: CheckStatus = criticas > 0 ? "critico" : atencao > 0 ? "atencao" : "ok";
+  const geralStyle = CHECK_STYLE[statusGeral];
+
+  return (
+    <div className="space-y-5">
+      <ObservabilidadeTabNav />
+
+      <PageHeader
+        dense
+        eyebrow="Sistema"
+        title="Saúde das automações"
+        description="Toda automação criada nasce vigiada — saúde derivada dos runs (erro crônico, runs presos, silêncio, sem execuções), sem nenhuma configuração"
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge tone={geralStyle.tone} className="px-3 py-1.5">
+              <geralStyle.icon aria-hidden className="h-3.5 w-3.5" />
+              <span>{STATUS_GERAL_LABEL[statusGeral]}</span>
+            </Badge>
+            <RefreshButton />
+          </div>
+        }
+      />
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard icon={XCircle} label="Críticas" value={criticas} accent={criticas > 0 ? "red" : "green"} />
+        <StatCard icon={AlertTriangle} label="Atenção" value={atencao} accent={atencao > 0 ? "orange" : "green"} />
+        <StatCard icon={CheckCircle} label="Saudáveis" value={saudaveis} accent="green" />
+        <StatCard icon={Info} label="Pausadas" value={pausadas} accent="blue" context="sem avaliação" />
+      </div>
+
+      {/* Cards por automação */}
+      <section className="space-y-3">
+        <p className="text-eyebrow text-primary">Automações (sistema + suas)</p>
+        {saude.length === 0 ? (
+          <Card variant="plain" padding="lg">
+            <p className="text-xs text-muted-foreground">Nenhuma automação cadastrada ainda.</p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {saude.map((s) => (
+              <AutomacaoSaudeCard key={s.id} saude={s} />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function AutomacaoSaudeCard({ saude }: { saude: AutomacaoSaude }) {
+  const style = CHECK_STYLE[saude.status];
+  const StatusIcon = style.icon;
+  return (
+    <Card variant="plain" padding="md" accent={style.accent} className="flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 truncate text-xs font-semibold text-foreground">{saude.nome}</p>
+        <Badge tone={style.tone} size="sm" className="shrink-0">
+          <StatusIcon aria-hidden className="h-3 w-3" />
+          {style.label}
+        </Badge>
+      </div>
+      <ul className="space-y-1">
+        {saude.motivos.map((m, i) => (
+          <li key={i} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-current" />
+            <span>{m}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-auto flex items-center justify-between border-t border-border pt-2 text-[10px] text-label-tertiary">
+        <span>
+          {saude.ultimaRunAt ? `última run ${formatRelativeTime(saude.ultimaRunAt)}` : "sem runs em 30d"}
+          {" · "}{saude.contagens.runs30d} runs/30d
+          {saude.slaHoras !== null && ` · SLA ${saude.slaHoras}h`}
+        </span>
+        <Link
+          href={`/automacoes?tab=execucoes&automacao=${saude.id}`}
+          className="font-medium text-primary hover:underline"
+        >
+          Ver execuções →
+        </Link>
+      </div>
+    </Card>
+  );
 }
 
 // ─── Aba 1 — Monitor de filas ────────────────────────────────────────────────

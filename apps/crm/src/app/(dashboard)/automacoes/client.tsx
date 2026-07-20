@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Workflow,
   Plus,
@@ -148,14 +148,21 @@ export function AutomacoesClient({
   agora: number;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [builder, setBuilder] = useState<BuilderState | null>(null);
-  const [activeTab, setActiveTab] = useState<"automacoes" | "execucoes">("automacoes");
+  // Deep-link (F4): /automacoes?tab=execucoes&automacao=<id> — usado pelos
+  // cards de saúde em /observabilidade/automacoes ("Ver execuções").
+  const [activeTab, setActiveTab] = useState<"automacoes" | "execucoes">(
+    searchParams.get("tab") === "execucoes" ? "execucoes" : "automacoes",
+  );
   // Modal das automações de SISTEMA — içado: abre pelos cards E pela lista.
   const [sistemaAberto, setSistemaAberto] = useState<SistemaCard | null>(null);
   // Filtro da aba Execuções — setado ao clicar "Ver execuções" numa automação
-  const [filtroAutomacaoId, setFiltroAutomacaoId] = useState<string | null>(null);
+  const [filtroAutomacaoId, setFiltroAutomacaoId] = useState<string | null>(
+    searchParams.get("automacao"),
+  );
 
   const verExecucoes = (automacaoId: string | null) => {
     setFiltroAutomacaoId(automacaoId);
@@ -176,6 +183,11 @@ export function AutomacoesClient({
     } else if (gatilhoInfo.configEtapa && builder.gatilhoEtapaPara) {
       // Filtro por etapa do deal_etapa_mudou — vazio = qualquer transição
       gatilhoConfig.etapa_para = builder.gatilhoEtapaPara;
+    }
+    // SLA de silêncio (opcional, qualquer gatilho) — consumido pela saúde
+    // derivada em /observabilidade/automacoes (F4).
+    if (builder.slaHoras !== null && builder.slaHoras >= 1 && builder.slaHoras <= 720) {
+      gatilhoConfig.sla_horas = builder.slaHoras;
     }
     // Modo por passos ativo → o modelo simples é zerado (mutuamente exclusivo;
     // a action revalida e força a exclusividade server-side também).

@@ -157,10 +157,11 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Observabilidade",
         icon: Radar,
         roles: ["ceo"],
-        activeRoutes: ["/observabilidade", "/observabilidade/geral"],
+        activeRoutes: ["/observabilidade", "/observabilidade/geral", "/observabilidade/automacoes"],
         subItems: [
           { href: "/observabilidade", label: "Monitor de filas" },
           { href: "/observabilidade/geral", label: "Geral" },
+          { href: "/observabilidade/automacoes", label: "Saúde das automações" },
         ],
       },
       {

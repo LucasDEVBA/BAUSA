@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type {
@@ -177,6 +179,8 @@ export default async function AutomacoesPage() {
   });
 
   return (
+    // Suspense: o client lê useSearchParams (deep-link ?tab&automacao da F4).
+    <Suspense fallback={null}>
     <AutomacoesClient
       automacoes={withStats}
       usuarios={(usuarios ?? []) as UsuarioRow[]}
@@ -196,5 +200,6 @@ export default async function AutomacoesPage() {
       // eslint-disable-next-line react-hooks/purity
       agora={Date.now()}
     />
+    </Suspense>
   );
 }

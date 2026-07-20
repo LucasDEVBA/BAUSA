@@ -48,6 +48,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/automacoes-monitor": { label: "Monitor de filas", parent: "Sistema" },
   "/observabilidade": { label: "Monitor de filas", parent: "Observabilidade" },
   "/observabilidade/geral": { label: "Geral", parent: "Observabilidade" },
+  "/observabilidade/automacoes": { label: "Saúde das automações", parent: "Observabilidade" },
   "/agents": { label: "Agents de IA", parent: "Sistema" },
   "/sistema": { label: "Sistema" },
 };

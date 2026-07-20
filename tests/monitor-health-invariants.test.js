@@ -41,6 +41,8 @@ const CHAVES_CF = [
   "sheets_sync_pendente",
   "weekly_report_atrasado",
   "billing_tick_atrasado",
+  // F4 — auto-instrumentação por automação (só regras determinísticas na CF)
+  "automacoes_saude",
 ];
 
 test("monitor-health: todos os checks do watchdog presentes", () => {
