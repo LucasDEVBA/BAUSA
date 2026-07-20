@@ -86,6 +86,26 @@ sonner — toasts
 
 ## Atualizações recentes
 
+### Observabilidade total + Plataforma de Agents (2026-07-20, PRs #279–#287)
+- **`/observabilidade`** (CEO; abas como sub-rotas — padrão /minha-area): **Monitor de filas**
+  (motor `src/lib/observabilidade-checks.ts`: conexão Z-API real, fila interna, envios sem
+  espelho por correlação marca×`whatsapp_mensagens` tail-10, timing entre etapas, filas presas
+  c/ invariantes classe+timing; + visual herdado do monitor antigo), **Geral** (funil 24h
+  envios×espelhadas, pings de CFs c/ secret inválido, Supabase, Gemini, 13+ checks de fluxo) e
+  **Saúde das automações** (`src/lib/observabilidade-automacoes.ts` — TODA automação nasce
+  vigiada: erro crônico/runs presos/silêncio; heurística de mediana SÓ na tela, NUNCA no alerta
+  automático; campo opcional "SLA de silêncio" no builder → `gatilho_config.sla_horas`;
+  deep-link `/automacoes?tab=execucoes&automacao=<id>`). `/automacoes-monitor` → redirect.
+  ⚠️ `form_submissions` NÃO tem `created_at` (é `submitted_at`); PostgREST devolve erro sem
+  lançar — SEMPRE checar `res.error`.
+- **Plataforma de Agents** (`/agents` → seção "Seus agents"): tabela `agents` (capacidades
+  `conversa|automacao|analise|chatbot_autonomo`), `src/lib/actions/agents.ts` (CRUD CEO-only;
+  `listarAgentsAtivos(capacidade)` devolve SÓ id/nome/descricao — prompt nunca vai ao client),
+  `agents-analise.ts` (análise sob demanda, CEO, usa padrão [phone, lid]). Integrações com
+  fallback garantido: copiloto selecionável (`agentId` em `sugerirRespostaChatbot`), `agent_id`
+  em `ia_prompt`/`ia_condicao` (inline continua obrigatório), agent por conversa no chatbot
+  autônomo (persona SÓ — `criterio` global literal). Guard `tests/agents-invariants.test.js`.
+
 ### CAC — ROI exato por campanha + Insights de IA (2026-07)
 - **`/analytics/cac`** ganhou a seção **ROI exato por campanha**: gasto do Meta
   (`meta_ads_campanha.campanha_id`) cruzado 1:1 com as conversões via
@@ -225,6 +245,8 @@ Leads QUENTES e MORNOS entram **automaticamente** no pipeline:
 | `/configuracoes` | CEO | Configurações (8 abas) + aba **Usuários** (listar/editar papel·ativo / criar usuário) |
 | `/sistema` | CEO + Head | **Hub Sistema**: grid de módulos (Tarefas/Documentos/FAQ/Indicações p/ todos; Automações/Monitor/Audit/Config só CEO); item único no sidebar com sub-itens |
 | `/automacoes` | CEO | **Builder de automações** (gatilho→condições→ações; nasce pausada) + aba **Execuções** (KPIs 7d, runs com status/tentativas/resultado, Reprocessar). Engine: CF `automation-engine` (1x/h min 30). Tabelas `automacoes`/`automacao_runs`; actions em `src/lib/actions/automacoes-builder.ts`; types `src/types/automacao.ts` |
+| `/observabilidade` (+`/geral`, `/automacoes`) | CEO | **Cobertura total de monitoramento** — 3 abas como sub-rotas: Monitor de filas, Observabilidade geral, Saúde das automações. Motores em `src/lib/observabilidade-checks.ts` e `observabilidade-automacoes.ts`. Botão "Verificar agora" (force-dynamic + router.refresh) |
+| `/agents` | CEO | Hub de agents de IA: famílias nativas (copilotos, autônomo, sistema, memória, automação) + **"Seus agents"** (CRUD da tabela `agents` com 4 capacidades) |
 | `/perfil` | Autenticado (todos) | **Meu Perfil**: nome, **trocar senha** (Supabase Auth), **foto** (bucket `avatars`). Abre pelo nome no footer do sidebar |
 | `/minha-area` | Head | Área do Head (dashboard) — **distinto** de `/perfil` |
 
