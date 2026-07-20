@@ -1,4 +1,7 @@
+import { Suspense } from "react";
+
 import { requirePapel } from "@/lib/auth";
+import { listarAgentsAtivos } from "@/lib/actions/agents";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type {
   SchedulerMensagens,
@@ -39,6 +42,9 @@ export default async function AutomacoesPage() {
     { data: runs, error: runsErr },
     { data: usuarios },
     { data: runsRecentes, error: recErr },
+    // Agents custom com a capacidade `automacao` — alimentam o seletor
+    // "Agent (opcional)" das ações/gates de IA do builder (F5-PR2).
+    agentsAutomacao,
   ] = await Promise.all([
     supabase
       .from("automacoes")
@@ -60,6 +66,7 @@ export default async function AutomacoesPage() {
       .select("*, automacoes(nome, gatilho)")
       .order("created_at", { ascending: false })
       .limit(200),
+    listarAgentsAtivos("automacao"),
   ]);
 
   // Resolve nomes dos leads/atletas referenciados pelos runs (aba Execuções)
@@ -177,9 +184,12 @@ export default async function AutomacoesPage() {
   });
 
   return (
+    // Suspense: o client lê useSearchParams (deep-link ?tab&automacao da F4).
+    <Suspense fallback={null}>
     <AutomacoesClient
       automacoes={withStats}
       usuarios={(usuarios ?? []) as UsuarioRow[]}
+      agentsAutomacao={agentsAutomacao}
       runsRecentes={(runsRecentes ?? []) as AutomacaoRunDetalhado[]}
       leadNomes={leadNomes}
       intervalos={intervalos}
@@ -196,5 +206,6 @@ export default async function AutomacoesPage() {
       // eslint-disable-next-line react-hooks/purity
       agora={Date.now()}
     />
+    </Suspense>
   );
 }

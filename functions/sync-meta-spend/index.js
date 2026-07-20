@@ -93,7 +93,9 @@ const mesRange = (mesesAtras) => {
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 functions.http('syncMetaSpend', async (req, res) => {
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+  // Auth FAIL-CLOSED: secret obrigatório — os jobs do Cloud Scheduler enviam
+  // o header x-webhook-secret (infra/scheduler.sh).
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     log('WARN', 'auth_failed');
     return res.status(401).send({ success: false, error: 'Unauthorized' });
   }

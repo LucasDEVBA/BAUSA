@@ -45,6 +45,33 @@ const httpRequest = (options, postData) => {
   });
 };
 
+// ─── Supabase REST (PATCH) — sinal observável weekly_report_state ───────
+// Antes, a ausência do e-mail de segunda era o ÚNICO sintoma de falha
+// (detecção 100% humana — auditoria 2026-07-19). FAIL-OPEN: telemetria
+// nunca quebra o envio do relatório.
+const salvarReportState = async (state) => {
+  try {
+    const postData = JSON.stringify({ valor: state });
+    const url = new URL(`${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.weekly_report_state`);
+    const result = await httpRequest({
+      hostname: url.hostname,
+      path: url.pathname + url.search,
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Profile': SUPABASE_SCHEMA,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        Prefer: 'return=minimal',
+      },
+    }, postData);
+    if (result.statusCode >= 400) log('WARN', 'report_state_save_failed', { statusCode: result.statusCode });
+  } catch (e) {
+    log('WARN', 'report_state_save_failed', { error: e.message });
+  }
+};
+
 // ─── Supabase REST (GET) ────────────────────────────────────────────────
 const supaGet = async (pathAndQuery) => {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${pathAndQuery}`);
@@ -213,9 +240,9 @@ const buildReportHtml = (kpis, weekLabel, nome) => {
 // ─── Handler ────────────────────────────────────────────────────────────
 functions.http('weeklyReport', async (req, res) => {
   // Auth: valida o secret APENAS se o header foi enviado (chamadas externas).
-  // O Cloud Scheduler chama sem header — não pode tomar 401 (padrão idêntico
-  // ao retry-qualification e demais crons do projeto).
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+  // Auth FAIL-CLOSED: secret obrigatório — os jobs do Cloud Scheduler enviam
+  // o header x-webhook-secret (infra/scheduler.sh).
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     log('WARN', 'auth_failed');
     return res.status(401).send({ success: false, error: 'Unauthorized' });
   }
@@ -248,6 +275,13 @@ functions.http('weeklyReport', async (req, res) => {
     }
 
     log('INFO', 'weekly_report_complete', { sent, total: recipients.length, kpis });
+
+    // Sinal observável — SÓ com sent>0: se todos os providers falharam, o
+    // estado fica velho de propósito para o check weekly_report_atrasado acusar.
+    if (sent > 0) {
+      await salvarReportState({ last_sent_at: new Date().toISOString(), sent, total: recipients.length });
+    }
+
     return res.status(200).send({ success: true, sent, total: recipients.length });
   } catch (error) {
     log('ERROR', 'weekly_report_failed', { error: error.message });

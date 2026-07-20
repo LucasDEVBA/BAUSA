@@ -203,6 +203,9 @@ export interface BuilderState {
   agHora: number;
   agDiaSemana: number;
   agDiaMes: number;
+  /** SLA de silêncio em horas (opcional, qualquer gatilho) — override
+   *  determinístico da saúde derivada em /observabilidade/automacoes. */
+  slaHoras: number | null;
   condicoes: AutomacaoCondicao[];
   acoes: AutomacaoAcao[];
   /** Fluxo avançado ordenado. Não-vazio = modo por passos (condicoes/acoes
@@ -222,6 +225,7 @@ export function emptyBuilder(): BuilderState {
     agHora: 9,
     agDiaSemana: 1,
     agDiaMes: 1,
+    slaHoras: null,
     condicoes: [],
     acoes: [],
     passos: [],
@@ -244,6 +248,7 @@ export function builderFromAutomacao(a: Automacao): BuilderState {
     agHora: typeof cfg.hora === "number" ? cfg.hora : 9,
     agDiaSemana: typeof cfg.dia_semana === "number" ? cfg.dia_semana : 1,
     agDiaMes: typeof cfg.dia_mes === "number" ? cfg.dia_mes : 1,
+    slaHoras: typeof cfg.sla_horas === "number" && cfg.sla_horas >= 1 && cfg.sla_horas <= 720 ? cfg.sla_horas : null,
     condicoes: a.condicoes,
     acoes: a.acoes,
     passos: a.passos ?? [],
@@ -280,15 +285,21 @@ export function defaultPasso(
   return { tipo: "acao", acao: defaultAcao(acaoTipo ?? "criar_tarefa", usuarios) };
 }
 
-/** Normaliza um passo antes de salvar: ações custom (link/mídia "" → ausente)
- *  e rótulo vazio da ia_condicao (drop). */
+/** Normaliza um passo antes de salvar: ações custom (link/mídia "" → ausente),
+ *  rótulo vazio da ia_condicao (drop) e agent_id vazio (drop = prompt inline). */
 export function normalizarPassoParaSalvar(passo: AutomacaoPasso): AutomacaoPasso {
   if (passo.tipo === "acao") {
     return { tipo: "acao", acao: normalizarAcaoParaSalvar(passo.acao) };
   }
   if (passo.tipo === "ia_condicao") {
     const rotulo = passo.rotulo?.trim();
-    return { tipo: "ia_condicao", prompt: passo.prompt, ...(rotulo ? { rotulo } : {}) };
+    const agentId = passo.agent_id?.trim();
+    return {
+      tipo: "ia_condicao",
+      prompt: passo.prompt,
+      ...(rotulo ? { rotulo } : {}),
+      ...(agentId ? { agent_id: agentId } : {}),
+    };
   }
   return passo;
 }
@@ -367,8 +378,16 @@ export function defaultAcao(tipo: AutomacaoAcaoTipo, usuarios: UsuarioRow[]): Au
 
 /** Normaliza os campos de link/mídia das ações custom antes de salvar:
  *  os forms editam strings ("" = ausente); o Zod do servidor espera os
- *  opcionais AUSENTES (z.string().url() rejeitaria string vazia). */
+ *  opcionais AUSENTES (z.string().url() rejeitaria string vazia). O mesmo
+ *  vale p/ o agent_id da ação de IA ("" = prompt inline, sem agent). */
 export function normalizarAcaoParaSalvar(acao: AutomacaoAcao): AutomacaoAcao {
+  if (acao.tipo === "ia_prompt") {
+    const agentId = acao.parametros.agent_id?.trim();
+    return {
+      ...acao,
+      parametros: { ...acao.parametros, agent_id: agentId || undefined },
+    };
+  }
   if (acao.tipo !== "enviar_whatsapp_custom" && acao.tipo !== "enviar_email_custom") {
     return acao;
   }

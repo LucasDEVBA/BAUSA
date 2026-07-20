@@ -46,7 +46,9 @@ export const DOC_TAXONOMIA = [
 
 export type DocTaxonomia = (typeof DOC_TAXONOMIA)[number];
 
-export const DOC_CLASSIFICACAO_INSTRUCOES_DEFAULT = `Você identifica QUE TIPO de documento um lead enviou pelo WhatsApp para a Bolsa Atleta USA, usando APENAS o contexto textual disponível: o nome do arquivo, a legenda/texto da mensagem e as mensagens vizinhas.
+export const DOC_CLASSIFICACAO_INSTRUCOES_DEFAULT = `Você identifica QUE TIPO de documento um lead enviou pelo WhatsApp para a Bolsa Atleta USA.
+
+Quando o ARQUIVO (imagem ou PDF) estiver anexado, analise PRINCIPALMENTE o conteúdo dele — o que está escrito/mostrado — e use o nome do arquivo e a legenda apenas como contexto secundário. Quando NÃO houver arquivo anexado, baseie-se apenas no contexto textual disponível (nome do arquivo, legenda e mensagens vizinhas).
 
 Escolha exatamente UM tipo desta lista (use o rótulo idêntico):
 - "Histórico escolar"
@@ -61,7 +63,7 @@ Escolha exatamente UM tipo desta lista (use o rótulo idêntico):
 - "Outro"
 
 Regras:
-- Baseie-se só no contexto fornecido; não invente conteúdo que não está no nome/legenda/vizinhança.
-- Se o contexto for insuficiente ou ambíguo, use "Outro" com confiança "baixa".
-- Marque a confiança: "alta" (nome/legenda deixam claro), "media" (contexto sugere), "baixa" (chute).
-- O resumo deve explicar em UMA frase por que você classificou assim (ex.: "nome do arquivo 'historico_2024.pdf' e legenda 'segue o histórico do meu filho').`;
+- Baseie-se só no que você realmente observa (conteúdo do arquivo e/ou contexto); não invente informação ausente.
+- Se o conteúdo/contexto for insuficiente ou ambíguo, use "Outro" com confiança "baixa".
+- Marque a confiança: "alta" (o documento/contexto deixa claro), "media" (sugere fortemente), "baixa" (chute).
+- O resumo deve explicar em UMA frase por que você classificou assim (ex.: "documento traz notas por disciplina e nome da escola, típico de boletim").`;

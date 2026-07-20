@@ -667,6 +667,30 @@ const IA_CONTEXTO_CAMPOS = {
   periodo: 'Período do agendamento',
 };
 
+// ─── Agents de IA: prompt referenciado por agent_id (cache por tick) ─────
+// Plataforma de Agents (F5): ação ia_prompt e passo ia_condicao podem apontar
+// um agent CUSTOM (tabela agents) — o prompt do agent substitui as instruções
+// inline. Filtro SEMPRE ativo+deleted_at+capacidade `automacao`; erro/ausência
+// → null (o chamador cai no prompt inline — fallback GARANTIDO, o run nunca
+// quebra por agent). NUNCA amplia a whitelist de contexto (IA_CONTEXTO_CAMPOS)
+// e NUNCA loga o prompt (conteúdo autoral do CEO — só métricas).
+const resolveAgentPrompt = async (agentId, cache) => {
+  if (!agentId) return null;
+  if (Object.prototype.hasOwnProperty.call(cache, agentId)) return cache[agentId];
+  let prompt = null;
+  try {
+    const rows = await sbGet(
+      `agents?id=eq.${agentId}&ativo=is.true&deleted_at=is.null`
+      + '&capacidades=cs.%7Bautomacao%7D&select=prompt'
+    );
+    prompt = (rows[0] && typeof rows[0].prompt === 'string' && rows[0].prompt.trim()) || null;
+  } catch (e) {
+    log('WARN', 'agent_lookup_failed', { agentId, error: e.message });
+  }
+  cache[agentId] = prompt;
+  return prompt;
+};
+
 // Nomes p/ os placeholders {atleta_nome}/{responsavel_nome} do prompt/título.
 const resolveNomesLead = async (contexto) => {
   const nomes = { atleta: null, responsavel: null };
@@ -1140,7 +1164,12 @@ const executeAcao = async (acao, contexto, runId, tickState) => {
       '{atleta_nome}': nomes.atleta || 'atleta',
       '{responsavel_nome}': nomes.responsavel || 'responsável',
     };
-    let instrucoes = String(p.prompt || '');
+    // Agent plugável (F5): o prompt do agent substitui as instruções inline;
+    // agent ausente/inativo/sem a capacidade → fallback GARANTIDO p.prompt.
+    const agentPrompt = await resolveAgentPrompt(p.agent_id, tickState.agentCache);
+    const agenteFallback = Boolean(p.agent_id) && !agentPrompt;
+    if (agenteFallback) log('WARN', 'agent_fallback_prompt', { runId, agentId: p.agent_id });
+    let instrucoes = String(agentPrompt || p.prompt || '');
     let titulo = String(p.titulo || '');
     for (const [placeholder, valor] of Object.entries(vars)) {
       instrucoes = instrucoes.split(placeholder).join(valor);
@@ -1205,7 +1234,11 @@ const executeAcao = async (acao, contexto, runId, tickState) => {
         criada_automaticamente: true,
         automacao_run_id: runId,
       });
-      return { tipo: acao.tipo, status: 'ok', detalhe: `IA (${modelUsed}) → tarefa "${titulo.slice(0, 60)}"` };
+      return {
+        tipo: acao.tipo, status: 'ok',
+        detalhe: `IA (${modelUsed}) → tarefa "${titulo.slice(0, 60)}"`,
+        ...(agenteFallback ? { agente_fallback: true } : {}),
+      };
     }
 
     for (const destinatarioId of destinatarios) {
@@ -1222,6 +1255,7 @@ const executeAcao = async (acao, contexto, runId, tickState) => {
     return {
       tipo: acao.tipo, status: 'ok',
       detalhe: `IA (${modelUsed}) → notificação (${destinatarios.length} destinatário(s))`,
+      ...(agenteFallback ? { agente_fallback: true } : {}),
     };
   }
 
@@ -1345,7 +1379,16 @@ const processarPassos = async (run, auto, contexto, engineConfig, tickState) => 
         break;
       }
       try {
-        const veredito = await avaliarIaCondicao(passo.prompt, contexto, tickState);
+        // Agent plugável (F5): o prompt do agent substitui o critério inline;
+        // fallback GARANTIDO para passo.prompt. Gate fail-closed inalterado.
+        const agentGatePrompt = await resolveAgentPrompt(passo.agent_id, tickState.agentCache);
+        if (passo.agent_id && !agentGatePrompt) {
+          // Visibilidade do fallback (espelha o ia_prompt): o CEO precisa saber
+          // que o gate está rodando no prompt inline, não no agent.
+          log('WARN', 'agent_fallback_condicao', { runId: run.id, agentId: passo.agent_id });
+        }
+        const gatePrompt = agentGatePrompt || passo.prompt;
+        const veredito = await avaliarIaCondicao(gatePrompt, contexto, tickState);
         if (!veredito.passou) {
           await finishRun(run.id, 'ignorado', {
             motivo: `IA decidiu NÃO prosseguir${passo.rotulo ? ` (${passo.rotulo})` : ''}`,
@@ -1486,8 +1529,8 @@ const processRun = async (run, automacoesById, engineConfig, tickState) => {
 
 // ─── Entry point ────────────────────────────────────────────────
 functions.http('automationEngine', async (req, res) => {
-  // Auth entre serviços
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+  // Auth entre serviços — FAIL-CLOSED: sem WEBHOOK_SECRET configurado, rejeita.
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     log('WARN', 'auth_failed');
     return res.status(401).send({ success: false, error: 'unauthorized' });
   }
@@ -1539,7 +1582,9 @@ functions.http('automationEngine', async (req, res) => {
     if (zumbis.length > 0) log('WARN', 'zombie_runs_closed', { count: zumbis.length });
 
     const counters = { sucesso: 0, erro: 0, ignorado: 0, skipped_cas: 0, deferred_budget: 0, deferred_ia: 0 };
-    const tickState = { iaCalls: 0 };
+    // agentCache: prompts de agents resolvidos por agent_id — 1 lookup por
+    // agent por tick (inclui o null de "indisponível" p/ não re-consultar).
+    const tickState = { iaCalls: 0, agentCache: {} };
     const fila = [...pendentes, ...retries, ...orfaos].slice(0, RUN_LIMIT);
     for (let i = 0; i < fila.length; i++) {
       const run = fila[i];

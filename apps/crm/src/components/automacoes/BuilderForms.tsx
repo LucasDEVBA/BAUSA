@@ -18,6 +18,7 @@ import {
   type GatilhoInfo,
   OPERADOR_LABEL,
 } from "@/types/automacao";
+import type { AgentResumo } from "@/types/agent";
 import { cn } from "@/lib/utils";
 
 import {
@@ -233,6 +234,26 @@ export function GatilhoForm({
         </span>{" "}
         {gatilhoInfo.descricao}
       </p>
+      {/* F4 — SLA de silêncio (opcional): override determinístico da saúde
+          derivada em /observabilidade/automacoes. Vazio = heurística padrão. */}
+      <Field label="SLA de silêncio em horas (opcional)">
+        <Input
+          type="number"
+          min={1}
+          max={720}
+          placeholder="ex.: 48 — alerta se ficar esse tempo sem executar"
+          className="tabular-nums"
+          value={builder.slaHoras === null ? "" : String(builder.slaHoras)}
+          onChange={(e) => {
+            const v = e.target.value.trim();
+            const n = Number(v);
+            onChange({
+              ...builder,
+              slaHoras: v === "" || !Number.isFinite(n) ? null : Math.min(720, Math.max(1, Math.round(n))),
+            });
+          }}
+        />
+      </Field>
     </div>
   );
 }
@@ -376,11 +397,14 @@ export function AcaoForm({
   builder,
   index,
   usuarios,
+  agents,
   onChange,
 }: {
   builder: BuilderState;
   index: number;
   usuarios: UsuarioRow[];
+  /** Agents custom (capacidade `automacao`) p/ o seletor da ação de IA. */
+  agents?: AgentResumo[];
   onChange: (b: BuilderState) => void;
 }) {
   const acao = builder.acoes[index];
@@ -389,6 +413,7 @@ export function AcaoForm({
     <AcaoFields
       acao={acao}
       usuarios={usuarios}
+      agents={agents}
       onChange={(next) =>
         onChange({
           ...builder,
@@ -403,10 +428,13 @@ export function AcaoForm({
 export function AcaoFields({
   acao,
   usuarios,
+  agents = [],
   onChange,
 }: {
   acao: AutomacaoAcao;
   usuarios: UsuarioRow[];
+  /** Agents custom (capacidade `automacao`) p/ o seletor da ação de IA. */
+  agents?: AgentResumo[];
   onChange: (next: AutomacaoAcao) => void;
 }) {
   // id estável (label ↔ controle) — antes vinha do índice da ação no builder.
@@ -725,12 +753,33 @@ export function AcaoFields({
 
       {acao.tipo === "ia_prompt" && (
         <div className="space-y-1.5">
+          {/* Agent plugável (F5): o prompt do agent substitui o inline na
+              engine; o inline segue OBRIGATÓRIO — é o fallback garantido se o
+              agent for desativado/excluído (o run nunca quebra por agent). */}
+          {agents.length > 0 && (
+            <Field label="Agent (opcional)">
+              <select
+                className={FIELD_CLASS}
+                value={acao.parametros.agent_id ?? ""}
+                onChange={(e) => setParametro("agent_id", e.target.value)}
+              >
+                <option value="">Prompt inline</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nome}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <div className="flex items-center justify-between">
             <label
               htmlFor={`ia-prompt-${fieldId}`}
               className="text-[11px] font-semibold text-foreground"
             >
-              Prompt para a IA (Gemini)
+              {acao.parametros.agent_id
+                ? "Prompt fallback (obrigatório — usado se o agent for desativado)"
+                : "Prompt para a IA (Gemini)"}
             </label>
             <span
               className={cn(

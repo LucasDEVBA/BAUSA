@@ -264,9 +264,11 @@ test('automation-engine: ia_condicao sem GEMINI_API_KEY marca erro claro', () =>
     `INVARIANTE VIOLADO: sem GEMINI_API_KEY o passo ia_condicao deve marcar o ` +
       `run com o erro "IA não configurada (GEMINI_API_KEY)" (fail-clear).`,
   );
-  // A checagem da key vem ANTES de chamar avaliarIaCondicao.
+  // A checagem da key vem ANTES de chamar avaliarIaCondicao. Desde a F5
+  // (agents plugáveis) o gate recebe gatePrompt = agent || passo.prompt —
+  // o fallback inline é coberto pelo guard tests/agents-invariants.test.js.
   const idxKey = passos.indexOf('!GEMINI_API_KEY');
-  const idxChamada = passos.indexOf('avaliarIaCondicao(passo.prompt');
+  const idxChamada = passos.indexOf('avaliarIaCondicao(gatePrompt');
   assert.ok(
     idxKey >= 0 && idxChamada > idxKey,
     `INVARIANTE VIOLADO: a checagem de GEMINI_API_KEY deve vir ANTES da ` +

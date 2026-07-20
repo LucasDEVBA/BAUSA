@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MessageCircle, Users } from "lucide-react";
 
 import type { PapelUsuario } from "@/types/crm";
+import type { AgentResumo } from "@/types/agent";
 import { BrandTabs } from "@/components/ui";
 
 import { WhatsAppEspelhoClient } from "./client";
@@ -20,13 +21,30 @@ type WhatsAppTab = "conversas" | "grupos";
  * `podeGerenciar` (CEO/CTO) libera ligar captura + vincular família no painel de
  * grupos; o Head só lê/responde/vê métricas dos grupos vinculados.
  */
-export function WhatsAppModule({ papel }: { papel: PapelUsuario }) {
+export function WhatsAppModule({
+  papel,
+  agentsConversa,
+  agentsAnalise,
+  agentsChatbot,
+}: {
+  papel: PapelUsuario;
+  agentsConversa: AgentResumo[];
+  agentsAnalise: AgentResumo[];
+  /** Agents `chatbot_autonomo` p/ o seletor por conversa do espelho 1:1 (CEO). */
+  agentsChatbot: AgentResumo[];
+}) {
   const [tab, setTab] = useState<WhatsAppTab>("conversas");
   const isCeo = papel === "ceo"; // cto já resolve p/ ceo em getUserPapel()
 
   // Head: sem abas, direto no painel de grupos (só gerência p/ CEO).
   if (!isCeo) {
-    return <GruposClient podeGerenciar={false} />;
+    return (
+      <GruposClient
+        podeGerenciar={false}
+        agentsConversa={agentsConversa}
+        agentsAnalise={agentsAnalise}
+      />
+    );
   }
 
   return (
@@ -42,7 +60,15 @@ export function WhatsAppModule({ papel }: { papel: PapelUsuario }) {
         ariaLabel="Visões do WhatsApp"
       />
 
-      {tab === "conversas" ? <WhatsAppEspelhoClient /> : <GruposClient podeGerenciar />}
+      {tab === "conversas" ? (
+        <WhatsAppEspelhoClient
+          agentsConversa={agentsConversa}
+          agentsAnalise={agentsAnalise}
+          agentsChatbot={agentsChatbot}
+        />
+      ) : (
+        <GruposClient podeGerenciar agentsConversa={agentsConversa} agentsAnalise={agentsAnalise} />
+      )}
     </div>
   );
 }

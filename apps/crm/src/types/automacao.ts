@@ -315,6 +315,10 @@ export interface AcaoMoverDeal {
 export interface AcaoIaPrompt {
   tipo: "ia_prompt";
   parametros: {
+    /** Agent CUSTOM (capacidade `automacao`): quando presente, a engine usa o
+     *  prompt do agent; o prompt inline continua OBRIGATÓRIO e é o fallback
+     *  garantido (agent inativo/deletado nunca quebra o run). */
+    agent_id?: string;
     /** Instruções do CEO para a IA (10–4000 chars). */
     prompt: string;
     /** O texto gerado vira notificação in-app ou tarefa interna. */
@@ -350,6 +354,10 @@ export interface PassoCondicao {
  *  Requer GEMINI_API_KEY na engine (sem ela o run marca erro claro). */
 export interface PassoIaCondicao {
   tipo: "ia_condicao";
+  /** Agent CUSTOM (capacidade `automacao`): quando presente, a engine usa o
+   *  prompt do agent; o prompt inline continua OBRIGATÓRIO e é o fallback
+   *  garantido (agent inativo/deletado nunca quebra o gate). */
+  agent_id?: string;
   /** Instruções do CEO para a IA decidir SIM/NÃO (10–2000 chars).
    *  Placeholders {atleta_nome}/{responsavel_nome} valem aqui. */
   prompt: string;

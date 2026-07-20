@@ -23,6 +23,7 @@ import {
   Workflow,
   CalendarDays,
   Bot,
+  Radar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
@@ -149,6 +150,21 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/agents", label: "Agents de IA", icon: Bot, roles: ["ceo"] },
       {
+        // Observabilidade: Monitor de filas + verificação geral de conexões/fluxos.
+        // Cada aba é uma sub-rota real (padrão /minha-area). /automacoes-monitor
+        // (antigo Monitor) redireciona para cá.
+        href: "/observabilidade",
+        label: "Observabilidade",
+        icon: Radar,
+        roles: ["ceo"],
+        activeRoutes: ["/observabilidade", "/observabilidade/geral", "/observabilidade/automacoes"],
+        subItems: [
+          { href: "/observabilidade", label: "Monitor de filas" },
+          { href: "/observabilidade/geral", label: "Geral" },
+          { href: "/observabilidade/automacoes", label: "Saúde das automações" },
+        ],
+      },
+      {
         href: "/sistema",
         label: "Sistema",
         icon: Settings,
@@ -158,17 +174,15 @@ const NAV_GROUPS: NavGroup[] = [
           "/tarefas",
           "/faq",
           "/indicacoes",
-          "/automacoes-monitor",
           "/audit",
           "/configuracoes",
         ],
-        // Hub /sistema + sub-páginas; Monitor/Audit/Configurações só CEO/CTO.
+        // Hub /sistema + sub-páginas; Audit/Configurações só CEO/CTO.
         // Automações (builder) mora no grupo COMERCIAL.
         subItems: [
           { href: "/tarefas", label: "Tarefas" },
           { href: "/faq", label: "FAQ" },
           { href: "/indicacoes", label: "Indicações" },
-          { href: "/automacoes-monitor", label: "Monitor de filas", roles: ["ceo"] },
           { href: "/audit", label: "Audit Trail", roles: ["ceo"] },
           { href: "/configuracoes", label: "Configurações", roles: ["ceo"] },
         ],

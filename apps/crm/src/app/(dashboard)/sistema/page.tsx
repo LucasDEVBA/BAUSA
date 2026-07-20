@@ -49,9 +49,9 @@ const MODULES: SistemaModule[] = [
   },
   // Automações (builder) mora no grupo COMERCIAL do sidebar (/automacoes).
   {
-    href: "/automacoes-monitor",
-    label: "Monitor de filas",
-    description: "Saúde das automações de sistema — filas de WhatsApp e follow-ups.",
+    href: "/observabilidade",
+    label: "Observabilidade",
+    description: "Monitor de filas + verificação de conexões e fluxos ponta a ponta.",
     icon: Activity,
     roles: ["ceo"],
   },

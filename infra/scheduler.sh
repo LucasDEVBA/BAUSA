@@ -35,6 +35,14 @@ esac
 WHATSAPP_SCHEDULER_URL="${WHATSAPP_SCHEDULER_URL:-https://whatsapp-scheduler${SUFFIX}-222577494676.us-central1.run.app}"
 FOLLOWUP_SCHEDULER_URL="${FOLLOWUP_SCHEDULER_URL:-https://followup-scheduler${SUFFIX}-222577494676.us-central1.run.app}"
 
+# Auth dos jobs: TODAS as CFs são fail-closed — o header x-webhook-secret é
+# obrigatório em todo job. Exporte o secret do ambiente antes de rodar:
+#   WEBHOOK_SECRET=... bash infra/scheduler.sh <env>
+if [ -z "${WEBHOOK_SECRET:-}" ]; then
+  echo "ERRO: WEBHOOK_SECRET não definido — os jobs ficariam sem auth e as CFs (fail-closed) rejeitariam os ticks." >&2
+  exit 1
+fi
+
 echo "Configurando Cloud Scheduler para ambiente: ${ENV}"
 
 # ─── Job 1: WhatsApp inicial (22h após qualificação) ───────────
@@ -44,6 +52,7 @@ gcloud scheduler jobs create http "${JOB_WA}" \
   --schedule="0 * * * *" \
   --uri="${WHATSAPP_SCHEDULER_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=960s \
   2>/dev/null || \
@@ -53,6 +62,7 @@ gcloud scheduler jobs update http "${JOB_WA}" \
   --schedule="0 * * * *" \
   --uri="${WHATSAPP_SCHEDULER_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=960s
 
@@ -65,6 +75,7 @@ gcloud scheduler jobs create http "${JOB_FU}" \
   --schedule="0 * * * *" \
   --uri="${FOLLOWUP_SCHEDULER_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=960s \
   2>/dev/null || \
@@ -74,6 +85,7 @@ gcloud scheduler jobs update http "${JOB_FU}" \
   --schedule="0 * * * *" \
   --uri="${FOLLOWUP_SCHEDULER_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=960s
 
@@ -89,6 +101,7 @@ gcloud scheduler jobs create http "${JOB_CW}" \
   --schedule="0 3 */6 * *" \
   --uri="${RENEW_WATCH_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=120s \
   2>/dev/null || \
@@ -98,6 +111,7 @@ gcloud scheduler jobs update http "${JOB_CW}" \
   --schedule="0 3 */6 * *" \
   --uri="${RENEW_WATCH_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=120s
 
@@ -113,6 +127,7 @@ gcloud scheduler jobs create http "${JOB_WR}" \
   --schedule="0 8 * * 1" \
   --uri="${WEEKLY_REPORT_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=120s \
   2>/dev/null || \
@@ -122,6 +137,7 @@ gcloud scheduler jobs update http "${JOB_WR}" \
   --schedule="0 8 * * 1" \
   --uri="${WEEKLY_REPORT_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=120s
 
@@ -139,6 +155,7 @@ gcloud scheduler jobs create http "${JOB_RM}" \
   --schedule="*/15 * * * *" \
   --uri="${SEND_REMARKETING_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=600s \
   2>/dev/null || \
@@ -148,6 +165,7 @@ gcloud scheduler jobs update http "${JOB_RM}" \
   --schedule="*/15 * * * *" \
   --uri="${SEND_REMARKETING_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=600s
 
@@ -163,6 +181,7 @@ gcloud scheduler jobs create http "${JOB_MS}" \
   --schedule="0 6 * * *" \
   --uri="${SYNC_META_SPEND_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=320s \
   2>/dev/null || \
@@ -172,6 +191,7 @@ gcloud scheduler jobs update http "${JOB_MS}" \
   --schedule="0 6 * * *" \
   --uri="${SYNC_META_SPEND_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=320s
 
@@ -188,6 +208,7 @@ gcloud scheduler jobs create http "${JOB_AE}" \
   --schedule="30 * * * *" \
   --uri="${AUTOMATION_ENGINE_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=600s \
   2>/dev/null || \
@@ -197,6 +218,7 @@ gcloud scheduler jobs update http "${JOB_AE}" \
   --schedule="30 * * * *" \
   --uri="${AUTOMATION_ENGINE_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=600s
 
@@ -214,6 +236,7 @@ gcloud scheduler jobs create http "${JOB_MT}" \
   --schedule="15 */2 * * *" \
   --uri="${MEETING_TRANSCRIPTS_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=300s \
   2>/dev/null || \
@@ -223,6 +246,7 @@ gcloud scheduler jobs update http "${JOB_MT}" \
   --schedule="15 */2 * * *" \
   --uri="${MEETING_TRANSCRIPTS_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=300s
 
@@ -241,6 +265,7 @@ gcloud scheduler jobs create http "${JOB_BR}" \
   --schedule="0 9 * * *" \
   --uri="${BILLING_REMINDERS_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=600s \
   2>/dev/null || \
@@ -250,6 +275,7 @@ gcloud scheduler jobs update http "${JOB_BR}" \
   --schedule="0 9 * * *" \
   --uri="${BILLING_REMINDERS_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=600s
 
@@ -268,6 +294,7 @@ gcloud scheduler jobs create http "${JOB_MH}" \
   --schedule="*/30 * * * *" \
   --uri="${MONITOR_HEALTH_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=120s \
   2>/dev/null || \
@@ -277,6 +304,7 @@ gcloud scheduler jobs update http "${JOB_MH}" \
   --schedule="*/30 * * * *" \
   --uri="${MONITOR_HEALTH_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=120s
 
@@ -297,6 +325,7 @@ gcloud scheduler jobs create http "${JOB_ES}" \
   --schedule="0 10 * * *" \
   --uri="${EXPERIENCIA_SCHEDULER_URL}" \
   --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=300s \
   2>/dev/null || \
@@ -306,8 +335,95 @@ gcloud scheduler jobs update http "${JOB_ES}" \
   --schedule="0 10 * * *" \
   --uri="${EXPERIENCIA_SCHEDULER_URL}" \
   --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
   --time-zone="America/Sao_Paulo" \
   --attempt-deadline=300s
 
 echo "✓ ${JOB_ES} configurado"
+
+# ─── Job 12: Chatbot AUTÔNOMO de WhatsApp (a cada 2 min) ──────────────
+# A CF `chatbot-autonomo` acorda a cada ~2min e, SÓ se o modo global for
+# sombra/ativo (configuracoes_sistema.chatbot_autonomo.modo), decide responder
+# leads. NASCE DESLIGADO (modo=off) → o tick não faz nada até o CEO ligar.
+# Header x-webhook-secret OBRIGATÓRIO: a CF nega (401) sem ele. O segredo vem do
+# ambiente (nunca hardcode) — exporte WEBHOOK_SECRET antes de rodar o script:
+#   WEBHOOK_SECRET=... bash infra/scheduler.sh <env>
+JOB_CB="chatbot-autonomo-job${SUFFIX}"
+CHATBOT_AUTONOMO_URL="${CHATBOT_AUTONOMO_URL:-https://chatbot-autonomo${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_CB}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/2 * * * *" \
+  --uri="${CHATBOT_AUTONOMO_URL}" \
+  --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET:-}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_CB}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/2 * * * *" \
+  --uri="${CHATBOT_AUTONOMO_URL}" \
+  --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET:-}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=120s
+
+echo "✓ ${JOB_CB} configurado"
+# ─── Job 13: Retry de qualificação Gemini (diário 08:00 BRT) ──────────
+# Job já existia em PRD (criado ad hoc) mas faltava aqui — codificado.
+JOB_RQ="retry-qualification-daily${SUFFIX}"
+RETRY_QUALIFICATION_URL="${RETRY_QUALIFICATION_URL:-https://retry-qualification${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_RQ}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 8 * * *" \
+  --uri="${RETRY_QUALIFICATION_URL}" \
+  --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=540s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_RQ}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 8 * * *" \
+  --uri="${RETRY_QUALIFICATION_URL}" \
+  --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=540s
+
+echo "✓ ${JOB_RQ} configurado"
+
+# ─── Job 14: Retomada de novembro — scheduled_return (diário 08:00 BRT) ─
+# Job já existia (PRD/UAT) mas faltava aqui — codificado.
+JOB_SF="process-scheduled-followups-daily${SUFFIX}"
+SCHEDULED_FOLLOWUPS_URL="${SCHEDULED_FOLLOWUPS_URL:-https://process-scheduled-followups${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_SF}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 8 * * *" \
+  --uri="${SCHEDULED_FOLLOWUPS_URL}" \
+  --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=540s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_SF}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="0 8 * * *" \
+  --uri="${SCHEDULED_FOLLOWUPS_URL}" \
+  --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=540s
+
+echo "✓ ${JOB_SF} configurado"
+
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"

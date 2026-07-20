@@ -280,14 +280,11 @@ const insertTarefaHead = async (responsavelId, alerta) => {
 functions.http('experienciaScheduler', async (req, res) => {
   const startTime = Date.now();
 
-  // Permite chamadas do Cloud Scheduler (sem secret) e chamadas autenticadas
-  // (padrão process-pending-whatsapp/monitor-health — o job do scheduler.sh
-  // não envia header; secret errado continua sendo rejeitado).
-  if (WEBHOOK_SECRET && req.headers['x-webhook-secret']) {
-    if (req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
-      log('WARN', 'auth_failed');
-      return res.status(401).send({ success: false, error: 'unauthorized' });
-    }
+  // Auth FAIL-CLOSED: secret obrigatório — os jobs do Cloud Scheduler enviam
+  // o header x-webhook-secret (infra/scheduler.sh).
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+    log('WARN', 'auth_failed');
+    return res.status(401).send({ success: false, error: 'unauthorized' });
   }
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
