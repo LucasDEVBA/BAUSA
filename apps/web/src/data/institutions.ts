@@ -11,7 +11,7 @@ import logoHarvard from "@/assets/academys/logoHavard.png";
 import logoHoosac from "@/assets/academys/logoHoosac.svg";
 import logoHopkins from "@/assets/academys/logoHopkins.png";
 import logoHotchkiss from "@/assets/academys/logoHotchkiss.png";
-import logoHyde from "@/assets/academys/logoHyde.jpg";
+import logoHyde from "@/assets/academys/logoHyde.png";
 import logoIMG from "@/assets/academys/logoIMGAcademy.svg";
 import logoKiski from "@/assets/academys/logoKiski.png";
 import logoLoomis from "@/assets/academys/logoLoomis.png";
@@ -41,17 +41,17 @@ import logoYale from "@/assets/academys/logoYale.png";
  * escolas efetivamente parceiras. Uma família sofisticada — ou um advogado —
  * pode ler isso como alegação de parceria com as Ivies.
  *
- * Por isso as duas faixas têm rótulos distintos e significados diferentes:
- *   PARCEIRAS  → relação real, onde a BAU coloca atletas.
- *   ECOSSISTEMA → destinos e relacionamento institucional de recrutamento.
+ * Por isso as três faixas têm rótulos distintos e significados diferentes:
+ *   ESCOLAS_PARCEIRAS         → relação real, onde a BAU coloca atletas.
+ *   UNIVERSIDADES_ECOSSISTEMA → destinos e relacionamento de recrutamento.
+ *   INSTITUICOES_ECOSSISTEMA  → presentes no ambiente, relação não confirmada.
  *
  * A separação não enfraquece: sofistica. Mostra que a marca sabe a diferença,
  * e famílias premium notam quem sabe a diferença.
  *
  * ⚠️ A lista de PARCEIRAS segue exatamente as instituições nomeadas no guia.
- * Ver `PENDENTE_CLASSIFICACAO` no fim do arquivo — logos que existem no repo
- * mas cuja relação não foi confirmada NÃO entram em nenhuma faixa: exibi-los
- * sob um rótulo errado é o risco que esta separação existe para eliminar.
+ * Nenhuma outra faixa pode alegar parceria — ao confirmar uma relação real,
+ * MOVA o item para ESCOLAS_PARCEIRAS em vez de mudar o rótulo da faixa.
  */
 
 export interface Institution {
