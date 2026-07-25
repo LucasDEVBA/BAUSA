@@ -1,5 +1,6 @@
 import createMiddleware from "next-intl/middleware";
 import { NextResponse, type NextRequest } from "next/server";
+import { BAU_SLUGS } from "./src/config/site-pages";
 import { routing } from "./src/i18n/routing";
 
 const intlMiddleware = createMiddleware(routing);
@@ -19,6 +20,10 @@ const RESERVED = new Set<string>([
   "l",
   "api",
   "debug",
+  // Site institucional (BAU-01). Fonte: BAU_SLUGS em src/config/site-pages.ts.
+  // Sem isto, /jornada e afins seriam reescritos para o encurtador, que
+  // redireciona para a home quando o slug não existe — falha silenciosa.
+  ...BAU_SLUGS,
 ]);
 const SLUG_RE = /^\/([A-Za-z0-9_-]{3,40})$/;
 

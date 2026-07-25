@@ -19,11 +19,21 @@ export function CtaPrimary({
   source,
   className,
   label,
+  variant = "solid",
 }: {
   source: CtaSource;
   className?: string;
   /** Texto do botão. Vem da copy (site.cta.primary) — nunca inventar variação. */
   label: string;
+  /**
+   * `outline` é obrigatório no header.
+   *
+   * O checklist do BAU-02 exige UM botão vermelho por viewport. Como o header
+   * é fixo, um CTA sólido lá tornaria TODO viewport do site vermelho — e
+   * nenhum CTA de seção poderia mais ser sólido. O vermelho cheio fica
+   * reservado ao CTA da página; o do header apenas o ecoa.
+   */
+  variant?: "solid" | "outline";
 }) {
   return (
     <Link
@@ -31,8 +41,10 @@ export function CtaPrimary({
       onClick={() => trackCtaClick(source)}
       className={cn(
         "group relative inline-flex min-h-[56px] items-center justify-center",
-        "bau-mono rounded-[var(--radius-bau)] bg-bau-red px-8 py-[18px] text-[13px] text-bau-ivory",
-        "transition-colors duration-200 hover:bg-[#7a141f]",
+        "bau-mono rounded-[var(--radius-bau)] px-8 py-[18px] text-[13px] transition-colors duration-200",
+        variant === "solid"
+          ? "bg-bau-red text-bau-ivory hover:bg-[#7a141f]"
+          : "border border-bau-red/70 text-bau-ivory hover:border-bau-red hover:bg-bau-red/15",
         className,
       )}
     >

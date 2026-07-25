@@ -65,6 +65,7 @@ export function BauHeader({
             <CtaPrimary
               source="header"
               label={ctaLabel}
+              variant="outline"
               className="min-h-[44px] whitespace-nowrap px-5 py-3 text-[11px]"
             />
           </div>
@@ -108,6 +109,8 @@ export function BauHeader({
                 </ul>
               </nav>
 
+              {/* No drawer o CTA é sólido: o header some atrás do overlay,
+                  então não há dois vermelhos concorrendo. */}
               <div className="mt-10">
                 <CtaPrimary source="header" label={ctaLabel} className="w-full" />
               </div>
