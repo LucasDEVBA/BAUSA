@@ -72,9 +72,6 @@ export default async function RootLayout({ children, params }: RootLayoutProps) 
     // No <body> elas não existiriam no escopo de :root e o Caslon cairia
     // silenciosamente para sans-serif.
     <html lang={locale} className={fontVariables} suppressHydrationWarning>
-      <head>
-        <link rel="preload" as="image" href="/hero-campus.jpg" fetchPriority="high" />
-      </head>
       <body>
         <Providers locale={locale} messages={messages}>
           {children}

@@ -29,7 +29,11 @@ export function HomeHero({
 }) {
   return (
     <section className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden pt-[var(--bau-header-h)]">
-      {/* LCP da home. `fetchPriority=high` + preload no layout. */}
+      {/* Preload do LCP. Fica AQUI, não no layout raiz: lá ele baixava ~1 MB
+          com prioridade alta em toda rota, inclusive /forms e /acesso, que não
+          usam esta imagem. O React 19 iça a tag para o <head>. */}
+      <link rel="preload" as="image" href="/hero-campus.jpg" fetchPriority="high" />
+
       <img
         src="/hero-campus.jpg"
         alt={imageAlt}
