@@ -95,23 +95,35 @@ export default async function HomePage({ params }: PageProps) {
         imageAlt={copy.hero.imageAlt}
       />
 
-      {/* Reposicionamento — texto assimétrico + marca d'água à direita. */}
-      <Section tone="deep">
+      {/*
+        REPOSICIONAMENTO — quebra deliberada de ritmo.
+
+        Esta é a frase que define o que a BAU NÃO é, e por isso não obedece ao
+        padrão eyebrow → H2 → parágrafo → link das outras seções. O título vira
+        declaração em escala de manchete, empurrado para fora do container à
+        esquerda; o corpo desce para a direita, muito depois. A assimetria é o
+        argumento: a marca não se alinha ao mercado.
+      */}
+      <Section tone="deep" className="py-[8rem] lg:py-[13rem]">
         <Watermark side="right" />
-        <div className="relative z-10 lg:grid lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <Reveal>
-              <Eyebrow>{copy.repositioning.eyebrow}</Eyebrow>
-              <h2 className="bau-display mt-6 text-[2rem] lg:text-[3rem]">
-                {copy.repositioning.title}
-              </h2>
-            </Reveal>
-            <Reveal delay={0.12}>
-              <p className="bau-prose mt-8 text-[17px] text-bau-stone">
+
+        <div className="relative z-10">
+          <Reveal from="left">
+            <Eyebrow className="mb-10">{copy.repositioning.eyebrow}</Eyebrow>
+          </Reveal>
+
+          <Reveal from="left">
+            {/* Sangra à esquerda: a manchete começa antes da margem. */}
+            <h2 className="bau-display -ml-[3vw] max-w-[16ch] text-[13vw] leading-[0.88] tracking-[-0.02em] sm:-ml-[2vw] lg:text-[7.5rem]">
+              {copy.repositioning.title}
+            </h2>
+          </Reveal>
+
+          <div className="mt-16 lg:grid lg:grid-cols-12">
+            <Reveal delay={0.12} className="lg:col-span-5 lg:col-start-7">
+              <p className="text-[17px] leading-relaxed text-bau-stone">
                 {copy.repositioning.body}
               </p>
-            </Reveal>
-            <Reveal delay={0.2}>
               <ArrowLink href={`/${BAU_PAGES.concept.slug}`} className="mt-10">
                 {copy.repositioning.link}
               </ArrowLink>
