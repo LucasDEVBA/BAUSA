@@ -39,7 +39,7 @@ export function MonumentalPause({
             // A frase é estática e definida na copy: o índice é chave estável.
             key={`${word}-${i}`}
             as="span"
-            delay={i * 60}
+            delay={i * 0.06}
             // Espaço via margem: um inline-block não colapsa espaço em branco
             // de forma previsível entre irmãos.
             className="mr-[0.25em] inline-block"

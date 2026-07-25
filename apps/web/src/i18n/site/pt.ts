@@ -68,6 +68,8 @@ export const sitePt = {
     hero: {
       eyebrow: "ACOMPANHAMENTO ATIVO EM CADA ETAPA",
       title: "Educação Esportiva Inteligente®",
+      /** Quebra editorial do H1 para a revelação mascarada linha a linha. */
+      titleLines: ["Educação Esportiva", "Inteligente®"],
       sub: "Projetos de vida guiados da High School à universidade — com critério, estratégia e visão de longo prazo, dentro do sistema educacional esportivo dos Estados Unidos.",
       secondaryCta: "Conhecer o conceito",
       imageAlt: "Campus universitário americano ao amanhecer",
@@ -83,6 +85,9 @@ export const sitePt = {
       title: "Acesso às instituições mais respeitadas do mundo",
       partnersLabel: "Escolas parceiras",
       universitiesLabel: "Universidades do ecossistema de recrutamento",
+      // Rótulo neutro de propósito: entrega densidade de prova sem alegar
+      // parceria onde a relação não foi confirmada.
+      ecosystemLabel: "Instituições do ecossistema",
     },
     pillars: {
       title: "Um projeto. Três certezas.",

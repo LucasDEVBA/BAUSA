@@ -91,13 +91,18 @@ export const UNIVERSIDADES_ECOSSISTEMA: readonly Institution[] = [
 ];
 
 /**
- * Logos presentes no repositório e usados no carrossel antigo, mas cuja
- * natureza de relação NÃO foi confirmada. Ficam fora das duas faixas até que
- * a operação classifique cada um como parceira ou ecossistema.
+ * Faixa 3 — demais instituições do ecossistema.
  *
- * Não é perda de prova social: é a diferença entre densidade e precisão.
+ * São escolas e programas presentes no ambiente onde a BAU opera, mas cuja
+ * natureza de relação não foi confirmada como parceria. Por isso o rótulo é
+ * deliberadamente neutro ("Instituições do ecossistema"): entrega a densidade
+ * de prova sem alegar parceria — que é o risco que a separação em faixas
+ * existe para eliminar.
+ *
+ * ⚠️ Ao confirmar uma relação real, MOVA o item para ESCOLAS_PARCEIRAS em vez
+ * de mudar o rótulo desta faixa.
  */
-export const PENDENTE_CLASSIFICACAO: readonly Institution[] = [
+export const INSTITUICOES_ECOSSISTEMA: readonly Institution[] = [
   { name: "IMG Academy", logo: logoIMG },
   { name: "Phillips Academy Andover", logo: logoAndover },
   { name: "The Hotchkiss School", logo: logoHotchkiss },

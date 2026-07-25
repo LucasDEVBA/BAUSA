@@ -37,14 +37,14 @@ export default async function EvaluationPage({ params }: PageProps) {
           <Reveal>
             <Eyebrow>{copy.hero.eyebrow}</Eyebrow>
           </Reveal>
-          <Reveal delay={120}>
+          <Reveal delay={0.12}>
             <h1 className="bau-display mt-8 text-[2rem] sm:text-[2.75rem]">{copy.hero.title}</h1>
           </Reveal>
-          <Reveal delay={240}>
+          <Reveal delay={0.24}>
             <p className="mt-8 text-[17px] leading-relaxed text-bau-stone">{copy.hero.sub}</p>
           </Reveal>
 
-          <Reveal delay={320} className="mt-16">
+          <Reveal delay={0.32} className="mt-16">
             <Eyebrow>{copy.afterSubmit.eyebrow}</Eyebrow>
             <ol className="mt-8 space-y-6">
               {copy.afterSubmit.steps.map((step, i) => (

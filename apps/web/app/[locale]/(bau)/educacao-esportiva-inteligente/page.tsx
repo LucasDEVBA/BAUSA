@@ -42,7 +42,7 @@ export default async function ConceptPage({ params }: PageProps) {
 
           <div className="mt-10 space-y-6 lg:col-span-6 lg:col-start-7 lg:mt-0">
             {copy.problem.paragraphs.map((paragraph, i) => (
-              <Reveal key={paragraph} delay={i * 80}>
+              <Reveal key={paragraph} delay={i * 0.08}>
                 <p className="bau-prose text-[17px] text-bau-stone">{paragraph}</p>
               </Reveal>
             ))}
@@ -64,7 +64,7 @@ export default async function ConceptPage({ params }: PageProps) {
 
           <div className="mt-10 space-y-6 lg:col-span-6 lg:col-start-7 lg:mt-0">
             {copy.definition.paragraphs.map((paragraph, i) => (
-              <Reveal key={paragraph} delay={i * 80}>
+              <Reveal key={paragraph} delay={i * 0.08}>
                 <p className="bau-prose text-[17px] text-bau-stone">{paragraph}</p>
               </Reveal>
             ))}
@@ -81,7 +81,7 @@ export default async function ConceptPage({ params }: PageProps) {
         <ul className="mt-12 grid gap-px bg-[var(--bau-hairline)] lg:grid-cols-3">
           {copy.foundations.items.map((item, i) => (
             <li key={item.title} className="bg-bau-navy-deep">
-              <Reveal delay={i * 80} className="block h-full p-8 lg:p-10">
+              <Reveal delay={i * 0.08} className="block h-full p-8 lg:p-10">
                 <h3 className="bau-display text-[1.5rem] text-bau-ivory">{item.title}</h3>
                 <p className="mt-4 text-[16px] leading-relaxed text-bau-stone">
                   {item.description}

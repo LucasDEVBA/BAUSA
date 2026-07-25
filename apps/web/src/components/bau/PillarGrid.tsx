@@ -21,7 +21,7 @@ export function PillarGrid({ pillars }: { pillars: readonly Pillar[] }) {
     <ul className="grid gap-px bg-[var(--bau-hairline)] sm:grid-cols-2">
       {pillars.map((pillar, i) => (
         <li key={pillar.initial} className="bg-bau-navy-deep">
-          <Reveal delay={i * 80} className="group relative h-full p-8 lg:p-12">
+          <Reveal delay={i * 0.08} className="group relative h-full p-8 lg:p-12">
             <span
               aria-hidden="true"
               className="bau-display pointer-events-none absolute right-6 top-4 select-none text-[7rem] leading-none text-bau-ivory/[0.07] transition-colors duration-200 group-hover:text-bau-blue/25 lg:text-[8.75rem]"

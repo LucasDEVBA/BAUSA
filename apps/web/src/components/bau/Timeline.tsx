@@ -25,7 +25,7 @@ export function Timeline({ phases }: { phases: readonly TimelinePhase[] }) {
 
       {phases.map((phase, i) => (
         <li key={phase.label} className="relative pb-14 pl-10 last:pb-0 lg:pl-0">
-          <Reveal delay={i * 60}>
+          <Reveal delay={i * 0.06}>
             <div className="lg:grid lg:grid-cols-12 lg:gap-8">
               <div className="lg:col-span-2">
                 <Eyebrow className="lg:justify-end">{phase.label}</Eyebrow>

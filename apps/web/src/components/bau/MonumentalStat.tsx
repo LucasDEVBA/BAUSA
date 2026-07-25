@@ -32,7 +32,7 @@ export function MonumentalStat({
       </Reveal>
 
       {children ? (
-        <Reveal delay={120} className="bau-prose text-[17px] text-bau-stone lg:col-span-6 lg:col-start-7">
+        <Reveal delay={0.12} className="bau-prose text-[17px] text-bau-stone lg:col-span-6 lg:col-start-7">
           {children}
         </Reveal>
       ) : null}

@@ -79,6 +79,50 @@
   outline-offset: 2px;
 }
 
+/* ── Detalhes de paleta ───────────────────────────────────────────────────
+   Superfícies mínimas onde as cores de assinatura aparecem sem violar a
+   proporção 70/20/7/3 do guia. */
+
+/* Seleção de texto em burgundy: a marca aparece até quando a família copia
+   um trecho para mandar ao cônjuge — que é exatamente o que acontece numa
+   decisão familiar desse tamanho. */
+[data-bau] ::selection {
+  background: var(--color-bau-red);
+  color: var(--color-bau-ivory);
+}
+
+/* Barra de rolagem no território da marca. */
+[data-bau] {
+  scrollbar-color: var(--color-bau-blue) var(--color-bau-navy-deep);
+}
+
+/* Filete superior de excelência — hairline gold que marca blocos de destaque
+   (o "selo" do guia, aplicado a bloco em vez de a texto). */
+.bau-gold-top {
+  border-top: 1px solid var(--color-bau-gold);
+}
+
+/* Brilho azul institucional no hover de cards. Substitui sombra: instituição
+   não tem elevação de app, tem luz de vitrine. */
+.bau-glow-hover {
+  transition:
+    border-color 200ms var(--bau-ease),
+    box-shadow 200ms var(--bau-ease);
+}
+
+.bau-glow-hover:hover {
+  border-color: var(--color-bau-blue);
+  box-shadow: 0 0 0 1px rgba(25, 59, 139, 0.35), 0 18px 60px -30px rgba(25, 59, 139, 0.85);
+}
+
+/* Numeração ordinal em gold mono — usada nos passos e nas fases. */
+.bau-ordinal {
+  font-family: var(--font-bau-mono);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--color-bau-gold);
+}
+
 /* Container do guia: 1240px, margens 24px (mobile) / 80px (desktop). */
 .bau-container {
   width: 100%;

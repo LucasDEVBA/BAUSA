@@ -32,12 +32,12 @@ export function FinalCta({
           </Reveal>
         ) : null}
 
-        <Reveal delay={80}>
+        <Reveal delay={0.08}>
           <h2 className="bau-display mt-8 text-[2rem] sm:text-[2.75rem]">{title}</h2>
         </Reveal>
 
         {body ? (
-          <Reveal delay={160}>
+          <Reveal delay={0.16}>
             <p className="mx-auto mt-6 max-w-xl text-[17px] leading-relaxed text-bau-stone">
               {body}
             </p>
@@ -45,12 +45,12 @@ export function FinalCta({
         ) : null}
 
         {signature ? (
-          <Reveal delay={200}>
+          <Reveal delay={0.2}>
             <p className="bau-signature mt-10 text-[1.5rem] text-bau-ivory/80">{signature}</p>
           </Reveal>
         ) : null}
 
-        <Reveal delay={280} className="mt-12 flex justify-center">
+        <Reveal delay={0.28} className="mt-12 flex justify-center">
           <CtaPrimary source={source} label={ctaLabel} />
         </Reveal>
       </div>

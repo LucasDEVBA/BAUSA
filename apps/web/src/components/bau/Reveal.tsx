@@ -1,85 +1,127 @@
 "use client";
 
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ElementType,
-  type ReactNode,
-} from "react";
+import { useRef, type ElementType, type ReactNode } from "react";
 
+import { BAU_EASE, canAnimate, gsap, useGSAP } from "@/lib/gsap";
 import { cn } from "@/lib/utils";
 
-// useLayoutEffect avisa no SSR; no cliente ele roda antes da pintura, que é o
-// que impede o flash de "conteúdo visível → escondido → animando".
-const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
-
-type RevealState = "idle" | "hidden" | "shown";
-
 /**
- * Primitiva única de entrada em cena: fade + rise de 16px, 500ms, ease-out,
- * uma vez só (BAU-02 §2.6 — "cerimônia, não espetáculo").
+ * Primitiva única de entrada em cena — agora sobre GSAP + ScrollTrigger.
  *
  * É o ÚNICO lugar do design system que decide o que acontece sob
- * `prefers-reduced-motion`: lá o conteúdo nasce visível e nada se move.
- * Nenhum outro componente de `bau/` implementa scroll-trigger próprio.
+ * `prefers-reduced-motion`: via `gsap.matchMedia()`, que reverte sozinho tudo
+ * que foi criado quando a query deixa de casar.
  *
- * O HTML servido nasce VISÍVEL (`idle`) e só é escondido depois que o JS
- * assume — sem isso, uma falha de hidratação deixaria a página em branco.
+ * O HTML servido nasce VISÍVEL — o `gsap.from()` só esconde depois que o JS
+ * assume. Sem isso, uma falha de hidratação deixaria a página em branco, e o
+ * conteúdo não seria indexável.
  */
 interface RevealProps {
   children: ReactNode;
-  /** Atraso em ms. Use para escalonar irmãos (0, 80, 160…). */
+  /** Atraso em segundos. Use para escalonar irmãos (0, 0.08, 0.16…). */
   delay?: number;
   as?: ElementType;
   className?: string;
+  /** Direção da entrada. `up` é o padrão do guia (rise de 16px). */
+  from?: "up" | "left" | "right";
 }
 
-export function Reveal({ children, delay = 0, as: Tag = "div", className }: RevealProps) {
+const OFFSET = { up: { y: 16 }, left: { x: -24 }, right: { x: 24 } } as const;
+
+export function Reveal({
+  children,
+  delay = 0,
+  as: Tag = "div",
+  className,
+  from = "up",
+}: RevealProps) {
   const ref = useRef<HTMLElement>(null);
-  const [state, setState] = useState<RevealState>("idle");
 
-  useIsomorphicLayoutEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setState("shown");
-      return;
-    }
-    setState("hidden");
-  }, []);
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
 
-  useEffect(() => {
-    if (state !== "hidden") return;
-    const el = ref.current;
-    if (!el) return;
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        if (!canAnimate()) return;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        setState("shown");
-        observer.disconnect();
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -10% 0px" },
-    );
+        gsap.from(ref.current, {
+          opacity: 0,
+          ...OFFSET[from],
+          duration: 0.7,
+          delay,
+          ease: BAU_EASE,
+          scrollTrigger: {
+            trigger: ref.current,
+            start: "top 88%",
+            once: true,
+          },
+        });
+      });
 
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [state]);
-
-  const hidden = state === "hidden";
+      return () => mm.revert();
+    },
+    { scope: ref },
+  );
 
   return (
-    <Tag
-      ref={ref}
-      className={cn("motion-safe:transition-[opacity,transform] motion-safe:duration-500", className)}
-      style={{
-        opacity: hidden ? 0 : 1,
-        transform: hidden ? "translateY(16px)" : "none",
-        transitionDelay: `${delay}ms`,
-        transitionTimingFunction: "var(--bau-ease)",
-      }}
-    >
+    <Tag ref={ref} className={className}>
       {children}
+    </Tag>
+  );
+}
+
+/**
+ * Revelação tipográfica com máscara — o gesto de assinatura do site.
+ *
+ * Cada linha sobe de trás de uma borda invisível, como tipo saindo de um
+ * cilindro de impressão. É reservado a H1 e às frases monumentais: usado em
+ * texto corrido viraria espetáculo, que é justamente o que o guia proíbe.
+ */
+export function MaskedLines({
+  lines,
+  className,
+  lineClassName,
+  as: Tag = "h1",
+  delay = 0,
+}: {
+  lines: string[];
+  className?: string;
+  lineClassName?: string;
+  as?: ElementType;
+  delay?: number;
+}) {
+  const ref = useRef<HTMLElement>(null);
+
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        if (!canAnimate()) return;
+
+        gsap.from(gsap.utils.toArray<HTMLElement>(".bau-line-inner"), {
+          yPercent: 115,
+          duration: 1.1,
+          delay,
+          ease: "power4.out",
+          stagger: 0.12,
+          scrollTrigger: { trigger: ref.current, start: "top 90%", once: true },
+        });
+      });
+
+      return () => mm.revert();
+    },
+    { scope: ref },
+  );
+
+  return (
+    <Tag ref={ref} className={className}>
+      {lines.map((line, i) => (
+        // overflow-hidden é a máscara; o filho é quem se move.
+        <span key={`${line}-${i}`} className={cn("block overflow-hidden", lineClassName)}>
+          <span className="bau-line-inner block">{line}</span>
+        </span>
+      ))}
     </Tag>
   );
 }

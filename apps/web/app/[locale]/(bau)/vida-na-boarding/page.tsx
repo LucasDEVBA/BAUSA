@@ -49,7 +49,7 @@ export default async function BoardingPage({ params }: PageProps) {
             </Reveal>
           </div>
 
-          <Reveal delay={120} className="mt-10 lg:col-span-7 lg:col-start-6 lg:mt-0">
+          <Reveal delay={0.12} className="mt-10 lg:col-span-7 lg:col-start-6 lg:mt-0">
             <table className="w-full border-collapse text-left">
               <caption className="sr-only">{copy.routine.caption}</caption>
               <thead>
@@ -105,7 +105,7 @@ export default async function BoardingPage({ params }: PageProps) {
           {copy.safeties.items.map((item, i) => (
             <li key={item.title}>
               <Reveal
-                delay={i * 70}
+                delay={i * 0.07}
                 className="block h-full rounded-[var(--radius-bau)] border border-bau-navy/10 bg-white p-8 transition-colors duration-200 hover:border-bau-blue"
               >
                 <h3 className="bau-display text-[1.5rem] text-bau-navy-deep">{item.title}</h3>
@@ -131,7 +131,7 @@ export default async function BoardingPage({ params }: PageProps) {
           </div>
           <div className="mt-10 space-y-6 lg:col-span-6 lg:col-start-7 lg:mt-0">
             {copy.afterBoarding.paragraphs.map((paragraph, i) => (
-              <Reveal key={paragraph} delay={i * 80}>
+              <Reveal key={paragraph} delay={i * 0.08}>
                 <p className="bau-prose text-[17px] text-bau-stone">{paragraph}</p>
               </Reveal>
             ))}

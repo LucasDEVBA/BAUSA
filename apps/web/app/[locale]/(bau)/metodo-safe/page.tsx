@@ -39,7 +39,7 @@ export default async function MethodPage({ params }: PageProps) {
               <h2 className="bau-display mt-6 text-[2rem] lg:text-[2.5rem]">{copy.why.title}</h2>
             </Reveal>
           </div>
-          <Reveal delay={120} className="mt-8 lg:col-span-6 lg:col-start-7 lg:mt-0">
+          <Reveal delay={0.12} className="mt-8 lg:col-span-6 lg:col-start-7 lg:mt-0">
             <p className="bau-prose text-[17px] text-bau-stone">{copy.why.body}</p>
           </Reveal>
         </div>

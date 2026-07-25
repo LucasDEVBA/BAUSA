@@ -31,17 +31,17 @@ export default async function FounderPage({ params }: PageProps) {
             <Reveal>
               <Eyebrow>{copy.hero.eyebrow}</Eyebrow>
             </Reveal>
-            <Reveal delay={120}>
+            <Reveal delay={0.12}>
               <h1 className="bau-display mt-8 text-[2.25rem] sm:text-[3rem] lg:text-[3.75rem]">
                 {copy.hero.title}
               </h1>
             </Reveal>
-            <Reveal delay={280}>
+            <Reveal delay={0.28}>
               <p className="bau-mono mt-10 text-[12px] text-bau-stone">{copy.hero.sub}</p>
             </Reveal>
           </div>
 
-          <Reveal delay={200} className="mt-14 lg:col-span-5 lg:col-start-8 lg:mt-0">
+          <Reveal delay={0.2} className="mt-14 lg:col-span-5 lg:col-start-8 lg:mt-0">
             <RecFrame timestamp="LEANDRO RIBEIRO · FUNDADOR" className="overflow-hidden">
               <img
                 src={leandro.src}
@@ -66,7 +66,7 @@ export default async function FounderPage({ params }: PageProps) {
 
           <div className="mt-14 space-y-16">
             {copy.acts.items.map((act, i) => (
-              <Reveal key={act.title} delay={i * 80}>
+              <Reveal key={act.title} delay={i * 0.08}>
                 <div className="lg:grid lg:grid-cols-12 lg:gap-16">
                   <h2
                     className={`bau-display text-[1.75rem] text-bau-ivory lg:col-span-3 lg:text-[2rem] ${
@@ -117,7 +117,7 @@ export default async function FounderPage({ params }: PageProps) {
               <h2 className="bau-display mt-6 text-[2rem] lg:text-[2.5rem]">{copy.team.title}</h2>
             </Reveal>
           </div>
-          <Reveal delay={120} className="mt-8 lg:col-span-6 lg:col-start-7 lg:mt-0">
+          <Reveal delay={0.12} className="mt-8 lg:col-span-6 lg:col-start-7 lg:mt-0">
             <p className="bau-prose text-[17px] text-bau-stone">{copy.team.body}</p>
           </Reveal>
         </div>

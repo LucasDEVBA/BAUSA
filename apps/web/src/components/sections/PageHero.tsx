@@ -30,7 +30,7 @@ export function PageHero({
             <Eyebrow>{eyebrow}</Eyebrow>
           </Reveal>
 
-          <Reveal delay={120}>
+          <Reveal delay={0.12}>
             <h1 className="bau-display mt-8 text-[2.5rem] sm:text-[3.5rem] lg:text-[4.5rem]">
               {title}
               {secondLine ? (
@@ -42,7 +42,7 @@ export function PageHero({
             </h1>
           </Reveal>
 
-          <Reveal delay={280}>
+          <Reveal delay={0.28}>
             <p className="bau-prose mt-10 text-[18px] text-bau-stone">{sub}</p>
           </Reveal>
         </div>

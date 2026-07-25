@@ -42,7 +42,7 @@ export default async function JourneyPage({ params }: PageProps) {
           <MonumentalStat value={copy.stat.value} eyebrow={copy.stat.eyebrow}>
             {copy.stat.description}
           </MonumentalStat>
-          <Reveal delay={200} className="mt-16 lg:ml-[50%] lg:pl-8">
+          <Reveal delay={0.2} className="mt-16 lg:ml-[50%] lg:pl-8">
             <p className="bau-prose text-[17px] text-bau-stone">{copy.stat.body}</p>
           </Reveal>
         </div>
@@ -59,7 +59,7 @@ export default async function JourneyPage({ params }: PageProps) {
         <ul className="mt-14 grid gap-px bg-[var(--bau-hairline)] sm:grid-cols-2">
           {copy.highSchool.items.map((item, i) => (
             <li key={item.title} className="bg-bau-navy-deep">
-              <Reveal delay={i * 80} className="block h-full p-8 lg:p-10">
+              <Reveal delay={i * 0.08} className="block h-full p-8 lg:p-10">
                 <h3 className="bau-display text-[1.5rem] text-bau-ivory">{item.title}</h3>
                 <p className="mt-4 text-[16px] leading-relaxed text-bau-stone">
                   {item.description}

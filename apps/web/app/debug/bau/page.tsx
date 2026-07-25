@@ -17,7 +17,7 @@ import {
   VideoCard,
   Watermark,
 } from "@/components/bau";
-import { ESCOLAS_PARCEIRAS, UNIVERSIDADES_ECOSSISTEMA } from "@/data/institutions";
+import { ESCOLAS_PARCEIRAS, INSTITUICOES_ECOSSISTEMA, UNIVERSIDADES_ECOSSISTEMA } from "@/data/institutions";
 
 /**
  * Galeria de verificação do design system — o "Storybook" do projeto.
@@ -103,7 +103,7 @@ export default function BauGalleryPage() {
               description="Quatro pilares: Singularidade, Acadêmico, Financeiro e Esporte."
               href="/"
               linkLabel="Ver como funciona"
-              delay={80}
+              delay={0.08}
             />
             <InstitutionalCard
               eyebrow="A Jornada"
@@ -111,7 +111,7 @@ export default function BauGalleryPage() {
               description="Cada etapa acompanhada de perto, sem improviso."
               href="/"
               linkLabel="Ver a jornada completa"
-              delay={160}
+              delay={0.16}
             />
           </div>
         </Spec>
@@ -170,10 +170,10 @@ export default function BauGalleryPage() {
 
         <Spec title="Reveal (escalonado)">
           <div className="flex gap-4">
-            {[0, 80, 160, 240].map((delay) => (
+            {[0, 0.08, 0.16, 0.24].map((delay) => (
               <Reveal key={delay} delay={delay}>
                 <div className="flex h-24 w-24 items-center justify-center border border-[var(--bau-hairline)] text-bau-stone">
-                  {delay}ms
+                  {delay * 1000}ms
                 </div>
               </Reveal>
             ))}
@@ -183,13 +183,19 @@ export default function BauGalleryPage() {
 
       <Section tone="deep" space="tight" bleed>
         <div className="bau-container">
-          <p className="bau-mono mb-10 text-[11px] text-bau-gold">Logo wall — duas faixas</p>
+          <p className="bau-mono mb-10 text-[11px] text-bau-gold">Logo wall — três faixas</p>
         </div>
         <div className="space-y-16">
-          <LogoWall label="Escolas parceiras" institutions={ESCOLAS_PARCEIRAS} />
+          <LogoWall label="Escolas parceiras" institutions={ESCOLAS_PARCEIRAS} direction={1} />
           <LogoWall
             label="Universidades do ecossistema de recrutamento"
             institutions={UNIVERSIDADES_ECOSSISTEMA}
+            direction={-1}
+          />
+          <LogoWall
+            label="Instituições do ecossistema"
+            institutions={INSTITUICOES_ECOSSISTEMA}
+            direction={1}
           />
         </div>
       </Section>

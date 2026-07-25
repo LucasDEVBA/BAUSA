@@ -8,6 +8,7 @@
  * Todo o resto é Server Component — movimento e hover são CSS.
  */
 export { ArrowLink } from "./ArrowLink";
+export { BrandRule, CornerBrackets } from "./BrandRule";
 export { ContrastTable, type ContrastRow } from "./ContrastTable";
 export { CtaPrimary } from "./CtaPrimary";
 export { Eyebrow } from "./Eyebrow";
@@ -17,7 +18,7 @@ export { MonumentalPause } from "./MonumentalPause";
 export { MonumentalStat } from "./MonumentalStat";
 export { PillarGrid, type Pillar } from "./PillarGrid";
 export { RecFrame } from "./RecFrame";
-export { Reveal } from "./Reveal";
+export { MaskedLines, Reveal } from "./Reveal";
 export { Container, Section } from "./Section";
 export { Timeline, type TimelinePhase } from "./Timeline";
 export { VideoCard } from "./VideoCard";

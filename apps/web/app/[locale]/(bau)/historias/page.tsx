@@ -67,7 +67,7 @@ export default async function StoriesPage({ params }: PageProps) {
                       [copy.actLabels.today, story.today],
                     ] as const
                   ).map(([label, text], i) => (
-                    <Reveal key={label} delay={i * 80}>
+                    <Reveal key={label} delay={i * 0.08}>
                       <dt className="bau-display text-[1.375rem] text-bau-ivory">{label}</dt>
                       <dd className="bau-prose mt-3 text-[17px] text-bau-stone">{text}</dd>
                     </Reveal>

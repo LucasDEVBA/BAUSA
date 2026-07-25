@@ -15,7 +15,11 @@ import { FinalCta } from "@/components/sections/FinalCta";
 import { HomeHero } from "@/components/sections/HomeHero";
 import { BAU_PAGES } from "@/config/site-pages";
 import { SEO_DEFAULTS, SITE_URL } from "@/config/seo";
-import { ESCOLAS_PARCEIRAS, UNIVERSIDADES_ECOSSISTEMA } from "@/data/institutions";
+import {
+  ESCOLAS_PARCEIRAS,
+  INSTITUICOES_ECOSSISTEMA,
+  UNIVERSIDADES_ECOSSISTEMA,
+} from "@/data/institutions";
 import { DEPOIMENTOS_ATLETAS } from "@/data/testimonials";
 import { JsonLd } from "@/lib/jsonld";
 
@@ -83,7 +87,7 @@ export default async function HomePage({ params }: PageProps) {
 
       <HomeHero
         eyebrow={copy.hero.eyebrow}
-        title={copy.hero.title}
+        titleLines={copy.hero.titleLines}
         sub={copy.hero.sub}
         ctaLabel={t("cta.primary")}
         secondaryCta={copy.hero.secondaryCta}
@@ -102,12 +106,12 @@ export default async function HomePage({ params }: PageProps) {
                 {copy.repositioning.title}
               </h2>
             </Reveal>
-            <Reveal delay={120}>
+            <Reveal delay={0.12}>
               <p className="bau-prose mt-8 text-[17px] text-bau-stone">
                 {copy.repositioning.body}
               </p>
             </Reveal>
-            <Reveal delay={200}>
+            <Reveal delay={0.2}>
               <ArrowLink href={`/${BAU_PAGES.concept.slug}`} className="mt-10">
                 {copy.repositioning.link}
               </ArrowLink>
@@ -127,11 +131,23 @@ export default async function HomePage({ params }: PageProps) {
           </Reveal>
         </div>
 
+        {/* Três faixas, sentidos alternados — o contraponto cria a sensação de
+            arquivo vivo em vez de esteira única. */}
         <div className="mt-16 space-y-14">
-          <LogoWall label={copy.institutions.partnersLabel} institutions={ESCOLAS_PARCEIRAS} />
+          <LogoWall
+            label={copy.institutions.partnersLabel}
+            institutions={ESCOLAS_PARCEIRAS}
+            direction={1}
+          />
           <LogoWall
             label={copy.institutions.universitiesLabel}
             institutions={UNIVERSIDADES_ECOSSISTEMA}
+            direction={-1}
+          />
+          <LogoWall
+            label={copy.institutions.ecosystemLabel}
+            institutions={INSTITUICOES_ECOSSISTEMA}
+            direction={1}
           />
         </div>
       </Section>
@@ -151,7 +167,7 @@ export default async function HomePage({ params }: PageProps) {
               description={card.description}
               href={card.href}
               linkLabel={card.link}
-              delay={i * 80}
+              delay={i * 0.08}
             />
           ))}
         </div>
@@ -182,7 +198,7 @@ export default async function HomePage({ params }: PageProps) {
           ))}
         </ul>
 
-        <Reveal delay={160}>
+        <Reveal delay={0.16}>
           <ArrowLink href={`/${BAU_PAGES.stories.slug}`} className="mt-12">
             {copy.proof.link}
           </ArrowLink>
@@ -202,7 +218,7 @@ export default async function HomePage({ params }: PageProps) {
             </Reveal>
           </div>
           <div className="mt-8 lg:col-span-5 lg:col-start-8 lg:mt-0">
-            <Reveal delay={120}>
+            <Reveal delay={0.12}>
               <p className="bau-prose text-[17px] text-bau-navy/75">{copy.safety.body}</p>
               <ArrowLink href={`/${BAU_PAGES.boarding.slug}`} tone="light" className="mt-10">
                 {copy.safety.link}
@@ -224,7 +240,7 @@ export default async function HomePage({ params }: PageProps) {
               </h2>
             </Reveal>
           </div>
-          <Reveal delay={120} className="mt-8 lg:col-span-6 lg:col-start-7 lg:mt-0">
+          <Reveal delay={0.12} className="mt-8 lg:col-span-6 lg:col-start-7 lg:mt-0">
             <p className="bau-prose text-[17px] text-bau-stone">{copy.founder.body}</p>
             <ArrowLink href={`/${BAU_PAGES.founder.slug}`} className="mt-10">
               {copy.founder.link}
@@ -249,6 +265,7 @@ interface HomeCopy {
   hero: {
     eyebrow: string;
     title: string;
+    titleLines: string[];
     sub: string;
     secondaryCta: string;
     imageAlt: string;
@@ -259,6 +276,7 @@ interface HomeCopy {
     title: string;
     partnersLabel: string;
     universitiesLabel: string;
+    ecosystemLabel: string;
   };
   pillars: {
     title: string;
