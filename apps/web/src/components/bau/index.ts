@@ -23,3 +23,4 @@ export { Container, Section } from "./Section";
 export { Timeline, type TimelinePhase } from "./Timeline";
 export { VideoCard } from "./VideoCard";
 export { Watermark } from "./Watermark";
+export { AnimatedCrest } from "./AnimatedCrest";

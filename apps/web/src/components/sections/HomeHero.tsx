@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 
-import { ArrowLink, CtaPrimary } from "@/components/bau";
+import { AnimatedCrest, ArrowLink, CtaPrimary } from "@/components/bau";
 import { BAU_EASE, canAnimate, gsap, useGSAP } from "@/lib/gsap";
 
 /**
@@ -107,6 +107,9 @@ export function HomeHero({
       />
 
       <div className="bau-container relative z-10 py-24">
+        {/* O selo é cunhado ANTES do título — a marca se apresenta, depois fala. */}
+        <AnimatedCrest className="mb-10 w-[92px] lg:w-[112px]" />
+
         <div className="max-w-4xl">
           <p className="bau-mono bau-hero-eyebrow flex items-center gap-3 text-[12px] leading-none text-bau-stone">
             <span aria-hidden="true" className="bau-hero-dash h-px w-6 origin-left bg-bau-gold" />
