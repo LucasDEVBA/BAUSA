@@ -7,6 +7,19 @@
       "runtimeArgs": ["--filter", "@bolsa-atleta/engine", "dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@bolsa-atleta/web", "dev"],
+      "port": 3001,
+      "autoPort": true
+    },
+    {
+      "name": "system-clinic",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "/Users/lucasbau/system-clinic", "dev"],
+      "port": 3100
     }
   ]
 }

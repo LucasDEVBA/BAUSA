@@ -5,7 +5,7 @@ import { setRequestLocale, getMessages } from "next-intl/server";
 import { Analytics } from "@vercel/analytics/next";
 
 import { routing } from "@/i18n/routing";
-import { inter } from "@/lib/fonts";
+import { fontVariables } from "@/lib/fonts";
 import { Providers } from "@/components/Providers";
 import { GoogleTagManager } from "@/lib/tracking/gtm";
 
@@ -67,11 +67,15 @@ export default async function RootLayout({ children, params }: RootLayoutProps) 
   const messages = await getMessages();
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    // As variáveis de fonte ficam no <html>, não no <body>: os tokens
+    // --font-bau-* são declarados em :root e referenciam estas variáveis.
+    // No <body> elas não existiriam no escopo de :root e o Caslon cairia
+    // silenciosamente para sans-serif.
+    <html lang={locale} className={fontVariables} suppressHydrationWarning>
       <head>
         <link rel="preload" as="image" href="/hero-campus.jpg" fetchPriority="high" />
       </head>
-      <body className={inter.variable}>
+      <body>
         <Providers locale={locale} messages={messages}>
           {children}
         </Providers>

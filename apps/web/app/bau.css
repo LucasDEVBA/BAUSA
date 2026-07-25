@@ -1,0 +1,177 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   BAU — Design System do site institucional
+   Fonte de verdade visual: docs BAU-02 (Guia de Design & UI/UX).
+
+   ┌─ REGRAS INEGOCIÁVEIS DESTE ARQUIVO ────────────────────────────────────┐
+   │ 1. Todo token novo é prefixado `bau-`. NUNCA redefinir tokens          │
+   │    existentes do globals.css — em especial `--radius`, `--font-sans`,  │
+   │    `--color-gold`, `--color-primary` e `--color-background`. O shadcn  │
+   │    de /forms e /acesso deriva deles (globals.css:13-15 e :225).        │
+   │ 2. Nenhuma declaração fora de `@theme` pode usar seletor `:root`,      │
+   │    `body` ou `html` sem `[data-bau]`. O tema escuro é escopado ao      │
+   │    route group (bau); /forms, /acesso e o 404 seguem no tema claro.    │
+   └────────────────────────────────────────────────────────────────────────┘
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* ── Cor ────────────────────────────────────────────────────────────────
+     Proporção alvo: 70% navy · 20% ivory · 7% blue/stone · 3% red+gold.
+     O vermelho é raro de propósito: significa ação (CTA) ou gravação (REC).
+     Se aparecer em três lugares na mesma tela, dois estão errados. */
+  --color-bau-navy-deep: #0a1128;
+  --color-bau-navy: #101a3d;
+  --color-bau-blue: #193b8b;
+  --color-bau-red: #8e1824;
+  --color-bau-ivory: #f5f2ea;
+  --color-bau-stone: #a8adbf;
+  --color-bau-gold: #b98a2e;
+
+}
+
+/* ── Tokens consumidos por CSS próprio ────────────────────────────────────
+   ⚠️ NÃO mover para `@theme`. O Tailwind 4 só emite variáveis de tema que
+   alguma utilitária referencia no código-fonte; como estas são consumidas
+   pelas classes `.bau-*` deste arquivo (e não por `font-bau-display` etc.),
+   dentro do `@theme` elas seriam removidas na build e o Caslon silenciosamente
+   viraria sans-serif.
+
+   Só ficam no `@theme` acima as cores, que geram `bg-bau-*` / `text-bau-*`
+   de verdade. */
+:root {
+  /* Caslon é a tipografia histórica das instituições americanas. Display para
+     títulos e frases monumentais; Text para blocos editoriais e o itálico das
+     assinaturas de marca. */
+  --font-bau-display: var(--font-caslon-display), "Libre Caslon Display", Georgia, serif;
+  --font-bau-text: var(--font-caslon-text), "Libre Caslon Text", Georgia, serif;
+  --font-bau-body: var(--font-inter), Inter, system-ui, sans-serif;
+  --font-bau-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Quase reto: instituição, não app. */
+  --radius-bau: 2px;
+
+  --bau-header-h: 4.5rem;
+  --bau-container: 1240px;
+  --bau-hairline: rgba(245, 242, 234, 0.08);
+  --bau-hairline-strong: rgba(245, 242, 234, 0.16);
+  --bau-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* ═══ Território da marca ═════════════════════════════════════════════════
+   Escopado em [data-bau]: aplicado pelo layout do route group (bau).
+   Sem isso, o gradiente claro do body (globals.css:268-277) vaza branco no
+   overscroll do iOS numa página 70% navy. */
+[data-bau] {
+  background: var(--color-bau-navy-deep);
+  color: var(--color-bau-ivory);
+  font-family: var(--font-bau-body);
+  min-height: 100vh;
+}
+
+/* Âncoras precisam limpar o header fixo — html tem scroll-behavior: smooth
+   em globals.css:281, então o alvo pararia embaixo do header. */
+[data-bau] :target {
+  scroll-margin-top: calc(var(--bau-header-h) + 2rem);
+}
+
+/* Foco de teclado visível — piso inegociável do guia (BAU-02 §2.8). */
+[data-bau] :focus-visible {
+  outline: 2px solid var(--color-bau-gold);
+  outline-offset: 2px;
+}
+
+/* Container do guia: 1240px, margens 24px (mobile) / 80px (desktop). */
+.bau-container {
+  width: 100%;
+  max-width: var(--bau-container);
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .bau-container {
+    padding-inline: 5rem;
+  }
+}
+
+/* ── Tipografia de display ────────────────────────────────────────────────
+   Libre Caslon Display não tem bold. Travar o peso em 400 evita o synthetic
+   bold do navegador, que destrói o desenho da fonte em tamanhos grandes. */
+.bau-display {
+  font-family: var(--font-bau-display);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+/* Itálico do Caslon é reservado às assinaturas de marca
+   ("Para quem entende o valor do caminho.") — vira gesto reconhecível. */
+.bau-signature {
+  font-family: var(--font-bau-text);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.bau-mono {
+  font-family: var(--font-bau-mono);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+/* Corpo editorial: 68ch é o limite de leitura confortável do guia. */
+.bau-prose {
+  max-width: 68ch;
+  line-height: 1.65;
+}
+
+/* ── Movimento ────────────────────────────────────────────────────────────
+   Princípio: cerimônia, não espetáculo. O ponto REC é o ÚNICO elemento
+   animado permanente do site. */
+@keyframes bau-rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.bau-rec-dot {
+  animation: bau-rec-pulse 2s var(--bau-ease) infinite;
+}
+
+/* Marquee do logo wall — 60s por ciclo, pausa no hover. */
+@keyframes bau-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.bau-marquee-track {
+  animation: bau-marquee 60s linear infinite;
+  will-change: transform;
+}
+
+.bau-marquee:hover .bau-marquee-track,
+.bau-marquee:focus-within .bau-marquee-track {
+  animation-play-state: paused;
+}
+
+/* prefers-reduced-motion: tudo estático exceto opacidade (BAU-02 §2.6). */
+@media (prefers-reduced-motion: reduce) {
+  .bau-marquee-track {
+    animation: none;
+    transform: none;
+  }
+
+  .bau-rec-dot {
+    animation: none;
+  }
+}

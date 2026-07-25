@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Design system do site institucional. DEVE ficar aqui, logo após o import do
+   Tailwind: @import posterior a outras regras é descartado pelo Lightning CSS. */
+@import "./bau.css";
 
 /* ─── Tailwind 4 Theme — tokens migrados de tailwind.config.ts ──────────────── */
 @theme {

@@ -25,9 +25,31 @@ export function trackFormError(step: number, errorMessage: string): void {
   });
 }
 
-export function trackCtaClick(
-  source: "hero" | "final" | "header" | "links",
-): void {
+/**
+ * Vocabulário fechado de origem do CTA. Vira a coluna `cta_source` em
+ * `form_submissions` e é rotulado no relatório de Atribuição do Engine
+ * (`apps/crm/src/app/(dashboard)/analytics/atribuicao/client.tsx`).
+ *
+ * ⚠️ Acrescentar um valor aqui SEM adicionar o rótulo correspondente no Engine
+ * faz a string crua aparecer no relatório do CEO. São apps e deploys distintos:
+ * publique a web primeiro, o Engine depois.
+ */
+export type CtaSource =
+  // Origens do site institucional
+  | "header"
+  | "hero"
+  | "final"
+  // CTA de fecho de cada página de narrativa
+  | "conceito"
+  | "metodo"
+  | "jornada"
+  | "boarding"
+  | "historias"
+  | "fundador"
+  // Hub de links (/acesso)
+  | "links";
+
+export function trackCtaClick(source: CtaSource): void {
   pushEvent("cta_click", { cta_source: source });
 
   if (typeof window !== "undefined") {
