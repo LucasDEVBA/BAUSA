@@ -54,6 +54,11 @@ function gerarSlug(): string {
 const SLUGS_RESERVADOS = new Set([
   "pt", "en", "es",
   "acesso", "forms", "links", "l", "api", "debug",
+  // Páginas do site institucional (BAU-01) — espelha BAU_SLUGS de
+  // apps/web/src/config/site-pages.ts. Criar um link curto com um destes
+  // nomes geraria um link que só funciona em /l/<slug>.
+  "educacao-esportiva-inteligente", "metodo-safe", "jornada",
+  "vida-na-boarding", "historias", "fundador", "avaliacao",
 ]);
 
 const criarSchema = z.object({

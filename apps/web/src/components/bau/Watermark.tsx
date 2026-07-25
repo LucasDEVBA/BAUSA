@@ -24,8 +24,10 @@ export function Watermark({
       aria-hidden="true"
       className={cn(
         "pointer-events-none absolute top-1/2 z-0 -translate-y-1/2 select-none",
-        // Sangra a borda — nunca inteira dentro do quadro.
-        side === "right" ? "-right-[12%]" : "-left-[12%]",
+        // Sangra a borda — nunca inteira dentro do quadro. O deslocamento é
+        // maior que a metade do logo para garantir o corte mesmo em telas
+        // largas, onde o container trava em 1240px.
+        side === "right" ? "-right-[22%] lg:-right-[14%]" : "-left-[22%] lg:-left-[14%]",
         className,
       )}
     >
@@ -34,7 +36,9 @@ export function Watermark({
         alt=""
         loading="lazy"
         decoding="async"
-        className="h-[70vh] max-h-[720px] w-auto opacity-[0.035]"
+        // Δ de contraste bem abaixo dos 5% do guia: presença arquitetônica,
+        // não objeto. Acima disso passa a competir com o título.
+        className="h-[65vh] max-h-[680px] w-auto opacity-[0.022]"
       />
     </div>
   );
