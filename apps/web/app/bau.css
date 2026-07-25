@@ -67,6 +67,48 @@
   min-height: 100vh;
 }
 
+/* ═══ GRÃO ════════════════════════════════════════════════════════════════
+   Ruído fixo sobre TODO o território da marca.
+
+   É a correção mais barata para o problema de "parece gerado": superfície
+   digital perfeita é o que denuncia. Papel tem fibra, chapa de metal tem
+   granulação, filme tem grão. Sem isso, o navy é um retângulo de tinta
+   chapada — com isso, vira material.
+
+   `feTurbulence` em data URI: zero requisição, zero JS, ~200 bytes.
+   `position: fixed` faz o grão NÃO acompanhar o scroll — ele fica na
+   superfície da tela, como se o site estivesse impresso atrás dela. Se
+   rolasse junto, leria como textura de fundo, que é outra coisa. */
+[data-bau]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Vinheta: escurece os cantos como uma lente de verdade. Muito sutil — o
+   objetivo é o olho ir ao centro sem perceber por quê. */
+[data-bau]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+  pointer-events: none;
+  background: radial-gradient(ellipse 120% 100% at 50% 45%, transparent 55%, rgba(4, 7, 18, 0.55) 100%);
+}
+
+/* Sob reduced-motion o grão fica, mas some no modo de alto contraste, onde
+   ruído sobre texto atrapalha a leitura. */
+@media (prefers-contrast: more) {
+  [data-bau]::after,
+  [data-bau]::before {
+    display: none;
+  }
+}
+
 /* Âncoras precisam limpar o header fixo — html tem scroll-behavior: smooth
    em globals.css:281, então o alvo pararia embaixo do header. */
 [data-bau] :target {
