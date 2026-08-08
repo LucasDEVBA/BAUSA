@@ -1,7 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC_ROUTES = ["/login"];
+const PUBLIC_ROUTES = [
+  "/login",
+  "/recuperar-senha",
+  // /redefinir-senha valida a sessão de recuperação na própria página (mensagem
+  // amigável de link expirado, em vez de redirect seco para /login)
+  "/redefinir-senha",
+  // destino dos links de e-mail do Supabase — cria a sessão de recuperação
+  "/auth/confirm",
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
