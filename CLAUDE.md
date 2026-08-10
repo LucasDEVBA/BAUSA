@@ -407,6 +407,7 @@ Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test
 - `GOOGLE_CALENDAR_ID` — Calendar do CEO
 - `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — API route /agendar (server-side)
 - `SEND_WHATSAPP_URL` + `WEBHOOK_SECRET` — Envio WhatsApp via Cloud Function
+- `MEETING_TRANSCRIPTS_URL` — CF meeting-transcripts (transcrição sob demanda na aba Reunião; sem ela a UI degrada com erro claro)
 - `CEO_WHATSAPP` — Número do CEO para notificações (`5571991461565`)
 
 ### Cloud Functions (GCP)
