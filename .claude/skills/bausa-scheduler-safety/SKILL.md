@@ -21,9 +21,10 @@ Todo scheduler que envia mensagem a lead DEVE filtrar:
    - Fluxo **ideal** (initial, follow-up 48h/7d, nutrição): `(timing_status IS NULL OR timing_status = 'ideal')`
    - Fluxo **alternativo** (early_potential, late_timing): `timing_status IN ('muito_cedo','tarde_demais')`
    - **Os dois fluxos NUNCA se misturam.** `muito_cedo`/`tarde_demais` seguem caminho próprio (`scheduled_return` em novembro / nada).
-3. **CAS atômico ANTES do envio:** marcar `<coluna>_sent_at=NOW()` com filtro `&<coluna>_sent_at=is.null` no PATCH. Se 0 rows atualizadas → outra instância venceu → PULAR. Marcar antes de chamar a Z-API (se o envio falhar depois, o lead não é reprocessado — preferível a duplicar).
-4. **`meeting_scheduled IS NOT TRUE`** nos follow-ups (quem agendou reunião não recebe cobrança de agendamento).
-5. **Horário seguro** (quando #6 estiver implementado): não disparar fora da janela configurada.
+3. **Aprovação humana (2026-08-10):** buckets de outreach inicial (A/B) e retomada de novembro exigem `aprovacao_status=eq.aprovado` — lead `pendente`/`reprovado`/NULL NUNCA recebe mensagem. Follow-ups herdam via `whatsapp_sent_at IS NOT NULL` (só existe pós-aprovação). Monitores de fila (monitor-health, observabilidade-checks, automacoes-queries) espelham o filtro — sem ele, lead retido pelo CEO vira falso "fila presa".
+4. **CAS atômico ANTES do envio:** marcar `<coluna>_sent_at=NOW()` com filtro `&<coluna>_sent_at=is.null` no PATCH. Se 0 rows atualizadas → outra instância venceu → PULAR. Marcar antes de chamar a Z-API (se o envio falhar depois, o lead não é reprocessado — preferível a duplicar).
+5. **`meeting_scheduled IS NOT TRUE`** nos follow-ups (quem agendou reunião não recebe cobrança de agendamento).
+6. **Horário seguro** (quando implementado): não disparar fora da janela configurada.
 
 ## Guard de CI (anti-regressão) — `tests/scheduler-eligibility.test.js`
 
@@ -37,15 +38,16 @@ node --test tests/*.test.js
 
 | Scheduler | Janela | Filtro extra | Template |
 |---|---|---|---|
-| process-pending Bucket A | qualified_at > 22h | timing ideal/null | initial |
-| process-pending Bucket B | qualified_at > 48h | timing muito_cedo/tarde_demais | early_potential / late_timing |
+| process-pending Bucket A | qualified_at > 22h | timing ideal/null + **aprovado** | initial |
+| process-pending Bucket B | qualified_at > 48h | timing muito_cedo/tarde_demais + **aprovado** | early_potential / late_timing |
 | process-followup FU1 | whatsapp_sent_at > 48h, fu1 null | timing ideal/null, meeting not true | followup_1 |
 | process-followup FU2 | whatsapp_sent_at > 7d, fu1 not null, fu2 null | timing ideal/null, meeting not true | followup_2 |
-| process-scheduled-followups | scheduled_followup_at <= NOW | timing = muito_cedo | scheduled_return |
+| process-scheduled-followups | scheduled_followup_at <= NOW | timing = muito_cedo + **aprovado** | scheduled_return |
 
 ## ⛔ Checklist ao tocar em scheduler
 - [ ] Filtro `qualification_classification IN ('QUENTE','MORNO')` presente em TODA query de elegibilidade?
 - [ ] Filtro `timing_status` correto para o fluxo (ideal vs alternativo)?
+- [ ] Filtro `aprovacao_status=eq.aprovado` nos buckets de outreach inicial/retomada (e paridade nos monitores de fila)?
 - [ ] CAS atômico antes do envio (não depois)?
 - [ ] `node --test tests/*.test.js` passa? Se adicionou scheduler, adicionou teste ao guard?
 - [ ] Idempotente (re-tick não duplica)?

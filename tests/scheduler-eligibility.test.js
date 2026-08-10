@@ -125,6 +125,33 @@ test('process-followup-whatsapp: follow-up só atinge timing ideal/null', () => 
   );
 });
 
+// ─── Gate de aprovação humana (2026-08-10) ──────────────────────────────
+// Decisão de produto: todo outreach automático exige lead APROVADO pelo
+// CEO/CTO (aprovacao_status=eq.aprovado). Sem a cláusula, leads pendentes
+// ou reprovados voltariam a receber WhatsApp — regressão da mesma classe
+// dos incidentes de elegibilidade.
+const CLAUSE_APROVACAO = 'aprovacao_status=eq.aprovado';
+
+test('process-pending-whatsapp: Buckets A e B exigem aprovação humana', () => {
+  const src = loadExecutableSource('process-pending-whatsapp');
+  const occurrences = countOccurrences(src, CLAUSE_APROVACAO);
+  assert.ok(
+    occurrences >= 2,
+    `INVARIANTE VIOLADO: '${CLAUSE_APROVACAO}' deve aparecer em AMBOS os ` +
+      `buckets do scheduler inicial. Encontrado ${occurrences}x. Sem isso, ` +
+      `leads não aprovados pelo CEO recebem outreach automático.`,
+  );
+});
+
+test('process-scheduled-followups: retomada de novembro exige aprovação humana', () => {
+  const src = loadExecutableSource('process-scheduled-followups');
+  assert.ok(
+    src.includes(CLAUSE_APROVACAO),
+    `INVARIANTE VIOLADO: fetchEligibleLeads deve conter '${CLAUSE_APROVACAO}'. ` +
+      `Sem isso, leads muito_cedo jamais aprovados recebem o scheduled_return.`,
+  );
+});
+
 // ─── Intervalos configuráveis: clamp obrigatório (2026-07) ───────────────
 // Os intervalos dos schedulers passaram a ser lidos de
 // configuracoes_sistema.scheduler_intervalos (editáveis em /automacoes).

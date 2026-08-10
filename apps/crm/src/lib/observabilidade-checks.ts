@@ -566,6 +566,9 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .lt("qualified_at", corteInicial)
       .is("whatsapp_sent_at", null)
       .or("timing_status.is.null,timing_status.eq.ideal")
+      // Paridade com o scheduler: sem aprovação humana não é fila presa —
+      // o lead está retido de propósito pelo gate do CEO.
+      .eq("aprovacao_status", "aprovado")
       .order("qualified_at", { ascending: true })
       .limit(30),
     supabase
@@ -576,6 +579,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .lt("qualified_at", corteAlt)
       .is("whatsapp_sent_at", null)
       .in("timing_status", ["muito_cedo", "tarde_demais"])
+      .eq("aprovacao_status", "aprovado")
       .order("qualified_at", { ascending: true })
       .limit(30),
     supabase
@@ -607,6 +611,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .eq("timing_status", "muito_cedo")
       .lte("scheduled_followup_at", agora)
       .is("scheduled_followup_sent_at", null)
+      .eq("aprovacao_status", "aprovado")
       .limit(30),
   ]);
 
@@ -857,6 +862,31 @@ async function checkEntradaZero(supabase: Supabase): Promise<CheckResult> {
     resumo: n > 0
       ? `${n} submissão(ões) nas últimas ${ENTRADA_ZERO_HORAS}h.`
       : `ZERO submissões em ${ENTRADA_ZERO_HORAS}h — formulário/funil de entrada possivelmente parado (mídia queimando sem lead).`,
+    detalhes: [],
+  };
+}
+
+async function checkAprovacaoPendenteAntiga(supabase: Supabase): Promise<CheckResult> {
+  const id = "aprovacao_pendente_antiga";
+  const titulo = "Fila de aprovação de leads";
+  const HORAS = 24;
+  const n = await contarSimples(
+    supabase,
+    (q) =>
+      q
+        .select("id", { count: "exact", head: true })
+        .eq("aprovacao_status", "pendente")
+        .in("qualification_classification", ["QUENTE", "MORNO"])
+        .lt("qualified_at", horasAtrasISO(HORAS)),
+    "form_submissions",
+  );
+  return {
+    id,
+    titulo,
+    status: n === 0 ? "ok" : "atencao",
+    resumo: n === 0
+      ? "Nenhum lead esperando aprovação além do prazo."
+      : `${n} lead(s) QUENTE/MORNO aguardando aprovação do CEO há ${HORAS}h+ — a fila retém pipeline E WhatsApp (abrir em Leads → Aprovações).`,
     detalhes: [],
   };
 }
@@ -1149,6 +1179,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     seguro("calendar", "Google Calendar (detecção de reuniões)", () => checkCalendar(supabase)),
     // Paridade com o watchdog monitor-health v2 (mesma lógica, on-demand)
     seguro("entrada_zero", "Entrada de leads (formulário)", () => checkEntradaZero(supabase)),
+    seguro("aprovacao_pendente_antiga", "Fila de aprovação de leads", () => checkAprovacaoPendenteAntiga(supabase)),
     seguro("chatbot_erro", "Chatbot autônomo (erros)", () => checkChatbotErro(supabase)),
     seguro("remarketing_presa", "Re-marketing (campanha presa)", () => checkRemarketingPresa(supabase)),
     seguro("regua_cobranca", "Régua de cobrança", () => checkReguaCobranca(supabase)),

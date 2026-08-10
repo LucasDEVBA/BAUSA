@@ -34,7 +34,9 @@ const GATES = {
   'process-pending-whatsapp': ['ativas.whatsapp_inicial === false', 'ativas.whatsapp_timing_alt === false'],
   'process-followup-whatsapp': ['ativas.followup_1 === false', 'ativas.followup_2 === false'],
   'process-scheduled-followups': ['ativas.scheduled_return === false'],
-  'qualify-lead': ['ativas.qualificacao === false'],
+  // aprovacao_manual: gate humano da fila de aprovação — desligado (=== false)
+  // volta à auto-promoção; ausente = fila ATIVA (fail-open do gate humano)
+  'qualify-lead': ['ativas.qualificacao === false', 'ativas.aprovacao_manual === false'],
   'calendar-webhook': ['ativas.confirmacao_reuniao === false'],
   // Resumo de transcrição: desligar NÃO para a captura — só o resumo Gemini
   'meeting-transcripts': ['resumo_transcricao === false'],
