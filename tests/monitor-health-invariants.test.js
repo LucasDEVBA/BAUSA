@@ -151,6 +151,37 @@ test("F2: escritores de sinal presentes nas CFs (fail-open)", () => {
 
   const billing = fs.readFileSync(path.join(__dirname, "..", "functions/billing-reminders/index.js"), "utf8");
   assert.match(billing, /billing_last_tick_at/, "heartbeat da régua sumiu do billing-reminders");
+
+  const metaSync = fs.readFileSync(path.join(__dirname, "..", "functions/sync-meta-spend/index.js"), "utf8");
+  assert.match(metaSync, /meta_sync_last_tick_at/, "heartbeat do sync Meta sumiu do sync-meta-spend");
+  assert.match(metaSync, /meta_tick_save_failed/, "fail-open do heartbeat Meta sumiu (telemetria não pode derrubar o sync)");
+});
+
+test("meta_frescor v2: alerta automático mede a VIDA DO SYNC, nunca a idade do gasto", () => {
+  // Contexto (2026-08-10): campanhas pausadas = gasto 0 = MAX(data) velho com
+  // sync PERFEITO. O check antigo alertava "token expirado?" — enganoso, e por
+  // isso foi suprimido. O v2 usa o heartbeat meta_sync_last_tick_at.
+  assert.match(cf, /meta_sync_last_tick_at/, "CF meta_frescor deixou de ler o heartbeat do sync");
+  assert.match(tela, /meta_sync_last_tick_at/, "tela meta_frescor deixou de ler o heartbeat do sync");
+
+  // Slice cirúrgico do check na CF (do checkSeguro('meta_frescor') até o próximo checkSeguro)
+  const inicio = cf.indexOf("checkSeguro('meta_frescor'");
+  assert.ok(inicio >= 0, "check meta_frescor sumiu da CF");
+  const fim = cf.indexOf("checkSeguro(", inicio + 1);
+  const bloco = cf.slice(inicio, fim > inicio ? fim : undefined);
+  assert.doesNotMatch(
+    bloco,
+    /meta_ads_campanha/,
+    "o alerta automático meta_frescor voltou a consultar a idade do GASTO (meta_ads_campanha) — confunde campanhas pausadas com sync quebrado",
+  );
+
+  // Na tela a idade do gasto é permitida como sinal SECUNDÁRIO (atenção, nunca crítico)
+  const iniTela = tela.indexOf("function checkMetaFrescor");
+  assert.ok(iniTela >= 0, "checkMetaFrescor sumiu da tela");
+  const fimTela = tela.indexOf("async function", iniTela + 1);
+  const blocoTela = tela.slice(iniTela, fimTela > iniTela ? fimTela : undefined);
+  assert.match(blocoTela, /meta_ads_campanha/, "tela perdeu o sinal secundário de idade do gasto");
+  assert.match(blocoTela, /META_TICK_MAX_HORAS/, "tela perdeu o limiar do heartbeat");
 });
 
 test("F2: migration dos sinais existe (coluna + backfill + seeds)", () => {
