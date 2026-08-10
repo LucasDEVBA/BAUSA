@@ -59,6 +59,8 @@ export interface EspelhoMessage {
   mediaUrl: string | null;
   /** MIME da mídia (ex.: image/jpeg, audio/ogg), quando informado. */
   mimeType: string | null;
+  /** Nome do participante (mensagens de GRUPO recebidas), quando informado. */
+  senderName?: string | null;
   /** Nome do arquivo (documentos), quando informado. */
   fileName: string | null;
 }

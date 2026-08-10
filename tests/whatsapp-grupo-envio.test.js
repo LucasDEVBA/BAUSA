@@ -61,16 +61,24 @@ test('send route: envio a grupo é roteado ANTES do guard 1:1 (CEO-only)', () =>
   );
 });
 
-test('send route: grupo_id é enviado CRU (sem E.164), via guard próprio', () => {
+test('send route: grupo_id sem E.164, jid p/ Z-API e core p/ o guard', () => {
+  // 2026-08-10: bug fundador corrigido — o banco guarda grupo_id SEM @g.us
+  // (cleanGroupId da zapi-inbox) e o regex antigo EXIGIA o sufixo → todo envio
+  // de grupo dava 400/403. A rota agora aceita ambos e normaliza cada ponta:
+  // jid (com @g.us) para a Z-API, core (sem) para o guard/RLS.
   const src = stripLineComments(read(SEND_ROUTE));
   assert.ok(
     src.includes('guardWhatsAppGrupoEnvio'),
     'o envio a grupo deve usar guardWhatsAppGrupoEnvio (CEO ou Head vinculado).',
   );
-  // O grupo_id vai CRU como phone p/ a Z-API — nunca normalizado.
   assert.ok(
-    /phone:\s*groupId/.test(src),
-    'INVARIANTE VIOLADO: o grupo_id deve ir CRU (phone: groupId) para a Z-API.',
+    /phone:\s*groupJid/.test(src),
+    'INVARIANTE VIOLADO: a Z-API endereça grupo pelo jid COM @g.us (phone: groupJid).',
+  );
+  assert.ok(
+    /guardWhatsAppGrupoEnvio\(groupCore\)/.test(src),
+    'INVARIANTE VIOLADO: o guard consulta whatsapp_grupos, que guarda o id SEM ' +
+      '@g.us — deve receber groupCore, senão RLS nega tudo (403).',
   );
   // O handler de grupo NÃO pode passar o groupId por cleanPhone/isValidPhone.
   const bloco = src.match(/async function handleGroupSend[\s\S]*?\n}\n/);
