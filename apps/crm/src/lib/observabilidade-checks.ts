@@ -830,7 +830,8 @@ const CHATBOT_ERRO_MINIMO = 3;
 const REMARKETING_PRESA_HORAS = 2;
 const REGUA_FOLGA_DIAS = 2;
 const NPS_PRAZO_DIAS = 181;
-const META_FRESCOR_DIAS = 3;
+const META_FRESCOR_DIAS = 3; // idade do GASTO — sinal secundário, atenção SÓ na tela
+const META_TICK_MAX_HORAS = 26; // heartbeat do sync (job diário 06h + folga, padrão billing)
 const TRANSCRICAO_FOLGA_HORAS = 24;
 const RUNS_PRESOS_HORAS = 2;
 
@@ -945,18 +946,40 @@ async function checkExperienciaNps(supabase: Supabase): Promise<CheckResult> {
 async function checkMetaFrescor(supabase: Supabase): Promise<CheckResult> {
   const id = "meta_frescor";
   const titulo = "CAC Meta (frescor do sync)";
+
+  // Sinal PRIMÁRIO: heartbeat do sync (meta_sync_last_tick_at, gravado pela
+  // CF sync-meta-spend em TODO tick, mesmo com gasto 0). Idade do gasto é
+  // sinal SECUNDÁRIO informativo: campanhas pausadas ≠ sync quebrado — o
+  // check antigo confundia os dois ("token expirado?" com sync perfeito).
+  const tick = await lerConfigValor(supabase, "meta_sync_last_tick_at");
+
   const { data, error } = await supabase.from("meta_ads_campanha").select("data").order("data", { ascending: false }).limit(1);
   if (error) throw new Error(`meta_ads_campanha: ${error.message}`);
-  if (!data || data.length === 0) {
-    return { id, titulo, status: "info", resumo: "Sem dados de Meta Ads ainda (config pendente) — check pulado.", detalhes: [] };
+  const gastoDias = data && data.length > 0 ? Math.floor((Date.now() - new Date(String(data[0].data)).getTime()) / 86_400_000) : null;
+  const detalheGasto =
+    gastoDias === null
+      ? "Sem linhas de gasto ainda."
+      : `Último GASTO registrado há ${gastoDias}d${gastoDias > META_FRESCOR_DIAS ? " — campanhas pausadas ou sem investimento (informativo; NÃO é falha do sync)." : "."}`;
+
+  if (typeof tick.at !== "string") {
+    return { id, titulo, status: "info", resumo: "Sync Meta nunca tickou (config pendente) — check pulado.", detalhes: [detalheGasto] };
   }
-  const idadeDias = Math.floor((Date.now() - new Date(String(data[0].data)).getTime()) / 86_400_000);
+  const horas = Math.floor((Date.now() - new Date(tick.at).getTime()) / 3_600_000);
+  if (horas > META_TICK_MAX_HORAS) {
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: `Sync Meta SEM TICK há ${horas}h — job parado ou token inválido (CAC/DRE congelados).`,
+      detalhes: [detalheGasto],
+    };
+  }
   return {
     id,
     titulo,
-    status: idadeDias <= META_FRESCOR_DIAS ? "ok" : "atencao",
-    resumo: `Último gasto Meta sincronizado há ${idadeDias}d ${idadeDias > META_FRESCOR_DIAS ? "— CAC/DRE CONGELADOS (token expirado?)" : "(fresco)."}`,
-    detalhes: [],
+    status: gastoDias !== null && gastoDias > META_FRESCOR_DIAS ? "atencao" : "ok",
+    resumo: `Sync Meta vivo (último tick há ${horas}h).`,
+    detalhes: [detalheGasto],
   };
 }
 

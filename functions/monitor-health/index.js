@@ -13,7 +13,7 @@ const https = require('https');
 //   remarketing_presa    — campanha 'enviando' sem progresso
 //   regua_cobranca       — parcela atrasada sem nenhum marco da régua
 //   experiencia_nps      — NPS elegível sem envio além do prazo
-//   meta_frescor         — sync Meta Ads congelado
+//   meta_frescor         — heartbeat do sync Meta parado (não é idade do gasto)
 //   transcricao_faltante — reunião realizada sem transcrição capturada
 //   runs_presos          — runs pendentes/retry vencido (engine parada)
 // Alertas: WhatsApp (Z-API) + notificação in-app + E-MAIL (Resend→Brevo, canal
@@ -61,7 +61,7 @@ const CHATBOT_ERRO_MINIMO = 3;
 const REMARKETING_PRESA_HORAS = 2;
 const REGUA_FOLGA_DIAS = 2;
 const NPS_PRAZO_DIAS = 181;        // 180d de jornada + 24h de folga
-const META_FRESCOR_DIAS = 3;
+const META_TICK_MAX_HORAS = 26; // job diário 06h BRT + folga (padrão billing)
 const TRANSCRICAO_FOLGA_HORAS = 24;
 const RUNS_PRESOS_HORAS = 2;       // engine roda 1x/h — 2h sem consumir = parada
 // Sinais criados na F2 (fluxos que antes não deixavam rastro)
@@ -544,22 +544,21 @@ const runChecks = async () => {
       return { ok: n === 0, valor: n, detalhe: `${n} família(s) elegível(is) a NPS sem envio além do prazo (+24h folga)` };
     }),
 
-    // ── CAC Meta (condicional: sem dados = config pendente, não falha) ──
+    // ── CAC Meta: VIDA DO SYNC via heartbeat meta_sync_last_tick_at ──
+    // NÃO usar idade do gasto (MAX(meta_ads_campanha.data)) aqui: campanhas
+    // pausadas = gasto 0 = data velha com sync PERFEITO — alerta enganoso
+    // ("token expirado?") que levou à supressão de 2026-08-10. O gasto velho
+    // é sinal informativo SÓ na tela; o alerta automático mede o sync em si.
     checkSeguro('meta_frescor', async () => {
-      const result = await httpRequest(
-        `${SUPABASE_URL}/rest/v1/meta_ads_campanha?select=data&order=data.desc&limit=1`,
-        { method: 'GET', headers: supaHeaders() },
-      );
-      if (result.statusCode >= 400) throw new Error(`meta_ads_campanha HTTP ${result.statusCode}`);
-      const rows = JSON.parse(result.body || '[]');
-      if (rows.length === 0) {
-        return { ok: true, valor: 0, detalhe: 'sem dados de Meta Ads ainda (config pendente) — check pulado' };
+      const tick = await lerConfig('meta_sync_last_tick_at');
+      if (!tick.at) {
+        return { ok: true, valor: 0, detalhe: 'sync Meta nunca tickou (config pendente) — check pulado' };
       }
-      const idadeDias = Math.floor((Date.now() - Date.parse(rows[0].data)) / 86400000);
+      const horas = Math.floor((Date.now() - Date.parse(tick.at)) / 3600000);
       return {
-        ok: idadeDias <= META_FRESCOR_DIAS,
-        valor: idadeDias,
-        detalhe: `último gasto Meta sincronizado há ${idadeDias}d (CAC/DRE ${idadeDias > META_FRESCOR_DIAS ? 'CONGELADOS' : 'frescos'})`,
+        ok: horas <= META_TICK_MAX_HORAS,
+        valor: horas,
+        detalhe: `último sync Meta há ${horas}h${horas > META_TICK_MAX_HORAS ? ' — job parado ou token inválido (CAC/DRE congelados)' : ''}`,
       };
     }),
 

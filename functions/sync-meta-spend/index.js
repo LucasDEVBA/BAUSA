@@ -59,6 +59,40 @@ const supaUpsert = async (pathWithConflict, body) => {
   if (r.statusCode >= 400) throw new Error(`Supabase upsert ${r.statusCode}: ${r.body}`);
 };
 
+// Heartbeat observável (TODO tick, mesmo com gasto 0): o monitor-health mede
+// a VIDA DO SYNC por aqui (check meta_frescor v2) — idade do gasto sozinha
+// confunde "campanhas pausadas" com "sync quebrado/token expirado". FAIL-OPEN:
+// telemetria nunca derruba o sync.
+const registrarTick = async (resultados) => {
+  try {
+    const postData = JSON.stringify({
+      valor: {
+        at: new Date().toISOString(),
+        meses: resultados.length,
+        linhas: resultados.reduce((s, r) => s + r.linhas, 0),
+      },
+    });
+    const r = await httpRequest(
+      `${SUPABASE_URL}/rest/v1/configuracoes_sistema?chave=eq.meta_sync_last_tick_at`,
+      {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Content-Type': 'application/json',
+          'Content-Profile': SUPABASE_SCHEMA,
+          'Content-Length': Buffer.byteLength(postData),
+          Prefer: 'return=minimal',
+        },
+      },
+      postData,
+    );
+    if (r.statusCode >= 400) log('WARN', 'meta_tick_save_failed', { statusCode: r.statusCode });
+  } catch (e) {
+    log('WARN', 'meta_tick_save_failed', { error: e.message });
+  }
+};
+
 // ─── Meta Ads Insights por campanha/dia (segue paginação) ───────────────
 const fetchInsightsCampanhaDia = async (since, until) => {
   const acct = String(META_AD_ACCOUNT_ID).startsWith('act_') ? META_AD_ACCOUNT_ID : `act_${META_AD_ACCOUNT_ID}`;
@@ -154,6 +188,8 @@ functions.http('syncMetaSpend', async (req, res) => {
       log('INFO', 'meta_sync_mes', { mes: mes01, linhas: linhas.length, totalSpend, totalImp, totalClk, currency });
       resultados.push({ mes: mes01, linhas: linhas.length, totalSpend, totalImp, totalClk, currency });
     }
+
+    await registrarTick(resultados);
 
     log('INFO', 'meta_sync_complete', { meses: resultados.length });
     return res.status(200).send({ success: true, resultados });
