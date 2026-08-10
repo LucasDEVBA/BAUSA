@@ -588,7 +588,8 @@ export async function fetchLeadsAguardandoAprovacao(): Promise<number> {
   const { count, error } = await supabase
     .from("form_submissions")
     .select("id", { count: "exact", head: true })
-    .eq("aprovacao_status", "pendente");
+    .eq("aprovacao_status", "pendente")
+    .in("qualification_classification", ["QUENTE", "MORNO"]);
 
   if (error) return 0;
   return count ?? 0;

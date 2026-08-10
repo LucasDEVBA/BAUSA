@@ -45,6 +45,7 @@ const FROM_EMAIL           = process.env.FROM_EMAIL || 'Bolsa Atleta USA <contat
 const DATA_SCHEMA = 'public';
 
 const QUALIFICACAO_TRAVADA_HORAS = 2;
+const APROVACAO_PENDENTE_HORAS = 24;  // lead esperando decisão do CEO além disso = alerta
 const FILA_FOLGA_HORAS = 4;        // além do intervalo configurado do scheduler
 const INTERVALO_DEFAULT_HORAS = 22;
 const RUNS_ERRO_JANELA_HORAS = 6;
@@ -461,6 +462,18 @@ const runChecks = async () => {
           `&aprovacao_status=eq.aprovado`,
       );
       return { ok: n === 0, valor: n, detalhe: `${n} lead(s) QUENTE/MORNO aprovados sem o WhatsApp inicial há ${limiteFila}h+` };
+    }),
+    checkSeguro('aprovacao_pendente_antiga', async () => {
+      // A fila de aprovação é retenção PROPOSITAL — mas pendente esquecido é
+      // SLA invisível (antes o lead saía em 22h automático). Alerta quando a
+      // decisão demora além do razoável.
+      const n = await contar(
+        `form_submissions?select=id&aprovacao_status=eq.pendente` +
+          `&qualification_classification=in.(QUENTE,MORNO)` +
+          `&qualified_at=lt.${encodeURIComponent(isoAtras(APROVACAO_PENDENTE_HORAS))}` +
+          `&qualified_at=gt.${encodeURIComponent(desdeJanela)}`,
+      );
+      return { ok: n === 0, valor: n, detalhe: `${n} lead(s) aguardando aprovação do CEO há ${APROVACAO_PENDENTE_HORAS}h+` };
     }),
     checkSeguro('runs_erro', async () => {
       const n = await contar(

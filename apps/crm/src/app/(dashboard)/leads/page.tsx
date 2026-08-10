@@ -201,9 +201,13 @@ export default async function LeadsPage() {
   ).length;
 
   const totalClass = quente + morno + frio || 1;
-  const pendentesAprovacao = (rows ?? []).filter(
-    (r) => (r as Record<string, unknown>).aprovacao_status === "pendente",
-  ).length;
+  const pendentesAprovacao = (rows ?? []).filter((r) => {
+    const row = r as Record<string, unknown>;
+    return (
+      row.aprovacao_status === "pendente" &&
+      (row.qualification_classification === "QUENTE" || row.qualification_classification === "MORNO")
+    );
+  }).length;
 
   return (
     <div className="space-y-5">

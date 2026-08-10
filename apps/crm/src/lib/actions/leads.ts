@@ -324,6 +324,9 @@ export async function listarLeadsPendentesAprovacao(): Promise<
     .from("form_submissions")
     .select(COLUNAS_FILA_APROVACAO)
     .eq("aprovacao_status", "pendente")
+    // Defesa em profundidade: um 'pendente' residual requalificado como FRIO
+    // não deve ser aprovável (a CF também limpa pendente→NULL nesse caso).
+    .in("qualification_classification", ["QUENTE", "MORNO"])
     .order("submitted_at", { ascending: true });
 
   if (error) {
@@ -333,10 +336,13 @@ export async function listarLeadsPendentesAprovacao(): Promise<
 }
 
 /**
- * Aprova um lead pendente: CAS no status (um único vencedor em caso de
- * duplo clique/aba dupla) e promoção ao CRM. Se a promoção falhar, o status
- * volta para 'pendente' para o CEO tentar de novo — nunca fica "aprovado
- * fantasma" (aprovado sem atleta/deal seria elegível ao WhatsApp sem pipeline).
+ * Aprova um lead pendente. ORDEM É SEGURANÇA (revisão adversarial 2026-08-10):
+ * promove PRIMEIRO (idempotente — UNIQUE em atletas.form_submission_id) e só
+ * então faz o CAS pendente→aprovado. Assim o estado "aprovado sem pipeline"
+ * (que tornaria o lead elegível ao WhatsApp sem deal) é impossível: se a
+ * promoção falha, o lead segue 'pendente' e nada é enviado. O pior caso é o
+ * inverso e inofensivo: atleta/deal criados com lead ainda pendente — o CEO
+ * clica de novo e o CAS completa.
  */
 export async function aprovarLead(formSubmissionId: string) {
   const papel = await getUserPapel();
@@ -347,7 +353,27 @@ export async function aprovarLead(formSubmissionId: string) {
   const supabase = await createAuditedSupabaseClient();
   const { data: userData } = await supabase.auth.getUser();
 
-  // CAS: só transiciona quem ainda está pendente
+  const { data: fs, error: fsError } = await supabase
+    .from("form_submissions")
+    .select("*")
+    .eq("id", formSubmissionId)
+    .single();
+
+  if (fsError || !fs) {
+    return { success: false, error: "Lead não encontrado." };
+  }
+  const fsRow = fs as Record<string, unknown>;
+  if (fsRow.aprovacao_status !== "pendente") {
+    return { success: false, error: "Lead não está mais pendente (já decidido em outra aba?)." };
+  }
+
+  // 1. Promoção primeiro (idempotente)
+  const promocao = await promoverLeadCore(supabase, fsRow);
+  if (!promocao.success) {
+    return { success: false, error: `Promoção falhou — lead segue na fila: ${promocao.error}` };
+  }
+
+  // 2. CAS: um único vencedor libera a elegibilidade
   const { data: casRows, error: casError } = await supabase
     .from("form_submissions")
     .update({
@@ -357,26 +383,29 @@ export async function aprovarLead(formSubmissionId: string) {
     })
     .eq("id", formSubmissionId)
     .eq("aprovacao_status", "pendente")
-    .select("*");
+    .select("id");
 
   if (casError) {
     return { success: false, error: `Erro ao aprovar: ${casError.message}` };
   }
   if (!casRows || casRows.length === 0) {
-    return { success: false, error: "Lead não está mais pendente (já decidido em outra aba?)." };
-  }
-
-  const fs = casRows[0] as Record<string, unknown>;
-  const promocao = await promoverLeadCore(supabase, fs);
-
-  if (!promocao.success) {
-    // Rollback do gate: melhor voltar à fila do que aprovado sem pipeline
-    await supabase
+    // Outra aba decidiu entre a leitura e o CAS. Se aprovou, tudo certo; se
+    // REPROVOU, o pipeline recém-criado contradiz a decisão — avisar o CEO.
+    const { data: atual } = await supabase
       .from("form_submissions")
-      .update({ aprovacao_status: "pendente", aprovacao_decidida_por: null, aprovacao_decidida_em: null })
+      .select("aprovacao_status")
       .eq("id", formSubmissionId)
-      .eq("aprovacao_status", "aprovado");
-    return { success: false, error: `Aprovação revertida — promoção falhou: ${promocao.error}` };
+      .maybeSingle();
+    if ((atual as { aprovacao_status?: string } | null)?.aprovacao_status === "aprovado") {
+      revalidatePath("/leads");
+      revalidatePath("/pipeline");
+      return { success: true, atletaId: promocao.atletaId, dealId: promocao.dealId };
+    }
+    return {
+      success: false,
+      error:
+        "Lead foi REPROVADO em outra aba durante a aprovação — o atleta/deal criados precisam de revisão manual no pipeline.",
+    };
   }
 
   revalidatePath("/leads");

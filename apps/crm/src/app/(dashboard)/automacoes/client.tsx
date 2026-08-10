@@ -708,7 +708,7 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     toggles: [{
       chave: "aprovacao_manual",
       label: "Exigir aprovação humana",
-      avisoDesligar: "Volta ao fluxo 100% automático: QUENTE/MORNO entram no pipeline e recebem WhatsApp sem revisão humana (comportamento anterior a 2026-08).",
+      avisoDesligar: "Volta ao fluxo 100% automático para leads NOVOS: QUENTE/MORNO entram no pipeline e recebem WhatsApp sem revisão humana. Leads JÁ pendentes continuam retidos na fila até serem aprovados/reprovados um a um.",
     }],
   },
   {

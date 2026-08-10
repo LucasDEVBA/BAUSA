@@ -142,17 +142,15 @@ function AprovacaoLeadsModal({
 
   const removerDaFila = useCallback(
     (id: string) => {
-      setLeads((prev) => {
-        const proxima = prev.filter((l) => l.id !== id);
-        setSelecionadoId((atual) => (atual === id ? (proxima[0]?.id ?? null) : atual));
-        return proxima;
-      });
+      const proxima = leads.filter((l) => l.id !== id);
+      setLeads(proxima);
+      setSelecionadoId((atual) => (atual === id ? (proxima[0]?.id ?? null) : atual));
       setReprovando(false);
       setMotivo("");
       onDecidido();
       router.refresh();
     },
-    [onDecidido, router],
+    [leads, onDecidido, router],
   );
 
   const handleAprovar = (lead: LeadPendenteAprovacao) => {
@@ -205,7 +203,7 @@ function AprovacaoLeadsModal({
                 </p>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fechar">
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fechar" autoFocus>
               <X />
             </Button>
           </div>
@@ -377,6 +375,7 @@ function AprovacaoLeadsModal({
                             value={motivo}
                             onChange={(e) => setMotivo(e.target.value)}
                             placeholder="Motivo da reprovação (opcional — fica no histórico)"
+                            aria-label="Motivo da reprovação"
                             rows={2}
                             className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-label-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           />
@@ -451,7 +450,9 @@ export function AprovacoesLeads({
   const onDecidido = useCallback(() => setPendentes((n) => Math.max(0, n - 1)), []);
 
   if (variant === "banner") {
-    if (pendentes === 0) return null;
+    // Modal aberto sobrevive à fila zerar (mostra o estado "Fila zerada" em
+    // vez de desmontar no meio da interação).
+    if (pendentes === 0 && !open) return null;
     return (
       <>
         <button

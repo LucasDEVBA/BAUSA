@@ -866,6 +866,31 @@ async function checkEntradaZero(supabase: Supabase): Promise<CheckResult> {
   };
 }
 
+async function checkAprovacaoPendenteAntiga(supabase: Supabase): Promise<CheckResult> {
+  const id = "aprovacao_pendente_antiga";
+  const titulo = "Fila de aprovação de leads";
+  const HORAS = 24;
+  const n = await contarSimples(
+    supabase,
+    (q) =>
+      q
+        .select("id", { count: "exact", head: true })
+        .eq("aprovacao_status", "pendente")
+        .in("qualification_classification", ["QUENTE", "MORNO"])
+        .lt("qualified_at", horasAtrasISO(HORAS)),
+    "form_submissions",
+  );
+  return {
+    id,
+    titulo,
+    status: n === 0 ? "ok" : "atencao",
+    resumo: n === 0
+      ? "Nenhum lead esperando aprovação além do prazo."
+      : `${n} lead(s) QUENTE/MORNO aguardando aprovação do CEO há ${HORAS}h+ — a fila retém pipeline E WhatsApp (abrir em Leads → Aprovações).`,
+    detalhes: [],
+  };
+}
+
 async function checkChatbotErro(supabase: Supabase): Promise<CheckResult> {
   const id = "chatbot_erro";
   const titulo = "Chatbot autônomo (erros)";
@@ -1154,6 +1179,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     seguro("calendar", "Google Calendar (detecção de reuniões)", () => checkCalendar(supabase)),
     // Paridade com o watchdog monitor-health v2 (mesma lógica, on-demand)
     seguro("entrada_zero", "Entrada de leads (formulário)", () => checkEntradaZero(supabase)),
+    seguro("aprovacao_pendente_antiga", "Fila de aprovação de leads", () => checkAprovacaoPendenteAntiga(supabase)),
     seguro("chatbot_erro", "Chatbot autônomo (erros)", () => checkChatbotErro(supabase)),
     seguro("remarketing_presa", "Re-marketing (campanha presa)", () => checkRemarketingPresa(supabase)),
     seguro("regua_cobranca", "Régua de cobrança", () => checkReguaCobranca(supabase)),

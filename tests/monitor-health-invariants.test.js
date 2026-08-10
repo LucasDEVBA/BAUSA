@@ -25,6 +25,8 @@ const tela = fs.readFileSync(TELA_PATH, "utf8");
 const CHAVES_CF = [
   "qualificacao_travada",
   "fila_whatsapp_presa",
+  // Gate humano (2026-08-10): pendente esquecido não pode virar SLA invisível
+  "aprovacao_pendente_antiga",
   "runs_erro",
   "zapi_conexao",
   "envios_sem_espelho",
@@ -111,6 +113,7 @@ test("monitor-health: auth fail-closed preservada", () => {
 test("paridade: os checks novos existem TAMBÉM na tela /observabilidade", () => {
   for (const token of [
     "entrada_zero",
+    "aprovacao_pendente_antiga",
     "chatbot_erro",
     "remarketing_presa",
     "regua_cobranca",

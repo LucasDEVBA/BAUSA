@@ -375,10 +375,10 @@ const updateSupabase = async (submissionId, email, athleteName, qualification, t
     last_qualification_error: null,
     timing_status: timingStatus,
   };
-  // Gate humano: QUENTE/MORNO nascem 'pendente' (fila de aprovação) ou
-  // 'aprovado' (toggle aprovacao_manual desligado). FRIO fica NULL — nunca
-  // entra na fila. Schedulers exigem aprovacao_status=eq.aprovado.
-  if (aprovacaoStatus) {
+  // Gate humano: undefined = NÃO tocar no campo (preserva decisão do CEO em
+  // requalificações — achado ALTO da revisão adversarial 2026-08-10); null =
+  // limpar (lead requalificado como FRIO sai da fila); string = setar.
+  if (aprovacaoStatus !== undefined) {
     patchBody.aprovacao_status = aprovacaoStatus;
   }
   // Só seta scheduled_followup_at quando aplicável (muito_cedo).
@@ -1159,11 +1159,24 @@ functions.http('qualifyLead', async (req, res) => {
     // e sem elegibilidade nos schedulers até o CEO/CTO aprovar no Engine.
     // Toggle aprovacao_manual desligado em /automacoes = fluxo antigo
     // (auto-promoção + 'aprovado' imediato). FRIO nunca entra na fila.
+    //
+    // REQUALIFICAÇÃO (retry-qualification / recuperação de órfão): uma decisão
+    // humana já tomada ('aprovado'/'reprovado') NUNCA é sobrescrita — senão um
+    // retry silenciosamente tiraria lead aprovado da elegibilidade ou
+    // ressuscitaria lead reprovado na fila (achado ALTO da revisão 2026-08-10).
     const aprovacaoManualDesativada = ativas.aprovacao_manual === false;
     const isQuenteOuMorno = qualification.classification === 'QUENTE' || qualification.classification === 'MORNO';
-    const aprovacaoStatus = isQuenteOuMorno
-      ? (aprovacaoManualDesativada ? 'aprovado' : 'pendente')
-      : null;
+    const statusAprovacaoAtual = data.aprovacao_status ?? null;
+    const decisaoHumanaTomada = statusAprovacaoAtual === 'aprovado' || statusAprovacaoAtual === 'reprovado';
+    let aprovacaoStatus; // undefined = não tocar; null = limpar; string = setar
+    if (isQuenteOuMorno) {
+      aprovacaoStatus = decisaoHumanaTomada
+        ? undefined
+        : (aprovacaoManualDesativada ? 'aprovado' : 'pendente');
+    } else {
+      // Requalificado como FRIO: se estava na fila, sai dela (NULL).
+      aprovacaoStatus = statusAprovacaoAtual === 'pendente' ? null : undefined;
+    }
 
     // 2. Atualizar Supabase (com timing_status + scheduled_followup_at se aplicável)
     try {
@@ -1206,9 +1219,18 @@ functions.http('qualifyLead', async (req, res) => {
     //    (somente com o toggle aprovacao_manual desligado — fluxo antigo).
     //    A promoção ao CRM do fluxo novo acontece na server action
     //    aprovarLead (Engine), no momento da decisão humana.
+    //    Requalificação: reprovado NUNCA promove; aprovado re-promove
+    //    idempotente (recupera aprovado cuja promoção falhou).
     let crmResult = null;
     if (SUPABASE_URL && SUPABASE_SERVICE_KEY && isQuenteOuMorno) {
-      if (aprovacaoManualDesativada) {
+      const podePromover = aprovacaoManualDesativada
+        ? statusAprovacaoAtual !== 'reprovado'
+        : statusAprovacaoAtual === 'aprovado';
+      const notificarFila = !aprovacaoManualDesativada
+        && aprovacaoStatus === 'pendente'
+        && statusAprovacaoAtual !== 'pendente';
+
+      if (podePromover) {
         try {
           crmResult = await autoPromoteToCRM(data, qualification.classification, qualification.reason, qualification.confidence, timingStatus);
           if (crmResult) {
@@ -1225,7 +1247,7 @@ functions.http('qualifyLead', async (req, res) => {
             athlete: data.athlete_name,
           });
         }
-      } else {
+      } else if (notificarFila) {
         try {
           await notifyAprovacaoPendente(data, qualification);
           log('INFO', 'aprovacao_pendente_criada', { email: data.email, athlete: data.athlete_name });
@@ -1245,11 +1267,14 @@ functions.http('qualifyLead', async (req, res) => {
       durationMs,
     });
 
+    // Status EFETIVO pós-request (undefined no patch = manteve o anterior)
+    const aprovacaoStatusEfetivo = aprovacaoStatus !== undefined ? aprovacaoStatus : statusAprovacaoAtual;
+
     return res.status(200).send({
       success: true,
       qualification,
-      aprovacaoStatus,
-      whatsappScheduled: qualification.classification !== 'FRIO' && aprovacaoManualDesativada,
+      aprovacaoStatus: aprovacaoStatusEfetivo,
+      whatsappScheduled: qualification.classification !== 'FRIO' && aprovacaoStatusEfetivo === 'aprovado',
       crmCreated: !!crmResult,
       crmAtletaId: crmResult?.atletaId || null,
       crmDealId: crmResult?.dealId || null,
