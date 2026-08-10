@@ -68,6 +68,18 @@ test("observabilidade: filas presas mantêm o invariante de timing_status", () =
   );
 });
 
+test("observabilidade: filas presas respeitam o gate de aprovação humana", () => {
+  // Paridade com os schedulers (2026-08-10): lead sem aprovacao_status=aprovado
+  // está retido de propósito — contá-lo como "fila presa" é falso-positivo.
+  // 3 filas gated: inicial (bucket A), timing alternativo (bucket B) e
+  // retomada de novembro. FU1/FU2 dispensam (whatsapp_sent_at implica aprovado).
+  const ocorrencias = src.match(/\.eq\("aprovacao_status", "aprovado"\)/g);
+  assert.ok(
+    ocorrencias && ocorrencias.length >= 3,
+    `filtro de aprovação deve aparecer nas filas inicial + timing alt + retomada — encontrado ${ocorrencias ? ocorrencias.length : 0}x`,
+  );
+});
+
 test("observabilidade: detecta anomalias de timing entre etapas", () => {
   assert.match(src, /followup_1_horas/, "prazo configurável do follow-up 1 sumiu");
   assert.match(src, /followup_2_horas/, "prazo configurável do follow-up 2 sumiu");

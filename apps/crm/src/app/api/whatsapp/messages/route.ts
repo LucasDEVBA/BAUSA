@@ -39,9 +39,56 @@ interface MirrorRow {
  * da Z-API via CF zapi-inbox) — a instância multi-device não fornece histórico
  * por API. Fallback: Z-API direto (tabela ausente pré-migration).
  */
+/** grupo_id no formato do banco (sem @g.us) — mesmo padrão da zapi-inbox. */
+const GROUP_ID_DB_RE = /^[\d-]{5,40}$/;
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const guard = await guardWhatsAppApi();
   if ("response" in guard) return guard.response;
+
+  // ── Thread de GRUPO (?groupId=) — espelho only, sem fallback Z-API ──
+  const groupIdRaw = (request.nextUrl.searchParams.get("groupId") ?? "").replace(/@g\.us$/i, "");
+  if (groupIdRaw) {
+    if (!GROUP_ID_DB_RE.test(groupIdRaw)) {
+      return NextResponse.json({ error: "grupo_invalido" }, { status: 400 });
+    }
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data, error } = await supabase
+        .from("whatsapp_mensagens")
+        .select(
+          "message_id, phone, from_me, texto, momment, tipo, media_url, mime_type, media_filename, participante_nome",
+        )
+        .eq("grupo_id", groupIdRaw)
+        .eq("is_grupo", true)
+        .order("momment", { ascending: false, nullsFirst: false })
+        .limit(MIRROR_LIMIT);
+
+      if (error) {
+        logZapi("warn", "group_messages_mirror_error", { code: error.code ?? "unknown" });
+        return NextResponse.json({ error: "zapi_erro" }, { status: 502 });
+      }
+
+      const messages: EspelhoMessage[] = ((data as (MirrorRow & { participante_nome: string | null })[] | null) ?? [])
+        .map((row) => ({
+          id: row.message_id,
+          phone: row.phone,
+          fromMe: row.from_me,
+          text: row.texto,
+          timestamp: row.momment ? Date.parse(row.momment) : null,
+          tipo: (row.tipo ?? "text") as MensagemTipo,
+          mediaUrl: row.media_url,
+          mimeType: row.mime_type,
+          fileName: row.media_filename,
+          senderName: row.participante_nome,
+        }))
+        .reverse();
+      logZapi("info", "group_messages_mirror_listed", { count: messages.length });
+      return NextResponse.json({ messages, mirror: true });
+    } catch {
+      return NextResponse.json({ error: "zapi_erro" }, { status: 502 });
+    }
+  }
 
   const phone = cleanPhone(request.nextUrl.searchParams.get("phone") ?? "");
   if (!isValidPhone(phone)) {

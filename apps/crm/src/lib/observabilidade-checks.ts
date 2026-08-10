@@ -566,6 +566,9 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .lt("qualified_at", corteInicial)
       .is("whatsapp_sent_at", null)
       .or("timing_status.is.null,timing_status.eq.ideal")
+      // Paridade com o scheduler: sem aprovação humana não é fila presa —
+      // o lead está retido de propósito pelo gate do CEO.
+      .eq("aprovacao_status", "aprovado")
       .order("qualified_at", { ascending: true })
       .limit(30),
     supabase
@@ -576,6 +579,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .lt("qualified_at", corteAlt)
       .is("whatsapp_sent_at", null)
       .in("timing_status", ["muito_cedo", "tarde_demais"])
+      .eq("aprovacao_status", "aprovado")
       .order("qualified_at", { ascending: true })
       .limit(30),
     supabase
@@ -607,6 +611,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .eq("timing_status", "muito_cedo")
       .lte("scheduled_followup_at", agora)
       .is("scheduled_followup_sent_at", null)
+      .eq("aprovacao_status", "aprovado")
       .limit(30),
   ]);
 
@@ -830,7 +835,8 @@ const CHATBOT_ERRO_MINIMO = 3;
 const REMARKETING_PRESA_HORAS = 2;
 const REGUA_FOLGA_DIAS = 2;
 const NPS_PRAZO_DIAS = 181;
-const META_FRESCOR_DIAS = 3;
+const META_FRESCOR_DIAS = 3; // idade do GASTO — sinal secundário, atenção SÓ na tela
+const META_TICK_MAX_HORAS = 26; // heartbeat do sync (job diário 06h + folga, padrão billing)
 const TRANSCRICAO_FOLGA_HORAS = 24;
 const RUNS_PRESOS_HORAS = 2;
 
@@ -857,6 +863,31 @@ async function checkEntradaZero(supabase: Supabase): Promise<CheckResult> {
     resumo: n > 0
       ? `${n} submissão(ões) nas últimas ${ENTRADA_ZERO_HORAS}h.`
       : `ZERO submissões em ${ENTRADA_ZERO_HORAS}h — formulário/funil de entrada possivelmente parado (mídia queimando sem lead).`,
+    detalhes: [],
+  };
+}
+
+async function checkAprovacaoPendenteAntiga(supabase: Supabase): Promise<CheckResult> {
+  const id = "aprovacao_pendente_antiga";
+  const titulo = "Fila de aprovação de leads";
+  const HORAS = 24;
+  const n = await contarSimples(
+    supabase,
+    (q) =>
+      q
+        .select("id", { count: "exact", head: true })
+        .eq("aprovacao_status", "pendente")
+        .in("qualification_classification", ["QUENTE", "MORNO"])
+        .lt("qualified_at", horasAtrasISO(HORAS)),
+    "form_submissions",
+  );
+  return {
+    id,
+    titulo,
+    status: n === 0 ? "ok" : "atencao",
+    resumo: n === 0
+      ? "Nenhum lead esperando aprovação além do prazo."
+      : `${n} lead(s) QUENTE/MORNO aguardando aprovação do CEO há ${HORAS}h+ — a fila retém pipeline E WhatsApp (abrir em Leads → Aprovações).`,
     detalhes: [],
   };
 }
@@ -945,18 +976,52 @@ async function checkExperienciaNps(supabase: Supabase): Promise<CheckResult> {
 async function checkMetaFrescor(supabase: Supabase): Promise<CheckResult> {
   const id = "meta_frescor";
   const titulo = "CAC Meta (frescor do sync)";
-  const { data, error } = await supabase.from("meta_ads_campanha").select("data").order("data", { ascending: false }).limit(1);
-  if (error) throw new Error(`meta_ads_campanha: ${error.message}`);
-  if (!data || data.length === 0) {
-    return { id, titulo, status: "info", resumo: "Sem dados de Meta Ads ainda (config pendente) — check pulado.", detalhes: [] };
+
+  // Sinal PRIMÁRIO: heartbeat do sync (meta_sync_last_tick_at, gravado pela
+  // CF sync-meta-spend em TODO tick, mesmo com gasto 0). Idade do gasto é
+  // sinal SECUNDÁRIO informativo: campanhas pausadas ≠ sync quebrado — o
+  // check antigo confundia os dois ("token expirado?" com sync perfeito).
+  const tick = await lerConfigValor(supabase, "meta_sync_last_tick_at");
+
+  // Sinal secundário NUNCA derruba o primário: erro aqui degrada o detalhe
+  // (regressão de grant/RLS na tabela de gasto não pode cegar o heartbeat).
+  let gastoDias: number | null = null;
+  let detalheGasto: string;
+  try {
+    const { data, error } = await supabase.from("meta_ads_campanha").select("data").order("data", { ascending: false }).limit(1);
+    if (error) throw new Error(error.message);
+    gastoDias = data && data.length > 0 ? Math.floor((Date.now() - new Date(String(data[0].data)).getTime()) / 86_400_000) : null;
+    detalheGasto =
+      gastoDias === null
+        ? "Sem linhas de gasto ainda."
+        : `Último GASTO registrado há ${gastoDias}d${gastoDias > META_FRESCOR_DIAS ? " — campanhas pausadas ou sem investimento (informativo; NÃO é falha do sync)." : "."}`;
+  } catch (e) {
+    detalheGasto = `Idade do gasto indisponível (${e instanceof Error ? e.message : "erro na consulta"}) — não afeta o heartbeat.`;
   }
-  const idadeDias = Math.floor((Date.now() - new Date(String(data[0].data)).getTime()) / 86_400_000);
+
+  if (typeof tick.at !== "string") {
+    return { id, titulo, status: "info", resumo: "Sync Meta nunca tickou (config pendente) — check pulado.", detalhes: [detalheGasto] };
+  }
+  const horas = Math.floor((Date.now() - new Date(tick.at).getTime()) / 3_600_000);
+  // Fail-closed como a CF: heartbeat ilegível (NaN) = crítico, nunca "vivo há NaNh"
+  if (!Number.isFinite(horas)) {
+    return { id, titulo, status: "critico", resumo: "Heartbeat do sync Meta ILEGÍVEL (meta_sync_last_tick_at.at inválido).", detalhes: [detalheGasto] };
+  }
+  if (horas > META_TICK_MAX_HORAS) {
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: `Sync Meta SEM TICK há ${horas}h — job parado ou token inválido (CAC/DRE congelados).`,
+      detalhes: [detalheGasto],
+    };
+  }
   return {
     id,
     titulo,
-    status: idadeDias <= META_FRESCOR_DIAS ? "ok" : "atencao",
-    resumo: `Último gasto Meta sincronizado há ${idadeDias}d ${idadeDias > META_FRESCOR_DIAS ? "— CAC/DRE CONGELADOS (token expirado?)" : "(fresco)."}`,
-    detalhes: [],
+    status: gastoDias !== null && gastoDias > META_FRESCOR_DIAS ? "atencao" : "ok",
+    resumo: `Sync Meta vivo (último tick há ${horas}h).`,
+    detalhes: [detalheGasto],
   };
 }
 
@@ -1149,6 +1214,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     seguro("calendar", "Google Calendar (detecção de reuniões)", () => checkCalendar(supabase)),
     // Paridade com o watchdog monitor-health v2 (mesma lógica, on-demand)
     seguro("entrada_zero", "Entrada de leads (formulário)", () => checkEntradaZero(supabase)),
+    seguro("aprovacao_pendente_antiga", "Fila de aprovação de leads", () => checkAprovacaoPendenteAntiga(supabase)),
     seguro("chatbot_erro", "Chatbot autônomo (erros)", () => checkChatbotErro(supabase)),
     seguro("remarketing_presa", "Re-marketing (campanha presa)", () => checkRemarketingPresa(supabase)),
     seguro("regua_cobranca", "Régua de cobrança", () => checkReguaCobranca(supabase)),

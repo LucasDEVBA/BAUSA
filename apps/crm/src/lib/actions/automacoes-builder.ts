@@ -716,6 +716,7 @@ const ativasSchema = z
     followup_2: z.boolean().optional(),
     scheduled_return: z.boolean().optional(),
     qualificacao: z.boolean().optional(),
+    aprovacao_manual: z.boolean().optional(),
     email_confirmacao: z.boolean().optional(),
     email_interno: z.boolean().optional(),
     confirmacao_reuniao: z.boolean().optional(),

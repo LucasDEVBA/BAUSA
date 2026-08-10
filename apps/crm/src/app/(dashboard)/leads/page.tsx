@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Flame, Thermometer, Snowflake, Clock, Users } from "lucide-react";
 import { LeadsTable } from "@/components/leads/LeadsTable";
 import { LeadsExportButton } from "@/components/leads/LeadsExportButton";
+import { AprovacoesLeads } from "@/components/leads/AprovacoesLeads";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { type Lead, type LeadClassification } from "@/types/lead";
 import { PageHeader, StatCard } from "@/components/ui";
@@ -199,6 +201,13 @@ export default async function LeadsPage() {
   ).length;
 
   const totalClass = quente + morno + frio || 1;
+  const pendentesAprovacao = (rows ?? []).filter((r) => {
+    const row = r as Record<string, unknown>;
+    return (
+      row.aprovacao_status === "pendente" &&
+      (row.qualification_classification === "QUENTE" || row.qualification_classification === "MORNO")
+    );
+  }).length;
 
   return (
     <div className="space-y-5">
@@ -208,6 +217,11 @@ export default async function LeadsPage() {
         description={`${leads.length} leads recebidos${timingAlternativo > 0 ? ` · ${timingAlternativo} fora da janela ideal` : ""}`}
         actions={<LeadsExportButton leads={leads} />}
       />
+
+      {/* Fila de aprovação manual — banner acionável (some quando zerada) */}
+      <Suspense fallback={null}>
+        <AprovacoesLeads count={pendentesAprovacao} variant="banner" />
+      </Suspense>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

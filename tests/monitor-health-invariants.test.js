@@ -25,6 +25,8 @@ const tela = fs.readFileSync(TELA_PATH, "utf8");
 const CHAVES_CF = [
   "qualificacao_travada",
   "fila_whatsapp_presa",
+  // Gate humano (2026-08-10): pendente esquecido não pode virar SLA invisível
+  "aprovacao_pendente_antiga",
   "runs_erro",
   "zapi_conexao",
   "envios_sem_espelho",
@@ -111,6 +113,7 @@ test("monitor-health: auth fail-closed preservada", () => {
 test("paridade: os checks novos existem TAMBÉM na tela /observabilidade", () => {
   for (const token of [
     "entrada_zero",
+    "aprovacao_pendente_antiga",
     "chatbot_erro",
     "remarketing_presa",
     "regua_cobranca",
@@ -148,6 +151,37 @@ test("F2: escritores de sinal presentes nas CFs (fail-open)", () => {
 
   const billing = fs.readFileSync(path.join(__dirname, "..", "functions/billing-reminders/index.js"), "utf8");
   assert.match(billing, /billing_last_tick_at/, "heartbeat da régua sumiu do billing-reminders");
+
+  const metaSync = fs.readFileSync(path.join(__dirname, "..", "functions/sync-meta-spend/index.js"), "utf8");
+  assert.match(metaSync, /meta_sync_last_tick_at/, "heartbeat do sync Meta sumiu do sync-meta-spend");
+  assert.match(metaSync, /meta_tick_save_failed/, "fail-open do heartbeat Meta sumiu (telemetria não pode derrubar o sync)");
+});
+
+test("meta_frescor v2: alerta automático mede a VIDA DO SYNC, nunca a idade do gasto", () => {
+  // Contexto (2026-08-10): campanhas pausadas = gasto 0 = MAX(data) velho com
+  // sync PERFEITO. O check antigo alertava "token expirado?" — enganoso, e por
+  // isso foi suprimido. O v2 usa o heartbeat meta_sync_last_tick_at.
+  assert.match(cf, /meta_sync_last_tick_at/, "CF meta_frescor deixou de ler o heartbeat do sync");
+  assert.match(tela, /meta_sync_last_tick_at/, "tela meta_frescor deixou de ler o heartbeat do sync");
+
+  // Slice cirúrgico do check na CF (do checkSeguro('meta_frescor') até o próximo checkSeguro)
+  const inicio = cf.indexOf("checkSeguro('meta_frescor'");
+  assert.ok(inicio >= 0, "check meta_frescor sumiu da CF");
+  const fim = cf.indexOf("checkSeguro(", inicio + 1);
+  const bloco = cf.slice(inicio, fim > inicio ? fim : undefined);
+  assert.doesNotMatch(
+    bloco,
+    /meta_ads_campanha/,
+    "o alerta automático meta_frescor voltou a consultar a idade do GASTO (meta_ads_campanha) — confunde campanhas pausadas com sync quebrado",
+  );
+
+  // Na tela a idade do gasto é permitida como sinal SECUNDÁRIO (atenção, nunca crítico)
+  const iniTela = tela.indexOf("function checkMetaFrescor");
+  assert.ok(iniTela >= 0, "checkMetaFrescor sumiu da tela");
+  const fimTela = tela.indexOf("async function", iniTela + 1);
+  const blocoTela = tela.slice(iniTela, fimTela > iniTela ? fimTela : undefined);
+  assert.match(blocoTela, /meta_ads_campanha/, "tela perdeu o sinal secundário de idade do gasto");
+  assert.match(blocoTela, /META_TICK_MAX_HORAS/, "tela perdeu o limiar do heartbeat");
 });
 
 test("F2: migration dos sinais existe (coluna + backfill + seeds)", () => {
@@ -182,4 +216,25 @@ test("fetchMonitorData: thresholds configuráveis + filtro de timing (anti falso
     `filtro de timing deve estar nas 4 filas (inicial, FU1, FU2, trancados) — encontrado ${ocorrenciasTiming ? ocorrenciasTiming.length : 0}x`,
   );
   assert.doesNotMatch(queries, /horasAtras\(22\)|horasAtras\(48\)/, "threshold hardcoded voltou ao fetchMonitorData");
+  // Paridade com o gate de aprovação (2026-08-10): fila inicial + trancados
+  // só contam leads aprovados pelo CEO — pendente/reprovado é retenção
+  // proposital, não fila presa.
+  const ocorrenciasAprovacao = queries.match(/\.eq\("aprovacao_status", "aprovado"\)/g);
+  assert.ok(
+    ocorrenciasAprovacao && ocorrenciasAprovacao.length >= 2,
+    `filtro de aprovação deve estar nas filas inicial + trancados do fetchMonitorData — encontrado ${ocorrenciasAprovacao ? ocorrenciasAprovacao.length : 0}x`,
+  );
+});
+
+test("monitor-health: fila_whatsapp_presa respeita o gate de aprovação humana", () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, "..", "functions/monitor-health/index.js"),
+    "utf8",
+  );
+  assert.ok(
+    src.includes("aprovacao_status=eq.aprovado"),
+    "INVARIANTE VIOLADO: o check fila_whatsapp_presa do monitor-health deve " +
+      "filtrar aprovacao_status=eq.aprovado (paridade com o scheduler) — sem " +
+      "isso, leads aguardando decisão do CEO disparam alerta falso de fila presa.",
+  );
 });

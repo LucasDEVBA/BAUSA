@@ -12,8 +12,10 @@ const MESSAGE_MAX_LENGTH = 4096;
 const FILENAME_MAX = 255;
 const URL_MAX = 2048;
 
-/** grupo_id da Z-API (ex.: 120363...@g.us) — dígitos/hífen + sufixo @g.us. */
-const GROUP_ID_RE = /^[\d-]{5,40}@g\.us$/i;
+/** grupo_id da Z-API — dígitos/hífen, com OU sem o sufixo @g.us. O banco
+ *  (whatsapp_grupos.grupo_id) guarda SEM sufixo (cleanGroupId da zapi-inbox);
+ *  a Z-API endereça COM. A rota aceita ambos e normaliza cada ponta. */
+const GROUP_ID_RE = /^[\d-]{5,40}(@g\.us)?$/i;
 
 const groupTextSchema = z.object({
   groupId: z.string().trim().regex(GROUP_ID_RE, "grupo_invalido"),
@@ -41,15 +43,17 @@ async function handleGroupSend(body: Record<string, unknown>): Promise<NextRespo
     );
   }
   const { groupId, message } = parsed.data;
+  // Banco guarda o id SEM @g.us; a Z-API endereça COM. Normaliza cada ponta.
+  const groupCore = groupId.replace(/@g\.us$/i, "");
+  const groupJid = `${groupCore}@g.us`;
 
-  const guard = await guardWhatsAppGrupoEnvio(groupId);
+  const guard = await guardWhatsAppGrupoEnvio(groupCore);
   if ("response" in guard) return guard.response;
 
   try {
-    // phone = grupo_id CRU (sem normalização) — a Z-API endereça grupo pelo jid.
     const result = await zapiRequest(guard.config, "/send-text", {
       method: "POST",
-      body: { phone: groupId, message },
+      body: { phone: groupJid, message },
     });
 
     if (!result.ok) {

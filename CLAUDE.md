@@ -166,9 +166,18 @@ console.log({ level: 'info', action: 'qualify_lead', submissionId, classificatio
 - `scheduled_followup_sent_at` (timestamptz) — quando o `scheduled_return` foi enviado
 - Enum `status_deal` ganhou valor `aguardando_timing` (entre `lead` e `reuniao_marcada`)
 
+**Colunas de aprovação manual (migration `20260810193531`):**
+- `aprovacao_status` — `pendente` | `aprovado` | `reprovado` (NULL = FRIO ou pré-feature)
+- `aprovacao_decidida_por` (uuid), `aprovacao_decidida_em` (timestamptz), `aprovacao_motivo` (text)
+- **Gate humano (2026-08-10):** QUENTE/MORNO nascem `pendente` na CF `qualify-lead` (sem auto-promoção)
+  e só entram no pipeline + outreach após `aprovarLead` no Engine (fila no War Room/Leads).
+  Reprovado = sem pipeline, sem mensagens. Toggle `aprovacao_manual` em /automacoes
+  (desligado = fluxo 100% automático antigo). FRIO nunca entra na fila.
+
 > ⚠️ **INVARIANTE CRÍTICO (incidentes 2026-05-15/18):** todo scheduler de
 > elegibilidade DEVE filtrar `qualification_classification IN (QUENTE,MORNO)`
-> **E** o `timing_status` correto. O guard `tests/scheduler-eligibility.test.js`
+> **E** o `timing_status` correto **E** (desde 2026-08-10) `aprovacao_status = 'aprovado'`
+> nos buckets de outreach inicial/retomada. O guard `tests/scheduler-eligibility.test.js`
 > (job CI `Scheduler Eligibility Invariants`) bloqueia o merge se um filtro sumir.
 > Fluxo `ideal` ≠ fluxo `muito_cedo`/`tarde_demais` — nunca devem se misturar.
 
@@ -179,6 +188,7 @@ AND qualified_at IS NOT NULL
 AND qualified_at < NOW() - INTERVAL '22 hours'
 AND whatsapp_sent_at IS NULL
 AND (timing_status IS NULL OR timing_status = 'ideal')   -- template: initial
+AND aprovacao_status = 'aprovado'                        -- gate humano
 ```
 
 **Regra de negócio — fila WhatsApp — Bucket B timing alternativo (48h):**
@@ -187,6 +197,7 @@ qualification_classification IN ('QUENTE', 'MORNO')   -- FRIO nunca recebe
 AND qualified_at < NOW() - INTERVAL '48 hours'
 AND whatsapp_sent_at IS NULL
 AND timing_status IN ('muito_cedo', 'tarde_demais')
+AND aprovacao_status = 'aprovado'                     -- gate humano
 -- muito_cedo  → template early_potential + deal etapa aguardando_timing
 -- tarde_demais → template late_timing  + deal etapa perdido (motivo_perda=timing)
 ```
@@ -215,8 +226,12 @@ AND (timing_status IS NULL OR timing_status = 'ideal')
 timing_status = 'muito_cedo'
 AND scheduled_followup_at <= NOW()
 AND scheduled_followup_sent_at IS NULL
+AND aprovacao_status = 'aprovado'   -- gate humano
 -- cron process-scheduled-followups-daily → template scheduled_return
 ```
+
+> Follow-ups 1/2 não filtram `aprovacao_status` diretamente: exigem
+> `whatsapp_sent_at IS NOT NULL`, que só acontece após aprovação.
 
 ---
 
@@ -407,6 +422,7 @@ Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test
 - `GOOGLE_CALENDAR_ID` — Calendar do CEO
 - `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — API route /agendar (server-side)
 - `SEND_WHATSAPP_URL` + `WEBHOOK_SECRET` — Envio WhatsApp via Cloud Function
+- `MEETING_TRANSCRIPTS_URL` — CF meeting-transcripts (transcrição sob demanda na aba Reunião; sem ela a UI degrada com erro claro)
 - `CEO_WHATSAPP` — Número do CEO para notificações (`5571991461565`)
 
 ### Cloud Functions (GCP)
@@ -611,6 +627,17 @@ O CRM usa **light theme** com design tokens em `app/crm.css`:
 ---
 
 ## Pendências Conhecidas (2026-04)
+
+### ⚠️ Rearmar o alerta meta_frescor (pós-vai-pra-prod do meta_frescor v2)
+O check `meta_frescor` está **suprimido** em `public.configuracoes_sistema.monitor_checks_desativados`
+(2026-08-10 — o check antigo media idade do GASTO e alertava falso com campanhas pausadas).
+O v2 (heartbeat `meta_sync_last_tick_at`) corrige o diagnóstico, mas **PRD só ganha o check novo
+no vai-pra-prod**. Sequência OBRIGATÓRIA para rearmar (fora de ordem = alerta falso OU cobertura zero silenciosa):
+1. Merge em develop (UAT) → 2. vai-pra-prod (main) → 3. rodar/aguardar o job `sync-meta-spend-job` (06h BRT)
+→ 4. **confirmar o tick**: tela `/observabilidade` mostrando "Sync Meta vivo" (ou `valor` não-vazio em
+`public.configuracoes_sistema` chave `meta_sync_last_tick_at`) → 5. SÓ ENTÃO remover `meta_frescor`
+de `monitor_checks_desativados`. Remover antes do passo 4 = se o heartbeat não estiver gravando,
+o check fica "pulado" para sempre (cobertura zero achando que armou).
 
 ### Configuração manual (pós-código)
 - [x] GitHub Environments `prd`/`uat` com **branch policy** (2026-05-18): `prd` só aceita deploy de `main`, `uat` só de `develop`. Decisão consciente: **sem required reviewers** (repo solo — gate manual atrapalha hotfix; controle de qualidade fica no CI + review de PR + UAT). Revisar se o time crescer (revisor ≠ autor).

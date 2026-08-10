@@ -157,6 +157,9 @@ export async function fetchMonitorData(): Promise<MonitorData> {
       // INVARIANTE: fluxo ideal ≠ timing alternativo — sem este filtro, lead
       // muito_cedo legítimo (48h) aparecia como "na fila" (falso-positivo).
       .or("timing_status.is.null,timing_status.eq.ideal")
+      // Paridade com o scheduler: lead aguardando aprovação do CEO não está
+      // "na fila" — está retido de propósito pelo gate humano.
+      .eq("aprovacao_status", "aprovado")
       .order("qualified_at", { ascending: true })
       .limit(50),
 
@@ -196,6 +199,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
       .lt("qualified_at", hTrancado)
       .is("whatsapp_sent_at", null)
       .or("timing_status.is.null,timing_status.eq.ideal")
+      .eq("aprovacao_status", "aprovado")
       .order("qualified_at", { ascending: true })
       .limit(50),
 

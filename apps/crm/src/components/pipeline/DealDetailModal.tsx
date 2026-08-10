@@ -68,6 +68,10 @@ import {
   relinkReuniaoDeal,
   type ReuniaoCalendar,
 } from "@/lib/actions/reunioes-relink";
+import {
+  obterTranscricaoEvento,
+  type ReuniaoTranscricao,
+} from "@/lib/actions/transcricoes";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
@@ -554,7 +558,11 @@ export function DealDetailModal({
               )}
               {section === "reuniao" && <ReuniaoSection deal={deal} />}
               {section === "conversa" && (
-                <ConversaLeadPanel telefone={deal.whatsapp} />
+                <ConversaLeadPanel
+                  telefone={deal.whatsapp}
+                  atletaId={deal.atleta_id}
+                  formSubmissionId={deal.lead_id ?? undefined}
+                />
               )}
               {section === "comunicacoes" && <ComunicacoesSection deal={deal} />}
               {section === "atribuicao" && <AtribuicaoSection deal={deal} />}
@@ -1080,12 +1088,21 @@ function ReuniaoSection({ deal }: { deal: Deal }) {
  * permite religar o deal ao evento correto — cobre remarcações passadas em
  * que o deal ficou preso no evento antigo (transcrição no evento novo).
  */
+type TranscricaoEventoEstado =
+  | { estado: "carregando" }
+  | { estado: "ok"; data: ReuniaoTranscricao }
+  | { estado: "nao_disponivel" }
+  | { estado: "erro"; erro: string };
+
 function ReunioesCalendarBlock({ deal }: { deal: Deal }) {
   const [eventos, setEventos] = useState<ReuniaoCalendar[] | null>(null);
   const [atual, setAtual] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // Transcrição sob demanda por evento (clique no selo abre/puxa)
+  const [transcricaoAberta, setTranscricaoAberta] = useState<string | null>(null);
+  const [transcricoes, setTranscricoes] = useState<Record<string, TranscricaoEventoEstado>>({});
 
   const buscar = async () => {
     setCarregando(true);
@@ -1105,6 +1122,12 @@ function ReunioesCalendarBlock({ deal }: { deal: Deal }) {
     }
   };
 
+  // Auto-carrega ao abrir a aba — todas as reuniões do lead, sem clique.
+  useEffect(() => {
+    void buscar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deal.id]);
+
   const vincular = (ev: ReuniaoCalendar) => {
     startTransition(async () => {
       const r = await relinkReuniaoDeal(deal.id, {
@@ -1116,13 +1139,48 @@ function ReunioesCalendarBlock({ deal }: { deal: Deal }) {
       if (r.success) {
         setAtual(ev.id);
         toast.success("Reunião vinculada ao deal", {
-          description:
-            "A transcrição será procurada neste evento no próximo ciclo (a cada 2h).",
+          description: "Data, link e status do deal agora seguem este evento.",
         });
       } else {
         toast.error(r.error);
       }
     });
+  };
+
+  const toggleTranscricao = (ev: ReuniaoCalendar) => {
+    if (transcricaoAberta === ev.id) {
+      setTranscricaoAberta(null);
+      return;
+    }
+    setTranscricaoAberta(ev.id);
+
+    const jaCarregada = transcricoes[ev.id];
+    if (jaCarregada && jaCarregada.estado !== "erro") return;
+
+    setTranscricoes((prev) => ({ ...prev, [ev.id]: { estado: "carregando" } }));
+    void (async () => {
+      try {
+        const r = await obterTranscricaoEvento({
+          eventId: ev.id,
+          dealId: deal.id,
+          formSubmissionId: deal.lead_id ?? undefined,
+        });
+        setTranscricoes((prev) => ({
+          ...prev,
+          [ev.id]:
+            r.success && r.status === "ok"
+              ? { estado: "ok", data: r.transcricao }
+              : r.success
+                ? { estado: "nao_disponivel" }
+                : { estado: "erro", erro: r.error },
+        }));
+      } catch {
+        setTranscricoes((prev) => ({
+          ...prev,
+          [ev.id]: { estado: "erro", erro: "Falha ao puxar a transcrição." },
+        }));
+      }
+    })();
   };
 
   return (
@@ -1165,47 +1223,116 @@ function ReunioesCalendarBlock({ deal }: { deal: Deal }) {
               {eventos.map((ev) => {
                 const vinculada = ev.id === atual;
                 const cancelada = ev.status === "cancelled";
+                const aberta = transcricaoAberta === ev.id;
+                const trans = transcricoes[ev.id];
                 return (
-                  <li key={ev.id} className="flex items-center gap-2 px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span
-                          className={cn(
-                            "text-xs font-medium tabular-nums",
-                            cancelada ? "text-muted-foreground line-through" : "text-foreground",
+                  <li key={ev.id}>
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "text-xs font-medium tabular-nums",
+                              cancelada ? "text-muted-foreground line-through" : "text-foreground",
+                            )}
+                          >
+                            {ev.start ? fmtDateTime(ev.start) : "sem data"}
+                          </span>
+                          {cancelada && (
+                            <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
+                              Cancelada
+                            </span>
                           )}
+                          {ev.temTranscricaoAnexada && (
+                            <button
+                              type="button"
+                              onClick={() => toggleTranscricao(ev)}
+                              aria-expanded={aberta}
+                              className={cn(
+                                "flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold transition-colors",
+                                aberta
+                                  ? "bg-sys-green text-white"
+                                  : "bg-sys-green/12 text-sys-green hover:bg-sys-green/20",
+                              )}
+                            >
+                              {trans?.estado === "carregando" ? (
+                                <Loader2 className="size-2.5 animate-spin" />
+                              ) : (
+                                <FileText className="size-2.5" />
+                              )}
+                              Transcrição
+                            </button>
+                          )}
+                          {vinculada && (
+                            <span className="flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                              <CheckCircle2 className="size-2.5" />
+                              Vinculada
+                            </span>
+                          )}
+                        </div>
+                        <p className="truncate text-[10px] text-muted-foreground">{ev.summary}</p>
+                      </div>
+                      {!vinculada && !cancelada && (
+                        <button
+                          type="button"
+                          onClick={() => vincular(ev)}
+                          disabled={isPending}
+                          className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
                         >
-                          {ev.start ? fmtDateTime(ev.start) : "sem data"}
-                        </span>
-                        {cancelada && (
-                          <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
-                            Cancelada
-                          </span>
-                        )}
-                        {ev.temTranscricaoAnexada && (
-                          <span className="flex items-center gap-0.5 rounded-full bg-sys-green/12 px-1.5 py-0.5 text-[9px] font-semibold text-sys-green">
-                            <FileText className="size-2.5" />
-                            Transcrição
-                          </span>
-                        )}
-                        {vinculada && (
-                          <span className="flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
-                            <CheckCircle2 className="size-2.5" />
-                            Vinculada
-                          </span>
+                          Vincular
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Transcrição sob demanda — expande abaixo da linha */}
+                    {aberta && (
+                      <div className="border-t border-border/40 bg-secondary/40 px-3 py-2.5">
+                        {!trans || trans.estado === "carregando" ? (
+                          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <Loader2 className="size-3 animate-spin" />
+                            Puxando a transcrição desta reunião…
+                          </p>
+                        ) : trans.estado === "nao_disponivel" ? (
+                          <p className="text-[11px] text-muted-foreground">
+                            A transcrição ainda não está pronta no Google (o Meet leva alguns
+                            minutos para anexar o Doc). Tente de novo em instantes.
+                          </p>
+                        ) : trans.estado === "erro" ? (
+                          <p className="text-[11px] text-sys-red">{trans.erro}</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {trans.data.resumo && (
+                              <p className="text-[11px] leading-relaxed text-foreground">
+                                {trans.data.resumo}
+                              </p>
+                            )}
+                            {trans.data.transcript_text && (
+                              <details className="group">
+                                <summary className="cursor-pointer text-[10px] font-semibold text-primary hover:underline">
+                                  Ver transcrição completa
+                                </summary>
+                                <pre className="mt-1.5 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md border border-border/60 bg-card p-2 text-[10px] leading-relaxed text-muted-foreground">
+                                  {trans.data.transcript_text}
+                                </pre>
+                              </details>
+                            )}
+                            <div className="flex items-center gap-3 text-[10px] text-label-tertiary">
+                              <span>Capturada {fmtDateTime(trans.data.capturada_at)}</span>
+                              {trans.data.doc_url && (
+                                <a
+                                  href={trans.data.doc_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-0.5 font-medium text-primary hover:underline"
+                                >
+                                  Abrir no Google Docs
+                                  <ExternalLink className="size-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
-                      <p className="truncate text-[10px] text-muted-foreground">{ev.summary}</p>
-                    </div>
-                    {!vinculada && !cancelada && (
-                      <button
-                        type="button"
-                        onClick={() => vincular(ev)}
-                        disabled={isPending}
-                        className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
-                      >
-                        Vincular
-                      </button>
                     )}
                   </li>
                 );

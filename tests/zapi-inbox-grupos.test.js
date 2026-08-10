@@ -93,6 +93,35 @@ test('zapi-inbox: log de grupo não vaza PII (não loga texto)', () => {
   );
 });
 
+// ─── Vínculo automático grupo→família (2026-08-10) ──────────────────────
+test('zapi-inbox: vínculo automático usa CAS — vínculo manual do CEO sempre vence', () => {
+  const src = loadExecutableSource();
+  assert.ok(
+    src.includes('tentarVinculoAutomatico'),
+    'a função de vínculo automático deve existir',
+  );
+  assert.ok(
+    src.includes('&atleta_id=is.null'),
+    'INVARIANTE VIOLADO: o PATCH do vínculo automático deve carregar o CAS ' +
+      '`&atleta_id=is.null` — sem ele, o auto-vínculo sobrescreveria o vínculo ' +
+      'manual feito pelo CEO (grupo religado à família errada em silêncio).',
+  );
+  // Ambiguidade nunca vincula: os SELECTs de match usam limit=2 e exigem length === 1.
+  assert.ok(
+    /atletas\.length === 1/.test(src),
+    'INVARIANTE VIOLADO: match ambíguo (2+ atletas) não pode vincular — a checagem length === 1 sumiu.',
+  );
+});
+
+test('zapi-inbox: falha do vínculo automático não quebra o webhook', () => {
+  const src = loadExecutableSource();
+  assert.ok(
+    /try\s*\{\s*await tentarVinculoAutomatico/.test(src),
+    'INVARIANTE VIOLADO: tentarVinculoAutomatico deve rodar dentro de try/catch — ' +
+      'um erro de vínculo jamais pode falhar o webhook (Z-API re-tenta e duplicaria trabalho).',
+  );
+});
+
 // Sanidade: o guard detecta ausência de fato.
 test('guard: detecta corretamente quando o coletor de grupo está ausente', () => {
   const fake = 'const x = 1; // sem coletor';
