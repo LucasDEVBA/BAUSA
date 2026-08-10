@@ -613,6 +613,17 @@ O CRM usa **light theme** com design tokens em `app/crm.css`:
 
 ## Pendências Conhecidas (2026-04)
 
+### ⚠️ Rearmar o alerta meta_frescor (pós-vai-pra-prod do meta_frescor v2)
+O check `meta_frescor` está **suprimido** em `public.configuracoes_sistema.monitor_checks_desativados`
+(2026-08-10 — o check antigo media idade do GASTO e alertava falso com campanhas pausadas).
+O v2 (heartbeat `meta_sync_last_tick_at`) corrige o diagnóstico, mas **PRD só ganha o check novo
+no vai-pra-prod**. Sequência OBRIGATÓRIA para rearmar (fora de ordem = alerta falso OU cobertura zero silenciosa):
+1. Merge em develop (UAT) → 2. vai-pra-prod (main) → 3. rodar/aguardar o job `sync-meta-spend-job` (06h BRT)
+→ 4. **confirmar o tick**: tela `/observabilidade` mostrando "Sync Meta vivo" (ou `valor` não-vazio em
+`public.configuracoes_sistema` chave `meta_sync_last_tick_at`) → 5. SÓ ENTÃO remover `meta_frescor`
+de `monitor_checks_desativados`. Remover antes do passo 4 = se o heartbeat não estiver gravando,
+o check fica "pulado" para sempre (cobertura zero achando que armou).
+
 ### Configuração manual (pós-código)
 - [x] GitHub Environments `prd`/`uat` com **branch policy** (2026-05-18): `prd` só aceita deploy de `main`, `uat` só de `develop`. Decisão consciente: **sem required reviewers** (repo solo — gate manual atrapalha hotfix; controle de qualidade fica no CI + review de PR + UAT). Revisar se o time crescer (revisor ≠ autor).
 - [ ] Adicionar secrets `WEBHOOK_SECRET_UAT` e `WEBHOOK_SECRET_DEV` no GitHub
