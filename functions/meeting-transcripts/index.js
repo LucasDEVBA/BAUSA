@@ -267,6 +267,115 @@ const insertTranscript = async (row) => {
   return 'inserted';
 };
 
+// ─── Busca a linha já capturada de UM evento (modo sob demanda) ───
+const fetchTranscriptRowByEventId = async (eventId) => {
+  const url = `${SUPABASE_URL}/rest/v1/reunioes_transcricoes` +
+    `?select=deal_id,form_submission_id,google_event_id,doc_url,transcript_text,resumo,capturada_at` +
+    `&google_event_id=eq.${encodeURIComponent(eventId)}&limit=1`;
+  const result = await httpRequest(url, {
+    method: 'GET',
+    headers: supabaseHeaders('Accept-Profile'),
+  });
+  if (result.statusCode >= 400) {
+    throw new Error(`Supabase transcricao HTTP ${result.statusCode}: ${result.body.substring(0, 200)}`);
+  }
+  const rows = JSON.parse(result.body);
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ─── Captura sob demanda de UM evento (chamada pelo Engine) ───
+// POST {eventId, dealId?, formSubmissionId?} — usada pela aba Reunião para
+// puxar a transcrição de QUALQUER reunião do lead (não só a vinculada ao
+// deal). Reusa os mesmos helpers do cron; idempotente pelo UNIQUE do banco.
+// Statuses: already | captured | not_ready | access_denied | event_not_found.
+const captureSingleEvent = async ({ eventId, dealId, formSubmissionId }) => {
+  // 1. Já capturada? Devolve direto (caminho quente do clique repetido).
+  const existente = await fetchTranscriptRowByEventId(eventId);
+  if (existente) return { status: 'already', transcript: existente };
+
+  const auth = buildGoogleAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  const drive = google.drive({ version: 'v3', auth });
+
+  // 2. Evento + anexo de transcript
+  let event;
+  try {
+    const eventRes = await calendar.events.get({ calendarId: GOOGLE_CALENDAR_ID, eventId });
+    event = eventRes.data;
+  } catch (err) {
+    log('WARN', 'targeted_event_fetch_failed', { eventId, error: err.message });
+    return { status: 'event_not_found' };
+  }
+
+  const attachment = (event.attachments || []).find((a) =>
+    a.mimeType === GOOGLE_DOC_MIME &&
+    TRANSCRIPT_TITLE_RE.test(a.title || ''));
+
+  if (!attachment || !attachment.fileId) {
+    return { status: 'not_ready' };
+  }
+
+  // 3. Exportar o Doc como texto puro
+  let transcriptText;
+  try {
+    const exportRes = await drive.files.export(
+      { fileId: attachment.fileId, mimeType: 'text/plain' },
+      { responseType: 'text' },
+    );
+    transcriptText = typeof exportRes.data === 'string' ? exportRes.data : String(exportRes.data ?? '');
+  } catch (err) {
+    const code = err.code || err.response?.status;
+    if (code === 403 || code === 404) {
+      log('WARN', 'targeted_transcript_access_denied', {
+        eventId,
+        fileId: attachment.fileId,
+        statusCode: code,
+        fix: `Compartilhe a pasta "Meet Recordings" do Drive do organizador com ${SERVICE_ACCOUNT_EMAIL} (acesso Leitor).`,
+      });
+      return { status: 'access_denied' };
+    }
+    throw err;
+  }
+
+  if (transcriptText.length > MAX_TRANSCRIPT_CHARS) {
+    log('WARN', 'targeted_transcript_truncated', { eventId, originalChars: transcriptText.length });
+    transcriptText = transcriptText.slice(0, MAX_TRANSCRIPT_CHARS);
+  }
+
+  // 4. Resumo opcional + INSERT idempotente (mesmo caminho do cron)
+  const resumoCfg = await fetchResumoConfig();
+  const resumo = resumoCfg.ativo
+    ? await summarizeTranscript(transcriptText, resumoCfg.instrucoes)
+    : null;
+
+  const row = {
+    deal_id: UUID_RE.test(dealId || '') ? dealId : null,
+    form_submission_id: UUID_RE.test(formSubmissionId || '') ? formSubmissionId : null,
+    google_event_id: eventId,
+    doc_url: attachment.fileUrl ?? null,
+    transcript_text: transcriptText,
+    resumo,
+    capturada_at: new Date().toISOString(),
+  };
+  const outcome = await insertTranscript(row);
+
+  if (outcome === 'duplicate') {
+    // Corrida com o cron: outra execução inseriu entre o passo 1 e agora.
+    const rowExistente = await fetchTranscriptRowByEventId(eventId);
+    return { status: 'already', transcript: rowExistente ?? row };
+  }
+
+  log('INFO', 'targeted_transcript_captured', {
+    eventId,
+    dealId: row.deal_id,
+    transcriptChars: transcriptText.length,
+    hasResumo: !!resumo,
+  });
+  return { status: 'captured', transcript: row };
+};
+
 // ─── Cloud Function principal ─────────────────────────────────
 functions.http('meetingTranscripts', async (req, res) => {
   // Auth FAIL-CLOSED: secret obrigatório — os jobs do Cloud Scheduler enviam
@@ -292,6 +401,27 @@ functions.http('meetingTranscripts', async (req, res) => {
     }
     if (!GOOGLE_CALENDAR_ID || !SERVICE_ACCOUNT_EMAIL || !SERVICE_ACCOUNT_PRIVATE_KEY) {
       throw new Error('Env vars do Google (Calendar/Service Account) não configuradas');
+    }
+
+    // ── Modo sob demanda: POST {eventId, dealId?, formSubmissionId?} ──
+    // Chamado pela aba Reunião do Engine para UM evento específico. O modo
+    // cron (sem eventId no body) segue inalterado logo abaixo.
+    const targetedEventId = typeof req.body?.eventId === 'string' ? req.body.eventId.trim() : '';
+    if (targetedEventId) {
+      if (targetedEventId.length < 5 || targetedEventId.length > 1024 || /\s/.test(targetedEventId)) {
+        return res.status(400).send({ success: false, error: 'eventId inválido' });
+      }
+      const resultado = await captureSingleEvent({
+        eventId: targetedEventId,
+        dealId: typeof req.body?.dealId === 'string' ? req.body.dealId : null,
+        formSubmissionId: typeof req.body?.formSubmissionId === 'string' ? req.body.formSubmissionId : null,
+      });
+      log('INFO', 'targeted_request_complete', {
+        eventId: targetedEventId,
+        status: resultado.status,
+        durationMs: Date.now() - startTime,
+      });
+      return res.status(200).send({ success: true, ...resultado });
     }
 
     log('INFO', 'meeting_transcripts_start', {
