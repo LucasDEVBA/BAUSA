@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   FileText,
@@ -11,6 +11,7 @@ import {
   Send,
   Settings2,
   User as UserIcon,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,16 +23,20 @@ import {
   isValidPhone,
   type EspelhoMessage,
 } from "@/lib/whatsapp-espelho";
+import { listarThreadsLead, type ConversaThread } from "@/lib/actions/conversa-threads";
+import { TextoLinkado } from "./TextoLinkado";
 
 /**
- * Conversa de WhatsApp 1:1 do lead — embutida no detalhe do lead/deal (CEO).
+ * Conversa de WhatsApp do lead — embutida no detalhe do lead/deal (CEO).
  *
- * Reusa os endpoints REST já existentes (GET /api/whatsapp/messages,
- * POST /api/whatsapp/send) — ambos protegidos por `guardWhatsAppApi` (só CEO,
- * 403 caso contrário). O histórico vem do espelho `whatsapp_mensagens`
- * (alimentado pelo webhook da Z-API); o compositor faz eco otimista e reconcilia
- * com o espelho no refetch. Altura contida (`h-[26rem]`, scroll interno) — o
- * sheet/modal hospedeiro tem o próprio scroll.
+ * Multi-thread (2026-08-10): além do 1:1 principal, o CEO alterna entre o
+ * privado do RESPONSÁVEL, o privado do ATLETA e o(s) GRUPO(s) da família —
+ * leitura e envio em qualquer uma delas. Threads resolvidas server-side por
+ * listarThreadsLead; grupos leem/enviam via ?groupId= (espelho do coletor).
+ *
+ * Reusa os endpoints REST (GET /api/whatsapp/messages, POST /api/whatsapp/send),
+ * ambos sob `guardWhatsAppApi`/`guardWhatsAppGrupoEnvio`. Eco otimista com
+ * reconciliação no refetch. Altura contida (h-[26rem], scroll interno).
  */
 
 const MESSAGE_MAX_LENGTH = 4096;
@@ -77,9 +82,12 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
+/** Chave estável da thread (dedupe de eco + params de fetch). */
+function threadKey(t: ConversaThread): string {
+  return t.tipo === "grupo" ? `g:${t.grupoId}` : `p:${t.phone}`;
+}
+
 // ─── Renderização de mensagem (bolhas / hora / from_me / mídia) ──────────────
-// Espelha o visual da tela /whatsapp (client.tsx) para consistência, mas em
-// componente próprio — o módulo /whatsapp não é modificado.
 
 /** Renderiza o conteúdo de mídia (foto/áudio/vídeo/documento); fallback textual. */
 function MessageMedia({ message }: { message: EspelhoMessage }) {
@@ -112,6 +120,11 @@ function MessageMedia({ message }: { message: EspelhoMessage }) {
     return (
       <p className="text-sm italic text-muted-foreground">
         [{MIDIA_LABEL[tipo] ?? "mídia"}]
+        {tipo !== "reaction" && (
+          <span className="ml-1 not-italic text-[10px] text-label-tertiary">
+            (mídia expirada ou indisponível)
+          </span>
+        )}
       </p>
     );
   };
@@ -192,7 +205,7 @@ function MessageMedia({ message }: { message: EspelhoMessage }) {
   );
 }
 
-function MessageBubble({ message }: { message: EspelhoMessage }) {
+function MessageBubble({ message, mostrarRemetente }: { message: EspelhoMessage; mostrarRemetente?: boolean }) {
   const isMedia = message.tipo !== "text";
   return (
     <div className={cn("flex", message.fromMe ? "justify-end" : "justify-start")}>
@@ -204,10 +217,13 @@ function MessageBubble({ message }: { message: EspelhoMessage }) {
             : "rounded-bl-md bg-secondary",
         )}
       >
+        {mostrarRemetente && !message.fromMe && message.senderName && (
+          <p className="text-[10px] font-semibold text-primary">{message.senderName}</p>
+        )}
         {isMedia && <MessageMedia message={message} />}
         {message.text !== null && (
           <p className="whitespace-pre-wrap break-words text-sm text-foreground">
-            {message.text}
+            <TextoLinkado texto={message.text} />
           </p>
         )}
         {!isMedia && message.text === null && (
@@ -228,11 +244,22 @@ function MessageBubble({ message }: { message: EspelhoMessage }) {
 interface ConversaLeadPanelProps {
   /** Telefone do lead (guardian_whatsapp || athlete_whatsapp || deal.whatsapp). */
   telefone?: string | null;
+  /** Habilita as threads extras (responsável/atleta/grupos) quando informados. */
+  atletaId?: string | null;
+  formSubmissionId?: string | null;
 }
 
-export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
+export function ConversaLeadPanel({ telefone, atletaId, formSubmissionId }: ConversaLeadPanelProps) {
   const digits = telefone ? cleanPhone(telefone) : "";
-  const valido = isValidPhone(digits);
+
+  // Thread default: o telefone recebido via prop (comportamento histórico).
+  const threadDefault = useMemo<ConversaThread | null>(
+    () => (isValidPhone(digits) ? { tipo: "privado", label: "Contato", phone: digits } : null),
+    [digits],
+  );
+
+  const [threads, setThreads] = useState<ConversaThread[]>(threadDefault ? [threadDefault] : []);
+  const [threadAtiva, setThreadAtiva] = useState<ConversaThread | null>(threadDefault);
 
   const [serverMessages, setServerMessages] = useState<EspelhoMessage[]>([]);
   const [echoes, setEchoes] = useState<EspelhoMessage[]>([]);
@@ -244,19 +271,49 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
   const threadRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // ── Resolve as threads do lead (responsável/atleta/grupos) ──
+  useEffect(() => {
+    if (!atletaId && !formSubmissionId) return;
+    let ativo = true;
+    void (async () => {
+      try {
+        const r = await listarThreadsLead({ atletaId, formSubmissionId });
+        if (!ativo || !r.success || r.threads.length === 0) return;
+        setThreads(r.threads);
+        // Mantém a thread do telefone da prop como ativa quando existir na lista
+        setThreadAtiva((atual) => {
+          const alvo = atual?.phone
+            ? r.threads.find((t) => t.phone === atual.phone)
+            : undefined;
+          return alvo ?? r.threads[0];
+        });
+      } catch {
+        // Threads extras são progressive enhancement — o default já funciona.
+      }
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, [atletaId, formSubmissionId]);
+
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
-      if (!valido) return;
+      if (!threadAtiva) return;
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
       if (!opts?.silent) setStatus("loading");
 
+      const params =
+        threadAtiva.tipo === "grupo"
+          ? `groupId=${encodeURIComponent(threadAtiva.grupoId ?? "")}`
+          : `phone=${encodeURIComponent(threadAtiva.phone ?? "")}`;
+
       try {
-        const res = await fetch(
-          `/api/whatsapp/messages?phone=${encodeURIComponent(digits)}`,
-          { signal: controller.signal, cache: "no-store" },
-        );
+        const res = await fetch(`/api/whatsapp/messages?${params}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
         if (res.status === 503) {
           setStatus("unconfigured");
           return;
@@ -280,17 +337,19 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
         if (!opts?.silent) setStatus("error");
       }
     },
-    [digits, valido],
+    [threadAtiva],
   );
 
   useEffect(() => {
-    if (!valido) return;
+    if (!threadAtiva) return;
+    setServerMessages([]);
     void load();
     return () => abortRef.current?.abort();
-  }, [valido, load]);
+  }, [threadAtiva, load]);
 
-  // ── Só os ecos DESTA conversa (ao trocar de lead, ecos antigos somem) ──
-  const localEchoes = echoes.filter((echo) => echo.phone === digits);
+  // ── Só os ecos DESTA thread (ao trocar, ecos das outras somem da vista) ──
+  const chaveAtiva = threadAtiva ? threadKey(threadAtiva) : "";
+  const localEchoes = echoes.filter((echo) => echo.phone === chaveAtiva);
   const messages = [...serverMessages, ...localEchoes];
 
   // ── Auto-scroll para o fim quando a lista muda ──
@@ -303,12 +362,12 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const message = draft.trim();
-      if (!valido || message.length === 0 || sending) return;
+      if (!threadAtiva || message.length === 0 || sending) return;
 
       setSending(true);
       const echo: EspelhoMessage = {
         id: `local-${Date.now()}`,
-        phone: digits,
+        phone: chaveAtiva,
         fromMe: true,
         text: message,
         timestamp: Date.now(),
@@ -320,11 +379,16 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
       setEchoes((prev) => [...prev, echo]);
       setDraft("");
 
+      const payload =
+        threadAtiva.tipo === "grupo"
+          ? { groupId: threadAtiva.grupoId, message }
+          : { phone: threadAtiva.phone, message };
+
       try {
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: digits, message }),
+          body: JSON.stringify(payload),
         });
         const data = (await res.json().catch(() => null)) as SendResponse | null;
 
@@ -334,7 +398,9 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
           toast.error(
             data?.error === "zapi_nao_configurado"
               ? "WhatsApp não configurado."
-              : "Não foi possível enviar a mensagem.",
+              : data?.error === "grupo_nao_autorizado"
+                ? "Sem permissão para enviar neste grupo."
+                : "Não foi possível enviar a mensagem.",
           );
           return;
         }
@@ -356,11 +422,11 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
         setSending(false);
       }
     },
-    [draft, valido, sending, digits, load],
+    [draft, threadAtiva, sending, chaveAtiva, load],
   );
 
-  // ── Sem telefone: aviso em vez do painel ──
-  if (!valido) {
+  // ── Sem nenhuma thread: aviso em vez do painel ──
+  if (!threadAtiva) {
     return (
       <div className="flex flex-col items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-4 py-8 text-center">
         <MessageCircle className="size-6 text-muted-foreground/50" />
@@ -374,18 +440,25 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
   }
 
   const vazio = messages.length === 0;
+  const grupoSemCaptura = threadAtiva.tipo === "grupo" && threadAtiva.capturaDesligada === true;
 
   return (
     <div className="flex h-[26rem] flex-col overflow-hidden rounded-lg border border-border/70 bg-card/60">
       {/* Cabeçalho */}
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
         <div className="flex min-w-0 items-center gap-1.5">
-          <MessageCircle className="size-3.5 shrink-0 text-sys-green" />
+          {threadAtiva.tipo === "grupo" ? (
+            <Users className="size-3.5 shrink-0 text-sys-green" />
+          ) : (
+            <MessageCircle className="size-3.5 shrink-0 text-sys-green" />
+          )}
           <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Conversa
+            {threadAtiva.tipo === "grupo" ? "Grupo" : "Conversa"}
           </span>
           <span className="truncate text-[11px] tabular-nums text-muted-foreground">
-            {formatPhoneDisplay(digits)}
+            {threadAtiva.tipo === "grupo"
+              ? threadAtiva.label
+              : (threadAtiva.detalhe ?? formatPhoneDisplay(threadAtiva.phone ?? ""))}
           </span>
         </div>
         <button
@@ -398,6 +471,31 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
           <RefreshCw className={cn("size-3.5", status === "loading" && "animate-spin")} />
         </button>
       </div>
+
+      {/* Seletor de thread (responsável / atleta / grupos) */}
+      {threads.length > 1 && (
+        <div className="flex shrink-0 flex-wrap gap-1 border-b border-border/60 px-2 py-1.5">
+          {threads.map((t) => {
+            const ativa = threadKey(t) === chaveAtiva;
+            return (
+              <button
+                key={threadKey(t)}
+                type="button"
+                onClick={() => setThreadAtiva(t)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  ativa
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                {t.tipo === "grupo" && <Users className="size-3" />}
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Lista de mensagens */}
       <div
@@ -433,9 +531,11 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <MessageCircle className="size-6 text-muted-foreground/50" />
             <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">
-              {historyUnavailable
-                ? "O histórico ainda não está disponível — as mensagens aparecem a partir da captura pelo webhook."
-                : "Sem conversa registrada ainda — as mensagens aparecem a partir da captura pelo webhook."}
+              {grupoSemCaptura
+                ? "A captura deste grupo está desligada — ligue em WhatsApp → Grupos para espelhar as mensagens aqui."
+                : historyUnavailable
+                  ? "O histórico ainda não está disponível — as mensagens aparecem a partir da captura pelo webhook."
+                  : "Sem conversa registrada ainda — as mensagens aparecem a partir da captura pelo webhook."}
             </p>
           </div>
         ) : (
@@ -446,8 +546,18 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
                 mensagens capturadas pelo webhook.
               </p>
             )}
+            {grupoSemCaptura && (
+              <p className="rounded-md bg-sys-orange/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-sys-orange">
+                Captura desligada para este grupo — mensagens novas não estão
+                sendo espelhadas.
+              </p>
+            )}
             {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble
+                key={message.id}
+                message={message}
+                mostrarRemetente={threadAtiva.tipo === "grupo"}
+              />
             ))}
           </>
         )}
@@ -470,7 +580,11 @@ export function ConversaLeadPanel({ telefone }: ConversaLeadPanelProps) {
           rows={1}
           maxLength={MESSAGE_MAX_LENGTH}
           disabled={status === "unconfigured" || sending}
-          placeholder="Escrever mensagem…"
+          placeholder={
+            threadAtiva.tipo === "grupo"
+              ? `Mensagem para o grupo ${threadAtiva.label}…`
+              : "Escrever mensagem…"
+          }
           aria-label="Mensagem"
           className="max-h-24 min-h-[2.25rem] flex-1 resize-none rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-placeholder outline-none focus:border-primary/40 disabled:opacity-50"
         />

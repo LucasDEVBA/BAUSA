@@ -38,6 +38,7 @@ import { uploadMensagemArquivo, uploadMensagemAudio } from "@/lib/actions/mensag
 import { sugerirRespostaChatbot } from "@/lib/actions/chatbot-sugestao";
 import { AnaliseAgentBlock } from "@/components/agents/AnaliseAgentBlock";
 import { ConversaAutonomoToggle } from "@/components/whatsapp/ConversaAutonomoToggle";
+import { TextoLinkado } from "@/components/whatsapp/TextoLinkado";
 import type { AgentResumo } from "@/types/agent";
 import {
   gerarInsightsConversa,
@@ -433,7 +434,9 @@ function MessageBubble({ message }: { message: EspelhoMessage }) {
         {isMedia && <MessageMedia message={message} />}
         {/* Texto = mensagem (tipo text) OU legenda da mídia. */}
         {message.text !== null && (
-          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{message.text}</p>
+          <p className="whitespace-pre-wrap break-words text-sm text-foreground">
+            <TextoLinkado texto={message.text} />
+          </p>
         )}
         {!isMedia && message.text === null && (
           <p className="text-sm italic text-muted-foreground">[mídia]</p>

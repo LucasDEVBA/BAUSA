@@ -1095,7 +1095,11 @@ export function DealDetailSheet({
 
           {/* TAB: CONVERSA */}
           {activeTab === "conversa" && (
-            <ConversaLeadPanel telefone={deal.whatsapp} />
+            <ConversaLeadPanel
+              telefone={deal.whatsapp}
+              atletaId={deal.atleta_id}
+              formSubmissionId={deal.lead_id ?? undefined}
+            />
           )}
 
           {/* TAB: REUNIAO */}

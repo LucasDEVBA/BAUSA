@@ -313,6 +313,8 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
               {section === "conversa" && (
                 <ConversaLeadPanel
                   telefone={lead.guardian_whatsapp ?? lead.athlete_whatsapp}
+                  atletaId={lead.pipeline_atleta_id}
+                  formSubmissionId={lead.id}
                 />
               )}
               {section === "comunicacoes" && <ComunicacoesSection lead={lead} />}

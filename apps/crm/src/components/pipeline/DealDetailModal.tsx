@@ -558,7 +558,11 @@ export function DealDetailModal({
               )}
               {section === "reuniao" && <ReuniaoSection deal={deal} />}
               {section === "conversa" && (
-                <ConversaLeadPanel telefone={deal.whatsapp} />
+                <ConversaLeadPanel
+                  telefone={deal.whatsapp}
+                  atletaId={deal.atleta_id}
+                  formSubmissionId={deal.lead_id ?? undefined}
+                />
               )}
               {section === "comunicacoes" && <ComunicacoesSection deal={deal} />}
               {section === "atribuicao" && <AtribuicaoSection deal={deal} />}
