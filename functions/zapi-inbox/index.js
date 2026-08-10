@@ -226,6 +226,101 @@ async function ingestGrupo(g) {
   try { return JSON.parse(r.body) || {}; } catch { return {}; }
 }
 
+// ─── Vínculo automático grupo → família ──────────────────────────────────
+// Um grupo recém-capturado tenta se vincular sozinho ao atleta certo pelo
+// telefone do PARTICIPANTE que falou (tail-10 vs atletas/responsaveis).
+// Regras de segurança:
+//   - CAS `atleta_id=is.null` no PATCH: o vínculo manual do CEO SEMPRE vence
+//     (nunca sobrescrevemos um vínculo existente — nem em corrida).
+//   - Match ambíguo (2+ atletas) → não vincula (melhor sem vínculo que errado).
+//   - Throttle em memória por grupo (10min) — não consulta o banco a cada msg.
+//   - Falha aqui NUNCA quebra o webhook (best-effort, só log).
+const vinculoUltimaTentativa = new Map();
+const VINCULO_THROTTLE_MS = 10 * 60 * 1000;
+
+const supaGet = async (pathAndQuery) => {
+  const r = await httpRequest(`${SUPABASE_URL}/rest/v1/${pathAndQuery}`, {
+    method: 'GET',
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept-Profile': SUPABASE_SCHEMA,
+    },
+  });
+  if (r.statusCode >= 400) throw new Error(`GET ${pathAndQuery.split('?')[0]} HTTP ${r.statusCode}`);
+  const rows = JSON.parse(r.body);
+  return Array.isArray(rows) ? rows : [];
+};
+
+async function tentarVinculoAutomatico(g) {
+  const tail = (g.participante_phone || '').slice(-10);
+  if (tail.length < 9) return;
+
+  const agora = Date.now();
+  if (agora - (vinculoUltimaTentativa.get(g.grupo_id) || 0) < VINCULO_THROTTLE_MS) return;
+  vinculoUltimaTentativa.set(g.grupo_id, agora);
+
+  // Grupo já vinculado? Nada a fazer.
+  const grupoRows = await supaGet(
+    `whatsapp_grupos?grupo_id=eq.${encodeURIComponent(g.grupo_id)}&select=atleta_id&limit=1`,
+  );
+  if (!grupoRows[0] || grupoRows[0].atleta_id) return;
+
+  // 1) Participante é o próprio atleta?
+  let atletaId = null;
+  const atletas = await supaGet(
+    `atletas?whatsapp=like.*${encodeURIComponent(tail)}&deleted_at=is.null&select=id&limit=2`,
+  );
+  if (atletas.length === 1) {
+    atletaId = atletas[0].id;
+  } else if (atletas.length === 0) {
+    // 2) Participante é o responsável? (responsável com 2+ atletas = ambíguo)
+    const resps = await supaGet(
+      `responsaveis?whatsapp=like.*${encodeURIComponent(tail)}&deleted_at=is.null&select=id&limit=2`,
+    );
+    if (resps.length === 1) {
+      const filhos = await supaGet(
+        `atletas?responsavel_id=eq.${encodeURIComponent(resps[0].id)}&deleted_at=is.null&select=id&limit=2`,
+      );
+      if (filhos.length === 1) atletaId = filhos[0].id;
+    }
+  }
+  if (!atletaId) return;
+
+  // experiencia_id best-effort (o grupo pode nascer antes do pós-venda)
+  let experienciaId = null;
+  try {
+    const exps = await supaGet(
+      `crm_experiencia?atleta_id=eq.${encodeURIComponent(atletaId)}&select=id&limit=1`,
+    );
+    experienciaId = exps[0]?.id ?? null;
+  } catch { /* opcional */ }
+
+  const patchBody = JSON.stringify({ atleta_id: atletaId, experiencia_id: experienciaId });
+  const patch = await httpRequest(
+    // CAS: só vincula se AINDA estiver sem vínculo (manual do CEO vence sempre)
+    `${SUPABASE_URL}/rest/v1/whatsapp_grupos?grupo_id=eq.${encodeURIComponent(g.grupo_id)}&atleta_id=is.null`,
+    {
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        'Content-Profile': SUPABASE_SCHEMA,
+        Prefer: 'return=minimal',
+      },
+    },
+    patchBody,
+  );
+  if (patch.statusCode >= 400) throw new Error(`PATCH vinculo HTTP ${patch.statusCode}`);
+
+  log('INFO', 'grupo_vinculado_automatico', {
+    grupoId: maskPhone(g.grupo_id),
+    atletaId,
+    temExperiencia: !!experienciaId,
+  });
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────
 
 functions.http('zapiInbox', async (req, res) => {
@@ -253,6 +348,15 @@ functions.http('zapiInbox', async (req, res) => {
         fromMe: grupo.from_me,
         tipo: grupo.tipo,
       });
+      // Vínculo automático grupo→família (best-effort, nunca quebra o webhook)
+      try {
+        await tentarVinculoAutomatico(grupo);
+      } catch (vincErr) {
+        log('WARN', 'grupo_vinculo_auto_failed', {
+          grupoId: maskPhone(grupo.grupo_id),
+          error: vincErr.message,
+        });
+      }
       return res.status(200).send({ success: true, grupo: true });
     }
 
