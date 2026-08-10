@@ -449,14 +449,18 @@ const runChecks = async () => {
       return { ok: n === 0, valor: n, detalhe: `${n} lead(s) sem qualificação Gemini há ${QUALIFICACAO_TRAVADA_HORAS}h+` };
     }),
     checkSeguro('fila_whatsapp_presa', async () => {
+      // Paridade com o scheduler: leads aguardando aprovação humana
+      // (aprovacao_status != aprovado) NÃO são fila presa — estão retidos
+      // de propósito pelo gate do CEO.
       const n = await contar(
         `form_submissions?select=id&qualification_classification=in.(QUENTE,MORNO)` +
           `&whatsapp_sent_at=is.null` +
           `&qualified_at=lt.${encodeURIComponent(isoAtras(limiteFila))}` +
           `&qualified_at=gt.${encodeURIComponent(desdeJanela)}` +
-          `&or=(timing_status.is.null,timing_status.eq.ideal)`,
+          `&or=(timing_status.is.null,timing_status.eq.ideal)` +
+          `&aprovacao_status=eq.aprovado`,
       );
-      return { ok: n === 0, valor: n, detalhe: `${n} lead(s) QUENTE/MORNO sem o WhatsApp inicial há ${limiteFila}h+` };
+      return { ok: n === 0, valor: n, detalhe: `${n} lead(s) QUENTE/MORNO aprovados sem o WhatsApp inicial há ${limiteFila}h+` };
     }),
     checkSeguro('runs_erro', async () => {
       const n = await contar(

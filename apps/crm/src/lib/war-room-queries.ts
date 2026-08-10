@@ -580,6 +580,20 @@ export async function fetchPendingQualifications(): Promise<PendingQualification
   };
 }
 
+// ─── Fila de aprovação manual (gate humano pré-outreach) ───────────
+// Leads QUENTE/MORNO aguardando decisão do CEO/CTO. Só o count — a lista
+// completa é buscada pelo modal via listarLeadsPendentesAprovacao.
+export async function fetchLeadsAguardandoAprovacao(): Promise<number> {
+  const supabase = await createServerSupabaseClient();
+  const { count, error } = await supabase
+    .from("form_submissions")
+    .select("id", { count: "exact", head: true })
+    .eq("aprovacao_status", "pendente");
+
+  if (error) return 0;
+  return count ?? 0;
+}
+
 // ─── Leads com timing alternativo (cedo demais / tarde demais) ─────
 // Para card resumo no War Room: quantos atletas estão fora da janela
 // ideal de aplicação e qual a próxima data de retomada agendada.

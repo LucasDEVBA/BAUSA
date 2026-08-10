@@ -363,7 +363,7 @@ Onde:
 // ─── Atualizar Supabase ────────────────────────────────────────
 // Usa id=eq.${submissionId} para evitar problemas de case-sensitivity em email.
 // Fallback para email+athlete_name (case-insensitive via ilike) se id ausente.
-const updateSupabase = async (submissionId, email, athleteName, qualification, timingStatus = 'ideal', scheduledFollowupAt = null) => {
+const updateSupabase = async (submissionId, email, athleteName, qualification, timingStatus = 'ideal', scheduledFollowupAt = null, aprovacaoStatus = null) => {
   // Em caso de sucesso, limpa flags de pendência (caso lead estivesse pendente)
   const patchBody = {
     qualified: qualification.classification !== 'FRIO',
@@ -375,6 +375,12 @@ const updateSupabase = async (submissionId, email, athleteName, qualification, t
     last_qualification_error: null,
     timing_status: timingStatus,
   };
+  // Gate humano: QUENTE/MORNO nascem 'pendente' (fila de aprovação) ou
+  // 'aprovado' (toggle aprovacao_manual desligado). FRIO fica NULL — nunca
+  // entra na fila. Schedulers exigem aprovacao_status=eq.aprovado.
+  if (aprovacaoStatus) {
+    patchBody.aprovacao_status = aprovacaoStatus;
+  }
   // Só seta scheduled_followup_at quando aplicável (muito_cedo).
   // Para outros timings, mantém o valor existente (não sobrescreve com null
   // caso já tenha sido setado em algum reprocessamento anterior).
@@ -900,6 +906,50 @@ const notifyQualificationPending = async (leadData, errorMessage) => {
   }
 };
 
+// ─── Notificar CEO/CTO sobre lead aguardando aprovação ─────────
+// Fila de aprovação manual: lead QUENTE/MORNO pré-qualificado pela IA
+// espera decisão humana antes de entrar no pipeline e receber outreach.
+const notifyAprovacaoPendente = async (leadData, qualification) => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+
+  const users = await supabaseRequest(
+    'GET',
+    `user_profiles?papel=in.(ceo,cto)&ativo=is.true&select=id,nome,papel`
+  );
+
+  if (!Array.isArray(users) || users.length === 0) {
+    log('WARN', 'no_users_to_notify_aprovacao_pendente');
+    return;
+  }
+
+  const titulo = `Lead aguardando aprovação: ${leadData.athlete_name}`;
+  const descricao = `Pré-qualificação da IA: ${qualification.classification} (confiança ${qualification.confidence}). `
+    + `${(qualification.reason || '').substring(0, 200)} `
+    + `Aprove ou reprove na fila de aprovações (War Room ou Leads) para liberar o pipeline e o WhatsApp.`;
+
+  for (const user of users) {
+    try {
+      await supabaseRequest(
+        'POST',
+        'notificacoes',
+        {
+          user_id: user.id,
+          titulo,
+          descricao,
+          severidade: 'aviso',
+          modulo_origem: 'comercial',
+          lida: false,
+          link: `/leads?aprovacao=pendente`,
+        },
+        { 'Prefer': 'return=minimal' }
+      );
+      log('INFO', 'aprovacao_pendente_notification_sent', { userId: user.id, papel: user.papel });
+    } catch (notifErr) {
+      log('WARN', 'aprovacao_notification_failed', { userId: user.id, error: notifErr.message });
+    }
+  }
+};
+
 // ─── Config dinâmica das automações de sistema (/automacoes) ───
 // sistema_automacoes_ativas: toggles on/off (campo ausente = ATIVA).
 // qualificacao_prompt: seções editáveis do prompt (ausente = defaults).
@@ -1104,10 +1154,21 @@ functions.http('qualifyLead', async (req, res) => {
       modelUsed: qualification.modelUsed,
     });
 
+    // Gate humano (fila de aprovação): por padrão ATIVO. Com o gate ativo,
+    // QUENTE/MORNO nascem aprovacao_status='pendente' — sem promoção ao CRM
+    // e sem elegibilidade nos schedulers até o CEO/CTO aprovar no Engine.
+    // Toggle aprovacao_manual desligado em /automacoes = fluxo antigo
+    // (auto-promoção + 'aprovado' imediato). FRIO nunca entra na fila.
+    const aprovacaoManualDesativada = ativas.aprovacao_manual === false;
+    const isQuenteOuMorno = qualification.classification === 'QUENTE' || qualification.classification === 'MORNO';
+    const aprovacaoStatus = isQuenteOuMorno
+      ? (aprovacaoManualDesativada ? 'aprovado' : 'pendente')
+      : null;
+
     // 2. Atualizar Supabase (com timing_status + scheduled_followup_at se aplicável)
     try {
-      await updateSupabase(data.id, data.email, data.athlete_name, qualification, timingStatus, scheduledFollowupAt);
-      log('INFO', 'supabase_updated', { email: data.email, timing_status: timingStatus });
+      await updateSupabase(data.id, data.email, data.athlete_name, qualification, timingStatus, scheduledFollowupAt, aprovacaoStatus);
+      log('INFO', 'supabase_updated', { email: data.email, timing_status: timingStatus, aprovacao_status: aprovacaoStatus });
 
       // Registro em automacao_runs (aba Execuções) — estado TERMINAL, após a
       // classificação persistida no Supabase.
@@ -1141,27 +1202,38 @@ functions.http('qualifyLead', async (req, res) => {
       log('ERROR', 'sheets_update_failed', { error: error.message });
     }
 
-    // 4. Auto-promoção CRM para leads QUENTE/MORNO
+    // 4. Leads QUENTE/MORNO: fila de aprovação (padrão) OU auto-promoção
+    //    (somente com o toggle aprovacao_manual desligado — fluxo antigo).
+    //    A promoção ao CRM do fluxo novo acontece na server action
+    //    aprovarLead (Engine), no momento da decisão humana.
     let crmResult = null;
-    if (
-      SUPABASE_URL && SUPABASE_SERVICE_KEY &&
-      (qualification.classification === 'QUENTE' || qualification.classification === 'MORNO')
-    ) {
-      try {
-        crmResult = await autoPromoteToCRM(data, qualification.classification, qualification.reason, qualification.confidence, timingStatus);
-        if (crmResult) {
-          log('INFO', 'crm_auto_created', {
-            submissionId: crmResult.submissionId,
-            atletaId: crmResult.atletaId,
-            dealId: crmResult.dealId,
+    if (SUPABASE_URL && SUPABASE_SERVICE_KEY && isQuenteOuMorno) {
+      if (aprovacaoManualDesativada) {
+        try {
+          crmResult = await autoPromoteToCRM(data, qualification.classification, qualification.reason, qualification.confidence, timingStatus);
+          if (crmResult) {
+            log('INFO', 'crm_auto_created', {
+              submissionId: crmResult.submissionId,
+              atletaId: crmResult.atletaId,
+              dealId: crmResult.dealId,
+            });
+          }
+        } catch (crmError) {
+          log('ERROR', 'crm_auto_promote_failed', {
+            error: crmError.message,
+            email: data.email,
+            athlete: data.athlete_name,
           });
         }
-      } catch (crmError) {
-        log('ERROR', 'crm_auto_promote_failed', {
-          error: crmError.message,
-          email: data.email,
-          athlete: data.athlete_name,
-        });
+      } else {
+        try {
+          await notifyAprovacaoPendente(data, qualification);
+          log('INFO', 'aprovacao_pendente_criada', { email: data.email, athlete: data.athlete_name });
+        } catch (notifErr) {
+          // Notificação é best-effort — a fila é a fonte de verdade
+          // (badge/modal no Engine consultam aprovacao_status direto).
+          log('WARN', 'aprovacao_notify_failed', { error: notifErr.message });
+        }
       }
     }
 
@@ -1176,7 +1248,8 @@ functions.http('qualifyLead', async (req, res) => {
     return res.status(200).send({
       success: true,
       qualification,
-      whatsappScheduled: qualification.classification !== 'FRIO',
+      aprovacaoStatus,
+      whatsappScheduled: qualification.classification !== 'FRIO' && aprovacaoManualDesativada,
       crmCreated: !!crmResult,
       crmAtletaId: crmResult?.atletaId || null,
       crmDealId: crmResult?.dealId || null,

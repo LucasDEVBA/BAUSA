@@ -203,16 +203,22 @@ Este projeto está **totalmente integrado** com o Supabase do BAUSA. Não usa ma
 
 ---
 
-## Fluxo Automatizado Lead → Pipeline
-
-Leads QUENTES e MORNOS entram **automaticamente** no pipeline:
+## Fluxo Lead → Aprovação → Pipeline (gate humano desde 2026-08-10)
 
 1. Lead preenche formulário → `form_submissions` (BAUSA)
-2. Cloud Function `qualify-lead` classifica via Gemini
-3. Se QUENTE/MORNO → auto-cria `atleta` + `deal` (etapa: `lead`)
-4. WhatsApp enviado automaticamente (22h delay)
-5. `process-followup-whatsapp` verifica Calendar a cada hora
-6. Se reunião detectada → move deal para `reuniao_marcada`
+2. Cloud Function `qualify-lead` classifica via Gemini (pré-qualificação)
+3. Se QUENTE/MORNO → `aprovacao_status='pendente'` — **fila de aprovação**
+   (botão no War Room + banner em /leads → modal lista+preview com Instagram,
+   recomendação da IA e todos os dados). FRIO é descartado como sempre.
+4. CEO/CTO **aprova** (`aprovarLead` — CAS + cria `atleta` + `deal` com ramo de
+   timing) ou **reprova** (`reprovarLead` — sem pipeline, sem mensagens).
+   Componente: `src/components/leads/AprovacoesLeads.tsx`; actions em
+   `src/lib/actions/leads.ts`. Deep-link: `/leads?aprovacao=pendente`.
+5. Só lead APROVADO entra nos schedulers (WhatsApp 22h, timing alt, retomada) —
+   invariante `aprovacao_status=eq.aprovado` (guard de CI + paridade nos
+   monitores de fila). Toggle `aprovacao_manual` em /automacoes (desligado =
+   fluxo antigo 100% automático).
+6. `calendar-webhook` detecta reunião → move deal para `reuniao_marcada`
 7. CEO gerencia no Pipeline Kanban (este projeto)
 
 **Separação de conceitos:**

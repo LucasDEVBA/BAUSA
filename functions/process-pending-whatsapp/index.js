@@ -156,6 +156,9 @@ const fetchPendingLeads = async () => {
       'qualified_at=not.is.null',
       'whatsapp_sent_at=is.null',
       'or=(timing_status.is.null,timing_status.eq.ideal)',
+      // Gate humano: só leads aprovados pelo CEO/CTO recebem outreach.
+      // NULL (pré-feature sem backfill) e 'pendente'/'reprovado' ficam fora.
+      'aprovacao_status=eq.aprovado',
     ]);
   }
 
@@ -173,6 +176,8 @@ const fetchPendingLeads = async () => {
       `qualified_at=lt.${fortyEightHoursAgo}`,
       'qualified_at=not.is.null',
       'whatsapp_sent_at=is.null',
+      // Gate humano (paridade com Bucket A): aprovação obrigatória.
+      'aprovacao_status=eq.aprovado',
     ]);
   }
 

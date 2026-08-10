@@ -57,10 +57,13 @@ const httpRequest = (url, options, postData) =>
 //   - scheduled_followup_sent_at IS NULL
 const fetchEligibleLeads = async () => {
   const nowIso = new Date().toISOString();
+  // Gate humano: retomada de novembro só para leads aprovados pelo CEO/CTO
+  // (paridade com process-pending-whatsapp — aprovacao_status=eq.aprovado).
   const url = `${SUPABASE_URL}/rest/v1/form_submissions`
     + `?timing_status=eq.muito_cedo`
     + `&scheduled_followup_at=lte.${encodeURIComponent(nowIso)}`
     + `&scheduled_followup_sent_at=is.null`
+    + `&aprovacao_status=eq.aprovado`
     + `&select=*`
     + `&order=scheduled_followup_at.asc`
     + `&limit=${MAX_LEADS_PER_RUN}`;

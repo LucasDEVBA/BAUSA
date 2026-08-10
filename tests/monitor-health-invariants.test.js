@@ -182,4 +182,25 @@ test("fetchMonitorData: thresholds configuráveis + filtro de timing (anti falso
     `filtro de timing deve estar nas 4 filas (inicial, FU1, FU2, trancados) — encontrado ${ocorrenciasTiming ? ocorrenciasTiming.length : 0}x`,
   );
   assert.doesNotMatch(queries, /horasAtras\(22\)|horasAtras\(48\)/, "threshold hardcoded voltou ao fetchMonitorData");
+  // Paridade com o gate de aprovação (2026-08-10): fila inicial + trancados
+  // só contam leads aprovados pelo CEO — pendente/reprovado é retenção
+  // proposital, não fila presa.
+  const ocorrenciasAprovacao = queries.match(/\.eq\("aprovacao_status", "aprovado"\)/g);
+  assert.ok(
+    ocorrenciasAprovacao && ocorrenciasAprovacao.length >= 2,
+    `filtro de aprovação deve estar nas filas inicial + trancados do fetchMonitorData — encontrado ${ocorrenciasAprovacao ? ocorrenciasAprovacao.length : 0}x`,
+  );
+});
+
+test("monitor-health: fila_whatsapp_presa respeita o gate de aprovação humana", () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, "..", "functions/monitor-health/index.js"),
+    "utf8",
+  );
+  assert.ok(
+    src.includes("aprovacao_status=eq.aprovado"),
+    "INVARIANTE VIOLADO: o check fila_whatsapp_presa do monitor-health deve " +
+      "filtrar aprovacao_status=eq.aprovado (paridade com o scheduler) — sem " +
+      "isso, leads aguardando decisão do CEO disparam alerta falso de fila presa.",
+  );
 });

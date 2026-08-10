@@ -566,6 +566,9 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .lt("qualified_at", corteInicial)
       .is("whatsapp_sent_at", null)
       .or("timing_status.is.null,timing_status.eq.ideal")
+      // Paridade com o scheduler: sem aprovação humana não é fila presa —
+      // o lead está retido de propósito pelo gate do CEO.
+      .eq("aprovacao_status", "aprovado")
       .order("qualified_at", { ascending: true })
       .limit(30),
     supabase
@@ -576,6 +579,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .lt("qualified_at", corteAlt)
       .is("whatsapp_sent_at", null)
       .in("timing_status", ["muito_cedo", "tarde_demais"])
+      .eq("aprovacao_status", "aprovado")
       .order("qualified_at", { ascending: true })
       .limit(30),
     supabase
@@ -607,6 +611,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .eq("timing_status", "muito_cedo")
       .lte("scheduled_followup_at", agora)
       .is("scheduled_followup_sent_at", null)
+      .eq("aprovacao_status", "aprovado")
       .limit(30),
   ]);
 

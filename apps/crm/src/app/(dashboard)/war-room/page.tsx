@@ -38,6 +38,7 @@ import {
   fetchDealsWithoutNextAction,
   fetchPendingQualifications,
   fetchTimingAlternatives,
+  fetchLeadsAguardandoAprovacao,
 } from "@/lib/war-room-queries";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/ui";
@@ -46,6 +47,7 @@ import { SafraFilter } from "@/components/war-room/SafraFilter";
 import { WarRoomExportButtons } from "@/components/war-room/WarRoomExportButtons";
 import { CriticalAlertsBanner } from "@/components/war-room/CriticalAlertsBanner";
 import { PendingQualificationsAlert } from "@/components/war-room/PendingQualificationsAlert";
+import { AprovacoesLeads } from "@/components/leads/AprovacoesLeads";
 import { TimingAlternativesCard } from "@/components/war-room/TimingAlternativesCard";
 import { PriorityLeadsSection } from "@/components/war-room/PriorityLeadsSection";
 import { UpcomingActionsSection } from "@/components/war-room/UpcomingActionsSection";
@@ -169,6 +171,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     pendingQualifications,
     timingAlternatives,
     fasesOverrides,
+    leadsAguardandoAprovacao,
   ] = await Promise.all([
     fetchWarRoomMetrics(),
     fetchMetaRevenue(),
@@ -192,6 +195,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     fetchPendingQualifications(),
     fetchTimingAlternatives(),
     getFasesFamiliaConfigOverrides(),
+    fetchLeadsAguardandoAprovacao(),
   ]);
 
   const journeyConfig = mergeJourneyConfig(fasesOverrides);
@@ -463,6 +467,9 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
 
   const header = (
     <div className="flex items-center gap-3">
+      <Suspense fallback={null}>
+        <AprovacoesLeads count={leadsAguardandoAprovacao} />
+      </Suspense>
       <Suspense fallback={null}>
         <SafraFilter safras={safras} />
       </Suspense>

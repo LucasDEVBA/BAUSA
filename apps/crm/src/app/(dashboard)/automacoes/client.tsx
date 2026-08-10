@@ -686,7 +686,7 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
     descricao: "Todo lead novo é classificado (QUENTE/MORNO/FRIO) na entrada.",
     fluxo: [
       "Dispara no cadastro de cada formulário (webhook Supabase) e classifica o lead como QUENTE, MORNO ou FRIO via Google Gemini.",
-      "QUENTE/MORNO entram automaticamente no pipeline (atleta + deal na etapa Lead) e seguem para o WhatsApp inicial.",
+      "QUENTE/MORNO entram na fila de aprovação (War Room/Leads) — a pré-qualificação da IA vira recomendação e o CEO/CTO decide quem entra no pipeline.",
       "Falhas de qualificação são reprocessadas automaticamente 1x/dia. As seções do prompt são editáveis abaixo — seção vazia volta ao padrão do sistema.",
     ],
     editaPrompt: true,
@@ -694,6 +694,21 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
       chave: "qualificacao",
       label: "Qualificação automática",
       avisoDesligar: "Leads novos ficam PENDENTES (sem classe, sem pipeline, sem WhatsApp) até reativar — o reprocesso é automático na reativação.",
+    }],
+  },
+  {
+    id: "aprovacao_manual",
+    nome: "Aprovação manual de leads",
+    descricao: "Gate humano: QUENTE/MORNO só entram no pipeline e recebem WhatsApp após o OK do CEO/CTO.",
+    fluxo: [
+      "Após a qualificação Gemini, leads QUENTE/MORNO ficam na fila de aprovação (botão no War Room e banner em Leads) com todos os dados + recomendação da IA.",
+      "Aprovar cria atleta + deal e libera o fluxo automático (WhatsApp inicial/timing, follow-ups, retomada). Reprovar encerra: sem pipeline e sem mensagens.",
+      "FRIO nunca entra na fila (segue descartado automaticamente).",
+    ],
+    toggles: [{
+      chave: "aprovacao_manual",
+      label: "Exigir aprovação humana",
+      avisoDesligar: "Volta ao fluxo 100% automático: QUENTE/MORNO entram no pipeline e recebem WhatsApp sem revisão humana (comportamento anterior a 2026-08).",
     }],
   },
   {
