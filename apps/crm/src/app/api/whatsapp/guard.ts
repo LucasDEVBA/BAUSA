@@ -39,7 +39,9 @@ export async function guardWhatsAppApi(): Promise<WhatsAppApiGuard> {
  *    não visível → 403. Isso impõe no servidor "CEO sempre; Head só vinculado".
  * 3. Credenciais Z-API presentes → senão 503.
  *
- * O grupo_id NUNCA é normalizado (E.164) — é passado cru para a Z-API.
+ * Recebe o grupo_id no formato do BANCO (sem @g.us — cleanGroupId da
+ * zapi-inbox). O sufixo do jid é responsabilidade do caller (rota de envio).
+ * NUNCA normalizar como E.164.
  */
 export async function guardWhatsAppGrupoEnvio(grupoId: string): Promise<WhatsAppApiGuard> {
   const papel = await getUserPapel();
