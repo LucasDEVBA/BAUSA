@@ -7,18 +7,6 @@
       "runtimeArgs": ["--filter", "@bolsa-atleta/engine", "dev"],
       "port": 3000,
       "autoPort": true
-    },
-    {
-      "name": "gestao-publica",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--dir", "/Users/lucasbau/gestao-publica", "dev"],
-      "port": 3010
-    },
-    {
-      "name": "in-vita",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--dir", "/Users/lucasbau/clinica-invita", "dev"],
-      "port": 3200
     }
   ]
 }
