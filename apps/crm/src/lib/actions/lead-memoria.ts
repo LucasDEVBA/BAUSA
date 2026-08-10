@@ -13,6 +13,7 @@ import {
 } from "@/lib/gemini";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { listarThreadsLead } from "@/lib/actions/conversa-threads";
 import {
   MEMORIA_EXTRACAO_INSTRUCOES_DEFAULT,
   DOC_CLASSIFICACAO_INSTRUCOES_DEFAULT,
@@ -69,7 +70,10 @@ const MIME_SUPORTADOS_LEITURA = new Set([
 ]);
 
 const phoneRe = /^\d{10,15}$/;
-const grupoIdRe = /^[\d-]{5,40}@g\.us$/i;
+// Aceita COM ou SEM @g.us: o banco (whatsapp_grupos/whatsapp_mensagens) guarda
+// o id SEM sufixo — o regex antigo exigia o sufixo e a query usava o valor cru,
+// então a extração de grupo nunca casava (mesma classe do bug do envio a grupo).
+const grupoIdRe = /^[\d-]{5,40}(@g\.us)?$/i;
 
 const inputSchema = z
   .object({
@@ -265,17 +269,19 @@ export async function extrairMemoriaConversa(
 
   const phone = (phoneRaw ?? "").replace(/\D/g, "");
   const lid = (lidRaw ?? "").replace(/\D/g, "");
+  let grupoIdCore = "";
   if (isGrupo) {
     if (!grupoId || !grupoIdRe.test(grupoId)) {
       return { success: false, error: "Grupo inválido." };
     }
+    // Formato do banco: sem @g.us
+    grupoIdCore = grupoId.replace(/@g\.us$/i, "");
   } else if (!phoneRe.test(phone)) {
     return { success: false, error: "Telefone inválido." };
   }
 
   // Âncora estável para o dedupe (mesma conversa → mesma âncora).
-  const ancora =
-    atletaId ?? experienciaId ?? formSubmissionId ?? (isGrupo ? (grupoId as string) : phone);
+  const ancora = atletaId ?? experienciaId ?? formSubmissionId ?? (isGrupo ? grupoIdCore : phone);
 
   try {
     const supabase = await createAuditedSupabaseClient();
@@ -286,7 +292,7 @@ export async function extrairMemoriaConversa(
           .select(
             "message_id, from_me, texto, tipo, momment, media_url, media_filename, participante_nome",
           )
-          .eq("grupo_id", grupoId as string)
+          .eq("grupo_id", grupoIdCore)
           .eq("is_grupo", true)
           .order("momment", { ascending: false, nullsFirst: false })
           .limit(MAX_MENSAGENS)
@@ -811,4 +817,112 @@ export async function dispensarMemoriaItem(id: string): Promise<DispensarMemoria
     });
     return { success: false, error: "Erro inesperado ao dispensar o item." };
   }
+}
+
+// ─── Extração multi-fonte (privados + grupos da família) ─────────────────
+// "Extrair memórias" do modal agora lê TODAS as conversas do lead: privado do
+// responsável, privado do atleta e grupo(s) vinculados. Uma passada da IA por
+// fonte; o dedupe cross-fonte é automático (dedupe_key ancorado no atleta).
+
+export interface ExtrairMemoriaCompletaOk {
+  success: true;
+  /** Fontes encontradas (privados + grupos). */
+  fontes: number;
+  /** Fontes que tinham mensagens e foram analisadas. */
+  fontesAnalisadas: number;
+  fatosNovos: number;
+  documentosNovos: number;
+  documentosPendentesSemAtleta: number;
+}
+
+export type ExtrairMemoriaCompletaResult =
+  | ExtrairMemoriaCompletaOk
+  | { success: false; error: string; notConfigured?: boolean };
+
+interface ExtrairMemoriaCompletaInput {
+  atletaId?: string;
+  experienciaId?: string;
+  formSubmissionId?: string;
+  /** Telefone conhecido pela UI — garante ao menos uma fonte se a resolução falhar. */
+  phone?: string | null;
+  lid?: string | null;
+}
+
+export async function extrairMemoriaLeadCompleta(
+  input: ExtrairMemoriaCompletaInput,
+): Promise<ExtrairMemoriaCompletaResult> {
+  const papel = await getUserPapel();
+  if (papel !== "ceo") {
+    return { success: false, error: "Apenas o CEO pode extrair memória das conversas." };
+  }
+
+  // Fontes: mesmas threads do painel de conversa (responsável/atleta/grupos)
+  const threadsRes = await listarThreadsLead({
+    atletaId: input.atletaId ?? null,
+    formSubmissionId: input.formSubmissionId ?? null,
+  });
+  const threads = threadsRes.success ? [...threadsRes.threads] : [];
+
+  const phoneDigits = (input.phone ?? "").replace(/\D/g, "");
+  if (phoneRe.test(phoneDigits) && !threads.some((t) => t.phone === phoneDigits)) {
+    threads.unshift({ tipo: "privado", label: "Contato", phone: phoneDigits });
+  }
+  if (threads.length === 0) {
+    return { success: false, error: "Nenhuma conversa encontrada para este lead." };
+  }
+
+  const base = {
+    atletaId: input.atletaId,
+    experienciaId: input.experienciaId,
+    formSubmissionId: input.formSubmissionId,
+  };
+
+  let fatosNovos = 0;
+  let documentosNovos = 0;
+  let documentosPendentesSemAtleta = 0;
+  let fontesAnalisadas = 0;
+  const erros: string[] = [];
+
+  // Sequencial de propósito: gentil com o rate-limit do Gemini e mantém a
+  // ordem estável das fontes nos logs.
+  for (const t of threads) {
+    const r =
+      t.tipo === "grupo"
+        ? await extrairMemoriaConversa({ ...base, grupoId: t.grupoId })
+        : await extrairMemoriaConversa({
+            ...base,
+            phone: t.phone,
+            lid: t.phone === phoneDigits ? (input.lid ?? undefined) : undefined,
+          });
+
+    if (r.success) {
+      fontesAnalisadas++;
+      fatosNovos += r.fatosNovos;
+      documentosNovos += r.documentosNovos;
+      documentosPendentesSemAtleta += r.documentosPendentesSemAtleta;
+    } else {
+      if (r.notConfigured) {
+        return { success: false, error: r.error, notConfigured: true };
+      }
+      // Fonte vazia/erro isolado não aborta as demais (conversa sem mensagens
+      // é esperado — ex.: atleta nunca respondeu no privado).
+      erros.push(`${t.label}: ${r.error}`);
+    }
+  }
+
+  if (fontesAnalisadas === 0) {
+    return {
+      success: false,
+      error: erros[0] ?? "Nenhuma conversa com mensagens para a IA analisar.",
+    };
+  }
+
+  return {
+    success: true,
+    fontes: threads.length,
+    fontesAnalisadas,
+    fatosNovos,
+    documentosNovos,
+    documentosPendentesSemAtleta,
+  };
 }

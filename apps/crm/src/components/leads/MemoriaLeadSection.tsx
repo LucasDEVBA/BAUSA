@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { cleanPhone, isValidPhone } from "@/lib/whatsapp-espelho";
 import {
   dispensarMemoriaItem,
-  extrairMemoriaConversa,
+  extrairMemoriaLeadCompleta,
   listarMemoriaLead,
   type MemoriaItem,
 } from "@/lib/actions/lead-memoria";
@@ -166,11 +166,13 @@ export function MemoriaLeadSection({
   const lista = temAncora ? itens : [];
 
   const handleExtrair = useCallback(() => {
-    if (!telefoneValido || extraindo) return;
+    if ((!telefoneValido && !temAncora) || extraindo) return;
     setExtraindo(true);
     startTransition(() => {
-      void extrairMemoriaConversa({
-        phone: digits,
+      // Multi-fonte: privado do responsável + privado do atleta + grupo(s) da
+      // família — as fontes são resolvidas server-side pela âncora.
+      void extrairMemoriaLeadCompleta({
+        phone: telefoneValido ? digits : undefined,
         lid: lid ?? undefined,
         atletaId: ancoraAtleta,
         experienciaId: ancoraExperiencia,
@@ -186,12 +188,16 @@ export function MemoriaLeadSection({
             `${r.documentosNovos} ${r.documentosNovos === 1 ? "documento" : "documentos"}`,
           ];
           toast.success(`Memória atualizada: ${partes.join(", ")}.`, {
-            description:
+            description: [
+              `${r.fontesAnalisadas} de ${r.fontes} conversa(s) analisada(s) (privados + grupos).`,
               r.documentosPendentesSemAtleta > 0
                 ? `${r.documentosPendentesSemAtleta} mídia(s) aguardando o lead virar atleta para anexar.`
                 : r.documentosNovos > 0
                   ? "Os documentos capturados aparecem na seção Documentos."
-                  : undefined,
+                  : null,
+            ]
+              .filter(Boolean)
+              .join(" "),
           });
           void carregar();
         })
@@ -200,6 +206,7 @@ export function MemoriaLeadSection({
     });
   }, [
     telefoneValido,
+    temAncora,
     extraindo,
     digits,
     lid,
@@ -238,20 +245,21 @@ export function MemoriaLeadSection({
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold text-foreground">Memória & Insights</h3>
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-              A IA lê a conversa do lead, extrai fatos e insights duradouros e captura documentos
-              enviados. Sob demanda; ela nunca envia nada.
+              A IA lê TODAS as conversas do lead — privado do responsável, privado do atleta e
+              grupo(s) da família — extrai fatos e insights duradouros e captura documentos.
+              Sob demanda; ela nunca envia nada.
             </p>
           </div>
         </div>
 
         <Button
           size="sm"
-          disabled={!telefoneValido || extraindo}
+          disabled={(!telefoneValido && !temAncora) || extraindo}
           onClick={handleExtrair}
           className="w-full"
         >
           {extraindo ? <Loader2 className="animate-spin" /> : <Sparkles />}
-          Extrair memória & documentos desta conversa
+          Extrair memória de todas as conversas do lead
         </Button>
 
         {!telefoneValido && (
