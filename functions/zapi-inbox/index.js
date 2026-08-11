@@ -48,13 +48,25 @@ const maskPhone = (digits) =>
 
 const httpRequest = (url, options, postData) =>
   new Promise((resolve, reject) => {
+    // Settle único: socket resetado no MEIO da response não dispara req.error
+    // nem o idle-timeout — sem o guard de 'close', a Promise ficaria pendurada
+    // até o teto da CF (achado da revisão adversarial 2026-08-11).
+    let liquidada = false;
+    const settle = (fn, v) => { if (!liquidada) { liquidada = true; fn(v); } };
     const u = new URL(url);
     const req = https.request(
-      { hostname: u.hostname, path: u.pathname + u.search, method: options.method || 'GET', headers: options.headers || {} },
-      (res) => { let b = ''; res.on('data', (c) => (b += c)); res.on('end', () => resolve({ statusCode: res.statusCode, body: b })); },
+      { hostname: u.hostname, port: u.port || undefined, path: u.pathname + u.search, method: options.method || 'GET', headers: options.headers || {} },
+      (res) => {
+        let b = '';
+        let terminou = false;
+        res.on('data', (c) => (b += c));
+        res.on('end', () => { terminou = true; settle(resolve, { statusCode: res.statusCode, body: b }); });
+        res.on('close', () => { if (!terminou) settle(reject, new Error('connection closed mid-response')); });
+        res.on('error', (e) => settle(reject, e));
+      },
     );
-    req.on('error', reject);
-    req.setTimeout(15000, () => { req.destroy(); reject(new Error('Request timeout (15s)')); });
+    req.on('error', (e) => settle(reject, e));
+    req.setTimeout(15000, () => { req.destroy(); settle(reject, new Error('Request timeout (15s)')); });
     if (postData) req.write(postData);
     req.end();
   });
@@ -183,6 +195,157 @@ function normalizarGrupo(p) {
   };
 }
 
+// ─── Re-hospedagem de mídia (bucket próprio — URLs da Z-API expiram) ─────
+// As URLs de mídia da Z-API (backblazeb2) morrem em ~semanas. No ingest,
+// baixamos o arquivo e subimos no bucket PRIVADO `whatsapp-midia`; a linha
+// ganha media_path (media_url segue como fallback legado). FAIL-OPEN total:
+// qualquer falha aqui devolve null e a mensagem é gravada como antes — o
+// webhook JAMAIS quebra por causa de mídia.
+const MEDIA_REHOST_MAX_BYTES = 15 * 1024 * 1024; // paridade com o bucket (15MB)
+const MEDIA_DOWNLOAD_TIMEOUT_MS = 10000;
+// Deadline WALL-CLOCK por tentativa: o setTimeout do Node é de OCIOSIDADE — um
+// servidor gotejando 1 byte/9s manteria o download vivo p/ sempre e penduraria
+// o webhook (achado da revisão adversarial 2026-08-11). Pior caso total:
+// 3 hops × 8s + upload ≪ timeout da CF (120s) e do retry da Z-API.
+const MEDIA_DOWNLOAD_DEADLINE_MS = 8000;
+const MEDIA_BUCKET = 'whatsapp-midia';
+
+const EXT_POR_MIME = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
+  'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac',
+  'video/mp4': 'mp4', 'video/3gpp': '3gp', 'application/pdf': 'pdf',
+};
+
+const extensaoMidia = (mimeType, fileName, url) => {
+  const mime = String(mimeType || '').split(';')[0].trim().toLowerCase();
+  if (EXT_POR_MIME[mime]) return EXT_POR_MIME[mime];
+  const doNome = String(fileName || '').toLowerCase().match(/\.([a-z0-9]{1,8})$/);
+  if (doNome) return doNome[1];
+  try {
+    const doPath = new URL(url).pathname.toLowerCase().match(/\.([a-z0-9]{1,8})$/);
+    if (doPath) return doPath[1];
+  } catch { /* URL inválida já foi filtrada antes */ }
+  return 'bin';
+};
+
+const sanitizarSegmento = (s) => String(s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+
+/**
+ * Download binário (Buffer) com teto de bytes, timeout de ociosidade, deadline
+ * wall-clock e até 2 redirects. Settle ÚNICO + guard de 'close': socket morto
+ * no meio do corpo não dispara req.error nem idle-timeout — sem isso a Promise
+ * penduraria o webhook até o teto da CF (provado em repro pela revisão).
+ */
+const baixarBinario = (url, redirectsRestantes = 2) =>
+  new Promise((resolve, reject) => {
+    let liquidada = false;
+    let deadline = null;
+    const settle = (fn, v) => {
+      if (liquidada) return;
+      liquidada = true;
+      if (deadline) clearTimeout(deadline);
+      fn(v);
+    };
+
+    const u = new URL(url);
+    if (u.protocol !== 'https:') return settle(reject, new Error('midia nao-https'));
+
+    const req = https.get(
+      { hostname: u.hostname, port: u.port || undefined, path: u.pathname + u.search },
+      (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
+          if (redirectsRestantes <= 0) return settle(reject, new Error('redirects excedidos'));
+          return settle(
+            resolve,
+            baixarBinario(new URL(res.headers.location, url).toString(), redirectsRestantes - 1),
+          );
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          return settle(reject, new Error(`download HTTP ${res.statusCode}`));
+        }
+        const declarado = Number(res.headers['content-length']);
+        if (Number.isFinite(declarado) && declarado > MEDIA_REHOST_MAX_BYTES) {
+          req.destroy();
+          return settle(reject, new Error('midia acima do teto'));
+        }
+        const chunks = [];
+        let total = 0;
+        let terminou = false;
+        res.on('data', (c) => {
+          total += c.length;
+          if (total > MEDIA_REHOST_MAX_BYTES) {
+            req.destroy();
+            return settle(reject, new Error('midia acima do teto'));
+          }
+          chunks.push(c);
+        });
+        res.on('end', () => {
+          terminou = true;
+          settle(resolve, { buffer: Buffer.concat(chunks), contentType: res.headers['content-type'] || null });
+        });
+        res.on('close', () => {
+          if (!terminou) settle(reject, new Error('download interrompido (socket fechado)'));
+        });
+        res.on('error', (e) => settle(reject, e));
+      },
+    );
+    req.on('error', (e) => settle(reject, e));
+    req.setTimeout(MEDIA_DOWNLOAD_TIMEOUT_MS, () => {
+      req.destroy();
+      settle(reject, new Error(`download timeout (${MEDIA_DOWNLOAD_TIMEOUT_MS}ms)`));
+    });
+    // Deadline wall-clock (o setTimeout acima é só ociosidade)
+    deadline = setTimeout(() => {
+      req.destroy();
+      settle(reject, new Error(`download deadline (${MEDIA_DOWNLOAD_DEADLINE_MS}ms)`));
+    }, MEDIA_DOWNLOAD_DEADLINE_MS);
+  });
+
+/**
+ * Baixa a mídia da Z-API e sobe no bucket próprio. Retorna o media_path ou
+ * null (fail-open — NUNCA lança). Path: `<chave>/<message_id>.<ext>`.
+ */
+async function rehospedarMidia({ chave, messageId, mediaUrl, mimeType, fileName }) {
+  try {
+    if (!isHttpUrl(mediaUrl)) return null;
+    const seg = sanitizarSegmento(chave);
+    const nome = sanitizarSegmento(messageId);
+    if (!seg || !nome) return null;
+
+    const { buffer, contentType } = await baixarBinario(mediaUrl);
+    if (!buffer || buffer.length === 0) return null;
+
+    const ext = extensaoMidia(mimeType || contentType, fileName, mediaUrl);
+    const mediaPath = `${seg}/${nome}.${ext}`;
+
+    const up = await httpRequest(
+      `${SUPABASE_URL}/storage/v1/object/${MEDIA_BUCKET}/${encodeURIComponent(seg)}/${encodeURIComponent(`${nome}.${ext}`)}`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Content-Type': mimeType || contentType || 'application/octet-stream',
+          'Content-Length': buffer.length, // sem isto o Node usa chunked — a Storage API pode rejeitar
+          'x-upsert': 'true', // retry da Z-API re-sobe o mesmo path sem erro 409
+        },
+      },
+      buffer,
+    );
+    if (up.statusCode >= 400) throw new Error(`storage upload HTTP ${up.statusCode}`);
+
+    // PII: chave = telefone no 1:1 — loga MASCARADO (convenção da CF inteira)
+    log('INFO', 'midia_rehospedada', { chave: maskPhone(String(chave)), ext, bytes: buffer.length });
+    return mediaPath;
+  } catch (err) {
+    // Sem URL no log (querystring pode carregar token da Z-API); erro curto.
+    log('WARN', 'midia_rehost_failed', { chave: maskPhone(String(chave)), error: err.message });
+    return null;
+  }
+}
+
 // ─── Ingestão de grupo (RPC atômica + idempotente) ───────────────────────
 // A RPC public.whatsapp_grupo_ingest faz, numa transação: upsert do grupo
 // (existência SEMPRE registrada) + INSERT da mensagem SÓ se capturar=true, com
@@ -224,6 +387,34 @@ async function ingestGrupo(g) {
     throw new Error(`Supabase rpc grupo ${r.statusCode} (code ${pgCode})`);
   }
   try { return JSON.parse(r.body) || {}; } catch { return {}; }
+}
+
+/**
+ * Grava o media_path de uma mensagem de GRUPO já inserida pela RPC.
+ * Roda DEPOIS do gate de captura (achado LGPD da revisão adversarial: rehost
+ * antes da RPC persistia mídia de grupo com captura DESLIGADA — bypass do
+ * opt-out). Fail-open: janela pré-migration (coluna ausente) só loga.
+ */
+async function gravarMediaPathGrupo(messageId, mediaPath) {
+  const r = await httpRequest(
+    `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?message_id=eq.${encodeURIComponent(messageId)}&is_grupo=is.true`,
+    {
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        'Content-Profile': SUPABASE_SCHEMA,
+        Prefer: 'return=minimal',
+      },
+    },
+    JSON.stringify({ media_path: mediaPath }),
+  );
+  if (r.statusCode >= 400) {
+    let pgCode = 'unknown';
+    try { pgCode = JSON.parse(r.body).code || 'unknown'; } catch { /* body não-JSON */ }
+    throw new Error(`patch media_path grupo ${r.statusCode} (code ${pgCode})`);
+  }
 }
 
 // ─── Vínculo automático grupo → família ──────────────────────────────────
@@ -341,6 +532,26 @@ functions.http('zapiInbox', async (req, res) => {
     const grupo = normalizarGrupo(payload);
     if (grupo) {
       const out = await ingestGrupo(grupo);
+      // Re-hospedagem SÓ após o gate de captura confirmar a inserção — grupo
+      // com captura desligada JAMAIS persiste mídia no bucket (opt-out LGPD).
+      // Fail-open completo: falha aqui nunca quebra o webhook.
+      if (out.capturar === true && out.inserted === true && grupo.media_url) {
+        try {
+          const mediaPath = await rehospedarMidia({
+            chave: grupo.grupo_id,
+            messageId: grupo.message_id,
+            mediaUrl: grupo.media_url,
+            mimeType: grupo.mime_type,
+            fileName: grupo.media_filename,
+          });
+          if (mediaPath) await gravarMediaPathGrupo(grupo.message_id, mediaPath);
+        } catch (midiaErr) {
+          log('WARN', 'grupo_media_path_failed', {
+            grupoId: maskPhone(grupo.grupo_id),
+            error: midiaErr.message,
+          });
+        }
+      }
       log('INFO', 'grupo_ingerido', {
         grupoId: maskPhone(grupo.grupo_id),
         capturar: out.capturar === true,
@@ -368,26 +579,52 @@ functions.http('zapiInbox', async (req, res) => {
       return res.status(200).send({ success: true, ignored: true });
     }
 
-    const r = await httpRequest(
-      `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?on_conflict=message_id`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Content-Type': 'application/json',
-          'Content-Profile': SUPABASE_SCHEMA,
-          Prefer: 'resolution=ignore-duplicates,return=minimal',
+    // Re-hospedagem da mídia 1:1 (fail-open: null → grava só media_url como antes)
+    if (row.media_url) {
+      const mediaPath = await rehospedarMidia({
+        chave: row.phone,
+        messageId: row.message_id,
+        mediaUrl: row.media_url,
+        mimeType: row.mime_type,
+        fileName: row.media_filename,
+      });
+      if (mediaPath) row.media_path = mediaPath;
+    }
+
+    const inserir = (linha) =>
+      httpRequest(
+        `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?on_conflict=message_id`,
+        {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+            'Content-Type': 'application/json',
+            'Content-Profile': SUPABASE_SCHEMA,
+            Prefer: 'resolution=ignore-duplicates,return=minimal',
+          },
         },
-      },
-      JSON.stringify(row),
-    );
+        JSON.stringify(linha),
+      );
+
+    let r = await inserir(row);
     if (r.statusCode >= 400) {
       // NÃO logar o body cru: em violação de constraint o Postgres devolve a
       // linha inteira no DETAIL (phone + texto da mensagem = PII).
       let pgCode = 'unknown';
       try { pgCode = JSON.parse(r.body).code || 'unknown'; } catch { /* body não-JSON */ }
-      throw new Error(`Supabase insert ${r.statusCode} (code ${pgCode})`);
+      // Janela pré-migration: coluna media_path ainda não existe (PGRST204 /
+      // 42703) → re-tenta sem o campo (mensagem > mídia).
+      if (row.media_path && (pgCode === 'PGRST204' || pgCode === '42703')) {
+        log('WARN', 'insert_sem_media_path_retry', { phone: maskPhone(row.phone) });
+        const { media_path: _descartado, ...semMediaPath } = row;
+        r = await inserir(semMediaPath);
+      }
+      if (r.statusCode >= 400) {
+        let pgCode2 = 'unknown';
+        try { pgCode2 = JSON.parse(r.body).code || 'unknown'; } catch { /* body não-JSON */ }
+        throw new Error(`Supabase insert ${r.statusCode} (code ${pgCode2})`);
+      }
     }
 
     log('INFO', 'mensagem_gravada', {

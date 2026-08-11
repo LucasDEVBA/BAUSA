@@ -58,16 +58,43 @@ test('zapi-inbox: conteúdo de grupo é opt-in — só via RPC whatsapp_grupo_in
     'INVARIANTE VIOLADO: o caminho de grupo deve chamar a RPC atômica ' +
       'whatsapp_grupo_ingest (que aplica o opt-in capturar) — nunca um INSERT direto.',
   );
-  // Só pode haver UM POST direto p/ whatsapp_mensagens (o do fluxo 1:1). Se
-  // aparecer mais de um, algum caminho de grupo está inserindo conteúdo direto,
-  // driblando o opt-in.
-  const insertsDiretos = src.match(/rest\/v1\/whatsapp_mensagens/g) ?? [];
+  // Só pode haver UM INSERT direto p/ whatsapp_mensagens (o do fluxo 1:1,
+  // assinado pelo on_conflict). Se aparecer outro, algum caminho de grupo está
+  // inserindo conteúdo direto, driblando o opt-in.
+  const insertsDiretos = src.match(/whatsapp_mensagens\?on_conflict=message_id/g) ?? [];
   assert.equal(
     insertsDiretos.length,
     1,
     'INVARIANTE VIOLADO: existe mais de um INSERT direto em whatsapp_mensagens — ' +
       'grupo deve gravar SÓ pela RPC (opt-in), não por REST direto.',
   );
+  // 2026-08-11 (re-hospedagem de mídia): o ÚNICO outro acesso REST permitido a
+  // whatsapp_mensagens é o PATCH de media_path pós-RPC — ele NÃO insere
+  // conteúdo (linha inexistente = no-op) e roda gateado por
+  // `out.capturar === true && out.inserted === true`. Qualquer outra escrita
+  // direta continua proibida.
+  const outrosAcessos = (src.match(/rest\/v1\/whatsapp_mensagens/g) ?? []).length - insertsDiretos.length;
+  if (outrosAcessos > 0) {
+    assert.equal(
+      outrosAcessos,
+      1,
+      'INVARIANTE VIOLADO: acesso REST extra a whatsapp_mensagens além do INSERT 1:1 ' +
+        'e do PATCH de media_path — caminho novo precisa passar pela RPC (opt-in).',
+    );
+    const blocoPatch = src.match(/async function gravarMediaPathGrupo[\s\S]*?\n}\n/);
+    assert.ok(blocoPatch, 'o acesso extra deve ser gravarMediaPathGrupo (PATCH de media_path)');
+    assert.match(blocoPatch[0], /method: 'PATCH'/, 'gravarMediaPathGrupo deve ser PATCH (nunca INSERT)');
+    assert.match(
+      blocoPatch[0],
+      /is_grupo=is\.true/,
+      'o PATCH deve mirar só a linha de grupo já inserida pela RPC',
+    );
+    assert.match(
+      blocoPatch[0],
+      /JSON\.stringify\(\{ media_path: mediaPath \}\)/,
+      'o PATCH só pode escrever media_path — qualquer outro campo dribla a RPC',
+    );
+  }
 });
 
 test('zapi-inbox: handler roteia grupo ANTES do 1:1', () => {
