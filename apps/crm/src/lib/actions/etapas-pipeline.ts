@@ -155,10 +155,28 @@ export interface ContextoColuna {
 }
 
 /**
+ * Uma automação "é desta coluna" quando:
+ *   • dispara ao ENTRAR nela — gatilho `deal_etapa_mudou` + etapa_para; ou
+ *   • age sobre quem está PARADO nela — gatilho `deal_parado_etapa` com uma
+ *     condição `etapa = <stage>` (é assim que a cadência D+N se prende à
+ *     coluna, já que o finder de tempo não filtra etapa).
+ * Nada de schema novo — e por isso elas seguem visíveis em /automacoes.
+ */
+function pertenceAEtapa(a: Automacao, stage: DealStage): boolean {
+  if (a.gatilho === "deal_etapa_mudou") {
+    return (a.gatilho_config as { etapa_para?: string } | null)?.etapa_para === stage;
+  }
+  if (a.gatilho === "deal_parado_etapa") {
+    const condicoes = Array.isArray(a.condicoes) ? a.condicoes : [];
+    return condicoes.some(
+      (c) => c?.campo === "etapa" && String(c?.valor) === stage,
+    );
+  }
+  return false;
+}
+
+/**
  * Automações ligadas a ESTA coluna + o contexto que o BuilderScreen exige.
- * O vínculo automação↔coluna já existia: gatilho `deal_etapa_mudou` com
- * `gatilho_config.etapa_para` = etapa. Nada de schema novo — e por isso elas
- * continuam aparecendo normalmente em /automacoes.
  */
 export async function carregarContextoColuna(stage: string): Promise<
   { success: true; data: ContextoColuna } | { success: false; error: string }
@@ -171,11 +189,12 @@ export async function carregarContextoColuna(stage: string): Promise<
   const supabase = await createServerSupabaseClient();
   const [{ data: automacoes, error }, { data: usuarios }, agents, { data: agentsCompletos }] =
     await Promise.all([
+      // Filtro por etapa em JS: cobre os dois vínculos (entrada e parado)
+      // sem um `or=` aninhado de PostgREST difícil de manter.
       supabase
         .from("automacoes")
         .select("id, nome, descricao, gatilho, gatilho_config, condicoes, acoes, passos, ativo, created_at, updated_at")
-        .eq("gatilho", "deal_etapa_mudou")
-        .eq("gatilho_config->>etapa_para", stage)
+        .in("gatilho", ["deal_etapa_mudou", "deal_parado_etapa"])
         .is("deleted_at", null)
         .order("created_at", { ascending: false }),
       supabase.from("user_profiles").select("id, nome, papel").eq("ativo", true).order("nome"),
@@ -192,7 +211,9 @@ export async function carregarContextoColuna(stage: string): Promise<
   return {
     success: true,
     data: {
-      automacoes: (automacoes ?? []) as unknown as Automacao[],
+      automacoes: ((automacoes ?? []) as unknown as Automacao[]).filter((a) =>
+        pertenceAEtapa(a, stage as DealStage),
+      ),
       usuarios: (usuarios ?? []) as { id: string; nome: string; papel: string }[],
       agents,
       agentsCompletos: (agentsCompletos ?? []) as unknown as Agent[],
