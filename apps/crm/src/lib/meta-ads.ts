@@ -126,6 +126,12 @@ export interface CampanhaAds {
   budgetDiario: number | null;
   budgetTotal: number | null;
   criadaEm: string | null;
+  /**
+   * stop_time da Meta. Boost encerrado fica ACTIVE para sempre — 88 das 89
+   * "ativas" da conta são boosts com fim no passado (auditoria 2026-08-11).
+   * É a base do badge de veiculação (Ativa ≠ entregando).
+   */
+  fimEm: string | null;
   thumbnailUrl: string | null;
   // Vida toda (Graph, date_preset maximum) — campanhas ativas fora da janela
   // de 30d mostravam "—" em tudo; a vida toda sempre tem o histórico.
@@ -137,6 +143,8 @@ export interface CampanhaAds {
   gasto30d: number;
   cliques30d: number;
   impressoes30d: number;
+  /** Gasto 7d do NOSSO histórico — sinal determinístico de entrega real. */
+  gasto7d: number;
 }
 
 interface GraphInsightsRow {
@@ -145,8 +153,11 @@ interface GraphInsightsRow {
   clicks?: string;
   ctr?: string;
   cpm?: string;
+  cpc?: string;
   frequency?: string;
   reach?: string;
+  unique_clicks?: string;
+  inline_link_clicks?: string;
 }
 
 interface GraphCreative {
@@ -165,6 +176,7 @@ interface GraphCampanha {
   daily_budget?: string;
   lifetime_budget?: string;
   created_time?: string;
+  stop_time?: string;
   insights?: { data?: GraphInsightsRow[] };
   ads?: { data?: Array<{ creative?: GraphCreative }> };
 }
@@ -216,7 +228,7 @@ async function thumbsEmAlta(creativeIds: string[]): Promise<Map<string, string>>
 export async function fetchCampanhasAds(): Promise<CampanhaAds[]> {
   const rows = await graphGet<GraphCampanha>(`${contaAnuncio()}/campaigns`, {
     fields:
-      "name,effective_status,objective,daily_budget,lifetime_budget,created_time," +
+      "name,effective_status,objective,daily_budget,lifetime_budget,created_time,stop_time," +
       "insights.date_preset(maximum){spend,impressions,clicks,ctr}," +
       "ads.limit(1){creative{id,thumbnail_url,image_url}}",
     limit: "50",
@@ -238,6 +250,7 @@ export async function fetchCampanhasAds(): Promise<CampanhaAds[]> {
       budgetDiario: centavos(c.daily_budget),
       budgetTotal: centavos(c.lifetime_budget),
       criadaEm: c.created_time ?? null,
+      fimEm: c.stop_time ?? null,
       thumbnailUrl: thumbAlta ?? creative?.image_url ?? creative?.thumbnail_url ?? null,
       gastoVida: num(ins?.spend),
       impressoesVida: num(ins?.impressions),
@@ -246,6 +259,7 @@ export async function fetchCampanhasAds(): Promise<CampanhaAds[]> {
       gasto30d: 0,
       cliques30d: 0,
       impressoes30d: 0,
+      gasto7d: 0,
     };
   });
 }
@@ -256,6 +270,12 @@ export async function fetchAgregado30dPorCampanha(supabase: SupabaseServer): Pro
   return new Map(top.map((t) => [t.campanhaId, { gasto: t.gasto, cliques: t.cliques, impressoes: t.impressoes }]));
 }
 
+/** Gasto dos últimos 7d por campanha — sinal determinístico de ENTREGA real. */
+export async function fetchGasto7dPorCampanha(supabase: SupabaseServer): Promise<Map<string, number>> {
+  const top = await fetchTopCampanhas(supabase, resolverRange({ periodo: "7d" }).range, 1000);
+  return new Map(top.map((t) => [t.campanhaId, t.gasto]));
+}
+
 // ─── Detalhe de UMA campanha (conjuntos + anúncios + insights vida toda) ─
 
 export interface InsightsResumo {
@@ -264,8 +284,26 @@ export interface InsightsResumo {
   cliques: number;
   ctr: number | null;
   cpm: number | null;
+  cpc: number | null;
   alcance: number | null;
   frequencia: number | null;
+  cliquesUnicos: number | null;
+  cliquesLink: number | null;
+}
+
+/** Público-alvo de um conjunto (targeting da Meta, parseado p/ exibição). */
+export interface PublicoAlvo {
+  idadeMin: number | null;
+  idadeMax: number | null;
+  /** "Todos" | "Homens" | "Mulheres" */
+  generos: string;
+  /** Países + cidades/regiões nomeadas */
+  locais: string[];
+  plataformas: string[];
+  interesses: string[];
+  publicosCustom: string[];
+  /** Advantage+ audience (a Meta expande o público sozinha) */
+  advantage: boolean;
 }
 
 export interface ConjuntoAds {
@@ -277,6 +315,8 @@ export interface ConjuntoAds {
   gastoVida: number;
   impressoesVida: number;
   cliquesVida: number;
+  alcanceVida: number | null;
+  publico: PublicoAlvo | null;
 }
 
 export interface AnuncioAds {
@@ -311,12 +351,57 @@ export interface CampanhaDetalhe {
   anuncios: AnuncioAds[];
 }
 
+interface GraphTargeting {
+  age_min?: number;
+  age_max?: number;
+  /** 0 = todos, 1 = homens, 2 = mulheres */
+  genders?: number[];
+  geo_locations?: {
+    countries?: string[];
+    cities?: Array<{ name?: string }>;
+    regions?: Array<{ name?: string }>;
+  };
+  publisher_platforms?: string[];
+  flexible_spec?: Array<{ interests?: Array<{ name?: string }> }>;
+  custom_audiences?: Array<{ name?: string }>;
+  targeting_automation?: { advantage_audience?: number };
+}
+
 interface GraphAdset {
   id: string;
   name?: string;
   effective_status?: string;
   daily_budget?: string;
+  targeting?: GraphTargeting;
   insights?: { data?: GraphInsightsRow[] };
+}
+
+const PAIS_LABEL: Record<string, string> = { BR: "Brasil", US: "EUA", PT: "Portugal" };
+const GENERO_TARGETING: Record<number, string> = { 1: "Homens", 2: "Mulheres" };
+
+/** Parse defensivo do targeting da Meta → resumo exibível. null = sem dado. */
+function parsePublico(t: GraphTargeting | undefined): PublicoAlvo | null {
+  if (!t || typeof t !== "object") return null;
+  const generoCod = Array.isArray(t.genders) ? t.genders.find((g) => g === 1 || g === 2) : undefined;
+  const locais = [
+    ...(t.geo_locations?.countries ?? []).map((c) => PAIS_LABEL[c] ?? c),
+    ...(t.geo_locations?.regions ?? []).map((r) => r?.name ?? "").filter(Boolean),
+    ...(t.geo_locations?.cities ?? []).map((c) => c?.name ?? "").filter(Boolean),
+  ];
+  const interesses = (t.flexible_spec ?? [])
+    .flatMap((s) => s?.interests ?? [])
+    .map((i) => i?.name ?? "")
+    .filter(Boolean);
+  return {
+    idadeMin: typeof t.age_min === "number" ? t.age_min : null,
+    idadeMax: typeof t.age_max === "number" ? t.age_max : null,
+    generos: generoCod !== undefined ? GENERO_TARGETING[generoCod] : "Todos",
+    locais,
+    plataformas: t.publisher_platforms ?? [],
+    interesses,
+    publicosCustom: (t.custom_audiences ?? []).map((a) => a?.name ?? "").filter(Boolean),
+    advantage: t.targeting_automation?.advantage_audience === 1,
+  };
 }
 
 interface GraphAd {
@@ -339,8 +424,11 @@ const resumo = (ins: GraphInsightsRow | undefined): InsightsResumo => ({
   cliques: num(ins?.clicks),
   ctr: numOuNull(ins?.ctr),
   cpm: numOuNull(ins?.cpm),
+  cpc: numOuNull(ins?.cpc),
   alcance: numOuNull(ins?.reach),
   frequencia: numOuNull(ins?.frequency),
+  cliquesUnicos: numOuNull(ins?.unique_clicks),
+  cliquesLink: numOuNull(ins?.inline_link_clicks),
 });
 
 export async function fetchCampanhaDetalhe(campanhaId: string): Promise<CampanhaDetalhe | null> {
@@ -350,8 +438,10 @@ export async function fetchCampanhaDetalhe(campanhaId: string): Promise<Campanha
     c = await graphGetNode<GraphCampanhaDetalhe>(campanhaId, {
       fields:
         "name,effective_status,objective,daily_budget,lifetime_budget,created_time,start_time,stop_time," +
-        "insights.date_preset(maximum){spend,impressions,clicks,ctr,cpm,reach,frequency}," +
-        "adsets.limit(50){name,effective_status,daily_budget,insights.date_preset(maximum){spend,impressions,clicks}}",
+        "insights.date_preset(maximum){spend,impressions,clicks,ctr,cpm,cpc,reach,frequency,unique_clicks,inline_link_clicks}," +
+        // targeting SEM sub-seleção — é struct (não edge); a sonda validou o shape completo
+        "adsets.limit(50){name,effective_status,daily_budget,targeting," +
+        "insights.date_preset(maximum){spend,impressions,clicks,reach}}",
     });
   } catch (e) {
     // Campanha inexistente/sem permissão → 404 amigável em vez de tela de erro
@@ -392,6 +482,8 @@ export async function fetchCampanhaDetalhe(campanhaId: string): Promise<Campanha
         gastoVida: num(ins?.spend),
         impressoesVida: num(ins?.impressions),
         cliquesVida: num(ins?.clicks),
+        alcanceVida: numOuNull(ins?.reach),
+        publico: parsePublico(a.targeting),
       };
     }),
     anuncios: ads.map((a) => {
@@ -504,6 +596,12 @@ export async function fetchSerieDiariaGasto(
   return [...porDia.values()];
 }
 
+/** Soma o gasto dos últimos 7 dias de uma série diária (sinal de entrega). */
+export function gasto7dDaSerie(serie: DiaGastoAds[]): number {
+  const corte = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  return serie.filter((d) => d.dia >= corte).reduce((s, d) => s + d.gasto, 0);
+}
+
 export interface TopCampanha {
   campanhaId: string;
   nome: string;
@@ -540,13 +638,19 @@ export interface DiaLeads {
 }
 
 /** Leads do funil por dia (só os atribuíveis a campanhas — utm_id presente). */
-export async function fetchLeadsPorDia(supabase: SupabaseServer, range: RangeDatas): Promise<DiaLeads[]> {
-  const { data, error } = await supabase
+export async function fetchLeadsPorDia(
+  supabase: SupabaseServer,
+  range: RangeDatas,
+  campanhaId?: string,
+): Promise<DiaLeads[]> {
+  let query = supabase
     .from("form_submissions")
     .select("submitted_at")
     .not("utm_id", "is", null)
     .gte("submitted_at", `${range.since}T00:00:00Z`)
     .lte("submitted_at", `${range.until}T23:59:59Z`);
+  if (campanhaId) query = query.eq("utm_id", campanhaId);
+  const { data, error } = await query;
   if (error) throw new MetaAdsError(`form_submissions: ${error.message}`);
 
   const porDia = new Map<string, number>();
@@ -575,13 +679,23 @@ interface GraphBreakdownRow extends GraphInsightsRow {
   publisher_platform?: string;
 }
 
-export async function fetchBreakdown(tipo: BreakdownTipo, range: RangeDatas): Promise<BreakdownLinha[]> {
-  const rows = await graphGet<GraphBreakdownRow>(`${contaAnuncio()}/insights`, {
+/**
+ * Breakdown demográfico/plataforma. `range: "maximum"` = vida toda;
+ * `node` = id de campanha (default: conta inteira).
+ */
+export async function fetchBreakdown(
+  tipo: BreakdownTipo,
+  range: RangeDatas | "maximum",
+  node?: string,
+): Promise<BreakdownLinha[]> {
+  const params: Record<string, string> = {
     breakdowns: tipo,
     fields: "spend,impressions,clicks",
-    time_range: JSON.stringify({ since: range.since, until: range.until }),
     limit: "200",
-  });
+  };
+  if (range === "maximum") params.date_preset = "maximum";
+  else params.time_range = JSON.stringify({ since: range.since, until: range.until });
+  const rows = await graphGet<GraphBreakdownRow>(`${node ?? contaAnuncio()}/insights`, params);
   const agg = new Map<string, BreakdownLinha>();
   for (const r of rows) {
     const chave = String(r[tipo] ?? "desconhecido");

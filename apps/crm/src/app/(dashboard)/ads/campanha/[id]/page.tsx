@@ -6,17 +6,21 @@ import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { fetchCampanhaMetrics, type CampanhaRoi } from "@/lib/cac-queries";
 import {
+  fetchBreakdown,
   fetchCampanhaDetalhe,
   fetchLeadsCampanha,
   fetchSerieDiariaGasto,
+  gasto7dDaSerie,
   metaAdsConfigurado,
   MetaAdsError,
   resolverRange,
+  type BreakdownLinha,
   type DiaGastoAds,
   type LeadCampanha,
+  type PublicoAlvo,
 } from "@/lib/meta-ads";
 import { AcaoOrcamentoAds, AcaoStatusAds } from "@/components/ads/AcoesAds";
-import { AdsStatusBadge, OBJETIVO_LABEL } from "@/components/ads/ads-labels";
+import { AdsStatusBadge, OBJETIVO_LABEL, VeiculacaoBadge } from "@/components/ads/ads-labels";
 import { metaAdsEscritaConfigurada } from "@/lib/meta-ads-escrita";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -37,6 +41,46 @@ const dataCurta = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
 const CLASSE_TONE: Record<string, "red" | "orange" | "blue"> = { QUENTE: "red", MORNO: "orange", FRIO: "blue" };
+const GENERO_LABEL: Record<string, string> = { male: "Masculino", female: "Feminino", unknown: "Não informado" };
+const PLATAFORMA_LABEL: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", audience_network: "Audience Network", messenger: "Messenger" };
+
+/** Resumo de público em uma linha: "18–65 · Todos · Brasil · Instagram" */
+function resumoPublico(p: PublicoAlvo): string {
+  const partes: string[] = [];
+  if (p.idadeMin !== null || p.idadeMax !== null) partes.push(`${p.idadeMin ?? "?"}–${p.idadeMax ?? "?"} anos`);
+  partes.push(p.generos);
+  if (p.locais.length > 0) partes.push(p.locais.slice(0, 3).join(", ") + (p.locais.length > 3 ? "…" : ""));
+  if (p.plataformas.length > 0) partes.push(p.plataformas.map((x) => PLATAFORMA_LABEL[x] ?? x).join(", "));
+  return partes.join(" · ");
+}
+
+/** Barras horizontais server-rendered (sem lib de chart) p/ demografia. */
+function BarrasBreakdown({ titulo, linhas, rotulo }: { titulo: string; linhas: BreakdownLinha[]; rotulo?: Record<string, string> }) {
+  const max = Math.max(...linhas.map((l) => l.gasto), 0);
+  return (
+    <div>
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">{titulo}</p>
+      {linhas.length === 0 || max <= 0 ? (
+        <p className="text-xs text-muted-foreground">Sem dados da Meta para este recorte.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {linhas.map((l) => (
+            <li key={l.chave} className="flex items-center gap-2 text-xs">
+              <span className="w-24 shrink-0 truncate text-muted-foreground">{rotulo?.[l.chave] ?? l.chave}</span>
+              <span className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                <span
+                  className="block h-full rounded-full bg-primary/70"
+                  style={{ width: `${Math.max(2, Math.round((l.gasto / max) * 100))}%` }}
+                />
+              </span>
+              <span className="w-20 shrink-0 text-right font-semibold text-foreground">{brl.format(l.gasto)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default async function CampanhaDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   await requirePapel("ceo");
@@ -63,6 +107,8 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
   let serie: DiaGastoAds[] = [];
   let leads: LeadCampanha[] = [];
   let roi: CampanhaRoi | null = null;
+  let demoIdade: BreakdownLinha[] = [];
+  let demoGenero: BreakdownLinha[] = [];
   try {
     serie = await fetchSerieDiariaGasto(supabase, resolverRange({ periodo: "12m" }).range, id);
   } catch {
@@ -79,6 +125,19 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
   } catch {
     roi = null;
   }
+  // Demografia DESTA campanha (vida toda) — enriquecimento, degrada sozinho
+  try {
+    [demoIdade, demoGenero] = await Promise.all([
+      fetchBreakdown("age", "maximum", id),
+      fetchBreakdown("gender", "maximum", id),
+    ]);
+  } catch {
+    demoIdade = [];
+    demoGenero = [];
+  }
+
+  // Gasto 7d do NOSSO histórico → badge de veiculação (Ativa ≠ entregando)
+  const gasto7d = gasto7dDaSerie(serie);
 
   const objetivo = detalhe.objetivo ? (OBJETIVO_LABEL[detalhe.objetivo] ?? detalhe.objetivo) : null;
   const escrita = metaAdsEscritaConfigurada();
@@ -107,6 +166,7 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
         <div className="flex min-w-0 flex-1 flex-col gap-3 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <AdsStatusBadge status={detalhe.status} />
+            <VeiculacaoBadge status={detalhe.status} fimEm={detalhe.fimEm} gasto7d={gasto7d} />
             {objetivo ? <Badge tone="blue">{objetivo}</Badge> : null}
             {detalhe.budgetDiario !== null ? <Badge tone="neutral">{brl.format(detalhe.budgetDiario)}/dia</Badge> : null}
             {detalhe.budgetTotal !== null ? <Badge tone="neutral">total {brl.format(detalhe.budgetTotal)}</Badge> : null}
@@ -128,22 +188,21 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
             {detalhe.fimEm ? ` · fim ${dataCurta(detalhe.fimEm)}` : ""}
           </p>
           <div className="mt-auto grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Impressões (vida)</p>
-              <p className="text-sm font-bold text-foreground">{compacto.format(detalhe.total.impressoes)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Cliques (vida)</p>
-              <p className="text-sm font-bold text-foreground">{compacto.format(detalhe.total.cliques)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">CTR</p>
-              <p className="text-sm font-bold text-foreground">{detalhe.total.ctr !== null ? `${detalhe.total.ctr.toFixed(2)}%` : "—"}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Frequência</p>
-              <p className="text-sm font-bold text-foreground">{detalhe.total.frequencia !== null ? detalhe.total.frequencia.toFixed(1) : "—"}</p>
-            </div>
+            {[
+              { label: "Impressões (vida)", valor: compacto.format(detalhe.total.impressoes) },
+              { label: "Alcance", valor: detalhe.total.alcance !== null ? compacto.format(detalhe.total.alcance) : "—" },
+              { label: "Cliques (vida)", valor: compacto.format(detalhe.total.cliques) },
+              { label: "Cliques no link", valor: detalhe.total.cliquesLink !== null ? compacto.format(detalhe.total.cliquesLink) : "—" },
+              { label: "CTR", valor: detalhe.total.ctr !== null ? `${detalhe.total.ctr.toFixed(2)}%` : "—" },
+              { label: "CPM", valor: detalhe.total.cpm !== null ? brl.format(detalhe.total.cpm) : "—" },
+              { label: "CPC", valor: detalhe.total.cpc !== null ? brl.format(detalhe.total.cpc) : "—" },
+              { label: "Frequência", valor: detalhe.total.frequencia !== null ? detalhe.total.frequencia.toFixed(1) : "—" },
+            ].map((m) => (
+              <div key={m.label}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">{m.label}</p>
+                <p className="text-sm font-bold text-foreground">{m.valor}</p>
+              </div>
+            ))}
           </div>
         </div>
       </Card>
@@ -166,6 +225,17 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
       {/* Série diária da campanha (histórico próprio, 12m) */}
       <CampanhaDetalheClient serie={serie} />
 
+      {/* Quem esta campanha atingiu — demografia real da Meta (vida toda) */}
+      {demoIdade.length > 0 || demoGenero.length > 0 ? (
+        <Card className="p-5">
+          <h2 className="text-sm font-bold text-foreground">Quem foi atingido (gasto por segmento, vida toda)</h2>
+          <div className="mt-3 grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <BarrasBreakdown titulo="Por idade" linhas={[...demoIdade].sort((a, b) => a.chave.localeCompare(b.chave))} />
+            <BarrasBreakdown titulo="Por gênero" linhas={demoGenero} rotulo={GENERO_LABEL} />
+          </div>
+        </Card>
+      ) : null}
+
       {/* Conjuntos + Anúncios */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card className="flex h-[26rem] flex-col p-5">
@@ -180,8 +250,27 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
                     <p className="truncate text-xs font-semibold text-foreground" title={cj.nome}>{cj.nome}</p>
                     <p className="text-[11px] text-muted-foreground">
                       {cj.gastoVida > 0 ? `${brl.format(cj.gastoVida)} · ` : ""}
-                      {compacto.format(cj.impressoesVida)} impr. · {compacto.format(cj.cliquesVida)} cliques (vida toda)
+                      {compacto.format(cj.impressoesVida)} impr. · {compacto.format(cj.cliquesVida)} cliques
+                      {cj.alcanceVida !== null ? ` · alcance ${compacto.format(cj.alcanceVida)}` : ""} (vida toda)
                     </p>
+                    {cj.publico ? (
+                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span className="truncate" title={resumoPublico(cj.publico)}>🎯 {resumoPublico(cj.publico)}</span>
+                        {cj.publico.advantage ? (
+                          <Badge tone="blue" size="sm" title="Advantage+ audience: a Meta expande o público automaticamente">Advantage+</Badge>
+                        ) : null}
+                        {cj.publico.publicosCustom.length > 0 ? (
+                          <Badge tone="purple" size="sm" title={cj.publico.publicosCustom.join(", ")}>
+                            {cj.publico.publicosCustom.length} público(s) custom
+                          </Badge>
+                        ) : null}
+                        {cj.publico.interesses.length > 0 ? (
+                          <span className="truncate text-label-tertiary" title={cj.publico.interesses.join(", ")}>
+                            interesses: {cj.publico.interesses.slice(0, 3).join(", ")}{cj.publico.interesses.length > 3 ? "…" : ""}
+                          </span>
+                        ) : null}
+                      </p>
+                    ) : null}
                   </div>
                   {cj.budgetDiario !== null ? <Badge tone="neutral" size="sm">{brl.format(cj.budgetDiario)}/dia</Badge> : null}
                   <AdsStatusBadge status={cj.status} size="sm" />

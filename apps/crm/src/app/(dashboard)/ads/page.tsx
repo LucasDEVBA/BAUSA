@@ -6,11 +6,13 @@ import {
   fetchAgregado30dPorCampanha,
   fetchCampanhasAds,
   fetchFunilPorCampanha,
+  fetchGasto7dPorCampanha,
   metaAdsConfigurado,
   MetaAdsError,
   type CampanhaAds,
   type FunilCampanha,
 } from "@/lib/meta-ads";
+import { veiculacaoDe } from "@/components/ads/ads-labels";
 import { CampanhasClient } from "@/components/ads/CampanhasClient";
 import { RefreshAds } from "@/components/ads/RefreshAds";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -55,16 +57,22 @@ export default async function AdsPage() {
     } catch {
       funilIndisponivel = true;
     }
-    // 30d vem do NOSSO histórico diário (a janela da Meta zerava campanhas
-    // ativas que entregaram fora dos últimos 30 dias).
+    // 30d + 7d vêm do NOSSO histórico diário (a janela da Meta zerava campanhas
+    // ativas que entregaram fora dos últimos 30 dias). O 7d alimenta o badge de
+    // veiculação — Ativa ≠ entregando.
     try {
       const agregado = await fetchAgregado30dPorCampanha(supabase);
+      const g7d = await fetchGasto7dPorCampanha(supabase);
       campanhas = campanhas.map((c) => {
         const a = agregado.get(c.id);
-        return a ? { ...c, gasto30d: a.gasto, cliques30d: a.cliques, impressoes30d: a.impressoes } : c;
+        return {
+          ...c,
+          ...(a ? { gasto30d: a.gasto, cliques30d: a.cliques, impressoes30d: a.impressoes } : {}),
+          gasto7d: g7d.get(c.id) ?? 0,
+        };
       });
     } catch {
-      // sem 30d próprio, os cards mostram só a vida toda
+      // sem histórico próprio, os cards mostram só a vida toda
     }
   }
 
@@ -79,6 +87,8 @@ export default async function AdsPage() {
 
   const visiveis = campanhas.filter((c) => c.status !== "DELETED" && c.status !== "ARCHIVED");
   const ativas = visiveis.filter((c) => c.status === "ACTIVE").length;
+  const entregando = visiveis.filter((c) => veiculacaoDe(c.status, c.fimEm, c.gasto7d) === "entregando").length;
+  const encerradas = visiveis.filter((c) => veiculacaoDe(c.status, c.fimEm, c.gasto7d) === "encerrada").length;
   const gasto30d = visiveis.reduce((s, c) => s + c.gasto30d, 0);
   const leads30d = [...funil.values()].reduce((s, f) => s + f.leads30d, 0);
   const reunioes = [...funil.values()].reduce((s, f) => s + f.reunioes, 0);
@@ -88,7 +98,13 @@ export default async function AdsPage() {
       <PageHeader title="Meta Ads" description="Campanhas da conta com resultados reais do funil" dense actions={<RefreshAds />} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Campanhas ativas" value={String(ativas)} context={`${visiveis.length} no total`} icon={Megaphone} accent="brand" />
+        <StatCard
+          label="Entregando agora"
+          value={String(entregando)}
+          context={`${ativas} "ativas" na Meta (${encerradas} encerradas) · ${visiveis.length} no total`}
+          icon={Megaphone}
+          accent="brand"
+        />
         <StatCard label="Gasto 30d" value={brl.format(gasto30d)} icon={Wallet} accent="burgundy" />
         <StatCard label="Leads 30d (funil)" value={funilIndisponivel ? "—" : String(leads30d)} context="via utm_id das campanhas" icon={Users} accent="green" />
         <StatCard label="Reuniões geradas" value={funilIndisponivel ? "—" : String(reunioes)} context="todas as campanhas" icon={CalendarCheck} accent="blue" />

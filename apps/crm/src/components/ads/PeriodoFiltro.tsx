@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { PERIODO_PRESETS, type PeriodoPreset } from "@/lib/meta-ads";
 import { cn } from "@/lib/utils";
@@ -30,12 +30,23 @@ export function PeriodoFiltro({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [deLocal, setDeLocal] = useState(de);
   const [ateLocal, setAteLocal] = useState(ate);
 
-  const aplicarPreset = (p: PeriodoPreset) => router.push(`${pathname}?periodo=${p}`);
+  // Preserva os demais filtros da tela (ex.: ?campanha=) ao trocar o período.
+  const navegar = (mudancas: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [chave, valor] of Object.entries(mudancas)) {
+      if (valor === null) params.delete(chave);
+      else params.set(chave, valor);
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const aplicarPreset = (p: PeriodoPreset) => navegar({ periodo: p, de: null, ate: null });
   const aplicarRange = () => {
-    if (deLocal && ateLocal && deLocal <= ateLocal) router.push(`${pathname}?de=${deLocal}&ate=${ateLocal}`);
+    if (deLocal && ateLocal && deLocal <= ateLocal) navegar({ de: deLocal, ate: ateLocal, periodo: null });
   };
 
   return (
