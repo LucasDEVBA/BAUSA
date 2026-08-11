@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getEtapasDealConfigOverrides, getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 import { getUserPapel } from "@/lib/auth";
+import { listarLeadsPendentesCards } from "@/lib/actions/leads";
 import { mergeDealStageConfig } from "@/lib/etapas-deal";
 import { type Deal, type DealStage } from "@/types/deal";
 import { type LeadClassification } from "@/types/lead";
@@ -192,10 +193,11 @@ export default async function PipelinePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Overrides de apresentação das etapas (CEO) em paralelo com os deals
-  const [etapasOverrides, probabilidadePorEtapa, papel, { data: rows }] = await Promise.all([
+  const [etapasOverrides, probabilidadePorEtapa, papel, leadsPendentes, { data: rows }] = await Promise.all([
     getEtapasDealConfigOverrides(),
     getProbabilidadePorEtapa(),
     getUserPapel(),
+    listarLeadsPendentesCards(),
     supabase
     .from("deals")
     .select(`
@@ -339,6 +341,7 @@ export default async function PipelinePage() {
           stageConfig={stageConfig}
           probabilidadePorEtapa={probabilidadePorEtapa}
           podeEditarColunas={papel === "ceo"}
+          leadsPendentes={leadsPendentes}
         />
       </div>
 

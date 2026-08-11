@@ -54,6 +54,10 @@ interface GeminiOptions {
   maxOutputTokens?: number;
   /** Força responseMimeType application/json (default true). */
   json?: boolean;
+  /** Timeout por tentativa (default TIMEOUT_MS) — p/ gerações grandes (ex.: briefing do planner). */
+  timeoutMs?: number;
+  /** Orçamento total incluindo retries/fallback (default DEADLINE_MS). */
+  deadlineMs?: number;
 }
 
 /** Uma mídia inline (base64) enviada à Gemini multimodal (vision). */
@@ -166,12 +170,17 @@ function montarGenerationConfig(opts: GeminiOptions): Record<string, unknown> {
  * global. Texto e multimodal usam EXATAMENTE este laço — só o body difere.
  * Lança GeminiNotConfiguredError se a chave faltar.
  */
-async function gerarComResiliencia(body: string): Promise<string> {
+async function gerarComResiliencia(
+  body: string,
+  budget: { timeoutMs?: number; deadlineMs?: number } = {},
+): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new GeminiNotConfiguredError();
 
+  const timeoutMs = budget.timeoutMs ?? TIMEOUT_MS;
+  const deadlineMs = budget.deadlineMs ?? DEADLINE_MS;
   const inicio = Date.now();
-  const restante = () => DEADLINE_MS - (Date.now() - inicio);
+  const restante = () => deadlineMs - (Date.now() - inicio);
   let ultimoErro: GeminiError | null = null;
 
   for (const model of GEMINI_MODELS) {
@@ -180,7 +189,7 @@ async function gerarComResiliencia(body: string): Promise<string> {
         throw ultimoErro ?? new GeminiError("Gemini excedeu o tempo total.", "retry");
       }
       try {
-        return await chamarModelo(model, apiKey, body, Math.min(TIMEOUT_MS, restante()));
+        return await chamarModelo(model, apiKey, body, Math.min(timeoutMs, restante()));
       } catch (err) {
         if (err instanceof GeminiNotConfiguredError) throw err;
         const gerr = err instanceof GeminiError ? err : new GeminiError(String(err), "retry");
@@ -215,7 +224,7 @@ export async function gerarConteudoGemini(
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: montarGenerationConfig(opts),
   });
-  return gerarComResiliencia(body);
+  return gerarComResiliencia(body, { timeoutMs: opts.timeoutMs, deadlineMs: opts.deadlineMs });
 }
 
 /**

@@ -17,6 +17,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/ads": { label: "Campanhas", parent: "Ads" },
   "/ads/desempenho": { label: "Desempenho", parent: "Ads" },
   "/ads/roi": { label: "CAC / ROI", parent: "Ads" },
+  "/ads/planejar": { label: "Planejar campanha", parent: "Ads" },
   "/ads/campanha": { label: "Campanha", parent: "Ads" },
   "/agenda": { label: "Agenda", parent: "Comercial" },
   "/war-room": { label: "War Room" },
