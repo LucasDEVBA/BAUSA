@@ -29,13 +29,27 @@ ON CONFLICT (id) DO UPDATE SET
   public = EXCLUDED.public,
   file_size_limit = EXCLUDED.file_size_limit;
 
--- Leitura: só nível CEO (cto resolve p/ ceo em get_user_papel) — habilita
--- createSignedUrl com a sessão do usuário no Engine. Escrita: NENHUMA policy
--- p/ authenticated — só a CF (service_role, bypassa RLS) grava.
+-- Leitura (habilita createSignedUrl com a sessão do usuário no Engine):
+--   CEO/CTO → tudo; Head → SÓ mídia de grupo VINCULADO (o EXISTS roda sob a
+--   RLS de whatsapp_grupos do PRÓPRIO usuário — policy head = grupo vinculado
+--   — espelhando o escopo de leitura de whatsapp_mensagens; path de grupo tem
+--   o grupo_id como 1º segmento). Escrita: NENHUMA policy p/ authenticated —
+--   só a CF (service_role, bypassa RLS) grava.
 DROP POLICY IF EXISTS "whatsapp_midia_select_ceo" ON storage.objects;
-CREATE POLICY "whatsapp_midia_select_ceo" ON storage.objects
+DROP POLICY IF EXISTS "whatsapp_midia_select" ON storage.objects;
+CREATE POLICY "whatsapp_midia_select" ON storage.objects
   FOR SELECT TO authenticated
-  USING (bucket_id = 'whatsapp-midia' AND public.get_user_papel() = 'ceo');
+  USING (
+    bucket_id = 'whatsapp-midia'
+    AND (
+      public.get_user_papel() = 'ceo'
+      OR EXISTS (
+        SELECT 1 FROM public.whatsapp_grupos g
+        WHERE g.grupo_id = (storage.foldername(name))[1]
+          AND g.deleted_at IS NULL
+      )
+    )
+  );
 
 -- ─── 2. Coluna media_path ────────────────────────────────────────────────
 

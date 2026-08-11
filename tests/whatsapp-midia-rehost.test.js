@@ -55,7 +55,7 @@ test('zapi-inbox: re-hospedagem é FAIL-OPEN (catch → null, webhook nunca queb
   assert.match(bloco[0], /\{\s*try\s*\{/, 'o corpo de rehospedarMidia deve abrir com try');
 });
 
-test('zapi-inbox: teto de bytes e timeout do download presentes', () => {
+test('zapi-inbox: teto de bytes, timeout de ociosidade E deadline wall-clock', () => {
   assert.ok(
     cf.includes('15 * 1024 * 1024'),
     'INVARIANTE VIOLADO: teto de 15MB (paridade com o bucket) sumiu — arquivo ' +
@@ -65,6 +65,12 @@ test('zapi-inbox: teto de bytes e timeout do download presentes', () => {
     cf.includes('MEDIA_DOWNLOAD_TIMEOUT_MS'),
     'INVARIANTE VIOLADO: timeout do download sumiu — URL pendurada travaria o webhook.',
   );
+  assert.ok(
+    cf.includes('MEDIA_DOWNLOAD_DEADLINE_MS'),
+    'INVARIANTE VIOLADO: deadline wall-clock sumiu — o setTimeout do Node é de ' +
+      'OCIOSIDADE; um servidor gotejante manteria o download vivo p/ sempre ' +
+      '(hang provado em repro na revisão adversarial 2026-08-11).',
+  );
   assert.match(
     cf,
     /total > MEDIA_REHOST_MAX_BYTES/,
@@ -72,14 +78,56 @@ test('zapi-inbox: teto de bytes e timeout do download presentes', () => {
   );
 });
 
-test('zapi-inbox: janela pré-migration tem retry sem media_path (1:1 e RPC)', () => {
+test('zapi-inbox: guard de socket morto no meio do corpo (close sem end → reject)', () => {
+  // Socket resetado no meio da response não dispara req.error nem idle-timeout;
+  // sem o guard de close a Promise pendura o webhook até o teto da CF (120s).
+  const ocorrencias = cf.match(/res\.on\('close'/g);
+  assert.ok(
+    ocorrencias && ocorrencias.length >= 2,
+    `INVARIANTE VIOLADO: o guard res.on('close') deve existir em baixarBinario E ` +
+      `no httpRequest (upload de 15MB passa por ele) — encontrado ${ocorrencias ? ocorrencias.length : 0}x.`,
+  );
+});
+
+test('zapi-inbox: janela pré-migration tem retry sem media_path no insert 1:1', () => {
   assert.ok(
     cf.includes('insert_sem_media_path_retry'),
     'INVARIANTE VIOLADO: insert 1:1 deve re-tentar SEM media_path quando a coluna ainda não existe (PGRST204/42703).',
   );
+});
+
+test('zapi-inbox: mídia de GRUPO só persiste após o gate de captura (LGPD)', () => {
+  // Achado ALTO da revisão adversarial: rehost antes da RPC persistia mídia de
+  // grupo com captura DESLIGADA — bypass do opt-out prometido pela migration
+  // 20260810204500. O rehost de grupo SÓ pode rodar quando a RPC confirmou
+  // capturar=true E inserted=true.
   assert.ok(
-    cf.includes('rpc_sem_media_path_retry'),
-    'INVARIANTE VIOLADO: a RPC deve re-tentar SEM p_media_path quando a assinatura nova ainda não existe (PGRST202).',
+    cf.includes("out.capturar === true && out.inserted === true"),
+    'INVARIANTE VIOLADO: o rehost de grupo deve ser gateado por ' +
+      '`out.capturar === true && out.inserted === true` — sem isso, mídia de ' +
+      'grupo silenciado vira PII órfã permanente no bucket.',
+  );
+  assert.ok(
+    cf.includes('gravarMediaPathGrupo'),
+    'o media_path de grupo deve ser gravado via PATCH pós-RPC (gravarMediaPathGrupo)',
+  );
+});
+
+test('zapi-inbox: upload com Content-Length e log de mídia sem PII', () => {
+  assert.match(
+    cf,
+    /'Content-Length': buffer\.length/,
+    'INVARIANTE VIOLADO: upload sem Content-Length vira chunked — a Storage API pode rejeitar e a feature morre em silêncio (fail-open).',
+  );
+  const blocoLog = cf.match(/midia_rehospedada[\s\S]{0,200}/);
+  assert.ok(blocoLog, "o log 'midia_rehospedada' deve existir");
+  assert.ok(
+    blocoLog[0].includes('maskPhone'),
+    'INVARIANTE VIOLADO: o log de mídia deve mascarar a chave (telefone completo no path é PII — convenção da CF inteira).',
+  );
+  assert.ok(
+    !/path: mediaPath/.test(blocoLog[0]),
+    'INVARIANTE VIOLADO: o log não pode carregar o path cru (contém o telefone).',
   );
 });
 

@@ -95,22 +95,33 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
     try {
       const supabase = await createServerSupabaseClient();
-      const { data, error } = await supabase
-        .from("whatsapp_mensagens")
-        .select(
-          "message_id, phone, from_me, texto, momment, tipo, media_url, mime_type, media_filename, media_path, participante_nome",
-        )
-        .eq("grupo_id", groupIdRaw)
-        .eq("is_grupo", true)
-        .order("momment", { ascending: false, nullsFirst: false })
-        .limit(MIRROR_LIMIT);
+      const selecionarGrupo = (comMediaPath: boolean) =>
+        supabase
+          .from("whatsapp_mensagens")
+          .select(
+            comMediaPath
+              ? "message_id, phone, from_me, texto, momment, tipo, media_url, mime_type, media_filename, media_path, participante_nome"
+              : "message_id, phone, from_me, texto, momment, tipo, media_url, mime_type, media_filename, participante_nome",
+          )
+          .eq("grupo_id", groupIdRaw)
+          .eq("is_grupo", true)
+          .order("momment", { ascending: false, nullsFirst: false })
+          .limit(MIRROR_LIMIT);
+
+      let { data, error } = await selecionarGrupo(true);
+      // Janela pré-migration: coluna media_path ainda ausente → re-tenta sem ela
+      if (error && PRE_MIGRATION_CODES.has(error.code ?? "")) {
+        ({ data, error } = await selecionarGrupo(false));
+      }
 
       if (error) {
         logZapi("warn", "group_messages_mirror_error", { code: error.code ?? "unknown" });
         return NextResponse.json({ error: "zapi_erro" }, { status: 502 });
       }
 
-      const rows = (data as (MirrorRow & { participante_nome: string | null })[] | null) ?? [];
+      const rows = ((data as unknown as (MirrorRow & { participante_nome: string | null })[] | null) ?? []).map(
+        (r) => ({ ...r, media_path: r.media_path ?? null }),
+      );
       const assinadas = await assinarMidias(supabase, rows);
       const messages: EspelhoMessage[] = rows
         .map((row) => ({
@@ -147,16 +158,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const supabase = await createServerSupabaseClient();
     // DESC + reverse: pega as N mais RECENTES (asc pegaria as mais antigas e
     // congelaria a thread quando a conversa passasse do limite).
-    const { data, error } = await supabase
-      .from("whatsapp_mensagens")
-      .select("message_id, phone, from_me, texto, momment, tipo, media_url, mime_type, media_filename, media_path")
-      .in("phone", chaves)
-      .eq("is_grupo", false) // espelho 1:1 — mensagens de grupo têm sua própria thread (coletor)
-      .order("momment", { ascending: false, nullsFirst: false })
-      .limit(MIRROR_LIMIT);
+    const selecionarEspelho = (comMediaPath: boolean) =>
+      supabase
+        .from("whatsapp_mensagens")
+        .select(
+          comMediaPath
+            ? "message_id, phone, from_me, texto, momment, tipo, media_url, mime_type, media_filename, media_path"
+            : "message_id, phone, from_me, texto, momment, tipo, media_url, mime_type, media_filename",
+        )
+        .in("phone", chaves)
+        .eq("is_grupo", false) // espelho 1:1 — mensagens de grupo têm sua própria thread (coletor)
+        .order("momment", { ascending: false, nullsFirst: false })
+        .limit(MIRROR_LIMIT);
+
+    let { data, error } = await selecionarEspelho(true);
+    // Coluna media_path ausente (janela pré-migration) → re-tenta SEM ela antes
+    // de degradar p/ Z-API — senão o histórico espelhado sumiria da UI na janela.
+    if (error && PRE_MIGRATION_CODES.has(error.code ?? "")) {
+      ({ data, error } = await selecionarEspelho(false));
+    }
 
     if (!error) {
-      const rows = (data as MirrorRow[] | null) ?? [];
+      const rows = ((data as unknown as MirrorRow[] | null) ?? []).map((r) => ({
+        ...r,
+        media_path: r.media_path ?? null,
+      }));
       const assinadas = await assinarMidias(supabase, rows);
       const messages: EspelhoMessage[] = rows
         .map((row) => ({
