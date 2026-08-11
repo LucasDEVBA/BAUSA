@@ -1,41 +1,13 @@
 import { ImageOff, CalendarPlus, Target } from "lucide-react";
 
-import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { AdsStatusBadge, OBJETIVO_LABEL } from "@/components/ads/ads-labels";
 import type { CampanhaAds, FunilCampanha } from "@/lib/meta-ads";
 
-// Card de campanha (A1 — leitura): foto do criativo, título, badges de
+// Card de campanha (leitura): foto do criativo, título, badges de
 // status/objetivo e as métricas que o Ads Manager da Meta NÃO mostra —
 // leads e reuniões REAIS do nosso funil (utm_id ↔ campanha_id).
-
-const STATUS_CONFIG: Record<string, { label: string; tone: BadgeTone }> = {
-  ACTIVE: { label: "Ativa", tone: "green" },
-  PAUSED: { label: "Pausada", tone: "neutral" },
-  CAMPAIGN_PAUSED: { label: "Pausada", tone: "neutral" },
-  ADSET_PAUSED: { label: "Conjunto pausado", tone: "orange" },
-  IN_PROCESS: { label: "Processando", tone: "blue" },
-  WITH_ISSUES: { label: "Com problemas", tone: "red" },
-  ARCHIVED: { label: "Arquivada", tone: "neutral" },
-  DELETED: { label: "Excluída", tone: "neutral" },
-};
-
-const OBJETIVO_LABEL: Record<string, string> = {
-  OUTCOME_LEADS: "Leads",
-  OUTCOME_TRAFFIC: "Tráfego",
-  OUTCOME_ENGAGEMENT: "Engajamento",
-  OUTCOME_AWARENESS: "Reconhecimento",
-  OUTCOME_SALES: "Vendas",
-  OUTCOME_APP_PROMOTION: "App",
-  // Objetivos legados (campanhas antigas / boosts)
-  LINK_CLICKS: "Tráfego",
-  POST_ENGAGEMENT: "Engajamento",
-  LEAD_GENERATION: "Leads",
-  CONVERSIONS: "Vendas",
-  MESSAGES: "Mensagens",
-  VIDEO_VIEWS: "Vídeo",
-  REACH: "Alcance",
-  BRAND_AWARENESS: "Reconhecimento",
-};
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const compacto = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
@@ -52,7 +24,6 @@ function Metrica({ label, valor, destaque = false }: { label: string; valor: str
 }
 
 export function CampanhaCard({ campanha, funil }: { campanha: CampanhaAds; funil: FunilCampanha | null }) {
-  const status = STATUS_CONFIG[campanha.status] ?? { label: campanha.status, tone: "neutral" as BadgeTone };
   const objetivo = campanha.objetivo ? (OBJETIVO_LABEL[campanha.objetivo] ?? campanha.objetivo) : null;
   const cplReal =
     funil && funil.leads30d > 0 && campanha.gasto30d > 0 ? campanha.gasto30d / funil.leads30d : null;
@@ -74,9 +45,7 @@ export function CampanhaCard({ campanha, funil }: { campanha: CampanhaAds; funil
           </div>
         )}
         <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-          <Badge tone={status.tone} className="bg-card/90 backdrop-blur-sm">
-            {status.label}
-          </Badge>
+          <AdsStatusBadge status={campanha.status} className="bg-card/90 backdrop-blur-sm" />
         </div>
       </div>
 
