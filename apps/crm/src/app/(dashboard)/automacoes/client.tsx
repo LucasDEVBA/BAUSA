@@ -51,9 +51,8 @@ import {
   FIELD_CLASS,
   SECTION_LABEL,
   builderFromAutomacao,
+  builderParaInput,
   emptyBuilder,
-  normalizarAcaoParaSalvar,
-  normalizarPassoParaSalvar,
   type BuilderState,
   type UsuarioRow,
 } from "@/components/automacoes/builder-shared";
@@ -175,37 +174,7 @@ export function AutomacoesClient({
 
   const salvar = () => {
     if (!builder) return;
-    const gatilhoInfo = GATILHO_CATALOG[builder.gatilho];
-    const gatilhoConfig: Record<string, string | number> = {};
-    if (gatilhoInfo.configAgendamento) {
-      gatilhoConfig.frequencia = builder.agFrequencia;
-      gatilhoConfig.hora = builder.agHora;
-      if (builder.agFrequencia === "semanal") gatilhoConfig.dia_semana = builder.agDiaSemana;
-      if (builder.agFrequencia === "mensal") gatilhoConfig.dia_mes = builder.agDiaMes;
-    } else if (gatilhoInfo.configDias) {
-      gatilhoConfig.dias = builder.gatilhoDias;
-    } else if (gatilhoInfo.configEtapa && builder.gatilhoEtapaPara) {
-      // Filtro por etapa do deal_etapa_mudou — vazio = qualquer transição
-      gatilhoConfig.etapa_para = builder.gatilhoEtapaPara;
-    }
-    // SLA de silêncio (opcional, qualquer gatilho) — consumido pela saúde
-    // derivada em /observabilidade/automacoes (F4).
-    if (builder.slaHoras !== null && builder.slaHoras >= 1 && builder.slaHoras <= 720) {
-      gatilhoConfig.sla_horas = builder.slaHoras;
-    }
-    // Modo por passos ativo → o modelo simples é zerado (mutuamente exclusivo;
-    // a action revalida e força a exclusividade server-side também).
-    const temPassos = builder.passos.length > 0;
-    const input: AutomacaoInput = {
-      nome: builder.nome,
-      descricao: builder.descricao || undefined,
-      gatilho: builder.gatilho,
-      gatilho_config: gatilhoConfig,
-      condicoes: temPassos ? [] : builder.condicoes,
-      // Link/mídia das ações custom: "" nos forms = ausente no payload
-      acoes: temPassos ? [] : builder.acoes.map(normalizarAcaoParaSalvar),
-      passos: temPassos ? builder.passos.map(normalizarPassoParaSalvar) : [],
-    };
+    const input: AutomacaoInput = builderParaInput(builder);
     startTransition(async () => {
       const result = builder.id
         ? await atualizarAutomacao(builder.id, input)

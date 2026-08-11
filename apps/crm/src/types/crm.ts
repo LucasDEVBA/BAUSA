@@ -3,6 +3,7 @@
 export type PapelUsuario = 'ceo' | 'cto' | 'head_sucesso' | 'comercial';
 
 export type StatusDeal =
+  | 'contato_feito'
   | 'lead' | 'aguardando_timing' | 'reuniao_marcada' | 'reuniao_realizada'
   | 'diagnostico_fit' | 'alinhamento_estrategico' | 'proposta_enviada'
   | 'followup_proposta' | 'negociacao' | 'contrato_enviado'
@@ -181,6 +182,7 @@ export interface AuditLog {
 // `src/lib/etapas-deal.ts` (mergeDealStageConfig). Nesta fase o builder segue
 // com os labels default daqui; não adicionar novos consumidores.
 export const ETAPA_LABELS: Record<StatusDeal, string> = {
+  contato_feito: 'Contato feito',
   lead: 'Lead',
   aguardando_timing: 'Aguardando Timing',
   reuniao_marcada: 'Reunião Marcada',
@@ -202,28 +204,29 @@ export const ETAPA_LABELS: Record<StatusDeal, string> = {
 
 // Ordem das etapas (para detectar retrocesso)
 export const ETAPA_ORDEM: Record<StatusDeal, number> = {
-  lead: 1,
-  aguardando_timing: 2,
-  reuniao_marcada: 3,
-  reuniao_realizada: 4,
-  diagnostico_fit: 5,
-  alinhamento_estrategico: 6,
-  proposta_enviada: 7,
-  followup_proposta: 8,
-  negociacao: 9,
-  contrato_enviado: 10,
-  contrato_assinado: 11,
-  sinal_pago: 12,
-  admission_process: 13,
-  concluido: 14,
-  perdido: 15,
-  cancelamento_solicitado: 16,
-  projeto_futuro: 17,
+  contato_feito: 1,
+  lead: 2,
+  aguardando_timing: 3,
+  reuniao_marcada: 4,
+  reuniao_realizada: 5,
+  diagnostico_fit: 6,
+  alinhamento_estrategico: 7,
+  proposta_enviada: 8,
+  followup_proposta: 9,
+  negociacao: 10,
+  contrato_enviado: 11,
+  contrato_assinado: 12,
+  sinal_pago: 13,
+  admission_process: 14,
+  concluido: 15,
+  perdido: 16,
+  cancelamento_solicitado: 17,
+  projeto_futuro: 18,
 };
 
 // Etapas visíveis no Kanban (exclui perdido, concluido, cancelamento, projeto_futuro)
 export const PIPELINE_ETAPAS: StatusDeal[] = [
-  'lead', 'aguardando_timing', 'reuniao_marcada', 'reuniao_realizada', 'diagnostico_fit',
+  'contato_feito', 'lead', 'aguardando_timing', 'reuniao_marcada', 'reuniao_realizada', 'diagnostico_fit',
   'alinhamento_estrategico', 'proposta_enviada', 'followup_proposta',
   'negociacao', 'contrato_enviado', 'contrato_assinado', 'sinal_pago',
   'admission_process',

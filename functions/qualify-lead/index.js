@@ -768,7 +768,10 @@ const autoPromoteToCRM = async (data, classification, reason, confidence, timing
   }
 
   // Define etapa/perda/next_action conforme timing_status:
-  //   - muito_cedo  → aguardando_timing (visível no Kanban, retorno em nov+1)
+  //   - muito_cedo  → lead + BADGE "Cedo" no card (2026-08-11: a coluna
+  //                   aguardando_timing saiu do board; o motivo vive em
+  //                   form_submissions.timing_status e a retomada em novembro
+  //                   continua sendo do scheduler, não da etapa)
   //   - tarde_demais→ perdido + motivo timing (cluster "lead alternativo", fora do Kanban)
   //   - ideal       → lead (fluxo atual)
   const dealPayload = {
@@ -781,7 +784,7 @@ const autoPromoteToCRM = async (data, classification, reason, confidence, timing
 
   if (timingStatus === 'muito_cedo') {
     const nextYear = new Date().getUTCFullYear() + 1;
-    dealPayload.etapa = 'aguardando_timing';
+    dealPayload.etapa = 'lead';
     dealPayload.probabilidade_fechamento = 5;
     dealPayload.next_action = `Aguardar contato programado em novembro/${nextYear}`;
     dealPayload.data_proxima_acao = `${nextYear}-11-01`;

@@ -4,7 +4,8 @@ import { PipelineExportButton } from "@/components/pipeline/PipelineExportButton
 import { FutureLeadsSection } from "@/components/pipeline/FutureLeadsSection";
 import { PageHeader } from "@/components/ui";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { getEtapasDealConfigOverrides } from "@/lib/actions/configuracoes";
+import { getEtapasDealConfigOverrides, getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
+import { getUserPapel } from "@/lib/auth";
 import { mergeDealStageConfig } from "@/lib/etapas-deal";
 import { type Deal, type DealStage } from "@/types/deal";
 import { type LeadClassification } from "@/types/lead";
@@ -97,6 +98,7 @@ interface SupabaseDealRow {
       guardian_name: string | null;
       guardian_profession: string | null;
       guardian_email: string | null;
+      timing_status: string | null;
     } | null;
   } | null;
 }
@@ -169,6 +171,8 @@ function mapDealRow(row: SupabaseDealRow): Deal {
     followup_1_sent_at: fs?.followup_1_sent_at ?? undefined,
     followup_2_sent_at: fs?.followup_2_sent_at ?? undefined,
     guardian_email: fs?.guardian_email ?? undefined,
+    // Timing do lead: vira BADGE no card (a coluna aguardando_timing saiu do board)
+    timing_status: fs?.timing_status ?? undefined,
     responsavel_id: row.responsavel_id ?? undefined,
     flag_valores_customizados: row.flag_valores_customizados ?? false,
     // LGPD
@@ -188,8 +192,10 @@ export default async function PipelinePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Overrides de apresentação das etapas (CEO) em paralelo com os deals
-  const [etapasOverrides, { data: rows }] = await Promise.all([
+  const [etapasOverrides, probabilidadePorEtapa, papel, { data: rows }] = await Promise.all([
     getEtapasDealConfigOverrides(),
+    getProbabilidadePorEtapa(),
+    getUserPapel(),
     supabase
     .from("deals")
     .select(`
@@ -216,7 +222,8 @@ export default async function PipelinePage() {
           submitted_at, whatsapp_sent_at, followup_1_sent_at,
           followup_2_sent_at, meeting_scheduled, meeting_scheduled_at,
           qualification_reason, qualification_confidence, qualified_at,
-          guardian_name, guardian_profession, guardian_email
+          guardian_name, guardian_profession, guardian_email,
+          timing_status
         )
       )
     `)
@@ -326,7 +333,13 @@ export default async function PipelinePage() {
 
       {/* Kanban board */}
       <div className="flex-1 overflow-hidden">
-        <PipelineBoard deals={deals} currentUserId={user?.id} stageConfig={stageConfig} />
+        <PipelineBoard
+          deals={deals}
+          currentUserId={user?.id}
+          stageConfig={stageConfig}
+          probabilidadePorEtapa={probabilidadePorEtapa}
+          podeEditarColunas={papel === "ceo"}
+        />
       </div>
 
       {/* Leads Futuros */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -31,6 +31,8 @@ import { PipelineTableView } from "./PipelineTableView";
 import { RetrocessoModal } from "./RetrocessoModal";
 import { LossModal, type LossPayload } from "./LossModal";
 import { moverDeal, type StructuredLossData } from "@/lib/actions/deals";
+import { reordenarEtapasPipeline } from "@/lib/actions/etapas-pipeline";
+import { EtapaColunaModal } from "./EtapaColunaModal";
 import { labelEtapa, type MoveDealAction } from "@/lib/move-deal-result";
 import type { StatusDeal } from "@/types/crm";
 import { toast } from "sonner";
@@ -40,6 +42,10 @@ interface PipelineBoardProps {
   currentUserId?: string;
   /** Config de exibição das etapas (rótulo/cor/ordem/oculta) — default estático. */
   stageConfig?: DealStageConfigMap;
+  /** Probabilidade por etapa (exibida/editável no modal da coluna). */
+  probabilidadePorEtapa?: Record<string, number>;
+  /** Só nível CEO edita colunas (o board é read-only para os demais). */
+  podeEditarColunas?: boolean;
 }
 
 function getDealsByStage(deals: Deal[]) {
@@ -95,6 +101,8 @@ export function PipelineBoard({
   deals: initialDeals,
   currentUserId,
   stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+  probabilidadePorEtapa = {},
+  podeEditarColunas = false,
 }: PipelineBoardProps) {
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
@@ -124,10 +132,44 @@ export function PipelineBoard({
   // tem deals visíveis — com deals, renderiza com badge "Oculta" (deals nunca
   // são escondidos pela configuração).
   const boardStages = useMemo(() => orderedKanbanStages(stageConfig), [stageConfig]);
-  const visibleStages = boardStages.filter(
+  // Ordem local: aplica o arraste na hora e persiste em segundo plano
+  // (rollback para a ordem do servidor se a gravação falhar).
+  const [ordemLocal, setOrdemLocal] = useState<DealStage[] | null>(null);
+  const ordemAtual = ordemLocal ?? boardStages;
+  const visibleStages = ordemAtual.filter(
     (stage) =>
       !stageConfig[stage].oculta || (dealsByStage[stage]?.length ?? 0) > 0,
   );
+
+  const [colunaAberta, setColunaAberta] = useState<DealStage | null>(null);
+  const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
+
+  // Reconcilia com o servidor: quando a config revalida, a ordem local (que
+  // era só otimista) deixa de valer — senão ela venceria para sempre.
+  useEffect(() => {
+    setOrdemLocal(null);
+  }, [stageConfig]);
+
+  const soltarColuna = (alvo: DealStage) => {
+    const origem = arrastandoColuna;
+    setArrastandoColuna(null);
+    if (!origem || origem === alvo) return;
+
+    const anterior = ordemAtual;
+    const proxima = anterior.filter((s) => s !== origem);
+    proxima.splice(proxima.indexOf(alvo), 0, origem);
+    setOrdemLocal(proxima);
+
+    startTransition(async () => {
+      const r = await reordenarEtapasPipeline(proxima);
+      if (!r.success) {
+        setOrdemLocal(anterior);
+        toast.error(r.error);
+      } else {
+        router.refresh();
+      }
+    });
+  };
 
   const handleAction = (action: MoveDealAction, deal: Deal) => {
     switch (action.type) {
@@ -280,12 +322,17 @@ export function PipelineBoard({
                 deals={dealsByStage[stage] ?? []}
                 onDealClick={(deal) => setSelectedDeal(deal)}
                 stageConfig={stageConfig}
+                onHeaderClick={podeEditarColunas ? setColunaAberta : undefined}
+                onColumnDragStart={podeEditarColunas ? setArrastandoColuna : undefined}
+                onColumnDrop={podeEditarColunas ? soltarColuna : undefined}
+                onColumnDragEnd={() => setArrastandoColuna(null)}
+                arrastandoColuna={arrastandoColuna}
               />
             ))}
           </div>
 
           <DragOverlay>
-            {activeDeal ? <DealCard deal={activeDeal} isDragging /> : null}
+            {activeDeal ? <DealCard deal={activeDeal} isDragging stageConfig={stageConfig} /> : null}
           </DragOverlay>
         </DndContext>
       ) : (
@@ -329,6 +376,17 @@ export function PipelineBoard({
           });
         }}
       />
+
+      {/* Modal da COLUNA (rótulo/cor/probabilidade + automações + agents) */}
+      {colunaAberta && (
+        <EtapaColunaModal
+          key={colunaAberta}
+          stage={colunaAberta}
+          stageConfig={stageConfig}
+          probabilidade={probabilidadePorEtapa[colunaAberta] ?? null}
+          onClose={() => setColunaAberta(null)}
+        />
+      )}
 
       {/* Modal central super-completo (CEO) */}
       {selectedDeal && (

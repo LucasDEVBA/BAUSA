@@ -1,15 +1,19 @@
 // Jornada conforme spec Bolsa Atleta USA
 export type FamilyJourneyStage =
+  | "envio_opcoes"
   | "admissao"
   | "aprovado"
+  | "pagamento_remanescente"
   | "pre_embarque"
   | "embarcado_inicial"
   | "acompanhamento"
   | "encerrado";
 
 export const FAMILY_JOURNEY_STAGES: FamilyJourneyStage[] = [
+  "envio_opcoes",
   "admissao",
   "aprovado",
+  "pagamento_remanescente",
   "pre_embarque",
   "embarcado_inicial",
   "acompanhamento",
@@ -134,46 +138,62 @@ export interface FamilyJourneyStageConfig {
 }
 
 export const JOURNEY_STAGE_CONFIG: Record<FamilyJourneyStage, FamilyJourneyStageConfig> = {
+  // Rótulos/ordem visíveis vêm de fases_familia_config (editáveis pelo CEO);
+  // aqui ficam os defaults do processo definido em 2026-08-11.
+  envio_opcoes: {
+    id: "envio_opcoes",
+    label: "Envio de opções",
+    description: "Shortlist de escolas enviada à família",
+    order: 0,
+    alertDays: 7,
+  },
   admissao: {
     id: "admissao",
-    label: "Admissão",
-    description: "Processo de aplicação às escolas",
-    order: 0,
+    label: "Application em andamento",
+    description: "Aplicações submetidas às escolas",
+    order: 1,
     alertDays: 7,
   },
   aprovado: {
     id: "aprovado",
-    label: "Aprovado",
-    description: "Aceite recebido pela escola",
-    order: 1,
+    label: "Aceito + I-20",
+    description: "Aceite recebido e I-20 emitido",
+    order: 2,
     alertDays: 7,
+  },
+  pagamento_remanescente: {
+    id: "pagamento_remanescente",
+    label: "Pagamento remanescente",
+    description: "Saldo do contrato em liquidação",
+    order: 3,
+    alertDays: 10,
   },
   pre_embarque: {
     id: "pre_embarque",
-    label: "Pré-embarque",
-    description: "Visto, documentos e preparação final",
-    order: 2,
+    label: "Visto",
+    description: "Entrevista, visto e preparação final",
+    order: 4,
     alertDays: 15,
   },
   embarcado_inicial: {
     id: "embarcado_inicial",
     label: "Embarcado (0–90 dias)",
     description: "Primeiros 90 dias nos EUA",
-    order: 3,
+    order: 5,
     alertDays: 7,
   },
   acompanhamento: {
     id: "acompanhamento",
     label: "Acompanhamento Contínuo",
     description: "Suporte ao longo da jornada",
-    order: 4,
+    order: 6,
     alertDays: 30,
   },
   encerrado: {
     id: "encerrado",
     label: "Encerrado",
     description: "Jornada concluída",
-    order: 5,
+    order: 7,
     alertDays: 0,
   },
 };

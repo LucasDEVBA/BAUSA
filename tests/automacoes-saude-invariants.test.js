@@ -41,8 +41,16 @@ test("watchdog: check automacoes_saude é SÓ determinístico (sem heurística)"
 test("builder: sla_horas opcional plugado (state + save + form)", () => {
   const shared = fs.readFileSync(path.join(__dirname, "..", "apps/crm/src/components/automacoes/builder-shared.ts"), "utf8");
   assert.match(shared, /slaHoras: number \| null/, "slaHoras sumiu do BuilderState");
+  // 2026-08-11: a montagem do payload saiu de client.tsx para builderParaInput
+  // (fonte ÚNICA) — a página /automacoes e o modal da coluna do pipeline usam
+  // a MESMA função. Duplicar essa lógica já causou bug real (o modal gravava
+  // gatilho fixo e apagava o `dias` de automações de tempo).
+  assert.match(shared, /export function builderParaInput/, "builderParaInput sumiu — a montagem do payload voltou a ser duplicada");
+  assert.match(shared, /gatilhoConfig\.sla_horas = builder\.slaHoras/, "persistência do sla_horas sumiu de builderParaInput()");
   const client = fs.readFileSync(path.join(__dirname, "..", "apps/crm/src/app/(dashboard)/automacoes/client.tsx"), "utf8");
-  assert.match(client, /gatilhoConfig\.sla_horas = builder\.slaHoras/, "persistência do sla_horas sumiu do salvar()");
+  assert.match(client, /builderParaInput\(builder\)/, "a tela /automacoes deve usar builderParaInput");
+  const modal = fs.readFileSync(path.join(__dirname, "..", "apps/crm/src/components/pipeline/EtapaColunaModal.tsx"), "utf8");
+  assert.match(modal, /builderParaInput\(builder\)/, "o modal da coluna deve usar builderParaInput (nunca montar gatilho à mão)");
   const forms = fs.readFileSync(path.join(__dirname, "..", "apps/crm/src/components/automacoes/BuilderForms.tsx"), "utf8");
   assert.match(forms, /SLA de silêncio/, "campo de SLA sumiu do form do gatilho");
 });

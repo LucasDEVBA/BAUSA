@@ -15,6 +15,15 @@ interface PipelineColumnProps {
   onDealClick: (deal: Deal) => void;
   /** Config de exibição das etapas (rótulo/cor/oculta) — default estático. */
   stageConfig?: DealStageConfigMap;
+  /** Clique no cabeçalho → modal da coluna (rótulo/cor/automações/agents). */
+  onHeaderClick?: (stage: DealStage) => void;
+  /** Reordenação por arraste do cabeçalho (HTML5 drag — o dnd-kit do board
+   *  cuida dos cards; mecanismos separados não conflitam). */
+  onColumnDragStart?: (stage: DealStage) => void;
+  onColumnDrop?: (stage: DealStage) => void;
+  /** Fim do arraste (inclusive cancelado por ESC/solto fora). */
+  onColumnDragEnd?: () => void;
+  arrastandoColuna?: DealStage | null;
 }
 
 function fmtCompact(value: number): string {
@@ -28,6 +37,11 @@ export function PipelineColumn({
   deals,
   onDealClick,
   stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+  onHeaderClick,
+  onColumnDragStart,
+  onColumnDrop,
+  onColumnDragEnd,
+  arrastandoColuna,
 }: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const config = stageConfig[stage];
@@ -41,8 +55,41 @@ export function PipelineColumn({
         isOver && "border-primary/40 bg-primary/5",
       )}
     >
-      <div className="flex items-center justify-between gap-2 px-2.5 py-2">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <div
+        draggable={Boolean(onColumnDragStart)}
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", stage);
+          onColumnDragStart?.(stage);
+        }}
+        onDragOver={(e) => {
+          if (arrastandoColuna && arrastandoColuna !== stage) e.preventDefault();
+        }}
+        onDragEnd={() => onColumnDragEnd?.()}
+        onDrop={(e) => {
+          // Só aceita um arraste de COLUNA iniciado aqui (um arquivo solto do
+          // Finder não pode reordenar o board).
+          const origem = e.dataTransfer.getData("text/plain");
+          if (!origem || !arrastandoColuna || origem !== arrastandoColuna) return;
+          e.preventDefault();
+          onColumnDrop?.(stage);
+        }}
+        className={cn(
+          "flex items-center justify-between gap-2 px-2.5 py-2",
+          onColumnDragStart && "cursor-grab active:cursor-grabbing",
+          arrastandoColuna === stage && "opacity-50",
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => onHeaderClick?.(stage)}
+          disabled={!onHeaderClick}
+          title={onHeaderClick ? "Editar coluna, automações e agents" : undefined}
+          className={cn(
+            "flex min-w-0 items-center gap-1.5 rounded-md py-0.5 text-left",
+            onHeaderClick && "-mx-1 px-1 transition-colors hover:bg-card/70",
+          )}
+        >
           <span
             className={cn("h-2 w-2 shrink-0 rounded-full", config.dotColor)}
           />
@@ -60,7 +107,7 @@ export function PipelineColumn({
               Oculta
             </span>
           )}
-        </div>
+        </button>
         {totalValue > 0 && (
           <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
             {fmtCompact(totalValue)}
@@ -76,6 +123,7 @@ export function PipelineColumn({
         ) : (
           deals.map((deal) => (
             <DealCard
+              stageConfig={stageConfig}
               key={deal.id}
               deal={deal}
               onClick={() => onDealClick(deal)}
