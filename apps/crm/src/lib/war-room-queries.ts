@@ -286,7 +286,7 @@ export async function fetchCommercialFunnel(): Promise<CommercialFunnelMetrics> 
   };
 
   const [leads, reunioes, propostas, contratos, sinais, concluidos] = await Promise.all([
-    countByEtapa(["lead", "reuniao_marcada"]),
+    countByEtapa(["contato_feito", "lead", "reuniao_marcada"]),
     countByEtapa(["reuniao_realizada", "diagnostico_fit", "alinhamento_estrategico"]),
     countByEtapa(["proposta_enviada", "followup_proposta"]),
     countByEtapa(["contrato_assinado", "contrato_enviado", "negociacao"]),

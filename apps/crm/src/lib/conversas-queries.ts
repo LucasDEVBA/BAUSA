@@ -353,6 +353,7 @@ interface DealFunilRow {
 // negócio, NÃO exibição). A fonte canônica de EXIBIÇÃO — com a ordem/rótulos
 // configurados pelo CEO (`etapas_deal_config`) — é `src/lib/etapas-deal.ts`.
 const ORDEM_ETAPA: Record<string, number> = {
+  contato_feito: -0.5,
   lead: 0,
   aguardando_timing: 0.5,
   reuniao_marcada: 1,

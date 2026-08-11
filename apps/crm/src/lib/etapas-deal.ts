@@ -89,6 +89,7 @@ export const ETAPA_ACCENT_LABEL: Record<EtapaDealAccent, string> = {
  * histórico (não tocar a probabilidade) é preservado quando o seed faltar.
  */
 export const PROBABILIDADE_ETAPA_FALLBACK: Record<string, number> = {
+  contato_feito: 5,
   lead: 10,
   aguardando_timing: 10, // estacionado = mesma chance de um lead novo
   reuniao_marcada: 20,

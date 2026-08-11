@@ -90,6 +90,7 @@ export const DEFAULT_ERROR_LABEL: Record<MoveDealErrorCode, string> = {
 
 // Mapeamento de etapa → label amigável (usa o tipo do crm.ts)
 export const ETAPA_LABEL: Record<string, string> = {
+  contato_feito: "Contato feito",
   lead: "Lead",
   aguardando_timing: "Aguardando Timing",
   reuniao_marcada: "Reunião Marcada",

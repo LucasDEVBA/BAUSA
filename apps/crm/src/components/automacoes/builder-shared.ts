@@ -100,9 +100,11 @@ export const CONDICAO_CAMPOS: CondicaoCampoUI[] = [
       "onboarding_etapa_atrasada",
     ],
     opcoes: [
-      { value: "admissao", label: "Admissão" },
-      { value: "aprovado", label: "Aprovado" },
-      { value: "pre_embarque", label: "Pré-embarque" },
+      { value: "envio_opcoes", label: "Envio de opções" },
+      { value: "admissao", label: "Application em andamento" },
+      { value: "aprovado", label: "Aceito + I-20" },
+      { value: "pagamento_remanescente", label: "Pagamento remanescente" },
+      { value: "pre_embarque", label: "Visto" },
       { value: "embarcado_inicial", label: "Embarcado" },
       { value: "acompanhamento", label: "Acompanhamento" },
     ],
@@ -553,4 +555,48 @@ export function resumoAutomacao(builder: BuilderState): string {
     partes.push(`então ${acoes.join(" + ")}`);
   }
   return `${partes.join(", ")}.`;
+}
+
+/**
+ * BuilderState → payload das actions (criar/atualizar automação).
+ *
+ * Fonte ÚNICA da montagem: a página /automacoes e o modal da coluna do
+ * pipeline chamam esta função. Duplicar essa lógica já causou um bug real
+ * (o modal gravava `gatilho: deal_etapa_mudou` fixo e apagava o `dias` de uma
+ * automação de tempo ao editá-la — revisão adversarial 2026-08-11).
+ */
+export function builderParaInput(builder: BuilderState): {
+  nome: string;
+  descricao?: string;
+  gatilho: AutomacaoGatilho;
+  gatilho_config: Record<string, string | number>;
+  condicoes: AutomacaoCondicao[];
+  acoes: AutomacaoAcao[];
+  passos: AutomacaoPasso[];
+} {
+  const gatilhoInfo = GATILHO_CATALOG[builder.gatilho];
+  const gatilhoConfig: Record<string, string | number> = {};
+  if (gatilhoInfo.configAgendamento) {
+    gatilhoConfig.frequencia = builder.agFrequencia;
+    gatilhoConfig.hora = builder.agHora;
+    if (builder.agFrequencia === "semanal") gatilhoConfig.dia_semana = builder.agDiaSemana;
+    if (builder.agFrequencia === "mensal") gatilhoConfig.dia_mes = builder.agDiaMes;
+  } else if (gatilhoInfo.configDias) {
+    gatilhoConfig.dias = builder.gatilhoDias;
+  } else if (gatilhoInfo.configEtapa && builder.gatilhoEtapaPara) {
+    gatilhoConfig.etapa_para = builder.gatilhoEtapaPara;
+  }
+  if (builder.slaHoras !== null && builder.slaHoras >= 1 && builder.slaHoras <= 720) {
+    gatilhoConfig.sla_horas = builder.slaHoras;
+  }
+  const temPassos = builder.passos.length > 0;
+  return {
+    nome: builder.nome,
+    descricao: builder.descricao || undefined,
+    gatilho: builder.gatilho,
+    gatilho_config: gatilhoConfig,
+    condicoes: temPassos ? [] : builder.condicoes,
+    acoes: temPassos ? [] : builder.acoes.map(normalizarAcaoParaSalvar),
+    passos: temPassos ? builder.passos.map(normalizarPassoParaSalvar) : [],
+  };
 }

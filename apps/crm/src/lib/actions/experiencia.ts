@@ -5,8 +5,10 @@ import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
 
 type FaseExperiencia =
+  | "envio_opcoes"
   | "admissao"
   | "aprovado"
+  | "pagamento_remanescente"
   | "pre_embarque"
   | "embarcado_inicial"
   | "acompanhamento"

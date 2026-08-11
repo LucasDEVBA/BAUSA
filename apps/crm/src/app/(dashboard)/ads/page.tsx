@@ -10,26 +10,15 @@ import {
   type CampanhaAds,
   type FunilCampanha,
 } from "@/lib/meta-ads";
-import { CampanhaCard } from "@/components/ads/CampanhaCard";
+import { CampanhasClient } from "@/components/ads/CampanhasClient";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 
-// /ads — aba Campanhas (A1: leitura). Cards com criativo, status e o
-// cruzamento que a Meta não tem: leads/reuniões REAIS por campanha.
+// /ads — aba Campanhas (A1.5: leitura). Grid com filtros + clique → detalhe.
 export const dynamic = "force-dynamic";
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-
-// Quem gastou aparece primeiro (é onde a decisão mora); empate = ativas antes.
-function ordenar(campanhas: CampanhaAds[]): CampanhaAds[] {
-  return [...campanhas].sort((a, b) => {
-    if (b.gasto30d !== a.gasto30d) return b.gasto30d - a.gasto30d;
-    const ativaA = a.status === "ACTIVE" ? 0 : 1;
-    const ativaB = b.status === "ACTIVE" ? 0 : 1;
-    return ativaA - ativaB;
-  });
-}
 
 export default async function AdsPage() {
   await requirePapel("ceo");
@@ -74,7 +63,7 @@ export default async function AdsPage() {
     );
   }
 
-  const visiveis = ordenar(campanhas.filter((c) => c.status !== "DELETED" && c.status !== "ARCHIVED"));
+  const visiveis = campanhas.filter((c) => c.status !== "DELETED" && c.status !== "ARCHIVED");
   const ativas = visiveis.filter((c) => c.status === "ACTIVE").length;
   const gasto30d = visiveis.reduce((s, c) => s + c.gasto30d, 0);
   const leads30d = [...funil.values()].reduce((s, f) => s + f.leads30d, 0);
@@ -91,25 +80,13 @@ export default async function AdsPage() {
         <StatCard label="Reuniões geradas" value={funilIndisponivel ? "—" : String(reunioes)} context="todas as campanhas" icon={CalendarCheck} accent="blue" />
       </div>
 
-      {funilIndisponivel && (
+      {funilIndisponivel ? (
         <p className="text-xs text-muted-foreground">
           Cruzamento com o funil temporariamente indisponível — os cards mostram só os dados da Meta.
         </p>
-      )}
+      ) : null}
 
-      {visiveis.length === 0 ? (
-        <EmptyState
-          icon={Megaphone}
-          title="Nenhuma campanha na conta"
-          description="Quando houver campanhas na conta de anúncios, elas aparecem aqui automaticamente."
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {visiveis.map((c) => (
-            <CampanhaCard key={c.id} campanha={c} funil={funil.get(c.id) ?? null} />
-          ))}
-        </div>
-      )}
+      <CampanhasClient campanhas={visiveis} funil={Object.fromEntries(funil)} />
     </div>
   );
 }

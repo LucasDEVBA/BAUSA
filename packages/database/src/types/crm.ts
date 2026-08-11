@@ -1,6 +1,7 @@
 export type PapelUsuario = 'ceo' | 'head_sucesso' | 'comercial';
 
 export type StatusDeal =
+  | 'contato_feito'
   | 'lead' | 'aguardando_timing' | 'reuniao_marcada' | 'reuniao_realizada'
   | 'diagnostico_fit' | 'alinhamento_estrategico' | 'proposta_enviada'
   | 'followup_proposta' | 'negociacao' | 'contrato_enviado'
@@ -160,6 +161,7 @@ export interface AuditLog {
 
 // Labels amigáveis para as etapas do pipeline
 export const ETAPA_LABELS: Record<StatusDeal, string> = {
+  contato_feito: 'Contato feito',
   lead: 'Lead',
   aguardando_timing: 'Aguardando Timing',
   reuniao_marcada: 'Reunião Marcada',
@@ -181,7 +183,8 @@ export const ETAPA_LABELS: Record<StatusDeal, string> = {
 
 // Ordem das etapas (para detectar retrocesso)
 export const ETAPA_ORDEM: Record<StatusDeal, number> = {
-  lead: 1,
+  contato_feito: 1,
+  lead: 2,
   aguardando_timing: 2,
   reuniao_marcada: 3,
   reuniao_realizada: 4,
@@ -202,7 +205,7 @@ export const ETAPA_ORDEM: Record<StatusDeal, number> = {
 
 // Etapas visíveis no Kanban (exclui perdido, concluido, cancelamento, projeto_futuro)
 export const PIPELINE_ETAPAS: StatusDeal[] = [
-  'lead', 'aguardando_timing', 'reuniao_marcada', 'reuniao_realizada', 'diagnostico_fit',
+  'contato_feito', 'lead', 'aguardando_timing', 'reuniao_marcada', 'reuniao_realizada', 'diagnostico_fit',
   'alinhamento_estrategico', 'proposta_enviada', 'followup_proposta',
   'negociacao', 'contrato_enviado', 'contrato_assinado', 'sinal_pago',
   'admission_process',
