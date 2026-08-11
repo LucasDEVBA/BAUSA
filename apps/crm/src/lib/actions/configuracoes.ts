@@ -30,10 +30,20 @@ export async function atualizarConfiguracao(chave: string, valor: unknown) {
   const supabase = await createAuditedSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // UPSERT (não UPDATE): antes, uma chave inexistente afetava 0 linhas e a
+  // action ainda retornava sucesso — a UI dizia "Configuração atualizada" e o
+  // valor sumia no reload. Com upsert a chave é criada na hora.
   const { error } = await supabase
     .from("configuracoes_sistema")
-    .update({ valor: JSON.parse(JSON.stringify(valor)), updated_by: user?.id })
-    .eq("chave", chave);
+    .upsert(
+      {
+        chave,
+        valor: JSON.parse(JSON.stringify(valor)),
+        updated_by: user?.id,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "chave" },
+    );
 
   if (error) return { success: false, error: error.message };
   return { success: true };

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { requirePapel } from "@/lib/auth";
 import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { getParametrosSistema } from "@/lib/actions/parametros";
 import { mergeJourneyConfig } from "@/lib/fases-familia";
 import {
   fetchWarRoomMetrics,
@@ -66,11 +67,9 @@ import { FamilyStageChart } from "@/components/war-room/FamilyStageChart";
 import { WarRoomTabs, type WarRoomTab } from "./WarRoomTabs";
 
 // Metas estrategicas BAUSA (referencia para os medidores da Visao Geral)
-const METAS_BAUSA = {
-  meta_anual_brl: 1_500_000,
-  meta_mensal_brl: 125_000,
-  contratos_por_mes: 6,
-};
+// As metas vivem em configuracoes_sistema e são editadas em Configurações →
+// Metas & Valores. Antes eram este objeto fixo, então mudar a config não
+// mudava o War Room (a tela "salvava" e nada acontecia).
 
 const k = (v: number) => `R$ ${(v / 1000).toFixed(0)}k`;
 
@@ -172,6 +171,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     timingAlternatives,
     fasesOverrides,
     leadsAguardandoAprovacao,
+    parametros,
   ] = await Promise.all([
     fetchWarRoomMetrics(),
     fetchMetaRevenue(),
@@ -196,9 +196,19 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     fetchTimingAlternatives(),
     getFasesFamiliaConfigOverrides(),
     fetchLeadsAguardandoAprovacao(),
+    getParametrosSistema(),
   ]);
 
   const journeyConfig = mergeJourneyConfig(fasesOverrides);
+
+  // Metas configuráveis (Configurações → Metas & Valores)
+  const METAS_BAUSA = {
+    meta_anual_brl: parametros.metas.meta_anual,
+    meta_mensal_brl: parametros.metas.meta_mensal_padrao,
+    contratos_por_mes: parametros.metas.contratos_mes_alvo,
+    ticket_medio_brl: parametros.metas.ticket_medio_alvo,
+    pipeline_health_min: parametros.metas.pipeline_health_min,
+  };
 
   const criticalAlerts = alerts.filter((a) => a.type === "critical");
   const warningAlerts = alerts.filter((a) => a.type === "warning");
