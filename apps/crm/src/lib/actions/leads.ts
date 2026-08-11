@@ -273,43 +273,94 @@ export async function promoverLead(formSubmissionId: string) {
 
 export interface LeadPendenteAprovacao {
   id: string;
+  // Atleta
   athlete_name: string;
   birth_date: string | null;
+  age: string | null;
+  gender: string | null;
   email: string;
   athlete_whatsapp: string | null;
-  guardian_name: string | null;
-  guardian_whatsapp: string | null;
-  guardian_email: string | null;
-  guardian_profession: string | null;
   instagram: string | null;
+  video_link: string | null;
+  video_highlights: string | null;
+  // Esporte
   position: string | null;
   club_history: string | null;
   achievements: string | null;
-  video_link: string | null;
-  current_school: string | null;
+  // Acadêmico
   school_year: string | null;
-  city_state: string | null;
-  address_country: string | null;
+  current_school: string | null;
+  school_city_state: string | null;
+  is_high_school: string | null;
+  education_model: string | null;
   english_level: string | null;
+  english_exam: string | null;
+  exam_result: string | null;
   academic_performance: string | null;
+  school_priorities: string | null;
+  school_graduated_from: string | null;
+  graduated_when: string | null;
+  // Responsável
+  guardian_name: string | null;
+  guardian_email: string | null;
+  guardian_whatsapp: string | null;
+  guardian_profession: string | null;
+  // Endereço
+  address_cep: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_neighborhood: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_country: string | null;
+  city_state: string | null;
+  family_address: string | null;
+  // Decisão / investimento
   investment_range: string | null;
+  start_timing: string | null;
+  project_direction: string | null;
+  behavioral_profile: string | null;
+  youth_commitment: string | null;
+  family_decision_structure: string | null;
+  why_international: string | null;
+  how_did_you_find: string | null;
+  how_did_you_find_other: string | null;
+  // IA / timing
   qualification_classification: string | null;
   qualification_reason: string | null;
   qualification_confidence: string | null;
   qualified_at: string | null;
   timing_status: string | null;
+  // Origem
   utm_source: string | null;
+  utm_medium: string | null;
   utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  referrer_url: string | null;
+  landing_url: string | null;
+  cta_source: string | null;
   device_type: string | null;
+  form_started_at: string | null;
   submitted_at: string;
 }
 
+// Todos os campos do formulário que ajudam na decisão — o CEO decide com o
+// dossiê completo na tela (pedido do CEO 2026-08-11), não só com o resumo.
 const COLUNAS_FILA_APROVACAO =
-  "id, athlete_name, birth_date, email, athlete_whatsapp, guardian_name, guardian_whatsapp, " +
-  "guardian_email, guardian_profession, instagram, position, club_history, achievements, " +
-  "video_link, current_school, school_year, city_state, address_country, english_level, " +
-  "academic_performance, investment_range, qualification_classification, qualification_reason, " +
-  "qualification_confidence, qualified_at, timing_status, utm_source, utm_campaign, device_type, submitted_at";
+  "id, athlete_name, birth_date, age, gender, email, athlete_whatsapp, instagram, video_link, " +
+  "video_highlights, position, club_history, achievements, school_year, current_school, " +
+  "school_city_state, is_high_school, education_model, english_level, english_exam, exam_result, " +
+  "academic_performance, school_priorities, school_graduated_from, graduated_when, guardian_name, " +
+  "guardian_email, guardian_whatsapp, guardian_profession, address_cep, address_street, " +
+  "address_number, address_complement, address_neighborhood, address_city, address_state, " +
+  "address_country, city_state, family_address, investment_range, start_timing, project_direction, " +
+  "behavioral_profile, youth_commitment, family_decision_structure, why_international, " +
+  "how_did_you_find, how_did_you_find_other, qualification_classification, qualification_reason, " +
+  "qualification_confidence, qualified_at, timing_status, utm_source, utm_medium, utm_campaign, " +
+  "utm_content, utm_term, referrer_url, landing_url, cta_source, device_type, form_started_at, " +
+  "submitted_at";
 
 /**
  * Contagem da fila para o ícone do Header global (client-side).
@@ -328,6 +379,36 @@ export async function contarLeadsPendentesAprovacao(): Promise<number | null> {
 
   if (error) return 0;
   return count ?? 0;
+}
+
+export interface LeadPendenteCard {
+  id: string;
+  athlete_name: string;
+  qualification_classification: string | null;
+  city_state: string | null;
+  position: string | null;
+  timing_status: string | null;
+  submitted_at: string;
+}
+
+/**
+ * Cards da coluna "Aguardando aprovação" do Kanban.
+ *
+ * A coluna é alimentada pela FILA (form_submissions), não por deals: o deal só
+ * nasce na aprovação. Assim o board mostra o funil inteiro sem que um lead
+ * não-aprovado entre em métrica, automação ou outreach.
+ */
+export async function listarLeadsPendentesCards(): Promise<LeadPendenteCard[]> {
+  if ((await getUserPapel()) !== "ceo") return [];
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select("id, athlete_name, qualification_classification, city_state, position, timing_status, submitted_at")
+    .eq("aprovacao_status", "pendente")
+    .in("qualification_classification", ["QUENTE", "MORNO"])
+    .order("submitted_at", { ascending: true });
+  if (error) return [];
+  return (data ?? []) as unknown as LeadPendenteCard[];
 }
 
 export async function listarLeadsPendentesAprovacao(): Promise<

@@ -33,6 +33,9 @@ import { LossModal, type LossPayload } from "./LossModal";
 import { moverDeal, type StructuredLossData } from "@/lib/actions/deals";
 import { reordenarEtapasPipeline } from "@/lib/actions/etapas-pipeline";
 import { EtapaColunaModal } from "./EtapaColunaModal";
+import { AprovacaoColumn } from "./AprovacaoColumn";
+import { AprovacaoLeadsModal } from "@/components/leads/AprovacoesLeads";
+import type { LeadPendenteCard } from "@/lib/actions/leads";
 import { labelEtapa, type MoveDealAction } from "@/lib/move-deal-result";
 import type { StatusDeal } from "@/types/crm";
 import { toast } from "sonner";
@@ -46,6 +49,8 @@ interface PipelineBoardProps {
   probabilidadePorEtapa?: Record<string, number>;
   /** Só nível CEO edita colunas (o board é read-only para os demais). */
   podeEditarColunas?: boolean;
+  /** Leads na fila de aprovação — primeira coluna do board (sem deal ainda). */
+  leadsPendentes?: LeadPendenteCard[];
 }
 
 function getDealsByStage(deals: Deal[]) {
@@ -103,6 +108,7 @@ export function PipelineBoard({
   stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
   probabilidadePorEtapa = {},
   podeEditarColunas = false,
+  leadsPendentes = [],
 }: PipelineBoardProps) {
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
@@ -142,6 +148,7 @@ export function PipelineBoard({
   );
 
   const [colunaAberta, setColunaAberta] = useState<DealStage | null>(null);
+  const [leadAprovacao, setLeadAprovacao] = useState<string | null>(null);
   const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
 
   // Reconcilia com o servidor: quando a config revalida, a ordem local (que
@@ -315,6 +322,11 @@ export function PipelineBoard({
           onDragEnd={handleDragEnd}
         >
           <div className="flex h-full gap-3 overflow-x-auto pb-4">
+            {/* Fila de aprovação: primeira coluna, antes de qualquer etapa —
+                o lead só vira deal (coluna seguinte) depois do OK do CEO. */}
+            {podeEditarColunas && leadsPendentes.length > 0 && (
+              <AprovacaoColumn leads={leadsPendentes} onLeadClick={setLeadAprovacao} />
+            )}
             {visibleStages.map((stage) => (
               <PipelineColumn
                 key={stage}
@@ -376,6 +388,15 @@ export function PipelineBoard({
           });
         }}
       />
+
+      {/* Fila de aprovação aberta pelo card da primeira coluna */}
+      {leadAprovacao && (
+        <AprovacaoLeadsModal
+          leadIdInicial={leadAprovacao}
+          onClose={() => setLeadAprovacao(null)}
+          onDecidido={() => router.refresh()}
+        />
+      )}
 
       {/* Modal da COLUNA (rótulo/cor/probabilidade + automações + agents) */}
       {colunaAberta && (
