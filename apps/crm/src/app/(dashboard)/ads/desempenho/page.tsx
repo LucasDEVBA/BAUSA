@@ -16,6 +16,7 @@ import {
   type TopCampanha,
 } from "@/lib/meta-ads";
 import { PeriodoFiltro } from "@/components/ads/PeriodoFiltro";
+import { RefreshAds } from "@/components/ads/RefreshAds";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
@@ -94,6 +95,7 @@ export default async function AdsDesempenhoPage({
         title="Desempenho"
         description={`De ${range.since.split("-").reverse().join("/")} a ${range.until.split("-").reverse().join("/")}`}
         dense
+        actions={<RefreshAds />}
       />
 
       <PeriodoFiltro presetAtivo={preset} de={range.since} ate={range.until} />
