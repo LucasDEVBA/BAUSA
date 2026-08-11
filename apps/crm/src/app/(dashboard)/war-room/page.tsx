@@ -73,6 +73,16 @@ import { WarRoomTabs, type WarRoomTab } from "./WarRoomTabs";
 
 const k = (v: number) => `R$ ${(v / 1000).toFixed(0)}k`;
 
+// Metas agora sao editaveis, entao o rotulo tem de acompanhar o numero salvo
+// (antes eram strings fixas "R$ 1,5M"/"R$ 125k" ao lado de um % ja dinamico).
+const kOuM = (v: number) =>
+  v >= 1_000_000 ? `R$ ${(v / 1_000_000).toFixed(1).replace(".", ",")}M` : k(v);
+
+// Divisor vindo de config: 0 e um valor valido para "meta desligada" e nao pode
+// virar Infinity/NaN no dashboard.
+const pctSeguro = (parte: number, total: number) =>
+  total > 0 ? Math.round((parte / total) * 100) : 0;
+
 // ─── Card de drill da Visao Geral: ancora nativa (#aba) → troca instantanea ───
 type DrillVariant = "success" | "indigo" | "blue" | "danger" | "warning" | "purple";
 
@@ -218,16 +228,20 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     funil.leads_qualified > 0 ? Math.round((funil.contracts_signed / funil.leads_qualified) * 100) : 0;
   const metaPct =
     meta.monthly_target_brl > 0 ? Math.round((meta.net_revenue_month_brl / meta.monthly_target_brl) * 100) : 0;
-  const metaAnualPct =
-    METAS_BAUSA.meta_anual_brl > 0 ? Math.round((m.revenue_ytd_brl / METAS_BAUSA.meta_anual_brl) * 100) : 0;
-  const pipelineRatio = (m.pipeline_total_brl / METAS_BAUSA.meta_mensal_brl).toFixed(1);
-  const isPipelineHealthy = parseFloat(pipelineRatio) >= 3;
-  const contratosPct = Math.round((funil.contracts_signed / METAS_BAUSA.contratos_por_mes) * 100);
+  const metaAnualPct = pctSeguro(m.revenue_ytd_brl, METAS_BAUSA.meta_anual_brl);
+  const pipelineRatio =
+    METAS_BAUSA.meta_mensal_brl > 0
+      ? (m.pipeline_total_brl / METAS_BAUSA.meta_mensal_brl).toFixed(1)
+      : "—";
+  const isPipelineHealthy =
+    METAS_BAUSA.meta_mensal_brl > 0 &&
+    parseFloat(pipelineRatio) >= METAS_BAUSA.pipeline_health_min;
+  const contratosPct = pctSeguro(funil.contracts_signed, METAS_BAUSA.contratos_por_mes);
 
   const metas = [
-    { label: "Meta Anual", value: "R$ 1,5M", sub: `${metaAnualPct}% atingido`, pct: metaAnualPct, color: "text-primary", bar: "bg-primary" },
-    { label: "Meta Mensal", value: "R$ 125k", sub: `${metaPct}% do mes`, pct: metaPct, color: metaPct >= 80 ? "text-sys-green" : metaPct >= 50 ? "text-sys-orange" : "text-sys-red", bar: metaPct >= 80 ? "bg-sys-green" : metaPct >= 50 ? "bg-sys-orange" : "bg-sys-red" },
-    { label: "Ticket Medio (ref)", value: "R$ 23k", sub: "base de referencia", pct: null as number | null, color: "text-plan-legacy", bar: "bg-plan-legacy" },
+    { label: "Meta Anual", value: kOuM(METAS_BAUSA.meta_anual_brl), sub: `${metaAnualPct}% atingido`, pct: metaAnualPct, color: "text-primary", bar: "bg-primary" },
+    { label: "Meta Mensal", value: kOuM(METAS_BAUSA.meta_mensal_brl), sub: `${metaPct}% do mes`, pct: metaPct, color: metaPct >= 80 ? "text-sys-green" : metaPct >= 50 ? "text-sys-orange" : "text-sys-red", bar: metaPct >= 80 ? "bg-sys-green" : metaPct >= 50 ? "bg-sys-orange" : "bg-sys-red" },
+    { label: "Ticket Medio (ref)", value: kOuM(METAS_BAUSA.ticket_medio_brl), sub: "base de referencia", pct: null as number | null, color: "text-plan-legacy", bar: "bg-plan-legacy" },
     { label: "Contratos/Mes", value: `${METAS_BAUSA.contratos_por_mes}`, sub: `${funil.contracts_signed} fechados`, pct: contratosPct, color: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "text-sys-green" : "text-sys-orange", bar: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "bg-sys-green" : "bg-sys-orange" },
   ];
 
@@ -254,7 +268,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             value={k(m.pipeline_total_brl)}
             icon={Layers}
             accent={isPipelineHealthy ? "blue" : "orange"}
-            context={`${pipelineRatio}x a meta`}
+            context={pipelineRatio === "—" ? "meta mensal nao definida" : `${pipelineRatio}x a meta`}
           />
           <StatCard label="Conversão" value={`${m.conversion_rate}%`} icon={BarChart2} accent="brand" />
           <StatCard
