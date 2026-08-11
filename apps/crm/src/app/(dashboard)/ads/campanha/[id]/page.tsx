@@ -222,6 +222,25 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
                       {compacto.format(an.impressoesVida)} impr. · {compacto.format(an.cliquesVida)} cliques
                       {an.ctrVida !== null ? ` · CTR ${an.ctrVida.toFixed(2)}%` : ""} (vida toda)
                     </p>
+                    {/* Auditoria de destino + UTM — onde a atribuição nasce ou morre */}
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                      {an.linkDestino ? (
+                        <>
+                          <span className="truncate text-muted-foreground" title={an.linkDestino}>
+                            → {an.linkDestino.replace(/^https?:\/\//, "").slice(0, 48)}
+                          </span>
+                          {an.urlTags?.includes("utm_id=") ? (
+                            <Badge tone="green" size="sm">UTM ✓</Badge>
+                          ) : (
+                            <Badge tone="red" size="sm">SEM UTM — lead não atribui</Badge>
+                          )}
+                        </>
+                      ) : (
+                        <Badge tone="neutral" size="sm" title="Boost de post: o link mora no post orgânico do Instagram — sem URL própria, sem UTM">
+                          Post orgânico (sem link próprio)
+                        </Badge>
+                      )}
+                    </p>
                   </div>
                   <AdsStatusBadge status={an.status} size="sm" />
                   {escrita ? <AcaoStatusAds objetoId={an.id} nivel="anuncio" nome={an.nome} statusAtual={an.status} compacto /> : null}

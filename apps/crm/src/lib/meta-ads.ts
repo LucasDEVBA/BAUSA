@@ -153,6 +153,8 @@ interface GraphCreative {
   id?: string;
   thumbnail_url?: string;
   image_url?: string;
+  url_tags?: string;
+  object_story_spec?: { link_data?: { link?: string } };
 }
 
 interface GraphCampanha {
@@ -286,6 +288,10 @@ export interface AnuncioAds {
   impressoesVida: number;
   cliquesVida: number;
   ctrVida: number | null;
+  /** Destino do anúncio (link_data.link). null = boost de post (o link mora no post orgânico). */
+  linkDestino: string | null;
+  /** Parâmetros de URL (url_tags) do criativo — onde o UTM vive. */
+  urlTags: string | null;
 }
 
 export interface CampanhaDetalhe {
@@ -355,7 +361,7 @@ export async function fetchCampanhaDetalhe(campanhaId: string): Promise<Campanha
 
   const ads = await graphGet<GraphAd>(`${campanhaId}/ads`, {
     fields:
-      "name,effective_status,creative{id,thumbnail_url,image_url}," +
+      "name,effective_status,creative{id,thumbnail_url,image_url,url_tags,object_story_spec{link_data{link}}}," +
       "insights.date_preset(maximum){spend,impressions,clicks,ctr}",
     limit: "50",
   });
@@ -399,6 +405,8 @@ export async function fetchCampanhaDetalhe(campanhaId: string): Promise<Campanha
         impressoesVida: num(ins?.impressions),
         cliquesVida: num(ins?.clicks),
         ctrVida: numOuNull(ins?.ctr),
+        linkDestino: a.creative?.object_story_spec?.link_data?.link ?? null,
+        urlTags: a.creative?.url_tags ?? null,
       };
     }),
   };
