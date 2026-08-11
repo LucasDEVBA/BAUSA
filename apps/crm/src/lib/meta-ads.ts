@@ -21,7 +21,7 @@ const GRAPH_BASE = "https://graph.facebook.com";
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v23.0";
 const REVALIDATE_S = 300;
 const MAX_PAGINAS = 5;
-const THUMB_PX = "512";
+const THUMB_PX = "1080"; // full-HD — a Meta serve p1080x1080 (validado na Graph)
 
 export class MetaAdsError extends Error {
   constructor(message: string) {
@@ -127,11 +127,16 @@ export interface CampanhaAds {
   budgetTotal: number | null;
   criadaEm: string | null;
   thumbnailUrl: string | null;
+  // Vida toda (Graph, date_preset maximum) — campanhas ativas fora da janela
+  // de 30d mostravam "—" em tudo; a vida toda sempre tem o histórico.
+  gastoVida: number;
+  impressoesVida: number;
+  cliquesVida: number;
+  ctrVida: number | null;
+  // Últimos 30d — do NOSSO histórico (meta_ads_campanha), preenchido na page.
   gasto30d: number;
-  impressoes30d: number;
   cliques30d: number;
-  ctr30d: number | null;
-  frequencia30d: number | null;
+  impressoes30d: number;
 }
 
 interface GraphInsightsRow {
@@ -210,7 +215,7 @@ export async function fetchCampanhasAds(): Promise<CampanhaAds[]> {
   const rows = await graphGet<GraphCampanha>(`${contaAnuncio()}/campaigns`, {
     fields:
       "name,effective_status,objective,daily_budget,lifetime_budget,created_time," +
-      "insights.date_preset(last_30d){spend,impressions,clicks,ctr,frequency}," +
+      "insights.date_preset(maximum){spend,impressions,clicks,ctr}," +
       "ads.limit(1){creative{id,thumbnail_url,image_url}}",
     limit: "50",
   });
@@ -231,14 +236,22 @@ export async function fetchCampanhasAds(): Promise<CampanhaAds[]> {
       budgetDiario: centavos(c.daily_budget),
       budgetTotal: centavos(c.lifetime_budget),
       criadaEm: c.created_time ?? null,
-      thumbnailUrl: creative?.image_url ?? thumbAlta ?? creative?.thumbnail_url ?? null,
-      gasto30d: num(ins?.spend),
-      impressoes30d: num(ins?.impressions),
-      cliques30d: num(ins?.clicks),
-      ctr30d: numOuNull(ins?.ctr),
-      frequencia30d: numOuNull(ins?.frequency),
+      thumbnailUrl: thumbAlta ?? creative?.image_url ?? creative?.thumbnail_url ?? null,
+      gastoVida: num(ins?.spend),
+      impressoesVida: num(ins?.impressions),
+      cliquesVida: num(ins?.clicks),
+      ctrVida: numOuNull(ins?.ctr),
+      gasto30d: 0,
+      cliques30d: 0,
+      impressoes30d: 0,
     };
   });
+}
+
+/** Agrega os últimos 30d do NOSSO histórico por campanha (merge nos cards). */
+export async function fetchAgregado30dPorCampanha(supabase: SupabaseServer): Promise<Map<string, { gasto: number; cliques: number; impressoes: number }>> {
+  const top = await fetchTopCampanhas(supabase, resolverRange({ periodo: "30d" }).range, 1000);
+  return new Map(top.map((t) => [t.campanhaId, { gasto: t.gasto, cliques: t.cliques, impressoes: t.impressoes }]));
 }
 
 // ─── Detalhe de UMA campanha (conjuntos + anúncios + insights vida toda) ─

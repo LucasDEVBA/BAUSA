@@ -18,15 +18,26 @@ const path = require("node:path");
 const ler = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8");
 const ACTION = ler("apps/crm/src/lib/actions/ads-planner.ts");
 const CONFIANCA = ler("apps/crm/src/lib/ads-confianca.ts");
-const CLIENT = ler("apps/crm/src/app/(dashboard)/ads/planejar/client.tsx");
+const BRIEFING = ler("apps/crm/src/components/ads/BriefingView.tsx");
 const CAC_INSIGHTS = ler("apps/crm/src/lib/actions/cac-insights.ts");
 
 test("planner: confiança vem do motor determinístico, nunca da IA", () => {
   assert.match(ACTION, /calcularConfianca/, "cálculo determinístico de confiança sumiu da action");
   assert.match(ACTION, /CONFIANÇA POR DIMENSÃO \(calculada por regras/, "o prompt deixou de INFORMAR a confiança calculada à IA");
-  // O client renderiza badges SÓ do mapa do server (prop confianca), nunca de campo vindo do LLM
-  assert.match(CLIENT, /ConfiancaBadge/, "badge de confiança sumiu da UI");
-  assert.doesNotMatch(CLIENT, /plano\.(confianca|nivel)/, "a UI leu confiança de dentro do plano da IA — badge deve vir do mapa determinístico");
+  // A view renderiza badges SÓ do mapa do server (prop confianca), nunca de campo vindo do LLM
+  assert.match(BRIEFING, /ConfiancaBadge/, "badge de confiança sumiu da view do briefing");
+  assert.doesNotMatch(BRIEFING, /plano\.(confianca|nivel)/, "a view leu confiança de dentro do plano da IA — badge deve vir do mapa determinístico");
+});
+
+test("planner A4.1: plano vira entidade salva, editável só nos campos-chave, UTM intocável", () => {
+  assert.match(ACTION, /from\("ads_planos"\)/, "persistência do plano em ads_planos sumiu");
+  assert.match(ACTION, /atualizarPlanoAds/, "action de personalização do plano sumiu");
+  assert.match(ACTION, /UTM_BLOCO_CANONICO/, "o UTM canônico compartilhado sumiu da action");
+  // A personalização NÃO pode permitir editar o bloco de UTM nem o checklist
+  assert.doesNotMatch(ACTION, /utmBloco.*optional|checklistMeta.*optional/, "campos intocáveis (UTM/checklist) viraram editáveis");
+  // UTM em destaque no TOPO da view (decisão do CEO: primordial)
+  assert.match(BRIEFING, /UtmDestaque/, "o destaque de UTM sumiu da view");
+  assert.match(BRIEFING, /PRIMORDIAL/, "o selo PRIMORDIAL do UTM sumiu");
 });
 
 test("planner: níveis e limiares documentados no motor de confiança", () => {
@@ -51,7 +62,8 @@ test("planner: NUNCA cria campanha via API (só briefing manual)", () => {
 });
 
 test("planner: UTM dinâmico correto (fecha a atribuição via campaign.id)", () => {
-  assert.match(ACTION, /utm_id=\{\{campaign\.id\}\}/, "o bloco de UTM perdeu o utm_id dinâmico — o ROI exato depende dele");
+  const utm = ler("apps/crm/src/lib/ads-utm.ts");
+  assert.match(utm, /utm_id=\{\{campaign\.id\}\}/, "o bloco de UTM perdeu o utm_id dinâmico — o ROI exato depende dele");
   // A IA já inventou UTMs próprios no checklist (sem utm_id → atribuição quebra).
   // O pós-processamento determinístico que os substitui é invariante.
   assert.match(ACTION, /plano\.checklistMeta = plano\.checklistMeta\.map/, "sanitizador de UTMs inventados no checklist sumiu");
