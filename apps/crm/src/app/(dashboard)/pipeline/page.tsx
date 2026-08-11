@@ -4,7 +4,8 @@ import { PipelineExportButton } from "@/components/pipeline/PipelineExportButton
 import { FutureLeadsSection } from "@/components/pipeline/FutureLeadsSection";
 import { PageHeader } from "@/components/ui";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { getEtapasDealConfigOverrides } from "@/lib/actions/configuracoes";
+import { getEtapasDealConfigOverrides, getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
+import { getUserPapel } from "@/lib/auth";
 import { mergeDealStageConfig } from "@/lib/etapas-deal";
 import { type Deal, type DealStage } from "@/types/deal";
 import { type LeadClassification } from "@/types/lead";
@@ -191,8 +192,10 @@ export default async function PipelinePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Overrides de apresentação das etapas (CEO) em paralelo com os deals
-  const [etapasOverrides, { data: rows }] = await Promise.all([
+  const [etapasOverrides, probabilidadePorEtapa, papel, { data: rows }] = await Promise.all([
     getEtapasDealConfigOverrides(),
+    getProbabilidadePorEtapa(),
+    getUserPapel(),
     supabase
     .from("deals")
     .select(`
@@ -330,7 +333,13 @@ export default async function PipelinePage() {
 
       {/* Kanban board */}
       <div className="flex-1 overflow-hidden">
-        <PipelineBoard deals={deals} currentUserId={user?.id} stageConfig={stageConfig} />
+        <PipelineBoard
+          deals={deals}
+          currentUserId={user?.id}
+          stageConfig={stageConfig}
+          probabilidadePorEtapa={probabilidadePorEtapa}
+          podeEditarColunas={papel === "ceo"}
+        />
       </div>
 
       {/* Leads Futuros */}
