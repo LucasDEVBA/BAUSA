@@ -55,6 +55,7 @@ export function DesempenhoClient({
   idade,
   genero,
   plataforma,
+  campanhaFiltrada = false,
 }: {
   serie: DiaGastoAds[];
   top: TopCampanha[];
@@ -62,6 +63,7 @@ export function DesempenhoClient({
   idade: BreakdownLinha[];
   genero: BreakdownLinha[];
   plataforma: BreakdownLinha[];
+  campanhaFiltrada?: boolean;
 }) {
   const leadsPorDia = new Map(leadsDia.map((l) => [l.dia, l.leads]));
   const combinada: DiaCombinado[] = serie.map((d) => {
@@ -82,7 +84,7 @@ export function DesempenhoClient({
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      <ChartCard title="Gasto diário" subtitle="Soma de todas as campanhas (fonte: sync interno)" className="xl:col-span-2">
+      <ChartCard title="Gasto diário" subtitle={campanhaFiltrada ? "Somente a campanha filtrada (fonte: sync interno)" : "Soma de todas as campanhas (fonte: sync interno)"} className="xl:col-span-2">
         {vazio ? (
           <EmptyState title="Sem gasto no período" description="Nenhum dia com investimento no intervalo escolhido." />
         ) : (

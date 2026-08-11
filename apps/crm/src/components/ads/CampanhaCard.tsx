@@ -2,7 +2,7 @@ import { ImageOff, CalendarPlus, Target } from "lucide-react";
 
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
-import { AdsStatusBadge, OBJETIVO_LABEL } from "@/components/ads/ads-labels";
+import { AdsStatusBadge, OBJETIVO_LABEL, VeiculacaoBadge } from "@/components/ads/ads-labels";
 import type { CampanhaAds, FunilCampanha } from "@/lib/meta-ads";
 
 // Card de campanha (leitura): foto do criativo, título, badges de
@@ -10,7 +10,6 @@ import type { CampanhaAds, FunilCampanha } from "@/lib/meta-ads";
 // leads e reuniões REAIS do nosso funil (utm_id ↔ campanha_id).
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const compacto = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 
 function Metrica({ label, valor, destaque = false }: { label: string; valor: string; destaque?: boolean }) {
   return (
@@ -46,6 +45,12 @@ export function CampanhaCard({ campanha, funil }: { campanha: CampanhaAds; funil
         )}
         <div className="absolute left-2 top-2 flex flex-wrap gap-1">
           <AdsStatusBadge status={campanha.status} className="bg-card/90 backdrop-blur-sm" />
+          <VeiculacaoBadge
+            status={campanha.status}
+            fimEm={campanha.fimEm}
+            gasto7d={campanha.gasto7d}
+            className="bg-card/90 backdrop-blur-sm"
+          />
         </div>
       </div>
 

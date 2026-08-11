@@ -15,6 +15,7 @@ import {
   type DiaLeads,
   type TopCampanha,
 } from "@/lib/meta-ads";
+import { CampanhaFiltro } from "@/components/ads/CampanhaFiltro";
 import { PeriodoFiltro } from "@/components/ads/PeriodoFiltro";
 import { RefreshAds } from "@/components/ads/RefreshAds";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -32,11 +33,13 @@ const compacto = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFr
 export default async function AdsDesempenhoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string; de?: string; ate?: string }>;
+  searchParams: Promise<{ periodo?: string; de?: string; ate?: string; campanha?: string }>;
 }) {
   await requirePapel("ceo");
   const sp = await searchParams;
   const { range, preset } = resolverRange(sp);
+  // id da Meta é numérico — valida antes de usar em query/Graph
+  const campanhaId = sp.campanha && /^\d{5,25}$/.test(sp.campanha) ? sp.campanha : undefined;
 
   if (!metaAdsConfigurado()) {
     return (
@@ -55,6 +58,7 @@ export default async function AdsDesempenhoPage({
 
   let serie: DiaGastoAds[] = [];
   let top: TopCampanha[] = [];
+  let opcoesCampanha: TopCampanha[] = [];
   let leadsDia: DiaLeads[] = [];
   let idade: BreakdownLinha[] = [];
   let genero: BreakdownLinha[] = [];
@@ -62,14 +66,17 @@ export default async function AdsDesempenhoPage({
   let erro: string | null = null;
   try {
     // Graph (breakdowns) em paralelo entre si; Supabase em sequência (padrão da casa).
+    // Com ?campanha=<id>, todos os recortes viram DAQUELA campanha (nó da Graph).
     [idade, genero, plataforma] = await Promise.all([
-      fetchBreakdown("age", range),
-      fetchBreakdown("gender", range),
-      fetchBreakdown("publisher_platform", range),
+      fetchBreakdown("age", range, campanhaId),
+      fetchBreakdown("gender", range, campanhaId),
+      fetchBreakdown("publisher_platform", range, campanhaId),
     ]);
-    serie = await fetchSerieDiariaGasto(supabase, range);
+    serie = await fetchSerieDiariaGasto(supabase, range, campanhaId);
     top = await fetchTopCampanhas(supabase, range, 10);
-    leadsDia = await fetchLeadsPorDia(supabase, range);
+    // Opções do filtro: tudo que já gastou em 12m (independe do range ativo)
+    opcoesCampanha = await fetchTopCampanhas(supabase, resolverRange({ periodo: "12m" }).range, 1000);
+    leadsDia = await fetchLeadsPorDia(supabase, range, campanhaId);
   } catch (e) {
     erro = e instanceof MetaAdsError ? e.message : "Falha inesperada ao consultar a Meta.";
   }
@@ -93,12 +100,20 @@ export default async function AdsDesempenhoPage({
     <div className="space-y-5">
       <PageHeader
         title="Desempenho"
-        description={`De ${range.since.split("-").reverse().join("/")} a ${range.until.split("-").reverse().join("/")}`}
+        description={`De ${range.since.split("-").reverse().join("/")} a ${range.until.split("-").reverse().join("/")}${
+          campanhaId ? ` · ${opcoesCampanha.find((c) => c.campanhaId === campanhaId)?.nome ?? "campanha filtrada"}` : ""
+        }`}
         dense
         actions={<RefreshAds />}
       />
 
-      <PeriodoFiltro presetAtivo={preset} de={range.since} ate={range.until} />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <PeriodoFiltro presetAtivo={preset} de={range.since} ate={range.until} />
+        <CampanhaFiltro
+          opcoes={opcoesCampanha.map((c) => ({ id: c.campanhaId, nome: c.nome }))}
+          campanhaAtiva={campanhaId ?? null}
+        />
+      </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Gasto no período" value={brl.format(gastoTotal)} icon={Wallet} accent="burgundy" />
@@ -107,7 +122,15 @@ export default async function AdsDesempenhoPage({
         <StatCard label="Leads do funil" value={String(leadsTotal)} context={cplPeriodo !== null ? `CPL ${brl.format(cplPeriodo)}` : "sem leads no período"} icon={Users} accent="green" />
       </div>
 
-      <DesempenhoClient serie={serie} top={top} leadsDia={leadsDia} idade={idade} genero={genero} plataforma={plataforma} />
+      <DesempenhoClient
+        serie={serie}
+        top={top}
+        leadsDia={leadsDia}
+        idade={idade}
+        genero={genero}
+        plataforma={plataforma}
+        campanhaFiltrada={Boolean(campanhaId)}
+      />
     </div>
   );
 }
