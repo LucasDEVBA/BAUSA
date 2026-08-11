@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getUserPapel, getUserProfile } from "@/lib/auth";
@@ -20,10 +21,7 @@ import { ADS_PLANNER_INSTRUCOES_DEFAULT } from "@/lib/automacoes/ads-planner-pro
 // entram no prompt; cada plano gerado vira um novo aprendizado.
 // ════════════════════════════════════════════════════════════════════════
 
-// Parâmetros dinâmicos: a Meta preenche {{campaign.id}} na entrega — é o que
-// casa o lead com meta_ads_campanha.campanha_id (ROI exato).
-const UTM_BLOCO =
-  "utm_source=instagram&utm_medium=paid&utm_campaign={{campaign.name}}&utm_id={{campaign.id}}";
+import { UTM_BLOCO_CANONICO as UTM_BLOCO } from "@/lib/ads-utm";
 
 const secaoSchema = z.object({
   recomendacao: z.string().min(1).max(600),
@@ -55,6 +53,7 @@ export interface PlanoResult {
   success: boolean;
   error?: string;
   notConfigured?: boolean;
+  planoId?: string;
   plano?: PlanoCampanha;
   confianca?: MapaConfianca;
   evidencia?: EvidenciaAds;
@@ -196,7 +195,27 @@ Regras do formato: "idades", "genero" e "localizacoes" são RÓTULOS CURTOS para
       console.error(JSON.stringify({ level: "WARN", action: "ads_aprendizado_falhou", error: aprendErro.message }));
     }
 
-    return { success: true, plano, confianca, evidencia, utmBloco: UTM_BLOCO };
+    // Plano vira ENTIDADE salva (clicável/editável na lista) — feedback do CEO.
+    let planoId: string | undefined;
+    const { data: planoRow, error: planoErro } = await supabase
+      .from("ads_planos")
+      .insert({
+        titulo: (foco || plano.resumoEstrategia).slice(0, 160),
+        foco: foco || null,
+        plano,
+        confianca,
+        evidencia,
+        created_by: perfil?.id ?? null,
+      })
+      .select("id")
+      .single();
+    if (planoErro) {
+      console.error(JSON.stringify({ level: "WARN", action: "ads_plano_salvar_falhou", error: planoErro.message }));
+    } else {
+      planoId = String(planoRow.id);
+    }
+
+    return { success: true, planoId, plano, confianca, evidencia, utmBloco: UTM_BLOCO };
   } catch (e) {
     if (e instanceof GeminiNotConfiguredError) {
       return { success: false, notConfigured: true, error: "IA não configurada (GEMINI_API_KEY ausente neste ambiente)." };
@@ -209,6 +228,60 @@ Regras do formato: "idades", "genero" e "localizacoes" são RÓTULOS CURTOS para
     console.error(JSON.stringify({ level: "ERROR", action: "ads_planner_falhou", error: e instanceof Error ? `${e.name}: ${e.message}` : String(e) }));
     return { success: false, error: "Falha inesperada ao gerar o plano." };
   }
+}
+
+// ─── Customização do plano salvo (campos-chave; UTM/estrutura são fixos) ──
+
+const atualizarPlanoSchema = z.object({
+  planoId: z.string().uuid(),
+  titulo: z.string().min(3).max(160).optional(),
+  notas: z.string().max(2000).optional(),
+  orcamentoDiarioBrl: z.number().min(10).max(2000).optional(),
+  duracaoDias: z.number().int().min(3).max(60).optional(),
+  cplAlvoBrl: z.number().min(1).max(2000).optional(),
+  idades: z.string().min(1).max(120).optional(),
+  genero: z.string().min(1).max(120).optional(),
+  localizacoes: z.string().min(1).max(300).optional(),
+  status: z.enum(["rascunho", "executado"]).optional(),
+  campanhaId: z.string().regex(/^\d{5,25}$/, "ID de campanha da Meta é numérico.").nullable().optional(),
+});
+
+export async function atualizarPlanoAds(input: z.input<typeof atualizarPlanoSchema>): Promise<{ success: boolean; error?: string }> {
+  const papel = await getUserPapel();
+  if (papel !== "ceo") return { success: false, error: "Apenas CEO/CTO." };
+  const parsed = atualizarPlanoSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Entrada inválida." };
+  const { planoId, titulo, notas, orcamentoDiarioBrl, duracaoDias, cplAlvoBrl, idades, genero, localizacoes, status, campanhaId } = parsed.data;
+
+  const supabase = await createServerSupabaseClient();
+  const { data: atual, error: leErro } = await supabase
+    .from("ads_planos")
+    .select("plano")
+    .eq("id", planoId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (leErro || !atual) return { success: false, error: leErro?.message ?? "Plano não encontrado." };
+
+  const plano = planoSchema.parse(atual.plano); // valida o que está no banco antes de mexer
+  if (orcamentoDiarioBrl !== undefined) plano.orcamento.diarioBrl = orcamentoDiarioBrl;
+  if (duracaoDias !== undefined) plano.orcamento.duracaoDias = duracaoDias;
+  if (cplAlvoBrl !== undefined) plano.cplAlvo.valorBrl = cplAlvoBrl;
+  if (idades !== undefined) plano.publico.idades = idades;
+  if (genero !== undefined) plano.publico.genero = genero;
+  if (localizacoes !== undefined) plano.publico.localizacoes = localizacoes;
+
+  const patch: Record<string, unknown> = { plano };
+  if (titulo !== undefined) patch.titulo = titulo;
+  if (notas !== undefined) patch.notas = notas;
+  if (status !== undefined) patch.status = status;
+  if (campanhaId !== undefined) patch.campanha_id = campanhaId;
+
+  const { error } = await supabase.from("ads_planos").update(patch).eq("id", planoId);
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/ads/planejar");
+  revalidatePath(`/ads/planejar/${planoId}`);
+  return { success: true };
 }
 
 const observacaoSchema = z.object({ resumo: z.string().min(10, "Mínimo de 10 caracteres.").max(2000) });

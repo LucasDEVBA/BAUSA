@@ -3,6 +3,7 @@ import { Megaphone, Wallet, Users, CalendarCheck } from "lucide-react";
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
+  fetchAgregado30dPorCampanha,
   fetchCampanhasAds,
   fetchFunilPorCampanha,
   metaAdsConfigurado,
@@ -46,11 +47,23 @@ export default async function AdsPage() {
     erro = e instanceof MetaAdsError ? e.message : "Falha inesperada ao consultar a Meta.";
   }
   if (!erro) {
+    const supabase = await createServerSupabaseClient();
     // Funil é enriquecimento — se falhar, os cards rendem sem os chips (nunca tela morta).
     try {
-      funil = await fetchFunilPorCampanha(await createServerSupabaseClient());
+      funil = await fetchFunilPorCampanha(supabase);
     } catch {
       funilIndisponivel = true;
+    }
+    // 30d vem do NOSSO histórico diário (a janela da Meta zerava campanhas
+    // ativas que entregaram fora dos últimos 30 dias).
+    try {
+      const agregado = await fetchAgregado30dPorCampanha(supabase);
+      campanhas = campanhas.map((c) => {
+        const a = agregado.get(c.id);
+        return a ? { ...c, gasto30d: a.gasto, cliques30d: a.cliques, impressoes30d: a.impressoes } : c;
+      });
+    } catch {
+      // sem 30d próprio, os cards mostram só a vida toda
     }
   }
 
