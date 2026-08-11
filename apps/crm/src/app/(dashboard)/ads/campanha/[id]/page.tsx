@@ -179,8 +179,8 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-semibold text-foreground" title={cj.nome}>{cj.nome}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      {cj.gasto30d > 0 ? `${brl.format(cj.gasto30d)} · ` : ""}
-                      {compacto.format(cj.impressoes30d)} impr. · {compacto.format(cj.cliques30d)} cliques (30d)
+                      {cj.gastoVida > 0 ? `${brl.format(cj.gastoVida)} · ` : ""}
+                      {compacto.format(cj.impressoesVida)} impr. · {compacto.format(cj.cliquesVida)} cliques (vida toda)
                     </p>
                   </div>
                   {cj.budgetDiario !== null ? <Badge tone="neutral" size="sm">{brl.format(cj.budgetDiario)}/dia</Badge> : null}
@@ -218,9 +218,9 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-semibold text-foreground" title={an.nome}>{an.nome}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      {an.gasto30d > 0 ? `${brl.format(an.gasto30d)} · ` : ""}
-                      {compacto.format(an.impressoes30d)} impr. · {compacto.format(an.cliques30d)} cliques
-                      {an.ctr30d !== null ? ` · CTR ${an.ctr30d.toFixed(2)}%` : ""} (30d)
+                      {an.gastoVida > 0 ? `${brl.format(an.gastoVida)} · ` : ""}
+                      {compacto.format(an.impressoesVida)} impr. · {compacto.format(an.cliquesVida)} cliques
+                      {an.ctrVida !== null ? ` · CTR ${an.ctrVida.toFixed(2)}%` : ""} (vida toda)
                     </p>
                   </div>
                   <AdsStatusBadge status={an.status} size="sm" />

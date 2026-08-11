@@ -12,6 +12,7 @@ import {
   type FunilCampanha,
 } from "@/lib/meta-ads";
 import { CampanhasClient } from "@/components/ads/CampanhasClient";
+import { RefreshAds } from "@/components/ads/RefreshAds";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
@@ -84,7 +85,7 @@ export default async function AdsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Meta Ads" description="Campanhas da conta com resultados reais do funil" dense />
+      <PageHeader title="Meta Ads" description="Campanhas da conta com resultados reais do funil" dense actions={<RefreshAds />} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Campanhas ativas" value={String(ativas)} context={`${visiveis.length} no total`} icon={Megaphone} accent="brand" />

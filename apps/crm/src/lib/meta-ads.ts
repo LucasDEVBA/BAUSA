@@ -271,9 +271,10 @@ export interface ConjuntoAds {
   nome: string;
   status: string;
   budgetDiario: number | null;
-  gasto30d: number;
-  impressoes30d: number;
-  cliques30d: number;
+  // Vida toda — a janela de 30d zerava entregas antigas (mesmo bug dos cards)
+  gastoVida: number;
+  impressoesVida: number;
+  cliquesVida: number;
 }
 
 export interface AnuncioAds {
@@ -281,10 +282,10 @@ export interface AnuncioAds {
   nome: string;
   status: string;
   thumbnailUrl: string | null;
-  gasto30d: number;
-  impressoes30d: number;
-  cliques30d: number;
-  ctr30d: number | null;
+  gastoVida: number;
+  impressoesVida: number;
+  cliquesVida: number;
+  ctrVida: number | null;
 }
 
 export interface CampanhaDetalhe {
@@ -344,7 +345,7 @@ export async function fetchCampanhaDetalhe(campanhaId: string): Promise<Campanha
       fields:
         "name,effective_status,objective,daily_budget,lifetime_budget,created_time,start_time,stop_time," +
         "insights.date_preset(maximum){spend,impressions,clicks,ctr,cpm,reach,frequency}," +
-        "adsets.limit(50){name,effective_status,daily_budget,insights.date_preset(last_30d){spend,impressions,clicks}}",
+        "adsets.limit(50){name,effective_status,daily_budget,insights.date_preset(maximum){spend,impressions,clicks}}",
     });
   } catch (e) {
     // Campanha inexistente/sem permissão → 404 amigável em vez de tela de erro
@@ -355,7 +356,7 @@ export async function fetchCampanhaDetalhe(campanhaId: string): Promise<Campanha
   const ads = await graphGet<GraphAd>(`${campanhaId}/ads`, {
     fields:
       "name,effective_status,creative{id,thumbnail_url,image_url}," +
-      "insights.date_preset(last_30d){spend,impressions,clicks,ctr}",
+      "insights.date_preset(maximum){spend,impressions,clicks,ctr}",
     limit: "50",
   });
 
@@ -382,9 +383,9 @@ export async function fetchCampanhaDetalhe(campanhaId: string): Promise<Campanha
         nome: a.name ?? a.id,
         status: a.effective_status ?? "UNKNOWN",
         budgetDiario: centavos(a.daily_budget),
-        gasto30d: num(ins?.spend),
-        impressoes30d: num(ins?.impressions),
-        cliques30d: num(ins?.clicks),
+        gastoVida: num(ins?.spend),
+        impressoesVida: num(ins?.impressions),
+        cliquesVida: num(ins?.clicks),
       };
     }),
     anuncios: ads.map((a) => {
@@ -394,10 +395,10 @@ export async function fetchCampanhaDetalhe(campanhaId: string): Promise<Campanha
         nome: a.name ?? a.id,
         status: a.effective_status ?? "UNKNOWN",
         thumbnailUrl: thumbDe(a.creative),
-        gasto30d: num(ins?.spend),
-        impressoes30d: num(ins?.impressions),
-        cliques30d: num(ins?.clicks),
-        ctr30d: numOuNull(ins?.ctr),
+        gastoVida: num(ins?.spend),
+        impressoesVida: num(ins?.impressions),
+        cliquesVida: num(ins?.clicks),
+        ctrVida: numOuNull(ins?.ctr),
       };
     }),
   };
