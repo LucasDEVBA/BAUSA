@@ -172,7 +172,10 @@ function SomaPesos({ total }: { total: number }) {
 }
 
 export function ParametrosTab({ inicial }: { inicial: ParametrosSistema }) {
-  const [pendente, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  // Qual seção está gravando: com um `pendente` global, salvar Metas travava o
+  // botão das outras 4 seções ao mesmo tempo.
+  const [salvando, setSalvando] = useState<string | null>(null);
 
   const [metas, setMetas] = useState<MetasInput>(inicial.metas);
   const [valores, setValores] = useState<ValoresInput>(inicial.valores);
@@ -199,13 +202,23 @@ export function ParametrosTab({ inicial }: { inicial: ParametrosSistema }) {
     aoOk: () => void,
     nome: string,
   ) => {
+    setSalvando(nome);
     startTransition(async () => {
-      const r = await fn();
-      if (r.success) {
-        aoOk();
-        toast.success(`${nome} salvos`);
-      } else {
-        toast.error(r.error ?? "Não foi possível salvar.");
+      try {
+        const r = await fn();
+        if (r.success) {
+          aoOk();
+          toast.success(`${nome}: alterações salvas`);
+        } else {
+          toast.error(r.error ?? "Não foi possível salvar.");
+        }
+      } catch (e) {
+        // Sem isto, uma queda de rede rejeita dentro da transition sem nenhum
+        // toast: o botão destrava e o CEO acha que salvou.
+        console.error({ level: "error", action: "salvar_parametros", secao: nome, erro: String(e) });
+        toast.error("Falha de conexão ao salvar. Os valores continuam na tela — tente de novo.");
+      } finally {
+        setSalvando(null);
       }
     });
   };
@@ -303,7 +316,7 @@ export function ParametrosTab({ inicial }: { inicial: ParametrosSistema }) {
 
         <SecaoFooter
           dirty={mudou(metas, base.metas)}
-          pendente={pendente}
+          pendente={salvando === "Metas"}
           onReverter={() => setMetas(base.metas)}
           bloqueio={
             metas.pipeline_health_min > metas.pipeline_health_max
@@ -396,7 +409,7 @@ export function ParametrosTab({ inicial }: { inicial: ParametrosSistema }) {
 
         <SecaoFooter
           dirty={mudou(valores, base.valores)}
-          pendente={pendente}
+          pendente={salvando === "Planos e valores"}
           onReverter={() => setValores(base.valores)}
           bloqueio={
             PLANOS.some(({ id }) => valores.planos[id].valor_pix > valores.planos[id].valor)
@@ -451,7 +464,7 @@ export function ParametrosTab({ inicial }: { inicial: ParametrosSistema }) {
         </div>
         <SecaoFooter
           dirty={mudou(score, base.score)}
-          pendente={pendente}
+          pendente={salvando === "Lead Score"}
           onReverter={() => setScore(base.score)}
           bloqueio={
             totalScore !== 100
@@ -513,7 +526,7 @@ export function ParametrosTab({ inicial }: { inicial: ParametrosSistema }) {
         </div>
         <SecaoFooter
           dirty={mudou(match, base.match)}
-          pendente={pendente}
+          pendente={salvando === "Motor de Match"}
           onReverter={() => setMatch(base.match)}
           bloqueio={
             totalMatch !== 100
@@ -562,7 +575,7 @@ export function ParametrosTab({ inicial }: { inicial: ParametrosSistema }) {
         </div>
         <SecaoFooter
           dirty={mudou(exp, base.experiencia)}
-          pendente={pendente}
+          pendente={salvando === "Temperatura"}
           onReverter={() => setExp(base.experiencia)}
           onSalvar={() =>
             salvar(
