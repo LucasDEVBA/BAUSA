@@ -1025,6 +1025,75 @@ async function checkMetaFrescor(supabase: Supabase): Promise<CheckResult> {
   };
 }
 
+// A3: CPL real (30d) × CPL alvo dos planos executados vinculados a campanha.
+// SÓ NOTIFICA (decisão do CEO) — o corte é clique humano no /ads.
+async function checkAdsCplAlvo(supabase: Supabase): Promise<CheckResult> {
+  const id = "ads_cpl_alvo";
+  const titulo = "Ads: CPL real × alvo dos planos";
+  const { data: planos, error } = await supabase
+    .from("ads_planos")
+    .select("titulo, campanha_id, plano")
+    .eq("status", "executado")
+    .not("campanha_id", "is", null)
+    .is("deleted_at", null)
+    .limit(10);
+  if (error) throw new Error(`ads_planos: ${error.message}`);
+  if (!planos || planos.length === 0) {
+    return { id, titulo, status: "info", resumo: "Nenhum plano executado vinculado a campanha — check pulado.", detalhes: [] };
+  }
+
+  const corteDia = horasAtrasISO(30 * 24).slice(0, 10);
+  const corteTs = horasAtrasISO(30 * 24);
+  const estourados: string[] = [];
+  let avaliados = 0;
+  for (const p of planos) {
+    const plano = p.plano as { cplAlvo?: { valorBrl?: number } } | null;
+    const alvo = Number(plano?.cplAlvo?.valorBrl);
+    const cid = String(p.campanha_id ?? "").trim();
+    if (!Number.isFinite(alvo) || alvo <= 0 || !cid) continue;
+
+    const { data: gastoRows } = await supabase
+      .from("meta_ads_campanha")
+      .select("valor_gasto")
+      .eq("campanha_id", cid)
+      .gte("data", corteDia)
+      .is("deleted_at", null);
+    const gasto = (gastoRows ?? []).reduce((s, r) => s + (Number(r.valor_gasto) || 0), 0);
+    if (gasto <= 0) continue;
+    avaliados += 1;
+
+    const { count } = await supabase
+      .from("form_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("utm_id", cid)
+      .gte("submitted_at", corteTs);
+    const leads = count ?? 0;
+    const cpl = leads > 0 ? gasto / leads : null;
+    // Sem leads: só acusa após gastar 3x o alvo (evita alarme no 1º dia)
+    const estourou = cpl === null ? gasto > alvo * 3 : cpl > alvo * 1.3;
+    if (estourou) {
+      estourados.push(`"${String(p.titulo).slice(0, 40)}": CPL ${cpl === null ? "sem leads" : `R$ ${cpl.toFixed(0)}`} vs alvo R$ ${alvo}`);
+    }
+  }
+
+  if (estourados.length > 0) {
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: `CPL acima do alvo em ${estourados.length} plano(s) — avaliar cortar/ajustar no /ads.`,
+      detalhes: estourados,
+    };
+  }
+  return {
+    id,
+    titulo,
+    status: "ok",
+    resumo: `${avaliados > 0 ? `${avaliados} plano(s) com entrega dentro do alvo` : `${planos.length} plano(s) vinculados, ainda sem entrega no período`}.`,
+    detalhes: [],
+  };
+}
+
 async function checkTranscricaoFaltante(supabase: Supabase): Promise<CheckResult> {
   const id = "transcricao_faltante";
   const titulo = "Transcrições do Meet";
@@ -1220,6 +1289,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     seguro("regua_cobranca", "Régua de cobrança", () => checkReguaCobranca(supabase)),
     seguro("experiencia_nps", "NPS pós-venda", () => checkExperienciaNps(supabase)),
     seguro("meta_frescor", "CAC Meta (frescor do sync)", () => checkMetaFrescor(supabase)),
+    seguro("ads_cpl_alvo", "Ads: CPL real × alvo dos planos", () => checkAdsCplAlvo(supabase)),
     seguro("transcricao_faltante", "Transcrições do Meet", () => checkTranscricaoFaltante(supabase)),
     seguro("runs_presos", "Engine de automações (runs presos)", () => checkRunsPresos(supabase)),
     seguro("calendar_watch_expirando", "Watch do Google Calendar", () => checkCalendarWatch(supabase)),

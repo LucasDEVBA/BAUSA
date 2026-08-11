@@ -579,6 +579,54 @@ const runChecks = async () => {
       };
     }),
 
+    // ── A3: CPL real × CPL alvo dos planos executados (SÓ NOTIFICA) ──
+    // Decisão do CEO (2026-08-11): a automação NUNCA pausa campanha sozinha —
+    // avisa e o corte é clique humano no /ads. Compara o CPL dos últimos 30d
+    // da campanha VINCULADA (ads_planos.campanha_id) com o alvo do plano.
+    checkSeguro('ads_cpl_alvo', async () => {
+      const r = await httpRequest(
+        `${SUPABASE_URL}/rest/v1/ads_planos?select=titulo,campanha_id,plano` +
+          `&status=eq.executado&campanha_id=not.is.null&deleted_at=is.null&limit=10`,
+        { method: 'GET', headers: supaHeaders() },
+      );
+      if (r.statusCode >= 400) throw new Error(`ads_planos HTTP ${r.statusCode}`);
+      const planos = JSON.parse(r.body || '[]');
+      if (planos.length === 0) {
+        return { ok: true, valor: 0, detalhe: 'nenhum plano executado vinculado a campanha — check pulado' };
+      }
+
+      const corteDia = isoAtras(30 * 24).slice(0, 10);
+      const corteTs = isoAtras(30 * 24);
+      const estourados = [];
+      for (const p of planos) {
+        const alvo = Number(p.plano && p.plano.cplAlvo && p.plano.cplAlvo.valorBrl);
+        const cid = String(p.campanha_id || '').trim();
+        if (!Number.isFinite(alvo) || alvo <= 0 || !cid) continue;
+
+        const gRes = await httpRequest(
+          `${SUPABASE_URL}/rest/v1/meta_ads_campanha?select=valor_gasto&campanha_id=eq.${cid}&data=gte.${corteDia}`,
+          { method: 'GET', headers: supaHeaders() },
+        );
+        const gasto = (JSON.parse(gRes.body || '[]')).reduce((s, row) => s + (Number(row.valor_gasto) || 0), 0);
+        if (gasto <= 0) continue; // sem entrega = nada a cobrar
+
+        const leads = await contar(`form_submissions?select=id&utm_id=eq.${cid}&submitted_at=gte.${encodeURIComponent(corteTs)}`);
+        const cpl = leads > 0 ? gasto / leads : null;
+        // Sem leads: só acusa depois de gastar 3x o alvo (evita alarme no 1º dia)
+        const estourou = cpl === null ? gasto > alvo * 3 : cpl > alvo * 1.3;
+        if (estourou) {
+          estourados.push(`"${String(p.titulo).slice(0, 40)}": CPL ${cpl === null ? 'sem leads' : 'R$' + cpl.toFixed(0)} vs alvo R$${alvo}`);
+        }
+      }
+      return {
+        ok: estourados.length === 0,
+        valor: estourados.length,
+        detalhe: estourados.length
+          ? `CPL ACIMA DO ALVO — avaliar cortar/ajustar no /ads: ${estourados.join('; ')}`
+          : `${planos.length} plano(s) vinculado(s) dentro do alvo`,
+      };
+    }),
+
     // ── Transcrições do Meet (condicional: sem histórico = config pendente) ──
     checkSeguro('transcricao_faltante', async () => {
       const temAlguma = await contar('reunioes_transcricoes?select=id&limit=1');
