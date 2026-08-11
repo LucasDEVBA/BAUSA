@@ -183,6 +183,120 @@ function normalizarGrupo(p) {
   };
 }
 
+// ─── Re-hospedagem de mídia (bucket próprio — URLs da Z-API expiram) ─────
+// As URLs de mídia da Z-API (backblazeb2) morrem em ~semanas. No ingest,
+// baixamos o arquivo e subimos no bucket PRIVADO `whatsapp-midia`; a linha
+// ganha media_path (media_url segue como fallback legado). FAIL-OPEN total:
+// qualquer falha aqui devolve null e a mensagem é gravada como antes — o
+// webhook JAMAIS quebra por causa de mídia.
+const MEDIA_REHOST_MAX_BYTES = 15 * 1024 * 1024; // paridade com o bucket (15MB)
+const MEDIA_DOWNLOAD_TIMEOUT_MS = 10000;
+const MEDIA_BUCKET = 'whatsapp-midia';
+
+const EXT_POR_MIME = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
+  'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac',
+  'video/mp4': 'mp4', 'video/3gpp': '3gp', 'application/pdf': 'pdf',
+};
+
+const extensaoMidia = (mimeType, fileName, url) => {
+  const mime = String(mimeType || '').split(';')[0].trim().toLowerCase();
+  if (EXT_POR_MIME[mime]) return EXT_POR_MIME[mime];
+  const doNome = String(fileName || '').toLowerCase().match(/\.([a-z0-9]{1,8})$/);
+  if (doNome) return doNome[1];
+  try {
+    const doPath = new URL(url).pathname.toLowerCase().match(/\.([a-z0-9]{1,8})$/);
+    if (doPath) return doPath[1];
+  } catch { /* URL inválida já foi filtrada antes */ }
+  return 'bin';
+};
+
+const sanitizarSegmento = (s) => String(s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+
+/** Download binário (Buffer) com teto de bytes, timeout e até 2 redirects. */
+const baixarBinario = (url, redirectsRestantes = 2) =>
+  new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = https.get(
+      { hostname: u.hostname, path: u.pathname + u.search },
+      (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
+          if (redirectsRestantes <= 0) return reject(new Error('redirects excedidos'));
+          return resolve(baixarBinario(new URL(res.headers.location, url).toString(), redirectsRestantes - 1));
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error(`download HTTP ${res.statusCode}`));
+        }
+        const declarado = Number(res.headers['content-length']);
+        if (Number.isFinite(declarado) && declarado > MEDIA_REHOST_MAX_BYTES) {
+          req.destroy();
+          return reject(new Error('midia acima do teto'));
+        }
+        const chunks = [];
+        let total = 0;
+        res.on('data', (c) => {
+          total += c.length;
+          if (total > MEDIA_REHOST_MAX_BYTES) {
+            req.destroy();
+            return reject(new Error('midia acima do teto'));
+          }
+          chunks.push(c);
+        });
+        res.on('end', () =>
+          resolve({ buffer: Buffer.concat(chunks), contentType: res.headers['content-type'] || null }),
+        );
+      },
+    );
+    req.on('error', reject);
+    req.setTimeout(MEDIA_DOWNLOAD_TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new Error(`download timeout (${MEDIA_DOWNLOAD_TIMEOUT_MS}ms)`));
+    });
+  });
+
+/**
+ * Baixa a mídia da Z-API e sobe no bucket próprio. Retorna o media_path ou
+ * null (fail-open — NUNCA lança). Path: `<chave>/<message_id>.<ext>`.
+ */
+async function rehospedarMidia({ chave, messageId, mediaUrl, mimeType, fileName }) {
+  try {
+    if (!isHttpUrl(mediaUrl)) return null;
+    const seg = sanitizarSegmento(chave);
+    const nome = sanitizarSegmento(messageId);
+    if (!seg || !nome) return null;
+
+    const { buffer, contentType } = await baixarBinario(mediaUrl);
+    if (!buffer || buffer.length === 0) return null;
+
+    const ext = extensaoMidia(mimeType || contentType, fileName, mediaUrl);
+    const mediaPath = `${seg}/${nome}.${ext}`;
+
+    const up = await httpRequest(
+      `${SUPABASE_URL}/storage/v1/object/${MEDIA_BUCKET}/${encodeURIComponent(seg)}/${encodeURIComponent(`${nome}.${ext}`)}`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Content-Type': mimeType || contentType || 'application/octet-stream',
+          'x-upsert': 'true', // retry da Z-API re-sobe o mesmo path sem erro 409
+        },
+      },
+      buffer,
+    );
+    if (up.statusCode >= 400) throw new Error(`storage upload HTTP ${up.statusCode}`);
+
+    log('INFO', 'midia_rehospedada', { path: mediaPath, bytes: buffer.length });
+    return mediaPath;
+  } catch (err) {
+    // Sem URL no log (querystring pode carregar token da Z-API); erro curto.
+    log('WARN', 'midia_rehost_failed', { chave: maskPhone(String(chave)), error: err.message });
+    return null;
+  }
+}
+
 // ─── Ingestão de grupo (RPC atômica + idempotente) ───────────────────────
 // A RPC public.whatsapp_grupo_ingest faz, numa transação: upsert do grupo
 // (existência SEMPRE registrada) + INSERT da mensagem SÓ se capturar=true, com
@@ -190,19 +304,8 @@ function normalizarGrupo(p) {
 // (ON CONFLICT message_id DO NOTHING → reprocessar não duplica nem conta em
 // dobro). Retorna { capturar, inserted }.
 async function ingestGrupo(g) {
-  const r = await httpRequest(
-    `${SUPABASE_URL}/rest/v1/rpc/whatsapp_grupo_ingest`,
-    {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-        'Content-Profile': SUPABASE_SCHEMA,
-        Accept: 'application/json',
-      },
-    },
-    JSON.stringify({
+  const chamarRpc = (incluirMediaPath) => {
+    const args = {
       p_grupo_id: g.grupo_id,
       p_nome: g.nome,
       p_message_id: g.message_id,
@@ -215,13 +318,41 @@ async function ingestGrupo(g) {
       p_participante_nome: g.participante_nome,
       p_participante_phone: g.participante_phone,
       p_momment: g.momment,
-    }),
-  );
+    };
+    if (incluirMediaPath) args.p_media_path = g.media_path;
+    return httpRequest(
+      `${SUPABASE_URL}/rest/v1/rpc/whatsapp_grupo_ingest`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Content-Type': 'application/json',
+          'Content-Profile': SUPABASE_SCHEMA,
+          Accept: 'application/json',
+        },
+      },
+      JSON.stringify(args),
+    );
+  };
+
+  const comMediaPath = Boolean(g.media_path);
+  let r = await chamarRpc(comMediaPath);
   if (r.statusCode >= 400) {
     // NÃO logar o body cru (pode conter o texto da mensagem = PII).
     let pgCode = 'unknown';
     try { pgCode = JSON.parse(r.body).code || 'unknown'; } catch { /* body não-JSON */ }
-    throw new Error(`Supabase rpc grupo ${r.statusCode} (code ${pgCode})`);
+    // Janela pré-migration: RPC ainda sem p_media_path (PGRST202 = função com
+    // esses args não existe) → re-tenta sem o campo (mensagem > mídia).
+    if (comMediaPath && pgCode === 'PGRST202') {
+      log('WARN', 'rpc_sem_media_path_retry', { grupoId: maskPhone(g.grupo_id) });
+      r = await chamarRpc(false);
+    }
+    if (r.statusCode >= 400) {
+      let pgCode2 = 'unknown';
+      try { pgCode2 = JSON.parse(r.body).code || 'unknown'; } catch { /* body não-JSON */ }
+      throw new Error(`Supabase rpc grupo ${r.statusCode} (code ${pgCode2})`);
+    }
   }
   try { return JSON.parse(r.body) || {}; } catch { return {}; }
 }
@@ -340,6 +471,16 @@ functions.http('zapiInbox', async (req, res) => {
     // ── Grupo: registra a existência sempre; conteúdo só com opt-in (RPC) ──
     const grupo = normalizarGrupo(payload);
     if (grupo) {
+      // Re-hospedagem ANTES da RPC (fail-open: null mantém o fluxo antigo)
+      if (grupo.media_url) {
+        grupo.media_path = await rehospedarMidia({
+          chave: grupo.grupo_id,
+          messageId: grupo.message_id,
+          mediaUrl: grupo.media_url,
+          mimeType: grupo.mime_type,
+          fileName: grupo.media_filename,
+        });
+      }
       const out = await ingestGrupo(grupo);
       log('INFO', 'grupo_ingerido', {
         grupoId: maskPhone(grupo.grupo_id),
@@ -368,26 +509,52 @@ functions.http('zapiInbox', async (req, res) => {
       return res.status(200).send({ success: true, ignored: true });
     }
 
-    const r = await httpRequest(
-      `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?on_conflict=message_id`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Content-Type': 'application/json',
-          'Content-Profile': SUPABASE_SCHEMA,
-          Prefer: 'resolution=ignore-duplicates,return=minimal',
+    // Re-hospedagem da mídia 1:1 (fail-open: null → grava só media_url como antes)
+    if (row.media_url) {
+      const mediaPath = await rehospedarMidia({
+        chave: row.phone,
+        messageId: row.message_id,
+        mediaUrl: row.media_url,
+        mimeType: row.mime_type,
+        fileName: row.media_filename,
+      });
+      if (mediaPath) row.media_path = mediaPath;
+    }
+
+    const inserir = (linha) =>
+      httpRequest(
+        `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?on_conflict=message_id`,
+        {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+            'Content-Type': 'application/json',
+            'Content-Profile': SUPABASE_SCHEMA,
+            Prefer: 'resolution=ignore-duplicates,return=minimal',
+          },
         },
-      },
-      JSON.stringify(row),
-    );
+        JSON.stringify(linha),
+      );
+
+    let r = await inserir(row);
     if (r.statusCode >= 400) {
       // NÃO logar o body cru: em violação de constraint o Postgres devolve a
       // linha inteira no DETAIL (phone + texto da mensagem = PII).
       let pgCode = 'unknown';
       try { pgCode = JSON.parse(r.body).code || 'unknown'; } catch { /* body não-JSON */ }
-      throw new Error(`Supabase insert ${r.statusCode} (code ${pgCode})`);
+      // Janela pré-migration: coluna media_path ainda não existe (PGRST204 /
+      // 42703) → re-tenta sem o campo (mensagem > mídia).
+      if (row.media_path && (pgCode === 'PGRST204' || pgCode === '42703')) {
+        log('WARN', 'insert_sem_media_path_retry', { phone: maskPhone(row.phone) });
+        const { media_path: _descartado, ...semMediaPath } = row;
+        r = await inserir(semMediaPath);
+      }
+      if (r.statusCode >= 400) {
+        let pgCode2 = 'unknown';
+        try { pgCode2 = JSON.parse(r.body).code || 'unknown'; } catch { /* body não-JSON */ }
+        throw new Error(`Supabase insert ${r.statusCode} (code ${pgCode2})`);
+      }
     }
 
     log('INFO', 'mensagem_gravada', {
