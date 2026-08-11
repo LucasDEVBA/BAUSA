@@ -84,11 +84,37 @@ const TIMING_LABEL: Record<string, string> = {
 
 // ─── Linha de campo do preview ───────────────────────────────────────────
 
-function Campo({ label, children }: { label: string; children: React.ReactNode }) {
+/** Link clicável quando é http(s); senão texto puro (nunca vira href hostil). */
+function linkOuTexto(valor: string | null): React.ReactNode {
+  if (!valor) return "—";
+  if (!/^https?:\/\//i.test(valor)) return valor;
   return (
-    <div className="min-w-0">
+    <a
+      href={valor}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 break-all font-medium text-primary hover:underline"
+    >
+      {valor.length > 60 ? `${valor.slice(0, 60)}…` : valor}
+      <ExternalLink className="size-3 shrink-0" />
+    </a>
+  );
+}
+
+function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-primary">{titulo}</p>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-3">{children}</div>
+    </section>
+  );
+}
+
+function Campo({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className={cn("min-w-0", wide && "col-span-2 lg:col-span-3")}>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">{label}</p>
-      <div className="mt-0.5 text-sm text-foreground">{children ?? "—"}</div>
+      <div className="mt-0.5 whitespace-pre-wrap break-words text-sm text-foreground">{children ?? "—"}</div>
     </div>
   );
 }
@@ -99,12 +125,15 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
 // Header global), que criam containing block e prendem `position: fixed` —
 // sem o portal o modal renderiza recortado/sem backdrop (bug 2026-08-10).
 
-function AprovacaoLeadsModal({
+export function AprovacaoLeadsModal({
   onClose,
   onDecidido,
+  leadIdInicial,
 }: {
   onClose: () => void;
   onDecidido: () => void;
+  /** Abre já com este lead selecionado (clique no card do Kanban). */
+  leadIdInicial?: string;
 }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
@@ -127,7 +156,10 @@ function AprovacaoLeadsModal({
       if (!ativo) return;
       if (res.success) {
         setLeads(res.leads);
-        setSelecionadoId(res.leads[0]?.id ?? null);
+        const alvo = leadIdInicial && res.leads.some((l) => l.id === leadIdInicial)
+          ? leadIdInicial
+          : (res.leads[0]?.id ?? null);
+        setSelecionadoId(alvo);
       } else {
         setErro(res.error);
       }
@@ -136,7 +168,7 @@ function AprovacaoLeadsModal({
     return () => {
       ativo = false;
     };
-  }, []);
+  }, [leadIdInicial]);
 
   // Esc fecha + trava o scroll da página enquanto aberto
   useEffect(() => {
@@ -345,42 +377,94 @@ function AprovacaoLeadsModal({
                         </p>
                       </div>
 
-                      {/* Dados */}
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3">
-                        <Campo label="Posição">{selecionado.position ?? "—"}</Campo>
-                        <Campo label="Escola atual">{selecionado.current_school ?? "—"}</Campo>
-                        <Campo label="Série">{selecionado.school_year ?? "—"}</Campo>
-                        <Campo label="Cidade">
-                          {selecionado.city_state ?? "—"}
-                          {selecionado.address_country && selecionado.address_country !== "BR"
-                            ? ` · ${selecionado.address_country}`
-                            : ""}
+                      {/* Dossiê completo do formulário — o CEO decide com tudo
+                          na tela, sem precisar abrir o lead em outra aba. */}
+                      <Secao titulo="Atleta">
+                        <Campo label="Nome">{selecionado.athlete_name}</Campo>
+                        <Campo label="Nascimento">
+                          {fmtData(selecionado.birth_date)}
+                          {anos ? <span className="text-muted-foreground"> · {anos}</span> : null}
                         </Campo>
-                        <Campo label="Inglês">{selecionado.english_level ?? "—"}</Campo>
-                        <Campo label="Desempenho acadêmico">{selecionado.academic_performance ?? "—"}</Campo>
+                        <Campo label="Gênero">{selecionado.gender ?? "—"}</Campo>
                         <Campo label="WhatsApp do atleta">{selecionado.athlete_whatsapp ?? "—"}</Campo>
-                        <Campo label="Responsável">
-                          {selecionado.guardian_name ?? "—"}
-                          {selecionado.guardian_profession ? (
-                            <span className="text-muted-foreground"> · {selecionado.guardian_profession}</span>
-                          ) : null}
-                        </Campo>
-                        <Campo label="WhatsApp do responsável">{selecionado.guardian_whatsapp ?? "—"}</Campo>
-                        <Campo label="Investimento declarado">{investmentLabel(selecionado.investment_range)}</Campo>
-                        <Campo label="Histórico de clubes">{selecionado.club_history ?? "—"}</Campo>
-                        <Campo label="Conquistas">{selecionado.achievements ?? "—"}</Campo>
-                      </div>
+                        <Campo label="E-mail">{selecionado.email}</Campo>
+                        <Campo label="Instagram">{selecionado.instagram ?? "—"}</Campo>
+                      </Secao>
 
-                      {/* Origem */}
-                      <div className="rounded-xl border border-border bg-secondary/50 px-4 py-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Origem</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {selecionado.utm_source ? `${selecionado.utm_source}` : "orgânico/direto"}
-                          {selecionado.utm_campaign ? ` · campanha ${selecionado.utm_campaign}` : ""}
-                          {selecionado.device_type ? ` · ${selecionado.device_type}` : ""}
-                          {` · formulário em ${fmtData(selecionado.submitted_at)}`}
-                        </p>
-                      </div>
+                      <Secao titulo="Esporte">
+                        <Campo label="Posição">{selecionado.position ?? "—"}</Campo>
+                        <Campo label="Histórico de clubes" wide>{selecionado.club_history ?? "—"}</Campo>
+                        <Campo label="Conquistas" wide>{selecionado.achievements ?? "—"}</Campo>
+                        <Campo label="Vídeo">
+                          {linkOuTexto(selecionado.video_link ?? selecionado.video_highlights)}
+                        </Campo>
+                      </Secao>
+
+                      <Secao titulo="Acadêmico">
+                        <Campo label="Série">{selecionado.school_year ?? "—"}</Campo>
+                        <Campo label="Escola atual">{selecionado.current_school ?? "—"}</Campo>
+                        <Campo label="Cidade da escola">{selecionado.school_city_state ?? "—"}</Campo>
+                        <Campo label="Modelo de ensino">{selecionado.education_model ?? "—"}</Campo>
+                        <Campo label="Está no ensino médio">{selecionado.is_high_school ?? "—"}</Campo>
+                        <Campo label="Desempenho">{selecionado.academic_performance ?? "—"}</Campo>
+                        <Campo label="Inglês">{selecionado.english_level ?? "—"}</Campo>
+                        <Campo label="Exame de inglês">{selecionado.english_exam ?? "—"}</Campo>
+                        <Campo label="Resultado do exame">{selecionado.exam_result ?? "—"}</Campo>
+                        <Campo label="Formado em">{selecionado.graduated_when ?? "—"}</Campo>
+                        <Campo label="Escola de formatura">{selecionado.school_graduated_from ?? "—"}</Campo>
+                        <Campo label="Prioridades na escola" wide>{selecionado.school_priorities ?? "—"}</Campo>
+                      </Secao>
+
+                      <Secao titulo="Responsável">
+                        <Campo label="Nome">{selecionado.guardian_name ?? "—"}</Campo>
+                        <Campo label="Profissão">{selecionado.guardian_profession ?? "—"}</Campo>
+                        <Campo label="WhatsApp">{selecionado.guardian_whatsapp ?? "—"}</Campo>
+                        <Campo label="E-mail">{selecionado.guardian_email ?? "—"}</Campo>
+                      </Secao>
+
+                      <Secao titulo="Endereço">
+                        <Campo label="Logradouro" wide>
+                          {[selecionado.address_street, selecionado.address_number, selecionado.address_complement]
+                            .filter(Boolean)
+                            .join(", ") || selecionado.family_address || "—"}
+                        </Campo>
+                        <Campo label="Bairro">{selecionado.address_neighborhood ?? "—"}</Campo>
+                        <Campo label="Cidade">
+                          {selecionado.address_city ?? selecionado.city_state ?? "—"}
+                        </Campo>
+                        <Campo label="Estado">{selecionado.address_state ?? "—"}</Campo>
+                        <Campo label="CEP / Postal">{selecionado.address_cep ?? "—"}</Campo>
+                        <Campo label="País">{selecionado.address_country ?? "—"}</Campo>
+                      </Secao>
+
+                      <Secao titulo="Decisão e investimento">
+                        <Campo label="Investimento declarado" wide>
+                          {investmentLabel(selecionado.investment_range)}
+                        </Campo>
+                        <Campo label="Momento de início">{selecionado.start_timing ?? "—"}</Campo>
+                        <Campo label="Direção do projeto">{selecionado.project_direction ?? "—"}</Campo>
+                        <Campo label="Perfil comportamental">{selecionado.behavioral_profile ?? "—"}</Campo>
+                        <Campo label="Comprometimento">{selecionado.youth_commitment ?? "—"}</Campo>
+                        <Campo label="Decisão familiar">{selecionado.family_decision_structure ?? "—"}</Campo>
+                        <Campo label="Por que internacional" wide>{selecionado.why_international ?? "—"}</Campo>
+                        <Campo label="Como nos conheceu">
+                          {selecionado.how_did_you_find ?? "—"}
+                          {selecionado.how_did_you_find_other ? ` · ${selecionado.how_did_you_find_other}` : ""}
+                        </Campo>
+                      </Secao>
+
+                      <Secao titulo="Origem">
+                        <Campo label="Fonte">{selecionado.utm_source ?? "orgânico/direto"}</Campo>
+                        <Campo label="Meio">{selecionado.utm_medium ?? "—"}</Campo>
+                        <Campo label="Campanha">{selecionado.utm_campaign ?? "—"}</Campo>
+                        <Campo label="Conteúdo">{selecionado.utm_content ?? "—"}</Campo>
+                        <Campo label="Termo">{selecionado.utm_term ?? "—"}</Campo>
+                        <Campo label="CTA">{selecionado.cta_source ?? "—"}</Campo>
+                        <Campo label="Dispositivo">{selecionado.device_type ?? "—"}</Campo>
+                        <Campo label="Preencheu em">{fmtData(selecionado.submitted_at)}</Campo>
+                        <Campo label="Página de entrada" wide>{linkOuTexto(selecionado.landing_url)}</Campo>
+                        <Campo label="Veio de" wide>{linkOuTexto(selecionado.referrer_url)}</Campo>
+                      </Secao>
                     </div>
 
                     {/* Footer de decisão */}
