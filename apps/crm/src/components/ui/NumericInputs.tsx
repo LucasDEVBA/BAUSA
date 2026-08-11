@@ -204,14 +204,20 @@ export function ToggleField({
         aria-label={label}
         onClick={() => onChange(!ativo)}
         className={cn(
-          "relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           ativo ? "bg-primary" : "bg-secondary",
         )}
       >
+        {/*
+          Deslocamento em `translate-x-full` (= a própria largura do knob), não
+          em px: a trilha útil é w-11 − px-0.5×2 = 10u e o knob é 5u, então o
+          curso é sempre 5u = 100% do knob. Com px fixo o knob vazava, porque a
+          unidade de spacing do design system v2 não é 4px.
+        */}
         <span
           className={cn(
-            "absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform",
-            ativo ? "translate-x-[22px]" : "translate-x-0.5",
+            "size-5 rounded-full border border-black/5 bg-white shadow-sm transition-transform",
+            ativo && "translate-x-full",
           )}
         />
       </button>
