@@ -15,7 +15,9 @@ import {
   type DiaGastoAds,
   type LeadCampanha,
 } from "@/lib/meta-ads";
+import { AcaoOrcamentoAds, AcaoStatusAds } from "@/components/ads/AcoesAds";
 import { AdsStatusBadge, OBJETIVO_LABEL } from "@/components/ads/ads-labels";
+import { metaAdsEscritaConfigurada } from "@/lib/meta-ads-escrita";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -79,6 +81,7 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
   }
 
   const objetivo = detalhe.objetivo ? (OBJETIVO_LABEL[detalhe.objetivo] ?? detalhe.objetivo) : null;
+  const escrita = metaAdsEscritaConfigurada();
 
   return (
     <div className="space-y-5">
@@ -108,7 +111,17 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
             {detalhe.budgetDiario !== null ? <Badge tone="neutral">{brl.format(detalhe.budgetDiario)}/dia</Badge> : null}
             {detalhe.budgetTotal !== null ? <Badge tone="neutral">total {brl.format(detalhe.budgetTotal)}</Badge> : null}
           </div>
-          <h1 className="text-lg font-bold leading-snug text-foreground">{detalhe.nome}</h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1 className="min-w-0 flex-1 text-lg font-bold leading-snug text-foreground">{detalhe.nome}</h1>
+            {escrita ? (
+              <div className="flex shrink-0 gap-2">
+                <AcaoStatusAds objetoId={detalhe.id} nivel="campanha" nome={detalhe.nome} statusAtual={detalhe.status} />
+                {detalhe.budgetDiario !== null ? (
+                  <AcaoOrcamentoAds objetoId={detalhe.id} nivel="campanha" nome={detalhe.nome} orcamentoAtualBrl={detalhe.budgetDiario} />
+                ) : null}
+              </div>
+            ) : null}
+          </div>
           <p className="text-xs text-muted-foreground">
             Criada em {dataCurta(detalhe.criadaEm)}
             {detalhe.inicioEm ? ` · início ${dataCurta(detalhe.inicioEm)}` : ""}
@@ -172,6 +185,14 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
                   </div>
                   {cj.budgetDiario !== null ? <Badge tone="neutral" size="sm">{brl.format(cj.budgetDiario)}/dia</Badge> : null}
                   <AdsStatusBadge status={cj.status} size="sm" />
+                  {escrita ? (
+                    <span className="flex gap-1">
+                      <AcaoStatusAds objetoId={cj.id} nivel="conjunto" nome={cj.nome} statusAtual={cj.status} compacto />
+                      {cj.budgetDiario !== null ? (
+                        <AcaoOrcamentoAds objetoId={cj.id} nivel="conjunto" nome={cj.nome} orcamentoAtualBrl={cj.budgetDiario} />
+                      ) : null}
+                    </span>
+                  ) : null}
                 </div>
               ))}
             </ScrollList>
@@ -203,6 +224,7 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
                     </p>
                   </div>
                   <AdsStatusBadge status={an.status} size="sm" />
+                  {escrita ? <AcaoStatusAds objetoId={an.id} nivel="anuncio" nome={an.nome} statusAtual={an.status} compacto /> : null}
                 </div>
               ))}
             </ScrollList>
