@@ -132,7 +132,7 @@ function pertenceAoSegmento(key: string, d: DealRow, a: AtletaRow, agora: Date):
 
   switch (key) {
     case "nao_agendaram":
-      return ["lead", "aguardando_timing"].includes(etapa);
+      return ["contato_feito", "lead", "aguardando_timing"].includes(etapa);
     case "reuniao_sem_fechar":
       return ["reuniao_marcada", "reuniao_realizada", "diagnostico_fit", "alinhamento_estrategico"].includes(etapa);
     case "proposta_sem_resposta":

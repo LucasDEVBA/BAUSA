@@ -120,10 +120,10 @@ COMMENT ON FUNCTION public.trg_create_experiencia_on_admission() IS
   'Auto-handoff defensivo: cria crm_experiencia ao deal entrar em sinal_pago (ganho) / admission_process / concluido. NUNCA aborta o UPDATE no deal (EXCEPTION handler).';
 
 -- ─── 4. Rótulos, ordem e ocultação do board (apresentação) ──────────────
--- Merge com o que já existe (`||` = a direita vence): o CEO segue livre para
--- reabrir qualquer coluna e renomear tudo pelo modal da própria coluna.
+-- Merge com o VALOR EXISTENTE À DIREITA: uma coluna que o CEO já renomeou na
+-- aba Pipelines mantém a customização dele; as demais recebem o processo novo.
 UPDATE public.configuracoes_sistema
-SET valor = COALESCE(valor, '{}'::jsonb) || '{
+SET valor = '{
   "contato_feito":          {"label": "Contato feito",     "accent": "blue",   "order": 1,  "oculta": false},
   "lead":                   {"label": "Lead qualificado",  "accent": "blue",   "order": 2,  "oculta": false},
   "reuniao_marcada":        {"label": "Reunião marcada",   "accent": "purple", "order": 3,  "oculta": false},
@@ -140,7 +140,7 @@ SET valor = COALESCE(valor, '{}'::jsonb) || '{
   "followup_proposta":      {"oculta": true, "order": 93},
   "admission_process":      {"oculta": true, "order": 94},
   "concluido":              {"oculta": true, "order": 95}
-}'::jsonb,
+}'::jsonb || COALESCE(valor, '{}'::jsonb),
     updated_at = NOW()
 WHERE chave = 'etapas_deal_config';
 

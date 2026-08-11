@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -143,6 +143,12 @@ export function PipelineBoard({
 
   const [colunaAberta, setColunaAberta] = useState<DealStage | null>(null);
   const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
+
+  // Reconcilia com o servidor: quando a config revalida, a ordem local (que
+  // era só otimista) deixa de valer — senão ela venceria para sempre.
+  useEffect(() => {
+    setOrdemLocal(null);
+  }, [stageConfig]);
 
   const soltarColuna = (alvo: DealStage) => {
     const origem = arrastandoColuna;
@@ -319,6 +325,7 @@ export function PipelineBoard({
                 onHeaderClick={podeEditarColunas ? setColunaAberta : undefined}
                 onColumnDragStart={podeEditarColunas ? setArrastandoColuna : undefined}
                 onColumnDrop={podeEditarColunas ? soltarColuna : undefined}
+                onColumnDragEnd={() => setArrastandoColuna(null)}
                 arrastandoColuna={arrastandoColuna}
               />
             ))}

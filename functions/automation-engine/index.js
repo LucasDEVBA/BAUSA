@@ -335,7 +335,7 @@ const TIME_TRIGGER_FINDERS = {
     // aguardando_timing fica parado POR DESIGN (retomada em novembro) — excluir.
     const rows = await sbGet(
       'deals?select=id,atleta_id,etapa,responsavel_id,updated_at'
-      + '&etapa=not.in.(concluido,perdido,cancelamento_solicitado,projeto_futuro,aguardando_timing)'
+      + '&etapa=not.in.(concluido,perdido,cancelamento_solicitado,projeto_futuro,aguardando_timing,sinal_pago)'
       + `&updated_at=lt.${encodeURIComponent(isoDaysAgo(dias))}`
       + `&deleted_at=is.null&limit=${MATERIALIZE_LIMIT}`
     );

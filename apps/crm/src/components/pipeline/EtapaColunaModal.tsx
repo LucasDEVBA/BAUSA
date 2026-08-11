@@ -25,6 +25,7 @@ import { SeusAgentsSection } from "@/components/agents/SeusAgentsSection";
 import { BuilderScreen } from "@/components/automacoes/BuilderScreen";
 import {
   builderFromAutomacao,
+  builderParaInput,
   emptyBuilder,
   type BuilderState,
 } from "@/components/automacoes/builder-shared";
@@ -145,16 +146,10 @@ export function EtapaColunaModal({
   const salvarBuilder = () => {
     if (!builder) return;
     startTransition(async () => {
-      // O vínculo com a coluna é o próprio gatilho — forçado aqui.
-      const input = {
-        nome: builder.nome,
-        descricao: builder.descricao,
-        gatilho: "deal_etapa_mudou" as const,
-        gatilho_config: { etapa_para: stage, ...(builder.slaHoras ? { sla_horas: builder.slaHoras } : {}) },
-        condicoes: builder.condicoes,
-        acoes: builder.acoes,
-        passos: builder.passos,
-      };
+      // Montagem CANÔNICA (mesma da tela /automacoes): preserva o gatilho real
+      // — editar uma automação de tempo (D+N da cadência) pela coluna não pode
+      // convertê-la em gatilho de evento nem perder o `dias`.
+      const input = builderParaInput(builder);
       const r = builder.id
         ? await atualizarAutomacao(builder.id, input)
         : await criarAutomacao(input);

@@ -21,6 +21,8 @@ interface PipelineColumnProps {
    *  cuida dos cards; mecanismos separados não conflitam). */
   onColumnDragStart?: (stage: DealStage) => void;
   onColumnDrop?: (stage: DealStage) => void;
+  /** Fim do arraste (inclusive cancelado por ESC/solto fora). */
+  onColumnDragEnd?: () => void;
   arrastandoColuna?: DealStage | null;
 }
 
@@ -38,6 +40,7 @@ export function PipelineColumn({
   onHeaderClick,
   onColumnDragStart,
   onColumnDrop,
+  onColumnDragEnd,
   arrastandoColuna,
 }: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
@@ -62,7 +65,12 @@ export function PipelineColumn({
         onDragOver={(e) => {
           if (arrastandoColuna && arrastandoColuna !== stage) e.preventDefault();
         }}
+        onDragEnd={() => onColumnDragEnd?.()}
         onDrop={(e) => {
+          // Só aceita um arraste de COLUNA iniciado aqui (um arquivo solto do
+          // Finder não pode reordenar o board).
+          const origem = e.dataTransfer.getData("text/plain");
+          if (!origem || !arrastandoColuna || origem !== arrastandoColuna) return;
           e.preventDefault();
           onColumnDrop?.(stage);
         }}

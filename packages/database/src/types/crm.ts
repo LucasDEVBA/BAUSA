@@ -183,8 +183,8 @@ export const ETAPA_LABELS: Record<StatusDeal, string> = {
 
 // Ordem das etapas (para detectar retrocesso)
 export const ETAPA_ORDEM: Record<StatusDeal, number> = {
-  contato_feito: 0,
-  lead: 1,
+  contato_feito: 1,
+  lead: 2,
   aguardando_timing: 2,
   reuniao_marcada: 3,
   reuniao_realizada: 4,

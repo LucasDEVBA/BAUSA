@@ -117,5 +117,34 @@ VALUES
    FALSE)
 ON CONFLICT (id) DO NOTHING;
 
+-- ─── responsavel_id das tarefas ──────────────────────────────────────────
+-- `tarefas.responsavel_id` é NOT NULL e o Zod do builder exige uuid: sem isto
+-- toda ação `criar_tarefa` da cadência falharia no INSERT (run em erro).
+-- Aponta para o CEO/CTO ativo. Idempotente: reaplicar grava o mesmo valor.
+UPDATE public.automacoes a
+SET acoes = (
+      SELECT jsonb_agg(
+        CASE WHEN elem->>'tipo' = 'criar_tarefa'
+          THEN jsonb_set(elem, '{parametros,responsavel_id}', to_jsonb(dono.id::text))
+          ELSE elem
+        END
+        ORDER BY idx
+      )
+      FROM jsonb_array_elements(a.acoes) WITH ORDINALITY AS t(elem, idx)
+    ),
+    updated_at = NOW()
+FROM (
+  SELECT id FROM public.user_profiles
+  WHERE papel IN ('ceo', 'cto') AND ativo IS TRUE
+  ORDER BY CASE papel WHEN 'ceo' THEN 0 ELSE 1 END, created_at
+  LIMIT 1
+) AS dono
+WHERE a.id IN (
+  'a0000000-0000-4000-8000-0000000000c1',
+  'a0000000-0000-4000-8000-0000000000c4',
+  'a0000000-0000-4000-8000-0000000000c6'
+)
+  AND a.acoes @> '[{"tipo": "criar_tarefa"}]'::jsonb;
+
 COMMENT ON TABLE public.automacoes IS
   'Automações do builder (/automacoes) e das colunas do pipeline. Cadência da proposta = IDs a0000000-…-0000000000c1..c6 (nascem pausadas).';
