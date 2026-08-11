@@ -76,6 +76,7 @@ export function PipelineColumn({
         ) : (
           deals.map((deal) => (
             <DealCard
+              stageConfig={stageConfig}
               key={deal.id}
               deal={deal}
               onClick={() => onDealClick(deal)}

@@ -1,6 +1,7 @@
 import { type LeadClassification } from "./lead";
 
 export type DealStage =
+  | "contato_feito"
   | "lead"
   | "aguardando_timing"
   | "reuniao_marcada"
@@ -18,6 +19,9 @@ export type DealStage =
   | "perdido"
   | "cancelamento_solicitado"
   | "projeto_futuro";
+
+/** Timing do lead (form_submissions.timing_status) — exibido como badge no card. */
+export type DealTimingStatus = "ideal" | "muito_cedo" | "tarde_demais";
 
 export type ProductTier = "Legacy" | "Journey" | "Start";
 
@@ -116,6 +120,9 @@ export interface Deal {
   responsavel_id?: string;
   // Flag de valores customizados
   flag_valores_customizados?: boolean;
+  /** Timing do lead (form_submissions) — badge no card desde 2026-08-11,
+   *  quando a coluna aguardando_timing saiu do board. */
+  timing_status?: DealTimingStatus | string;
 }
 
 export interface DealStageConfig {
@@ -131,6 +138,17 @@ export interface DealStageConfig {
 }
 
 export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
+  // Prospecção ativa (fora do formulário). O rótulo/ordem visíveis vêm de
+  // etapas_deal_config — aqui ficam só os defaults e as flags de negócio.
+  contato_feito: {
+    id: "contato_feito",
+    label: "Contato feito",
+    shortLabel: "Contato",
+    dotColor: "bg-sys-blue",
+    isFinancial: false,
+    isLost: false,
+    order: -1,
+  },
   lead: {
     id: "lead",
     label: "Lead",
@@ -288,6 +306,7 @@ export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
 };
 
 export const PIPELINE_STAGE_ORDER: DealStage[] = [
+  "contato_feito",
   "lead",
   "aguardando_timing",
   "reuniao_marcada",

@@ -285,7 +285,7 @@ export function PipelineBoard({
           </div>
 
           <DragOverlay>
-            {activeDeal ? <DealCard deal={activeDeal} isDragging /> : null}
+            {activeDeal ? <DealCard deal={activeDeal} isDragging stageConfig={stageConfig} /> : null}
           </DragOverlay>
         </DndContext>
       ) : (

@@ -1,22 +1,45 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/core";
-import { Clock, AlertTriangle, CheckCircle, ArrowLeft } from "lucide-react";
+import { Clock, AlertTriangle, CheckCircle, ArrowLeft, CalendarClock } from "lucide-react";
 import {
   type Deal,
   DEAL_STAGE_CONFIG,
   PRODUCT_TIER_STYLES,
 } from "@/types/deal";
+import {
+  DEFAULT_DEAL_STAGE_DISPLAY,
+  type DealStageConfigMap,
+} from "@/lib/etapas-deal";
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+
+/** Timing fora da janela ideal — badge lateral (a coluna aguardando_timing
+ *  saiu do board em 2026-08-11; o motivo continua visível no card). */
+const TIMING_BADGE: Record<string, { label: string; title: string; faixa: string; badge: string }> = {
+  muito_cedo: {
+    label: "Cedo",
+    title: "Fora do timing: atleta muito jovem — retomada automática em novembro",
+    faixa: "bg-plan-legacy",
+    badge: "bg-plan-legacy/12 text-plan-legacy",
+  },
+  tarde_demais: {
+    label: "Tarde",
+    title: "Fora do timing: formado há 2+ anos",
+    faixa: "bg-sys-orange",
+    badge: "bg-sys-orange/12 text-sys-orange",
+  },
+};
 
 interface DealCardProps {
   deal: Deal;
   isDragging?: boolean;
   onClick?: () => void;
+  /** Config de exibição das etapas (rótulo/cor do CEO). Default = estático. */
+  stageConfig?: DealStageConfigMap;
 }
 
-export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
+export function DealCard({ deal, isDragging, onClick, stageConfig: configMap }: DealCardProps) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: deal.id,
   });
@@ -24,7 +47,11 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
     : undefined;
 
-  const stageConfig = DEAL_STAGE_CONFIG[deal.stage];
+  // Overrides do CEO quando disponíveis; DEAL_STAGE_CONFIG é só o fallback
+  // (antes o card lia o estático direto e ignorava a config — bug latente).
+  const stageConfig =
+    (configMap ?? DEFAULT_DEAL_STAGE_DISPLAY)[deal.stage] ?? DEAL_STAGE_CONFIG[deal.stage];
+  const timing = deal.timing_status ? TIMING_BADGE[deal.timing_status] : undefined;
   const timeInStage = formatRelativeTime(deal.stage_updated_at);
   const tierStyle = deal.product_tier
     ? PRODUCT_TIER_STYLES[deal.product_tier]
@@ -51,11 +78,21 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
           : undefined
       }
       className={cn(
-        "group relative cursor-grab rounded-xl border border-border bg-card p-2.5 shadow-xs transition-all hover:-translate-y-px hover:border-primary/40 hover:shadow-md active:cursor-grabbing",
+        "group relative cursor-grab rounded-xl border border-border bg-card p-2.5 pl-3 shadow-xs transition-all hover:-translate-y-px hover:border-primary/40 hover:shadow-md active:cursor-grabbing",
         isDragging && "rotate-1 scale-105 opacity-70 shadow-lg",
         isUnconfigured && !isLost && "border-sys-red/40",
       )}
     >
+      {/* Faixa lateral: cor da etapa (ou do timing, que é mais urgente).
+          Mesma anatomia do accent do Card e do board de famílias. */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute left-0 top-3 h-5 w-[3px] rounded-r-full",
+          timing?.faixa ?? stageConfig.dotColor,
+        )}
+      />
+
       {/* Sinal de incompleto */}
       {isUnconfigured && !isLost && (
         <span
@@ -130,9 +167,21 @@ export function DealCard({ deal, isDragging, onClick }: DealCardProps) {
           </div>
         )}
 
-      {/* Mini badges em rodapé (qualif/retroc) */}
-      {(isQualified || deal.flag_retrocedido) && (
-        <div className="mt-1.5 flex items-center gap-1">
+      {/* Mini badges em rodapé (timing/qualif/retroc) */}
+      {(timing || isQualified || deal.flag_retrocedido) && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          {timing && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-0.5 rounded px-1 py-px text-[9px] font-medium",
+                timing.badge,
+              )}
+              title={timing.title}
+            >
+              <CalendarClock className="h-2 w-2" />
+              {timing.label}
+            </span>
+          )}
           {isQualified && (
             <span
               className="inline-flex items-center gap-0.5 rounded bg-sys-green/12 px-1 py-px text-[9px] font-medium text-sys-green"
