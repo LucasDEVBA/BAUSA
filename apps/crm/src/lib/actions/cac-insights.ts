@@ -107,7 +107,7 @@ export async function gerarInsightsCac(
     // Instruções editáveis (/automacoes, card Insights de CAC) — fail-open
     // p/ o default do código em qualquer falha/ausência.
     const supabase = await createServerSupabaseClient();
-    const [{ data: cfgRow }, cac, campanhas] = await Promise.all([
+    const [{ data: cfgRow }, cac, campanhas, aprendizadosRes] = await Promise.all([
       supabase
         .from("configuracoes_sistema")
         .select("valor")
@@ -115,14 +115,20 @@ export async function gerarInsightsCac(
         .maybeSingle(),
       fetchCacMetrics(period),
       fetchCampanhaMetrics(period),
+      // Cérebro de Ads (A4): aprendizados acumulados entram em TODO insight
+      // — best-effort, a ausência da tabela não quebra os insights.
+      supabase.from("ads_aprendizados").select("tipo, resumo").order("created_at", { ascending: false }).limit(12),
     ]);
+    const aprendizadosAds = (aprendizadosRes.data ?? [])
+      .map((a) => `- [${String(a.tipo)}] ${String(a.resumo).replace(/\s+/g, " ").slice(0, 200)}`)
+      .join("\n");
     const cfg = (cfgRow?.valor ?? {}) as { instrucoes?: string };
     const instrucoes =
       typeof cfg.instrucoes === "string" && cfg.instrucoes.trim()
         ? cfg.instrucoes.trim()
         : CAC_INSIGHTS_INSTRUCOES_DEFAULT;
 
-    const prompt = montarPrompt(period, cac, campanhas, instrucoes);
+    const prompt = montarPrompt(period, cac, campanhas, instrucoes, aprendizadosAds);
 
     const raw = await gerarConteudoGemini(prompt, {
       temperature: 0.3,
@@ -161,6 +167,7 @@ function montarPrompt(
   cac: CacData,
   campanhas: CampanhaData,
   instrucoes: string,
+  aprendizadosAds = "",
 ): string {
   const canais = cac.roiPorCanal.length
     ? cac.roiPorCanal
@@ -200,7 +207,7 @@ ${campanhas.leadsSemCampanha > 0 ? `\n(${campanhas.leadsSemCampanha} leads sem u
 
 TENDÊNCIA DE GASTO MENSAL
 ${tendencia}
-
+${aprendizadosAds ? `\nAPRENDIZADOS ANTERIORES DE ADS (cérebro — memória acumulada do planejador; use e não contradiga sem justificar):\n${aprendizadosAds}\n` : ""}
 TAREFAS
 1. Detecte ANOMALIAS (CAC alto/subindo, gasto concentrado em campanha ineficiente, ROI negativo, baixa conversão de lead para cliente).
 2. Aponte a MELHOR e a PIOR campanha por ROI, quando houver dados de campanha.

@@ -487,12 +487,13 @@ export interface TopCampanha {
   nome: string;
   gasto: number;
   cliques: number;
+  impressoes: number;
 }
 
 export async function fetchTopCampanhas(supabase: SupabaseServer, range: RangeDatas, top: number): Promise<TopCampanha[]> {
   const { data, error } = await supabase
     .from("meta_ads_campanha")
-    .select("campanha_id, campanha_nome, valor_gasto, cliques")
+    .select("campanha_id, campanha_nome, valor_gasto, cliques, impressoes")
     .gte("data", range.since)
     .lte("data", range.until)
     .is("deleted_at", null);
@@ -502,9 +503,10 @@ export async function fetchTopCampanhas(supabase: SupabaseServer, range: RangeDa
   for (const row of data ?? []) {
     const id = String(row.campanha_id ?? "").trim();
     if (!id) continue;
-    const atual = agg.get(id) ?? { campanhaId: id, nome: String(row.campanha_nome ?? id), gasto: 0, cliques: 0 };
+    const atual = agg.get(id) ?? { campanhaId: id, nome: String(row.campanha_nome ?? id), gasto: 0, cliques: 0, impressoes: 0 };
     atual.gasto += Number(row.valor_gasto) || 0;
     atual.cliques += Number(row.cliques) || 0;
+    atual.impressoes += Number(row.impressoes) || 0;
     agg.set(id, atual);
   }
   return [...agg.values()].sort((a, b) => b.gasto - a.gasto).slice(0, top);
