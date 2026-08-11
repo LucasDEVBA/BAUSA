@@ -281,18 +281,29 @@ export async function listarMensagensGrupo(grupoId: string): Promise<MensagensRe
   try {
     const supabase = await createAuditedSupabaseClient();
     // DESC + limit p/ manter as RECENTES; reordena p/ cronológico em JS.
-    const { data, error } = await supabase
-      .from("whatsapp_mensagens")
-      .select("message_id, from_me, texto, tipo, media_url, media_filename, participante_nome, momment")
-      .eq("grupo_id", grupoId)
-      .eq("is_grupo", true)
-      .order("momment", { ascending: false, nullsFirst: false })
-      .limit(MENSAGENS_LIMIT);
+    const selecionar = (comMediaPath: boolean) =>
+      supabase
+        .from("whatsapp_mensagens")
+        .select(
+          comMediaPath
+            ? "message_id, from_me, texto, tipo, media_url, media_filename, media_path, participante_nome, momment"
+            : "message_id, from_me, texto, tipo, media_url, media_filename, participante_nome, momment",
+        )
+        .eq("grupo_id", grupoId)
+        .eq("is_grupo", true)
+        .order("momment", { ascending: false, nullsFirst: false })
+        .limit(MENSAGENS_LIMIT);
+
+    let { data, error } = await selecionar(true);
+    // Janela pré-migration (coluna media_path ausente) → re-tenta sem ela
+    if (error && (error.code === "42703" || error.code === "PGRST204")) {
+      ({ data, error } = await selecionar(false));
+    }
 
     if (error) return { success: false, error: "Não foi possível carregar as mensagens." };
 
-    const mensagens: GrupoMensagem[] = (
-      (data as
+    const rows = (
+      (data as unknown as
         | {
             message_id: string;
             from_me: boolean;
@@ -300,17 +311,39 @@ export async function listarMensagensGrupo(grupoId: string): Promise<MensagensRe
             tipo: string | null;
             media_url: string | null;
             media_filename: string | null;
+            media_path?: string | null;
             participante_nome: string | null;
             momment: string | null;
           }[]
         | null) ?? []
-    )
+    );
+
+    // URLs assinadas do bucket próprio (media_url da Z-API expira em ~semanas).
+    // A policy do bucket espelha o escopo de leitura: CEO tudo; Head só grupo
+    // vinculado (EXISTS sob a RLS de whatsapp_grupos do próprio usuário).
+    // Fail-open: erro na assinatura → mapa vazio → media_url legada.
+    const paths = [...new Set(rows.map((r) => r.media_path).filter((p): p is string => Boolean(p)))];
+    const assinadas = new Map<string, string>();
+    if (paths.length > 0) {
+      try {
+        const { data: signed } = await supabase.storage
+          .from("whatsapp-midia")
+          .createSignedUrls(paths, 3600);
+        for (const item of signed ?? []) {
+          if (item.path && item.signedUrl && !item.error) assinadas.set(item.path, item.signedUrl);
+        }
+      } catch {
+        /* fallback à media_url legada */
+      }
+    }
+
+    const mensagens: GrupoMensagem[] = rows
       .map((row) => ({
         id: row.message_id,
         fromMe: row.from_me,
         texto: row.texto,
         tipo: row.tipo ?? "text",
-        mediaUrl: row.media_url,
+        mediaUrl: (row.media_path && assinadas.get(row.media_path)) || row.media_url,
         fileName: row.media_filename,
         participanteNome: row.participante_nome,
         timestamp: row.momment ? Date.parse(row.momment) : null,

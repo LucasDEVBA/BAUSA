@@ -311,6 +311,25 @@ const COLUNAS_FILA_APROVACAO =
   "academic_performance, investment_range, qualification_classification, qualification_reason, " +
   "qualification_confidence, qualified_at, timing_status, utm_source, utm_campaign, device_type, submitted_at";
 
+/**
+ * Contagem da fila para o ícone do Header global (client-side).
+ * null = usuário sem permissão (Head) → o botão não renderiza.
+ */
+export async function contarLeadsPendentesAprovacao(): Promise<number | null> {
+  const papel = await getUserPapel();
+  if (papel !== "ceo") return null;
+
+  const supabase = await createAuditedSupabaseClient();
+  const { count, error } = await supabase
+    .from("form_submissions")
+    .select("id", { count: "exact", head: true })
+    .eq("aprovacao_status", "pendente")
+    .in("qualification_classification", ["QUENTE", "MORNO"]);
+
+  if (error) return 0;
+  return count ?? 0;
+}
+
 export async function listarLeadsPendentesAprovacao(): Promise<
   { success: true; leads: LeadPendenteAprovacao[] } | { success: false; error: string }
 > {

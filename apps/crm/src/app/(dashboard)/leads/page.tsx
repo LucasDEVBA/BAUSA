@@ -211,17 +211,19 @@ export default async function LeadsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader dense
-        eyebrow="Comercial"
-        title="Leads"
-        description={`${leads.length} leads recebidos${timingAlternativo > 0 ? ` · ${timingAlternativo} fora da janela ideal` : ""}`}
-        actions={<LeadsExportButton leads={leads} />}
-      />
-
-      {/* Fila de aprovação manual — banner acionável (some quando zerada) */}
-      <Suspense fallback={null}>
-        <AprovacoesLeads count={pendentesAprovacao} variant="banner" />
-      </Suspense>
+      {/* Header + botão de Aprovações ao lado do menu ⋯ (sempre visível) */}
+      <div className="flex items-center justify-between gap-3">
+        <PageHeader dense
+          eyebrow="Comercial"
+          title="Leads"
+          description={`${leads.length} leads recebidos${timingAlternativo > 0 ? ` · ${timingAlternativo} fora da janela ideal` : ""}`}
+          actions={<LeadsExportButton leads={leads} />}
+          className="min-w-0 flex-1"
+        />
+        <Suspense fallback={null}>
+          <AprovacoesLeads count={pendentesAprovacao} />
+        </Suspense>
+      </div>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   BadgeCheck,
@@ -22,6 +23,7 @@ import { toast } from "sonner";
 import { Badge, Button, EmptyState, Skeleton } from "@/components/ui";
 import {
   aprovarLead,
+  contarLeadsPendentesAprovacao,
   listarLeadsPendentesAprovacao,
   reprovarLead,
   type LeadPendenteAprovacao,
@@ -92,6 +94,10 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
 }
 
 // ─── Modal ───────────────────────────────────────────────────────────────
+// Renderizado via PORTAL no <body>: os pontos de entrada vivem dentro de
+// containers com backdrop-filter/sticky (header liquid-glass do War Room e o
+// Header global), que criam containing block e prendem `position: fixed` —
+// sem o portal o modal renderiza recortado/sem backdrop (bug 2026-08-10).
 
 function AprovacaoLeadsModal({
   onClose,
@@ -132,12 +138,18 @@ function AprovacaoLeadsModal({
     };
   }, []);
 
+  // Esc fecha + trava o scroll da página enquanto aberto
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handler);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [onClose]);
 
   const removerDaFila = useCallback(
@@ -180,15 +192,19 @@ function AprovacaoLeadsModal({
   const insta = instagramInfo(selecionado?.instagram ?? null);
   const anos = idade(selecionado?.birth_date ?? null);
 
-  return (
+  const modal = (
     <>
-      <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden />
+      <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Fila de aprovação de leads"
-          className="flex h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+          className={cn(
+            "flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl",
+            // Fila vazia/erro: altura compacta (um modalzão de 86vh vazio lê como quebrado)
+            !carregando && (erro || leads.length === 0) ? "max-h-[60vh]" : "h-[86vh]",
+          )}
         >
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
@@ -421,59 +437,76 @@ function AprovacaoLeadsModal({
       </div>
     </>
   );
+
+  return createPortal(modal, document.body);
 }
 
-// ─── Entradas (botão compacto / banner) ──────────────────────────────────
+// ─── Entradas (botão com rótulo / ícone do header) ───────────────────────
 
 export function AprovacoesLeads({
   count,
   variant = "button",
 }: {
-  count: number;
-  variant?: "button" | "banner";
+  /** Contagem vinda do server component; omitida na variante "icon" (self-fetch). */
+  count?: number;
+  variant?: "button" | "icon";
 }) {
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
-  const [pendentes, setPendentes] = useState(count);
+  const [pendentes, setPendentes] = useState(count ?? 0);
+  // icon: null = sem permissão/ainda carregando → não renderiza
+  const [autorizado, setAutorizado] = useState(variant !== "icon");
   const [autoAberto, setAutoAberto] = useState(false);
 
-  useEffect(() => setPendentes(count), [count]);
-
-  // Deep-link da notificação: /leads?aprovacao=pendente abre o modal direto
   useEffect(() => {
-    if (!autoAberto && searchParams.get("aprovacao") === "pendente" && count > 0) {
+    if (count !== undefined) setPendentes(count);
+  }, [count]);
+
+  // Variante icon (Header global): busca a própria contagem; não-CEO não vê.
+  useEffect(() => {
+    if (variant !== "icon") return;
+    let ativo = true;
+    void contarLeadsPendentesAprovacao().then((n) => {
+      if (!ativo) return;
+      if (n === null) {
+        setAutorizado(false);
+        return;
+      }
+      setAutorizado(true);
+      setPendentes(n);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [variant]);
+
+  // Deep-link da notificação: ?aprovacao=pendente abre o modal direto
+  useEffect(() => {
+    if (!autoAberto && searchParams.get("aprovacao") === "pendente" && pendentes > 0 && variant !== "icon") {
       setOpen(true);
       setAutoAberto(true);
     }
-  }, [autoAberto, count, searchParams]);
+  }, [autoAberto, pendentes, searchParams, variant]);
 
   const onDecidido = useCallback(() => setPendentes((n) => Math.max(0, n - 1)), []);
 
-  if (variant === "banner") {
-    // Modal aberto sobrevive à fila zerar (mostra o estado "Fila zerada" em
-    // vez de desmontar no meio da interação).
-    if (pendentes === 0 && !open) return null;
+  if (variant === "icon") {
+    if (!autorizado) return null;
     return (
       <>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex w-full items-center justify-between gap-3 rounded-xl border border-sys-orange/25 bg-sys-orange/8 px-4 py-3 text-left transition-colors hover:bg-sys-orange/12"
+          title="Aprovação de leads"
+          aria-label={`Aprovação de leads${pendentes > 0 ? ` — ${pendentes} pendente(s)` : ""}`}
+          className="relative flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <span className="flex items-center gap-2.5">
-            <span className="flex size-8 items-center justify-center rounded-full bg-sys-orange/15 text-sys-orange">
-              <UserCheck className="size-4" />
+          <UserCheck className="h-4 w-4" />
+          {pendentes > 0 && (
+            <span className="absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full bg-sys-orange px-1 text-[9px] font-bold leading-4 text-white">
+              {pendentes > 99 ? "99+" : pendentes}
             </span>
-            <span>
-              <span className="block text-sm font-semibold text-foreground">
-                {pendentes} lead{pendentes > 1 ? "s" : ""} aguardando sua aprovação
-              </span>
-              <span className="block text-xs text-muted-foreground">
-                Pré-qualificados pela IA — nada é enviado nem entra no pipeline sem o seu OK.
-              </span>
-            </span>
-          </span>
-          <span className="shrink-0 text-xs font-semibold text-sys-orange">Abrir fila →</span>
+          )}
         </button>
         {open && <AprovacaoLeadsModal onClose={() => setOpen(false)} onDecidido={onDecidido} />}
       </>
@@ -486,7 +519,7 @@ export function AprovacoesLeads({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "inline-flex h-9 items-center gap-2 rounded-lg border px-3.5 text-sm font-medium transition-colors",
+          "inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3.5 text-sm font-medium transition-colors",
           pendentes > 0
             ? "border-sys-orange/30 bg-sys-orange/10 text-sys-orange hover:bg-sys-orange/15"
             : "border-border bg-card text-muted-foreground hover:bg-accent",

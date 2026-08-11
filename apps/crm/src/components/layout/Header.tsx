@@ -1,17 +1,21 @@
 "use client";
 
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { NotificationCenter } from "./NotificationCenter";
 import { ThemeToggle } from "./ThemeToggle";
+import { AprovacoesLeads } from "@/components/leads/AprovacoesLeads";
 import { getInitials } from "@/lib/utils";
 
 const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/dashboard": { label: "Dashboard", parent: "Leads" },
   "/leads": { label: "Lista", parent: "Leads" },
   "/pipeline": { label: "Pipeline" },
+  "/ads": { label: "Campanhas", parent: "Ads" },
+  "/ads/desempenho": { label: "Desempenho", parent: "Ads" },
   "/agenda": { label: "Agenda", parent: "Comercial" },
   "/war-room": { label: "War Room" },
   "/war-room/familias": { label: "Famílias (gerencial)", parent: "War Room" },
@@ -113,6 +117,10 @@ export function Header({ nome, avatarUrl }: HeaderProps) {
       {/* Ações */}
       <div className="flex items-center gap-2">
         <ThemeToggle />
+        {/* Fila de aprovação de leads — ícone com badge; só CEO/CTO enxergam */}
+        <Suspense fallback={null}>
+          <AprovacoesLeads variant="icon" />
+        </Suspense>
         <NotificationCenter />
         <Link href="/perfil" title="Meu perfil" className="ml-0.5 shrink-0">
           {avatarUrl ? (

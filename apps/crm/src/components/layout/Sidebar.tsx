@@ -111,6 +111,7 @@ const NAV_GROUPS: NavGroup[] = [
         activeRoutes: ["/dashboard", "/leads", "/leads/novo"],
         subItems: [{ href: "/leads/novo", label: "+ Novo Lead" }],
       },
+      { href: "/ads", label: "Ads", icon: Megaphone, roles: ["ceo"], activeRoutes: ["/ads", "/ads/desempenho"] },
       { href: "/agenda", label: "Agenda", icon: CalendarDays, roles: ["ceo"] },
       { href: "/financeiro", label: "Financeiro", icon: DollarSign, roles: ["ceo"] },
       { href: "/remarketing", label: "Re-marketing", icon: Megaphone, roles: ["ceo"] },
