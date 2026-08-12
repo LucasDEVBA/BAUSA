@@ -2,7 +2,7 @@ import { ImageOff, CalendarPlus, Target } from "lucide-react";
 
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
-import { AdsStatusBadge, OBJETIVO_LABEL } from "@/components/ads/ads-labels";
+import { AdsStatusBadge, OBJETIVO_LABEL, VeiculacaoBadge } from "@/components/ads/ads-labels";
 import type { CampanhaAds, FunilCampanha } from "@/lib/meta-ads";
 
 // Card de campanha (leitura): foto do criativo, título, badges de
@@ -10,7 +10,6 @@ import type { CampanhaAds, FunilCampanha } from "@/lib/meta-ads";
 // leads e reuniões REAIS do nosso funil (utm_id ↔ campanha_id).
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const compacto = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 
 function Metrica({ label, valor, destaque = false }: { label: string; valor: string; destaque?: boolean }) {
   return (
@@ -46,6 +45,12 @@ export function CampanhaCard({ campanha, funil }: { campanha: CampanhaAds; funil
         )}
         <div className="absolute left-2 top-2 flex flex-wrap gap-1">
           <AdsStatusBadge status={campanha.status} className="bg-card/90 backdrop-blur-sm" />
+          <VeiculacaoBadge
+            status={campanha.status}
+            fimEm={campanha.fimEm}
+            gasto7d={campanha.gasto7d}
+            className="bg-card/90 backdrop-blur-sm"
+          />
         </div>
       </div>
 
@@ -74,11 +79,11 @@ export function CampanhaCard({ campanha, funil }: { campanha: CampanhaAds; funil
           </div>
         </div>
 
-        {/* Métricas 30d + funil real */}
+        {/* Métricas: 30d (nosso histórico) + vida toda (Meta) + funil real */}
         <div className="mt-auto grid grid-cols-3 gap-2 border-t border-border pt-3">
           <Metrica label="Gasto 30d" valor={campanha.gasto30d > 0 ? brl.format(campanha.gasto30d) : "—"} />
-          <Metrica label="Impressões" valor={campanha.impressoes30d > 0 ? compacto.format(campanha.impressoes30d) : "—"} />
-          <Metrica label="CTR" valor={campanha.ctr30d !== null ? `${campanha.ctr30d.toFixed(2)}%` : "—"} />
+          <Metrica label="Gasto total" valor={campanha.gastoVida > 0 ? brl.format(campanha.gastoVida) : "—"} />
+          <Metrica label="CTR (vida)" valor={campanha.ctrVida !== null && campanha.gastoVida > 0 ? `${campanha.ctrVida.toFixed(2)}%` : "—"} />
           <Metrica label="Leads (funil)" valor={funil ? String(funil.leadsTotal) : "0"} destaque={Boolean(funil && funil.leadsTotal > 0)} />
           <Metrica label="Reuniões" valor={funil ? String(funil.reunioes) : "0"} destaque={Boolean(funil && funil.reunioes > 0)} />
           <Metrica label="CPL real 30d" valor={cplReal !== null ? brl.format(cplReal) : "—"} destaque={cplReal !== null} />

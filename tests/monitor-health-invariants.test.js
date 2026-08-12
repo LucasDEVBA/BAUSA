@@ -36,6 +36,8 @@ const CHAVES_CF = [
   "regua_cobranca",
   "experiencia_nps",
   "meta_frescor",
+  // A3 (2026-08-11): CPL real × alvo dos planos executados — SÓ notifica
+  "ads_cpl_alvo",
   "transcricao_faltante",
   "runs_presos",
   // Sinais criados na F2 (fluxos que antes não deixavam rastro)
@@ -119,6 +121,8 @@ test("paridade: os checks novos existem TAMBÉM na tela /observabilidade", () =>
     "regua_cobranca",
     "experiencia_nps",
     "meta_frescor",
+    "ads_cpl_alvo",
+    "ads_planos",
     "transcricao_faltante",
     "runs_presos",
     "chatbot_autonomo_log",
@@ -155,6 +159,18 @@ test("F2: escritores de sinal presentes nas CFs (fail-open)", () => {
   const metaSync = fs.readFileSync(path.join(__dirname, "..", "functions/sync-meta-spend/index.js"), "utf8");
   assert.match(metaSync, /meta_sync_last_tick_at/, "heartbeat do sync Meta sumiu do sync-meta-spend");
   assert.match(metaSync, /meta_tick_save_failed/, "fail-open do heartbeat Meta sumiu (telemetria não pode derrubar o sync)");
+});
+
+test("A3 ads_cpl_alvo: o vigia SÓ NOTIFICA — nunca pausa nem escreve na Meta", () => {
+  // Decisão do CEO (2026-08-11): automação avisa; o corte é clique humano no /ads.
+  const inicio = cf.indexOf("checkSeguro('ads_cpl_alvo'");
+  assert.ok(inicio >= 0, "check ads_cpl_alvo sumiu da CF");
+  const fim = cf.indexOf("checkSeguro(", inicio + 1);
+  const bloco = cf.slice(inicio, fim > inicio ? fim : undefined);
+  assert.match(bloco, /ads_planos/, "o vigia deixou de ler os planos vinculados");
+  assert.match(bloco, /cplAlvo/, "o alvo de CPL do plano sumiu do vigia");
+  assert.doesNotMatch(bloco, /META_ACCESS_TOKEN_MANAGE|alterarStatus|status=PAUSED|graph\.facebook/i,
+    "o vigia tocou em escrita/Graph — ele SÓ notifica");
 });
 
 test("meta_frescor v2: alerta automático mede a VIDA DO SYNC, nunca a idade do gasto", () => {

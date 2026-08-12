@@ -6,9 +6,11 @@ import { metaAdsConfigurado } from "@/lib/meta-ads";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PlanejarClient, type AprendizadoItem } from "./client";
+import { PlanosSalvos, type PlanoResumo } from "./PlanosSalvos";
 
-// /ads/planejar (A4) — o Engine PENSA a campanha; o CEO executa no
+// /ads/planejar (A4/A4.1) — o Engine PENSA a campanha; o CEO executa no
 // Gerenciador de Anúncios. Nunca cria campanha via API (invariante).
+// Planos gerados viram entidades salvas (clicáveis/editáveis/filtráveis).
 export const dynamic = "force-dynamic";
 
 export default async function AdsPlanejarPage() {
@@ -27,19 +29,36 @@ export default async function AdsPlanejarPage() {
     );
   }
 
-  // Aprendizados recentes (cérebro) — a lista degrada para vazia sem quebrar.
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase
-    .from("ads_aprendizados")
-    .select("tipo, resumo, confianca, created_at")
-    .order("created_at", { ascending: false })
-    .limit(30);
-  const aprendizados: AprendizadoItem[] = (data ?? []).map((a) => ({
+  const [aprendRes, planosRes] = await Promise.all([
+    supabase.from("ads_aprendizados").select("tipo, resumo, confianca, created_at").order("created_at", { ascending: false }).limit(30),
+    supabase
+      .from("ads_planos")
+      .select("id, titulo, status, campanha_id, plano, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(24),
+  ]);
+
+  const aprendizados: AprendizadoItem[] = (aprendRes.data ?? []).map((a) => ({
     tipo: String(a.tipo),
     resumo: String(a.resumo),
     confianca: typeof a.confianca === "string" ? a.confianca : null,
     criadoEm: String(a.created_at ?? ""),
   }));
+
+  const planos: PlanoResumo[] = (planosRes.data ?? []).map((p) => {
+    const plano = (p.plano ?? {}) as { orcamento?: { diarioBrl?: number }; cplAlvo?: { valorBrl?: number } };
+    return {
+      id: String(p.id),
+      titulo: String(p.titulo),
+      status: String(p.status),
+      campanhaId: typeof p.campanha_id === "string" ? p.campanha_id : null,
+      orcamentoDiario: typeof plano.orcamento?.diarioBrl === "number" ? plano.orcamento.diarioBrl : null,
+      cplAlvo: typeof plano.cplAlvo?.valorBrl === "number" ? plano.cplAlvo.valorBrl : null,
+      criadoEm: String(p.created_at ?? ""),
+    };
+  });
 
   return (
     <div className="space-y-5">
@@ -48,6 +67,10 @@ export default async function AdsPlanejarPage() {
         description="A IA monta o briefing com base no funil real + aprendizados; você preenche no Gerenciador de Anúncios"
         dense
       />
+
+      {/* Planos salvos — clicáveis, com filtros */}
+      <PlanosSalvos planos={planos} />
+
       <PlanejarClient aprendizados={aprendizados} />
     </div>
   );

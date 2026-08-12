@@ -1,15 +1,13 @@
-import Link from "next/link";
 import { Percent, Wallet, Users, HandCoins, TriangleAlert } from "lucide-react";
 
 import { requirePapel } from "@/lib/auth";
 import { fetchCampanhaMetrics, type CampanhaMetrics, type Period } from "@/lib/cac-queries";
 import { metaAdsConfigurado } from "@/lib/meta-ads";
-import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { RoiPeriodo } from "./RoiPeriodo";
+import { RoiTabela } from "./RoiTabela";
 
 // /ads/roi — CAC/ROI exato por campanha DENTRO da seção Ads (mesmo motor do
 // /analytics/cac: gasto meta_ads_campanha × leads utm_id × contratos).
@@ -77,48 +75,7 @@ export default async function AdsRoiPage({ searchParams }: { searchParams: Promi
             />
           </div>
 
-          <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-xs">
-                <thead>
-                  <tr className="border-b border-border text-[10px] uppercase tracking-wider text-label-tertiary">
-                    <th className="px-4 py-3 font-semibold">Campanha</th>
-                    <th className="px-3 py-3 text-right font-semibold">Gasto</th>
-                    <th className="px-3 py-3 text-right font-semibold">Leads</th>
-                    <th className="px-3 py-3 text-right font-semibold">Qualif.</th>
-                    <th className="px-3 py-3 text-right font-semibold">Clientes</th>
-                    <th className="px-3 py-3 text-right font-semibold">Receita</th>
-                    <th className="px-3 py-3 text-right font-semibold">CAC/lead</th>
-                    <th className="px-4 py-3 text-right font-semibold">ROI</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {campanhas.map((c) => (
-                    <tr key={c.campanhaId} className="transition-colors hover:bg-secondary/60">
-                      <td className="max-w-[280px] px-4 py-3">
-                        <Link href={`/ads/campanha/${c.campanhaId}`} className="block truncate font-semibold text-foreground hover:text-primary" title={c.campanhaNome ?? c.campanhaId}>
-                          {c.campanhaNome ?? c.campanhaId}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-3 text-right font-semibold text-foreground">{brl.format(c.gasto)}</td>
-                      <td className="px-3 py-3 text-right text-muted-foreground">{c.leads}</td>
-                      <td className="px-3 py-3 text-right text-muted-foreground">{c.leadsQualificados}</td>
-                      <td className="px-3 py-3 text-right text-muted-foreground">{c.clientes}</td>
-                      <td className="px-3 py-3 text-right font-semibold text-foreground">{c.receita > 0 ? brl.format(c.receita) : "—"}</td>
-                      <td className="px-3 py-3 text-right text-muted-foreground">{c.cacLead !== null ? brl.format(c.cacLead) : "—"}</td>
-                      <td className="px-4 py-3 text-right">
-                        {c.roi !== null ? (
-                          <Badge tone={c.roi >= 0 ? "green" : "red"}>{`${(c.roi * 100).toFixed(0)}%`}</Badge>
-                        ) : (
-                          <span className="text-label-tertiary">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          <RoiTabela campanhas={campanhas} />
 
           {metrics.leadsSemCampanha > 0 ? (
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

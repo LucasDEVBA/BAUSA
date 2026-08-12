@@ -106,6 +106,22 @@ export async function executarAcaoStatusAds(input: z.input<typeof statusSchema>)
   }
 }
 
+/**
+ * Refresh manual dos dados de Ads (feedback do CEO): purga o cache das rotas
+ * da seção (o fetch da Graph usa revalidate de 5 min — este botão fura a
+ * espera). Leitura apenas; sem escrita na Meta.
+ */
+export async function recarregarAds(): Promise<ResultadoAcaoAds> {
+  const auth = await exigirCeo();
+  if (!auth) return { success: false, error: "Apenas CEO/CTO." };
+  revalidatePath("/ads");
+  revalidatePath("/ads/desempenho");
+  revalidatePath("/ads/roi");
+  revalidatePath("/ads/planejar");
+  revalidatePath("/ads/campanha/[id]", "page");
+  return { success: true };
+}
+
 export async function alterarOrcamentoAds(input: z.input<typeof orcamentoSchema>): Promise<ResultadoAcaoAds> {
   const auth = await exigirCeo();
   if (!auth) return { success: false, error: "Apenas CEO/CTO podem executar ações no Meta Ads." };
