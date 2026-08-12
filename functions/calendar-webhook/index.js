@@ -114,20 +114,59 @@ const getRecentEvents = async (sinceMinutes = 10) => {
 };
 
 // ─── Extrair telefone da descrição do evento ──────────────────
+// Eventos numa JANELA de datas (não por updatedMin).
+// O webhook olha `updatedMin` — só pega o que mudou agora. Para
+// reconciliar e para desenhar a agenda é preciso olhar o intervalo,
+// senão um evento cuja notificação se perdeu nunca mais é visto.
+const getEventsInWindow = async (timeMin, timeMax, maxResults = 250) => {
+  const auth = new google.auth.JWT(
+    SERVICE_ACCOUNT_EMAIL,
+    undefined,
+    SERVICE_ACCOUNT_PRIVATE_KEY,
+    ['https://www.googleapis.com/auth/calendar.events'],
+  );
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  const response = await calendar.events.list({
+    calendarId: GOOGLE_CALENDAR_ID,
+    timeMin,
+    timeMax,
+    maxResults,
+    singleEvents: true,      // expande recorrências em ocorrências reais
+    orderBy: 'startTime',
+    showDeleted: false,
+  });
+
+  return response.data.items || [];
+};
+
+// O Booking do Google escreve o telefone numa linha só, no formato que o
+// lead digitou. Os padrões antigos exigiam dígitos contíguos, então
+// `(27)999182178` — parêntese colado — não casava com NENHUM deles e a
+// função devolvia null: o lead existia, tinha telefone certo no cadastro,
+// e a reunião nunca era detectada. Descoberto em 12/08/2026 com uma
+// reunião que ficou 12 dias fora do CRM.
 const extractPhoneFromEvent = (event) => {
   const description = event.description || '';
-  // Procura padrões de telefone na descrição
-  const phonePatterns = [
-    /(?:telefone|phone|whatsapp|celular|tel)[:\s]*([+\d\s()-]{10,})/i,
-    /(\+?\d{2}\s?\d{2}\s?\d{4,5}[-\s]?\d{4})/,
-    /(\+?\d{10,15})/,
-  ];
 
-  for (const pattern of phonePatterns) {
-    const match = description.match(pattern);
-    if (match) {
-      return match[1].replace(/[\s()-]/g, '');
-    }
+  // 1. Rótulo explícito ("Telefone: ..."), tolerando qualquer formatação.
+  const rotulado = description.match(
+    /(?:telefone|phone|whatsapp|celular|tel)[:\s]*([+\d\s()\-.]{9,25})/i,
+  );
+  if (rotulado) {
+    const digitos = rotulado[1].replace(/\D/g, '');
+    if (digitos.length >= 9 && digitos.length <= 15) return digitos;
+  }
+
+  // 2. Linha que é SÓ um telefone. Exigir a linha inteira evita casar com
+  //    data, CEP ou id que apareçam no meio de uma frase — um falso
+  //    positivo aqui vincularia a reunião ao lead errado.
+  const linhas = description.split(/\r?\n|<br\s*\/?>/i);
+  for (const bruta of linhas) {
+    const texto = bruta.replace(/<[^>]*>/g, '').trim();
+    if (!texto || !/^\+?[\d\s()\-.]{9,25}$/.test(texto)) continue;
+    const digitos = texto.replace(/\D/g, '');
+    if (digitos.length >= 9 && digitos.length <= 15) return digitos;
   }
 
   return null;
@@ -135,7 +174,7 @@ const extractPhoneFromEvent = (event) => {
 
 // ─── Buscar lead por email ou telefone ────────────────────────
 // Usa ilike com sufixo dos últimos 9-10 dígitos para match independente de DDI/formato
-const findLeadByContact = async (email, phone) => {
+const findLeadByContact = async (email, phone, schema = SUPABASE_SCHEMA) => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
 
   const conditions = [];
@@ -168,7 +207,7 @@ const findLeadByContact = async (email, phone) => {
     headers: {
       'apikey': SUPABASE_SERVICE_KEY,
       'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Accept-Profile': SUPABASE_SCHEMA,
+      'Accept-Profile': schema,
     },
   });
 
@@ -181,6 +220,36 @@ const findLeadByContact = async (email, phone) => {
 // (lead estava com meeting_scheduled != true). Se outra notificação
 // já marcou — ou o lead já tinha reunião marcada — retorna false.
 // Filtro `not.is.true` cobre os casos `false` (default da coluna) e `null`.
+// ─── Matching evento → lead (compartilhado) ───────────────────
+// Usado pelo webhook (push do Google), pela reconciliação e pela
+// listagem da Agenda. Precisa ser UM só: se o webhook e a varredura
+// casassem por critérios diferentes, a tela mostraria um vínculo que
+// a automação não enxerga.
+const matchLeadForEvent = async (attendeeEmails, phone, schema = SUPABASE_SCHEMA) => {
+  for (const email of attendeeEmails) {
+    const lead = await findLeadByContact(email, phone, schema);
+    if (lead) return lead;
+  }
+  // Sem e-mail conhecido, o telefone da descrição ainda identifica.
+  if (phone) return findLeadByContact(null, phone, schema);
+  return null;
+};
+
+// Dados do evento que a Agenda precisa — sem tocar no banco.
+const resumirEvento = (event) => ({
+  eventId: event.id,
+  titulo: event.summary || '(sem título)',
+  inicio: event.start?.dateTime || event.start?.date || null,
+  fim: event.end?.dateTime || event.end?.date || null,
+  diaInteiro: !event.start?.dateTime,
+  meetLink: event.hangoutLink || event.conferenceData?.entryPoints?.[0]?.uri || null,
+  htmlLink: event.htmlLink || null,
+  emails: (event.attendees || []).map((a) => a.email).filter(Boolean),
+  telefone: extractPhoneFromEvent(event),
+  descricao: (event.description || '').slice(0, 2000),
+  status: event.status,
+});
+
 const markMeetingScheduled = async (leadId) => {
   const url = `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${leadId}&meeting_scheduled=not.is.true`;
 
@@ -227,7 +296,12 @@ const moveDealToReuniao = async (leadId, event) => {
   const atletaId = atletas[0].id;
 
   // Buscar deal ativo
-  const dealUrl = `${SUPABASE_URL}/rest/v1/deals?atleta_id=eq.${atletaId}&etapa=eq.lead&deleted_at=is.null&select=id`;
+  // Etapas de onde um deal PODE ir para reuniao_marcada. `contato_feito`
+  // entrou no processo de 9 estágios (2026-08) e ficou de fora deste
+  // filtro: um lead abordado ativamente que agendasse reunião não seria
+  // movido — a reunião existia no Calendar e o funil não sabia.
+  const dealUrl = `${SUPABASE_URL}/rest/v1/deals?atleta_id=eq.${atletaId}`
+    + `&etapa=in.(lead,contato_feito)&deleted_at=is.null&select=id`;
   const dealRes = await httpRequest(dealUrl, {
     method: 'GET',
     headers: {
@@ -712,11 +786,143 @@ const triggerSyncLeads = async (lead) => {
 };
 
 // ─── Cloud Function principal ─────────────────────────────────
+// ─── Reconciliação: varre a janela e vincula o que ficou órfão ─
+// Existe porque o push do Google é a ÚNICA entrada hoje e ele não tem
+// segunda chance: o webhook lê `updatedMin` dos últimos 10 minutos, e
+// uma notificação perdida (função fria, erro transitório, canal em
+// renovação) some para sempre. Foi assim que uma reunião com lead
+// QUENTE e aprovado ficou fora do CRM por 12 dias (12/08/2026).
+//
+// NÃO notifica ninguém: só vincula. Mandar WhatsApp de confirmação de
+// uma reunião detectada com atraso — possivelmente já realizada — seria
+// pior que o silêncio. A notificação continua sendo do webhook.
+const reconciliarEventos = async (diasAtras = 3, diasFrente = 60) => {
+  const timeMin = new Date(Date.now() - diasAtras * 86400000).toISOString();
+  const timeMax = new Date(Date.now() + diasFrente * 86400000).toISOString();
+  const events = await getEventsInWindow(timeMin, timeMax);
+
+  const resumo = { total: events.length, vinculados: 0, ressincronizados: 0, sem_lead: 0 };
+
+  for (const event of events) {
+    const emails = (event.attendees || []).map((a) => a.email?.toLowerCase()).filter(Boolean);
+    const phone = extractPhoneFromEvent(event);
+    if (emails.length === 0 && !phone) continue;
+
+    let lead = null;
+    try {
+      lead = await matchLeadForEvent(emails, phone);
+    } catch (err) {
+      log('WARN', 'reconcile_match_error', { eventId: event.id, error: err.message });
+      continue;
+    }
+    if (!lead) { resumo.sem_lead++; continue; }
+
+    try {
+      if (lead.meeting_scheduled) {
+        // Já marcado: garante que o deal aponta para o evento certo
+        // (remarcação muda o id, e a transcrição fica no evento novo).
+        if (await resyncDealMeeting(lead.id, event)) resumo.ressincronizados++;
+        continue;
+      }
+      // CAS: se outra execução marcou no meio, não conta duas vezes.
+      if (!(await markMeetingScheduled(lead.id))) continue;
+      await moveDealToReuniao(lead.id, event);
+      resumo.vinculados++;
+      log('INFO', 'reconcile_linked', {
+        eventId: event.id,
+        athlete: lead.athlete_name,
+        inicio: event.start?.dateTime || event.start?.date,
+      });
+    } catch (err) {
+      // Um evento problemático não pode abortar a varredura inteira.
+      log('WARN', 'reconcile_event_error', { eventId: event.id, error: err.message });
+    }
+  }
+
+  log('INFO', 'reconcile_done', resumo);
+  return resumo;
+};
+
+// ─── Agenda: eventos da janela + estado do vínculo (read-only) ──
+// Consulta SEMPRE `public`, como as runs de observabilidade acima: quem
+// consome isto é o Engine, e o Engine lê `public` em todos os ambientes
+// (o schema `uat` só tem form_submissions vazio). Sem isto a tela em UAT
+// mostraria "sem lead" em reunião que tem lead — verificado 12/08/2026.
+// A ESCRITA (reconcile) segue em SUPABASE_SCHEMA: a CF de UAT não pode
+// alterar produção.
+const listarAgenda = async (desde, ate) => {
+  const events = await getEventsInWindow(desde, ate);
+  const itens = [];
+
+  for (const event of events) {
+    const base = resumirEvento(event);
+    const emails = base.emails.map((e) => e.toLowerCase());
+    let lead = null;
+    try {
+      lead = await matchLeadForEvent(emails, base.telefone, 'public');
+    } catch (err) {
+      // Falha ao consultar o lead não pode sumir com o evento da agenda:
+      // melhor mostrá-lo como "sem vínculo" do que escondê-lo.
+      log('WARN', 'agenda_match_error', { eventId: event.id, error: err.message });
+    }
+    // "Casa", lembretes e bloqueios de foco não são reunião de lead: entram
+    // na agenda (é a agenda do CEO), mas não viram alerta pedindo vínculo.
+    // Critério: tem convidado ALÉM do próprio CEO, ou telefone na descrição.
+    const externos = base.emails.filter(
+      (e) => e.toLowerCase() !== String(GOOGLE_CALENDAR_ID || '').toLowerCase(),
+    );
+    const pedeVinculo = externos.length > 0 || Boolean(base.telefone);
+
+    itens.push({
+      ...base,
+      pedeVinculo,
+      leadId: lead?.id ?? null,
+      athleteName: lead?.athlete_name ?? null,
+      guardianName: lead?.guardian_name ?? null,
+      classificacao: lead?.qualification_classification ?? null,
+      meetingScheduled: lead?.meeting_scheduled ?? false,
+    });
+  }
+  return itens;
+};
+
 functions.http('calendarWebhook', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(204).send('');
 
   const startTime = Date.now();
+
+  // ─── Modos chamados por nós (Engine e Cloud Scheduler) ───
+  // Ficam ANTES da lógica de push: o Google não manda `action`, então
+  // o caminho do webhook segue idêntico ao que já roda em produção.
+  const action = req.query?.action || req.body?.action;
+  if (action === 'reconcile' || action === 'agenda') {
+    // fail-closed: secret ausente = ninguém entra. Com `&&` (fail-open),
+    // esquecer a env var abriria a varredura e a agenda para qualquer um.
+    if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+      log('WARN', 'unauthorized', { action });
+      return res.status(401).send({ success: false, error: 'unauthorized' });
+    }
+    try {
+      if (action === 'reconcile') {
+        const resumo = await reconciliarEventos(
+          Number(req.query?.diasAtras ?? req.body?.diasAtras ?? 3),
+          Number(req.query?.diasFrente ?? req.body?.diasFrente ?? 60),
+        );
+        return res.status(200).send({ success: true, action, ...resumo });
+      }
+      const desde = req.query?.desde || req.body?.desde;
+      const ate = req.query?.ate || req.body?.ate;
+      if (!desde || !ate) {
+        return res.status(400).send({ success: false, error: 'desde e ate são obrigatórios' });
+      }
+      const itens = await listarAgenda(desde, ate);
+      return res.status(200).send({ success: true, action, total: itens.length, eventos: itens });
+    } catch (err) {
+      log('ERROR', `${action}_failed`, { error: err.message });
+      return res.status(500).send({ success: false, error: err.message });
+    }
+  }
 
   // Google Push Notification headers
   const channelId = req.headers['x-goog-channel-id'];
@@ -769,17 +975,7 @@ functions.http('calendarWebhook', async (req, res) => {
 
       if (attendeeEmails.length === 0 && !phone) continue;
 
-      // Buscar lead no Supabase
-      let lead = null;
-      for (const email of attendeeEmails) {
-        lead = await findLeadByContact(email, phone);
-        if (lead) break;
-      }
-
-      // Se não encontrou por email, tenta só por telefone
-      if (!lead && phone) {
-        lead = await findLeadByContact(null, phone);
-      }
+      const lead = await matchLeadForEvent(attendeeEmails, phone);
 
       if (!lead) {
         log('INFO', 'no_matching_lead', {

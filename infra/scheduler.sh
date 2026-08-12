@@ -117,6 +117,38 @@ gcloud scheduler jobs update http "${JOB_CW}" \
 
 echo "✓ ${JOB_CW} configurado"
 
+# ─── Job 3b: Reconciliar reuniões do Calendar (de hora em hora) ──
+# Rede de segurança do push do Google: o webhook só enxerga o que mudou
+# nos últimos 10 minutos, então uma notificação perdida sumia para
+# sempre. Em 12/08/2026 uma reunião com lead QUENTE ficou 12 dias fora
+# do CRM por isso. A varredura relê a janela e vincula o que faltou —
+# sem notificar ninguém (mensagem de reunião já ocorrida seria pior).
+JOB_RC="calendar-reconcile-job${SUFFIX}"
+CALENDAR_WEBHOOK_URL="${CALENDAR_WEBHOOK_URL:-https://calendar-webhook${SUFFIX}-222577494676.us-central1.run.app}"
+RECONCILE_URI="${CALENDAR_WEBHOOK_URL}?action=reconcile"
+
+gcloud scheduler jobs create http "${JOB_RC}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="20 * * * *" \
+  --uri="${RECONCILE_URI}" \
+  --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_RC}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="20 * * * *" \
+  --uri="${RECONCILE_URI}" \
+  --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s
+
+echo "✓ ${JOB_RC} configurado"
+
 # ─── Job 4: Relatório semanal (segunda 08:00 BRT) ─────────────
 JOB_WR="weekly-report-job${SUFFIX}"
 WEEKLY_REPORT_URL="${WEEKLY_REPORT_URL:-https://weekly-report${SUFFIX}-222577494676.us-central1.run.app}"
