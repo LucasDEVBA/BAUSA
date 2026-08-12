@@ -26,24 +26,42 @@ import {
   Plus,
   X,
   Search,
+  UserX,
+  Link as LinkIcon,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Card, Badge, Button, StatCard, Input } from "@/components/ui";
 import { criarCompromisso } from "@/lib/actions/agenda";
+import {
+  buscarLeadsParaVincular,
+  criarLeadDeEvento,
+  vincularEventoALead,
+  type LeadBusca,
+} from "@/lib/actions/agenda-calendar";
 import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
 import { cn } from "@/lib/utils";
 
 export interface AgendaEvento {
-  dealId: string;
+  /** null quando o evento veio do Calendar e ainda não tem lead/deal. */
+  dealId: string | null;
   reuniaoData: string;
   reuniaoLink: string | null;
-  etapa: DealStage;
+  etapa: DealStage | null;
   valorEstimado: number | null;
   atletaId: string | null;
   nome: string;
   esporte: string | null;
   classificacao: string | null;
   temTranscricao: boolean;
+  /** Id do evento no Google Calendar — chave de junção com o CRM. */
+  eventId?: string | null;
+  /** Evento existe no Calendar mas nenhum lead casou com ele. */
+  semLead?: boolean;
+  tituloEvento?: string;
+  emails?: string[];
+  telefone?: string | null;
+  leadId?: string | null;
 }
 
 const CLASSIF: Record<string, { label: string; dot: string; badge: "red" | "orange" | "blue" }> = {
@@ -80,13 +98,16 @@ export function AgendaClient({
   hoje,
   nowMs,
   dealsAgendaveis,
+  avisoCalendar,
 }: {
   eventos: AgendaEvento[];
   hoje: string; // yyyy-MM-dd em BRT (do servidor)
   nowMs: number; // instante do servidor
   dealsAgendaveis: DealAgendavel[];
+  avisoCalendar?: string | null;
 }) {
   const [novoAberto, setNovoAberto] = useState(false);
+  const [vinculando, setVinculando] = useState<AgendaEvento | null>(null);
   const [mesAtual, setMesAtual] = useState<Date>(() => {
     const [y, m] = hoje.split("-").map(Number);
     return new Date(y, m - 1, 1);
@@ -119,7 +140,8 @@ export function AgendaClient({
     const noMes = eventos.filter((e) => isSameMonth(new Date(e.reuniaoData), mesAtual)).length;
     const futuras = eventos.filter((e) => new Date(e.reuniaoData) >= agora).length;
     const comTrans = eventos.filter((e) => e.temTranscricao).length;
-    return { noMes, futuras, comTrans };
+    const semLead = eventos.filter((e) => e.semLead).length;
+    return { noMes, futuras, comTrans, semLead };
   }, [eventos, mesAtual, agora]);
 
   const eventosDoDia = porDia.get(diaSel) ?? [];
@@ -133,7 +155,7 @@ export function AgendaClient({
       <PageHeader
         eyebrow="Comercial"
         title="Agenda"
-        description="Reuniões do pipeline — clique num dia para ver os detalhes e abrir o lead."
+        description="Sua agenda do Google Calendar — reuniões com lead no CRM e as que ainda não têm."
         actions={
           <div className="flex items-center gap-1.5">
             <Button size="sm" onClick={() => setNovoAberto(true)}>
@@ -174,11 +196,28 @@ export function AgendaClient({
         }
       />
 
+      {avisoCalendar && (
+        <div className="flex items-start gap-2 rounded-xl border border-sys-orange/25 bg-sys-orange/8 px-3 py-2">
+          <AlertTriangle aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sys-orange" />
+          <p className="text-[11px] leading-relaxed text-sys-orange">
+            Não foi possível ler o Google Calendar ({avisoCalendar}). A tela está mostrando
+            apenas as reuniões já registradas no CRM — pode haver compromissos a mais na sua
+            agenda.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Reuniões no mês" value={kpis.noMes} icon={CalendarDays} accent="brand" />
         <StatCard label="Próximas" value={kpis.futuras} icon={CalendarClock} accent="blue" />
         <StatCard label="Com transcrição" value={kpis.comTrans} icon={FileText} accent="green" />
-        <StatCard label="Total (janela)" value={eventos.length} icon={Clock} accent="purple" />
+        <StatCard
+          label="Sem lead"
+          value={kpis.semLead}
+          icon={UserX}
+          accent={kpis.semLead > 0 ? "orange" : "purple"}
+          context={kpis.semLead > 0 ? "reuniões fora do CRM" : "tudo vinculado"}
+        />
       </div>
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_22rem]">
@@ -225,7 +264,7 @@ export function AgendaClient({
                       const c = e.classificacao ? CLASSIF[e.classificacao] : null;
                       return (
                         <span
-                          key={e.dealId}
+                          key={e.eventId ?? e.dealId}
                           className="flex items-center gap-1 truncate rounded bg-card px-1 py-0.5 text-[10px] text-foreground shadow-xs"
                           title={`${horaLocal(e.reuniaoData)} · ${e.nome}`}
                         >
@@ -272,10 +311,10 @@ export function AgendaClient({
             ) : (
               eventosDoDia.map((e) => {
                 const c = e.classificacao ? CLASSIF[e.classificacao] : null;
-                const stage = DEAL_STAGE_CONFIG[e.etapa];
+                const stage = e.etapa ? DEAL_STAGE_CONFIG[e.etapa] : null;
                 const valor = fmtValor(e.valorEstimado);
                 return (
-                  <div key={e.dealId} className="rounded-xl border border-border bg-card p-3">
+                  <div key={e.eventId ?? e.dealId} className="rounded-xl border border-border bg-card p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-1.5 text-xs font-semibold tabular-nums text-foreground">
                         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -294,6 +333,12 @@ export function AgendaClient({
 
                     <p className="mt-1.5 text-sm font-medium text-foreground">{e.nome}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {e.semLead && (
+                        <Badge tone="orange" size="sm" title="Reunião no Calendar sem lead no CRM">
+                          <UserX className="h-2.5 w-2.5" />
+                          Sem lead
+                        </Badge>
+                      )}
                       {c && (
                         <Badge tone={c.badge} size="sm">
                           {c.label}
@@ -311,7 +356,17 @@ export function AgendaClient({
                       )}
                     </div>
 
-                    <div className="mt-2.5 flex items-center gap-2">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                      {e.semLead && e.eventId && (
+                        <button
+                          type="button"
+                          onClick={() => setVinculando(e)}
+                          className="inline-flex items-center gap-1 rounded-md bg-sys-orange/12 px-2 py-1 text-[11px] font-medium text-sys-orange transition-colors hover:bg-sys-orange/20"
+                        >
+                          <LinkIcon className="h-3 w-3" />
+                          Vincular lead
+                        </button>
+                      )}
                       {e.atletaId && (
                         <Link
                           href={`/leads?atleta=${e.atletaId}`}
@@ -340,6 +395,10 @@ export function AgendaClient({
           </div>
         </Card>
       </div>
+
+      {vinculando && (
+        <VincularLeadModal evento={vinculando} onClose={() => setVinculando(null)} />
+      )}
 
       {novoAberto && (
         <NovoCompromissoModal
@@ -564,4 +623,246 @@ function NovoCompromissoModal({
 
 function toastErro(msg: string) {
   toast.error(msg);
+}
+
+/**
+ * Vincula um evento do Calendar a um lead — existente ou novo.
+ *
+ * Existe porque nem toda reunião nasce do formulário: o CEO agenda com quem
+ * chega por indicação, DM ou telefone. Antes, essas reuniões não existiam no
+ * CRM e a agenda mentia por omissão.
+ */
+function VincularLeadModal({
+  evento,
+  onClose,
+}: {
+  evento: AgendaEvento;
+  onClose: () => void;
+}) {
+  const [aba, setAba] = useState<"buscar" | "criar">("buscar");
+  const [termo, setTermo] = useState("");
+  const [achados, setAchados] = useState<LeadBusca[]>([]);
+  const [buscando, startBusca] = useTransition();
+  const [salvando, startSalvar] = useTransition();
+
+  // Pré-preenche o cadastro com o que o próprio evento já informa.
+  const emailDoEvento = evento.emails?.[0] ?? "";
+  const [novo, setNovo] = useState({
+    athleteName: "",
+    guardianName: evento.tituloEvento?.match(/\(([^)]+)\)/)?.[1] ?? "",
+    email: emailDoEvento,
+    whatsapp: evento.telefone ?? "",
+  });
+
+  const buscar = (q: string) => {
+    setTermo(q);
+    if (q.trim().length < 2) {
+      setAchados([]);
+      return;
+    }
+    startBusca(async () => {
+      try {
+        setAchados(await buscarLeadsParaVincular(q));
+      } catch {
+        toast.error("Falha ao buscar leads.");
+      }
+    });
+  };
+
+  const vincular = (leadId: string) => {
+    startSalvar(async () => {
+      try {
+        const r = await vincularEventoALead({
+          leadId,
+          eventId: evento.eventId as string,
+          inicio: evento.reuniaoData,
+          meetLink: evento.reuniaoLink,
+        });
+        if (r.success) {
+          toast.success("Reunião vinculada ao lead");
+          onClose();
+        } else {
+          toast.error(r.error);
+        }
+      } catch {
+        toast.error("Falha de conexão ao vincular.");
+      }
+    });
+  };
+
+  const criar = () => {
+    startSalvar(async () => {
+      try {
+        const r = await criarLeadDeEvento({
+          eventId: evento.eventId as string,
+          inicio: evento.reuniaoData,
+          meetLink: evento.reuniaoLink,
+          athleteName: novo.athleteName,
+          guardianName: novo.guardianName || null,
+          email: novo.email,
+          whatsapp: novo.whatsapp || null,
+        });
+        if (r.success) {
+          toast.success("Lead criado e reunião vinculada");
+          onClose();
+        } else {
+          toast.error(r.error);
+        }
+      } catch {
+        toast.error("Falha de conexão ao criar o lead.");
+      }
+    });
+  };
+
+  const bloqueioCriar =
+    novo.athleteName.trim().length < 3
+      ? "Informe o nome do atleta."
+      : !/.+@.+\..+/.test(novo.email)
+        ? "Informe um e-mail válido."
+        : null;
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Vincular reunião a um lead"
+        className="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-2xl border border-border bg-card shadow-2xl sm:rounded-2xl"
+      >
+        <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-foreground">Vincular reunião</h2>
+            <p className="mt-0.5 truncate text-[11px] text-label-tertiary">
+              {evento.tituloEvento ?? evento.nome} · {horaLocal(evento.reuniaoData)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="flex gap-2 border-b border-border px-4 py-2.5">
+          {(["buscar", "criar"] as const).map((a) => (
+            <button
+              key={a}
+              type="button"
+              onClick={() => setAba(a)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                aba === a
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {a === "buscar" ? "Lead existente" : "Criar lead"}
+            </button>
+          ))}
+        </div>
+
+        <div className="crm-scroll min-h-0 flex-1 overflow-y-auto p-4">
+          {aba === "buscar" ? (
+            <div className="space-y-3">
+              <Input
+                placeholder="Nome do atleta, responsável ou e-mail…"
+                value={termo}
+                onChange={(ev) => buscar(ev.target.value)}
+                aria-label="Buscar lead"
+              />
+              {buscando && <p className="text-xs text-label-tertiary">Buscando…</p>}
+              {!buscando && termo.trim().length >= 2 && achados.length === 0 && (
+                <p className="py-6 text-center text-xs text-label-tertiary">
+                  Nenhum lead encontrado. Use a aba &quot;Criar lead&quot;.
+                </p>
+              )}
+              <ul className="space-y-1.5">
+                {achados.map((l) => (
+                  <li key={l.id}>
+                    <button
+                      type="button"
+                      disabled={salvando}
+                      onClick={() => vincular(l.id)}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-left transition-colors hover:bg-accent disabled:opacity-50"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-medium text-foreground">
+                          {l.athleteName}
+                        </span>
+                        <span className="block truncate text-[11px] text-label-tertiary">
+                          {l.guardianName ?? l.email ?? "—"}
+                        </span>
+                      </span>
+                      {l.jaTemReuniao && (
+                        <Badge tone="neutral" size="sm">
+                          já tem reunião
+                        </Badge>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="flex items-start gap-1.5 rounded-lg border border-sys-orange/25 bg-sys-orange/8 px-3 py-2 text-[11px] leading-relaxed text-sys-orange">
+                <AlertTriangle aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
+                O lead nasce sem qualificação da IA — não há respostas de formulário para
+                classificar. Ele entra já aprovado, porque quem está cadastrando é você.
+              </p>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">Nome do atleta</span>
+                <Input
+                  value={novo.athleteName}
+                  onChange={(ev) => setNovo({ ...novo, athleteName: ev.target.value })}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">Responsável</span>
+                <Input
+                  value={novo.guardianName}
+                  onChange={(ev) => setNovo({ ...novo, guardianName: ev.target.value })}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">E-mail</span>
+                <Input
+                  type="email"
+                  value={novo.email}
+                  onChange={(ev) => setNovo({ ...novo, email: ev.target.value })}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">WhatsApp</span>
+                <Input
+                  value={novo.whatsapp}
+                  onChange={(ev) => setNovo({ ...novo, whatsapp: ev.target.value })}
+                />
+              </label>
+            </div>
+          )}
+        </div>
+
+        {aba === "criar" && (
+          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3">
+            {bloqueioCriar && (
+              <p className="w-full text-[11px] font-medium text-sys-red sm:mr-auto sm:w-auto">
+                {bloqueioCriar}
+              </p>
+            )}
+            <Button variant="ghost" size="sm" onClick={onClose} disabled={salvando}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={criar} disabled={salvando || Boolean(bloqueioCriar)}>
+              Criar e vincular
+            </Button>
+          </footer>
+        )}
+      </div>
+    </div>
+  );
 }
