@@ -118,7 +118,15 @@ const getRecentEvents = async (sinceMinutes = 10) => {
 // O webhook olha `updatedMin` — só pega o que mudou agora. Para
 // reconciliar e para desenhar a agenda é preciso olhar o intervalo,
 // senão um evento cuja notificação se perdeu nunca mais é visto.
-const getEventsInWindow = async (timeMin, timeMax, maxResults = 250) => {
+// PAGINA de verdade. Sem isto o corte é silencioso E no lugar errado:
+// como a ordem é `startTime` crescente, uma única página traz os eventos
+// mais ANTIGOS da janela e descarta o futuro. Com a agenda de 300 dias
+// (−120/+180) a tela chegou a devolver 250 eventos que paravam 5 semanas
+// atrás — ZERO reuniões de hoje em diante (verificado em PRD, 12/08/2026).
+const PAGINAS_MAX = 8;          // teto de segurança: 8 × 250 = 2000 eventos
+const POR_PAGINA = 250;
+
+const getEventsInWindow = async (timeMin, timeMax) => {
   const auth = new google.auth.JWT(
     SERVICE_ACCOUNT_EMAIL,
     undefined,
@@ -127,17 +135,30 @@ const getEventsInWindow = async (timeMin, timeMax, maxResults = 250) => {
   );
   const calendar = google.calendar({ version: 'v3', auth });
 
-  const response = await calendar.events.list({
-    calendarId: GOOGLE_CALENDAR_ID,
-    timeMin,
-    timeMax,
-    maxResults,
-    singleEvents: true,      // expande recorrências em ocorrências reais
-    orderBy: 'startTime',
-    showDeleted: false,
-  });
+  const todos = [];
+  let pageToken;
+  for (let pagina = 0; pagina < PAGINAS_MAX; pagina++) {
+    const response = await calendar.events.list({
+      calendarId: GOOGLE_CALENDAR_ID,
+      timeMin,
+      timeMax,
+      maxResults: POR_PAGINA,
+      singleEvents: true,    // expande recorrências em ocorrências reais
+      orderBy: 'startTime',
+      showDeleted: false,
+      pageToken,
+    });
+    todos.push(...(response.data.items || []));
+    pageToken = response.data.nextPageToken;
+    if (!pageToken) return todos;
+  }
 
-  return response.data.items || [];
+  // Estourou o teto: melhor avisar alto do que devolver silenciosamente
+  // uma agenda pela metade — foi exatamente esse silêncio o problema.
+  log('WARN', 'events_window_truncated', {
+    timeMin, timeMax, retornados: todos.length, paginasMax: PAGINAS_MAX,
+  });
+  return todos;
 };
 
 // O Booking do Google escreve o telefone numa linha só, no formato que o
