@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getEventosCalendar } from "@/lib/actions/agenda-calendar";
 import { requirePapel } from "@/lib/auth";
 import { AgendaClient } from "./client";
 import type { AgendaEvento } from "./client";
@@ -17,6 +18,7 @@ interface DealRow {
   id: string;
   reuniao_data: string;
   reuniao_link: string | null;
+  google_calendar_event_id: string | null;
   etapa: DealStage;
   valor_estimado: number | null;
   atleta: AtletaEmbed | AtletaEmbed[] | null;
@@ -33,7 +35,7 @@ export default async function AgendaPage() {
   const { data: deals } = await supabase
     .from("deals")
     .select(
-      "id, reuniao_data, reuniao_link, etapa, valor_estimado, " +
+      "id, reuniao_data, reuniao_link, etapa, valor_estimado, google_calendar_event_id, " +
         "atleta:atletas(id, nome_completo, esporte, form_submission_id, lead_classificacao)",
     )
     .not("reuniao_data", "is", null)
@@ -75,7 +77,7 @@ export default async function AgendaPage() {
     }
   }
 
-  const eventos: AgendaEvento[] = rows.map((d) => {
+  const doBanco: AgendaEvento[] = rows.map((d) => {
     const atleta = Array.isArray(d.atleta) ? d.atleta[0] : d.atleta;
     return {
       dealId: d.id,
@@ -88,8 +90,50 @@ export default async function AgendaPage() {
       esporte: atleta?.esporte ?? null,
       classificacao: atleta?.lead_classificacao ?? null,
       temTranscricao: comTranscricao.has(d.id),
+      eventId: d.google_calendar_event_id ?? null,
     };
   });
+
+  // ─── Calendar é a fonte da verdade da agenda ───────────────────
+  // O banco só conhece reunião que virou deal. Quem agendou sem passar
+  // pelo formulário — ou cuja notificação do Google se perdeu — não
+  // existia nesta tela, e ela era lida como "minha agenda do dia".
+  const ate = new Date();
+  ate.setDate(ate.getDate() + 180);
+  const calendario = await getEventosCalendar(desde.toISOString(), ate.toISOString());
+
+  let eventos = doBanco;
+  let avisoCalendar: string | null = null;
+
+  if (calendario.success) {
+    const jaNoBanco = new Set(doBanco.map((e) => e.eventId).filter(Boolean));
+    const doCalendar: AgendaEvento[] = calendario.data
+      .filter((ev) => ev.inicio && !jaNoBanco.has(ev.eventId))
+      .map((ev) => ({
+        dealId: ev.dealId ?? null,
+        reuniaoData: ev.inicio as string,
+        reuniaoLink: ev.meetLink ?? ev.htmlLink ?? null,
+        etapa: (ev.etapa as DealStage) ?? null,
+        valorEstimado: null,
+        atletaId: null,
+        nome: ev.athleteName ?? ev.guardianName ?? ev.titulo,
+        esporte: null,
+        classificacao: null,
+        temTranscricao: false,
+        eventId: ev.eventId,
+        semLead: !ev.leadId,
+        tituloEvento: ev.titulo,
+        emails: ev.emails,
+        telefone: ev.telefone,
+        leadId: ev.leadId,
+      }));
+    eventos = [...doBanco, ...doCalendar].sort(
+      (a, b) => new Date(a.reuniaoData).getTime() - new Date(b.reuniaoData).getTime(),
+    );
+  } else {
+    // Degrada para o comportamento antigo (só banco) em vez de tela vazia.
+    avisoCalendar = calendario.error;
+  }
 
   // "Hoje" (BRT) + instante do servidor passados como props: server e client
   // renderizam idêntico (evita hydration mismatch por o servidor rodar em UTC
@@ -103,5 +147,13 @@ export default async function AgendaPage() {
     day: "2-digit",
   }).format(agoraDate);
 
-  return <AgendaClient eventos={eventos} hoje={hoje} nowMs={nowMs} dealsAgendaveis={dealsAgendaveis} />;
+  return (
+    <AgendaClient
+      eventos={eventos}
+      hoje={hoje}
+      nowMs={nowMs}
+      dealsAgendaveis={dealsAgendaveis}
+      avisoCalendar={avisoCalendar}
+    />
+  );
 }
