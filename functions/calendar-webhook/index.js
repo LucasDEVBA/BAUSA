@@ -161,7 +161,7 @@ const extractPhoneFromEvent = (event) => {
 
 // ─── Buscar lead por email ou telefone ────────────────────────
 // Usa ilike com sufixo dos últimos 9-10 dígitos para match independente de DDI/formato
-const findLeadByContact = async (email, phone) => {
+const findLeadByContact = async (email, phone, schema = SUPABASE_SCHEMA) => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
 
   const conditions = [];
@@ -194,7 +194,7 @@ const findLeadByContact = async (email, phone) => {
     headers: {
       'apikey': SUPABASE_SERVICE_KEY,
       'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Accept-Profile': SUPABASE_SCHEMA,
+      'Accept-Profile': schema,
     },
   });
 
@@ -212,13 +212,13 @@ const findLeadByContact = async (email, phone) => {
 // listagem da Agenda. Precisa ser UM só: se o webhook e a varredura
 // casassem por critérios diferentes, a tela mostraria um vínculo que
 // a automação não enxerga.
-const matchLeadForEvent = async (attendeeEmails, phone) => {
+const matchLeadForEvent = async (attendeeEmails, phone, schema = SUPABASE_SCHEMA) => {
   for (const email of attendeeEmails) {
-    const lead = await findLeadByContact(email, phone);
+    const lead = await findLeadByContact(email, phone, schema);
     if (lead) return lead;
   }
   // Sem e-mail conhecido, o telefone da descrição ainda identifica.
-  if (phone) return findLeadByContact(null, phone);
+  if (phone) return findLeadByContact(null, phone, schema);
   return null;
 };
 
@@ -831,6 +831,12 @@ const reconciliarEventos = async (diasAtras = 3, diasFrente = 60) => {
 };
 
 // ─── Agenda: eventos da janela + estado do vínculo (read-only) ──
+// Consulta SEMPRE `public`, como as runs de observabilidade acima: quem
+// consome isto é o Engine, e o Engine lê `public` em todos os ambientes
+// (o schema `uat` só tem form_submissions vazio). Sem isto a tela em UAT
+// mostraria "sem lead" em reunião que tem lead — verificado 12/08/2026.
+// A ESCRITA (reconcile) segue em SUPABASE_SCHEMA: a CF de UAT não pode
+// alterar produção.
 const listarAgenda = async (desde, ate) => {
   const events = await getEventsInWindow(desde, ate);
   const itens = [];
@@ -840,14 +846,23 @@ const listarAgenda = async (desde, ate) => {
     const emails = base.emails.map((e) => e.toLowerCase());
     let lead = null;
     try {
-      lead = await matchLeadForEvent(emails, base.telefone);
+      lead = await matchLeadForEvent(emails, base.telefone, 'public');
     } catch (err) {
       // Falha ao consultar o lead não pode sumir com o evento da agenda:
       // melhor mostrá-lo como "sem vínculo" do que escondê-lo.
       log('WARN', 'agenda_match_error', { eventId: event.id, error: err.message });
     }
+    // "Casa", lembretes e bloqueios de foco não são reunião de lead: entram
+    // na agenda (é a agenda do CEO), mas não viram alerta pedindo vínculo.
+    // Critério: tem convidado ALÉM do próprio CEO, ou telefone na descrição.
+    const externos = base.emails.filter(
+      (e) => e.toLowerCase() !== String(GOOGLE_CALENDAR_ID || '').toLowerCase(),
+    );
+    const pedeVinculo = externos.length > 0 || Boolean(base.telefone);
+
     itens.push({
       ...base,
+      pedeVinculo,
       leadId: lead?.id ?? null,
       athleteName: lead?.athlete_name ?? null,
       guardianName: lead?.guardian_name ?? null,

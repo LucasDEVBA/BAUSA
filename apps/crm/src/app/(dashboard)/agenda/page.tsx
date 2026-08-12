@@ -121,7 +121,9 @@ export default async function AgendaPage() {
         classificacao: null,
         temTranscricao: false,
         eventId: ev.eventId,
-        semLead: !ev.leadId,
+        // Compromisso pessoal aparece na agenda, mas não vira alerta
+        // pedindo vínculo — só reunião com convidado externo/telefone.
+        semLead: !ev.leadId && ev.pedeVinculo !== false,
         tituloEvento: ev.titulo,
         emails: ev.emails,
         telefone: ev.telefone,
