@@ -92,3 +92,36 @@ test('deal em contato_feito também é movido para reuniao_marcada', () => {
     'moveDealToReuniao deve aceitar lead E contato_feito',
   );
 });
+
+test('a agenda consulta public — o Engine lê public em todos os ambientes', () => {
+  // Em UAT a CF aponta para o schema `uat`, que só tem form_submissions
+  // vazio: a tela mostrava "sem lead" em reunião que TEM lead (12/08/2026).
+  // A leitura da agenda é para o Engine, então segue o schema dele.
+  const corpo = SRC.slice(SRC.indexOf('const listarAgenda'), SRC.indexOf("functions.http('calendarWebhook'"));
+  assert.match(
+    corpo,
+    /matchLeadForEvent\([^)]*'public'\)/,
+    "listarAgenda deve casar o lead contra 'public'",
+  );
+});
+
+test('a ESCRITA da reconciliação continua no schema do ambiente', () => {
+  // O contrário do teste acima: se a reconciliação gravasse em public, a CF
+  // de UAT alteraria produção.
+  const corpo = SRC.slice(SRC.indexOf('const reconciliarEventos'), SRC.indexOf('const listarAgenda'));
+  assert.doesNotMatch(
+    corpo,
+    /matchLeadForEvent\([^)]*'public'\)/,
+    'reconciliarEventos NÃO pode forçar public — usaria produção a partir de UAT',
+  );
+});
+
+test('compromisso pessoal não pede vínculo', () => {
+  // "Casa", lembretes e blocos de foco entram na agenda, mas sem alerta.
+  assert.match(SRC, /pedeVinculo/, 'a flag pedeVinculo sumiu');
+  assert.match(
+    SRC,
+    /const externos = base\.emails\.filter/,
+    'o critério deve ser convidado externo (além do próprio CEO) ou telefone',
+  );
+});

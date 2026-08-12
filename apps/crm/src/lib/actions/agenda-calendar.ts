@@ -35,6 +35,8 @@ export interface EventoAgenda {
   guardianName: string | null;
   classificacao: string | null;
   meetingScheduled: boolean;
+  /** Falso em compromisso pessoal (sem convidado externo nem telefone). */
+  pedeVinculo?: boolean;
   /** Preenchido no Engine, cruzando o lead com o pipeline. */
   dealId?: string | null;
   etapa?: string | null;
