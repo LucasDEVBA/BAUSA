@@ -24,6 +24,7 @@ import {
   CalendarDays,
   Bot,
   Radar,
+  Compass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
@@ -94,6 +95,26 @@ const NAV_GROUPS: NavGroup[] = [
           "/analytics/conversas",
           "/analytics/reunioes",
           "/analytics/utm-builder",
+        ],
+      },
+      {
+        href: "/planejamento",
+        label: "Planejamento",
+        icon: Compass,
+        roles: ["ceo", "head_sucesso"],
+        activeRoutes: [
+          "/planejamento",
+          "/planejamento/estrategico",
+          "/planejamento/metas",
+          "/planejamento/rotinas",
+          "/planejamento/incentivos",
+        ],
+        subItems: [
+          { href: "/planejamento", label: "Painel" },
+          { href: "/planejamento/estrategico", label: "Estratégico" },
+          { href: "/planejamento/metas", label: "Metas" },
+          { href: "/planejamento/rotinas", label: "Rotinas" },
+          { href: "/planejamento/incentivos", label: "Incentivos" },
         ],
       },
       { href: "/relatorios", label: "Relatorios", icon: BarChart3, roles: ["ceo"] },
