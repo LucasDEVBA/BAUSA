@@ -125,3 +125,20 @@ test('compromisso pessoal não pede vínculo', () => {
     'o critério deve ser convidado externo (além do próprio CEO) ou telefone',
   );
 });
+
+test('a consulta de janela PAGINA — corte silencioso come o futuro', () => {
+  // orderBy startTime crescente: uma página só traz os eventos mais ANTIGOS
+  // e descarta o resto. Na agenda de 300 dias isso devolveu 250 eventos que
+  // paravam 5 semanas atrás — zero reuniões de hoje em diante (PRD 12/08/2026).
+  const corpo = SRC.slice(
+    SRC.indexOf('const getEventsInWindow'),
+    SRC.indexOf('const extractPhoneFromEvent'),
+  );
+  assert.match(corpo, /pageToken/, 'getEventsInWindow precisa paginar');
+  assert.match(corpo, /nextPageToken/, 'deve seguir o nextPageToken da API');
+  assert.match(
+    corpo,
+    /events_window_truncated/,
+    'ao estourar o teto de páginas tem de LOGAR — truncar calado foi o bug',
+  );
+});
