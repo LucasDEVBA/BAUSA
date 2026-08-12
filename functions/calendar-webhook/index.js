@@ -140,20 +140,33 @@ const getEventsInWindow = async (timeMin, timeMax, maxResults = 250) => {
   return response.data.items || [];
 };
 
+// O Booking do Google escreve o telefone numa linha só, no formato que o
+// lead digitou. Os padrões antigos exigiam dígitos contíguos, então
+// `(27)999182178` — parêntese colado — não casava com NENHUM deles e a
+// função devolvia null: o lead existia, tinha telefone certo no cadastro,
+// e a reunião nunca era detectada. Descoberto em 12/08/2026 com uma
+// reunião que ficou 12 dias fora do CRM.
 const extractPhoneFromEvent = (event) => {
   const description = event.description || '';
-  // Procura padrões de telefone na descrição
-  const phonePatterns = [
-    /(?:telefone|phone|whatsapp|celular|tel)[:\s]*([+\d\s()-]{10,})/i,
-    /(\+?\d{2}\s?\d{2}\s?\d{4,5}[-\s]?\d{4})/,
-    /(\+?\d{10,15})/,
-  ];
 
-  for (const pattern of phonePatterns) {
-    const match = description.match(pattern);
-    if (match) {
-      return match[1].replace(/[\s()-]/g, '');
-    }
+  // 1. Rótulo explícito ("Telefone: ..."), tolerando qualquer formatação.
+  const rotulado = description.match(
+    /(?:telefone|phone|whatsapp|celular|tel)[:\s]*([+\d\s()\-.]{9,25})/i,
+  );
+  if (rotulado) {
+    const digitos = rotulado[1].replace(/\D/g, '');
+    if (digitos.length >= 9 && digitos.length <= 15) return digitos;
+  }
+
+  // 2. Linha que é SÓ um telefone. Exigir a linha inteira evita casar com
+  //    data, CEP ou id que apareçam no meio de uma frase — um falso
+  //    positivo aqui vincularia a reunião ao lead errado.
+  const linhas = description.split(/\r?\n|<br\s*\/?>/i);
+  for (const bruta of linhas) {
+    const texto = bruta.replace(/<[^>]*>/g, '').trim();
+    if (!texto || !/^\+?[\d\s()\-.]{9,25}$/.test(texto)) continue;
+    const digitos = texto.replace(/\D/g, '');
+    if (digitos.length >= 9 && digitos.length <= 15) return digitos;
   }
 
   return null;
