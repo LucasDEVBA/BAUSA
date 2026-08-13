@@ -25,6 +25,7 @@ import {
   Bot,
   Radar,
   Compass,
+  GitBranch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
@@ -138,6 +139,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/remarketing", label: "Re-marketing", icon: Megaphone, roles: ["ceo"] },
       { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["ceo", "head_sucesso"] },
       { href: "/automacoes", label: "Automações", icon: Workflow, roles: ["ceo"] },
+      { href: "/fluxos", label: "Fluxos", icon: GitBranch, roles: ["ceo"], activeRoutes: ["/fluxos", "/fluxos/metricas", "/fluxos/contatos"] },
     ],
   },
   {

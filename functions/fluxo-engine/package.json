@@ -1,0 +1,9 @@
+{
+  "name": "fluxo-engine",
+  "version": "1.0.0",
+  "description": "Motor de execucao dos Fluxos (ManyChat proprio) — entrada por gatilho + tick de retomada",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.0"
+  }
+}

@@ -256,6 +256,39 @@ gcloud scheduler jobs update http "${JOB_AE}" \
 
 echo "✓ ${JOB_AE} configurado"
 
+# ─── Job 7b: Tick dos Fluxos (a cada 5 min) ──────────────────────────
+# Retoma execuções com bloco `delay` vencido e expira as que ficaram sem
+# resposta (viram 'abandonada' — métrica honesta de onde o funil vaza).
+# Cadência curta de propósito: um delay de 2 min precisa disparar perto
+# do combinado, senão a conversa perde o ritmo humano. O corpo { tick:true }
+# distingue do modo de ENTRADA (que chega por evento, não por cron).
+JOB_FX="fluxo-engine-tick${SUFFIX}"
+FLUXO_ENGINE_URL="${FLUXO_ENGINE_URL:-https://fluxo-engine${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_FX}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/5 * * * *" \
+  --uri="${FLUXO_ENGINE_URL}" \
+  --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET},Content-Type=application/json" \
+  --message-body='{"tick":true}' \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_FX}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/5 * * * *" \
+  --uri="${FLUXO_ENGINE_URL}" \
+  --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET},Content-Type=application/json" \
+  --message-body='{"tick":true}' \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s
+
+echo "✓ ${JOB_FX} configurado"
+
 # ─── Job 8: Transcrições do Google Meet (a cada 2h, minuto 15) ────────
 # A CF só processa reuniões já detectadas (deals.google_calendar_event_id)
 # sem transcrição capturada; anexo ausente = pula silencioso (próximo tick).
