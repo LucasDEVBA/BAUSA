@@ -26,6 +26,11 @@ const https = require('https');
 const ZAPI_INBOX_TOKEN = process.env.ZAPI_INBOX_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+// Fluxos (ManyChat próprio) — sem estas envs o repasse simplesmente não
+// acontece e o inbox segue idêntico ao que sempre foi (degradação silenciosa
+// de propósito: o motor é enriquecimento, a gravação da conversa é o produto).
+const FLUXO_ENGINE_URL = process.env.FLUXO_ENGINE_URL;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 // HARDCODED de propósito: a instância Z-API é única → o stream é SEMPRE dado
 // de produção, mesmo na função -uat. Env var aqui seria regressão silenciosa:
 // o deploy UAT injeta SUPABASE_SCHEMA=uat em todas as funções e desviaria o
@@ -514,6 +519,39 @@ async function tentarVinculoAutomatico(g) {
 
 // ─── Handler ─────────────────────────────────────────────────────────────
 
+// ─── Repasse ao motor de Fluxos (best-effort) ───────────────────
+// Duas mensagens: a de ENTRADA (pode abrir um fluxo novo) e a de RESPOSTA
+// (pode continuar um em andamento). Mandamos as duas — o motor sabe qual é
+// qual e tem o gate de escopo. Erro aqui NUNCA sobe: o webhook já respondeu
+// pelo que importa (a mensagem gravada).
+async function encaminharParaFluxos({ externoId, texto, nome, dedupeKey, ehGrupo }) {
+  if (!FLUXO_ENGINE_URL || !WEBHOOK_SECRET) return;
+  const enviar = async (evento) => {
+    const payload = JSON.stringify({ evento });
+    await httpRequest(
+      FLUXO_ENGINE_URL,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+          'x-webhook-secret': WEBHOOK_SECRET,
+        },
+        timeoutMs: 15000,
+      },
+      payload,
+    );
+  };
+  const base = { canal: 'whatsapp', externoId, texto, nome, ehGrupo };
+  try {
+    // Continuar conversa em andamento tem prioridade sobre abrir uma nova.
+    await enviar({ ...base, resposta: true });
+    await enviar({ ...base, gatilho: 'mensagem_palavra_chave', dedupeKey });
+  } catch (e) {
+    log('WARN', 'fluxos_repasse_falhou', { error: e.message });
+  }
+}
+
 functions.http('zapiInbox', async (req, res) => {
   // Z-API não envia headers customizados → token dedicado na query string
   // (fail-closed: sem ZAPI_INBOX_TOKEN configurado, nega tudo).
@@ -632,6 +670,22 @@ functions.http('zapiInbox', async (req, res) => {
       fromMe: row.from_me,
       tipo: row.tipo,
     });
+
+    // Fluxos (ManyChat próprio): encaminha a mensagem RECEBIDA ao motor.
+    // Best-effort e SEMPRE depois da gravação — o inbox é a fonte da verdade
+    // das conversas e não pode falhar por causa do motor de fluxos.
+    // Quem decide se dispara é o fluxo-engine (gate `fluxos_escopo`,
+    // fail-closed): aqui não há regra de negócio, só o repasse.
+    if (!row.from_me) {
+      await encaminharParaFluxos({
+        externoId: row.phone,
+        texto: row.texto || '',
+        nome: row.sender_name || null,
+        dedupeKey: row.message_id,
+        ehGrupo: false,
+      });
+    }
+
     return res.status(200).send({ success: true });
   } catch (error) {
     log('ERROR', 'inbox_failed', { error: error.message });
