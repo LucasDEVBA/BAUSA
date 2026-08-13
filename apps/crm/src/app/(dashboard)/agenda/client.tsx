@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   startOfMonth,
@@ -26,6 +26,7 @@ import {
   Plus,
   X,
   Search,
+  Loader2,
   UserX,
   Link as LinkIcon,
   AlertTriangle,
@@ -36,6 +37,7 @@ import { criarCompromisso } from "@/lib/actions/agenda";
 import {
   buscarLeadsParaVincular,
   criarLeadDeEvento,
+  getAgendaDoMes,
   vincularEventoALead,
   type LeadBusca,
 } from "@/lib/actions/agenda-calendar";
@@ -94,24 +96,63 @@ export interface DealAgendavel {
 }
 
 export function AgendaClient({
-  eventos,
+  eventos: eventosIniciais,
   hoje,
   nowMs,
   dealsAgendaveis,
   avisoCalendar,
+  mesInicial,
 }: {
   eventos: AgendaEvento[];
   hoje: string; // yyyy-MM-dd em BRT (do servidor)
   nowMs: number; // instante do servidor
   dealsAgendaveis: DealAgendavel[];
   avisoCalendar?: string | null;
+  /** `YYYY-MM` já carregado pelo servidor. */
+  mesInicial: string;
 }) {
   const [novoAberto, setNovoAberto] = useState(false);
   const [vinculando, setVinculando] = useState<AgendaEvento | null>(null);
+  // A tela mostra UM mês; buscar 300 dias para desenhar ~30 era desperdício
+  // (chegou a 681 eventos). Cada troca de mês pede só aquele mês.
   const [mesAtual, setMesAtual] = useState<Date>(() => {
-    const [y, m] = hoje.split("-").map(Number);
+    const [y, m] = mesInicial.split("-").map(Number);
     return new Date(y, m - 1, 1);
   });
+  const [eventos, setEventos] = useState<AgendaEvento[]>(eventosIniciais);
+  const [aviso, setAviso] = useState<string | null>(avisoCalendar ?? null);
+  const [carregando, setCarregando] = useState(false);
+  // Mês já em tela: evita refazer a busca do mês que o servidor entregou.
+  const mesCarregado = useRef(mesInicial);
+
+  // Mês vigente também numa ref: cliques seguidos acontecem antes do
+  // re-render, e calcular a partir da variável do closure fazia 3 cliques
+  // em ">" avançarem um mês só (todos partiam do mesmo valor antigo).
+  const mesRef = useRef<Date>(new Date(mesAtual));
+
+  const irParaMes = useCallback((destino: Date) => {
+    mesRef.current = destino;
+    const chave = `${destino.getFullYear()}-${String(destino.getMonth() + 1).padStart(2, "0")}`;
+    setMesAtual(destino);
+    if (chave === mesCarregado.current) return;
+
+    setCarregando(true);
+    // Guarda contra respostas fora de ordem: clicar rápido em ">" podia
+    // pintar o mês antigo por cima do novo.
+    mesCarregado.current = chave;
+    getAgendaDoMes(chave)
+      .then((r) => {
+        if (mesCarregado.current !== chave) return;
+        setEventos(r.eventos as AgendaEvento[]);
+        setAviso(r.aviso);
+      })
+      .catch(() => {
+        if (mesCarregado.current === chave) setAviso("Não foi possível carregar este mês.");
+      })
+      .finally(() => {
+        if (mesCarregado.current === chave) setCarregando(false);
+      });
+  }, []);
   const [diaSel, setDiaSel] = useState<string>(hoje);
   const agora = useMemo(() => new Date(nowMs), [nowMs]);
 
@@ -166,18 +207,19 @@ export function AgendaClient({
               variant="secondary"
               size="sm"
               aria-label="Mês anterior"
-              onClick={() => setMesAtual((m) => subMonths(m, 1))}
+              onClick={() => irParaMes(subMonths(mesRef.current, 1))}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="min-w-36 text-center text-sm font-semibold capitalize text-foreground">
+            <span className="flex min-w-36 items-center justify-center gap-1.5 text-sm font-semibold capitalize text-foreground">
+              {carregando && <Loader2 aria-hidden className="size-3.5 animate-spin text-primary" />}
               {format(mesAtual, "MMMM yyyy", { locale: ptBR })}
             </span>
             <Button
               variant="secondary"
               size="sm"
               aria-label="Próximo mês"
-              onClick={() => setMesAtual((m) => addMonths(m, 1))}
+              onClick={() => irParaMes(addMonths(mesRef.current, 1))}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -185,9 +227,9 @@ export function AgendaClient({
               variant="ghost"
               size="sm"
               onClick={() => {
-                const hoje = new Date();
-                setMesAtual(hoje);
-                setDiaSel(diaKey(hoje));
+                const agoraLocal = new Date();
+                irParaMes(agoraLocal);
+                setDiaSel(diaKey(agoraLocal));
               }}
             >
               Hoje
@@ -196,11 +238,11 @@ export function AgendaClient({
         }
       />
 
-      {avisoCalendar && (
+      {aviso && (
         <div className="flex items-start gap-2 rounded-xl border border-sys-orange/25 bg-sys-orange/8 px-3 py-2">
           <AlertTriangle aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sys-orange" />
           <p className="text-[11px] leading-relaxed text-sys-orange">
-            Não foi possível ler o Google Calendar ({avisoCalendar}). A tela está mostrando
+            Não foi possível ler o Google Calendar ({aviso}). A tela está mostrando
             apenas as reuniões já registradas no CRM — pode haver compromissos a mais na sua
             agenda.
           </p>
@@ -220,7 +262,13 @@ export function AgendaClient({
         />
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_22rem]">
+      <div
+        className={cn(
+          "grid min-h-0 flex-1 gap-4 transition-opacity lg:grid-cols-[1fr_22rem]",
+          carregando && "opacity-60",
+        )}
+        aria-busy={carregando}
+      >
         {/* Calendário */}
         <Card variant="plain" padding="none" className="flex flex-col overflow-hidden">
           <div className="grid grid-cols-7 border-b border-border">
