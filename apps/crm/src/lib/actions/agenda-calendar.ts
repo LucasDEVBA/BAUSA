@@ -350,3 +350,154 @@ export async function criarLeadDeEvento(input: unknown): Promise<Result<{ leadId
     return { success: false, error: "Falha ao criar o lead. Tente de novo." };
   }
 }
+
+// ─── Agenda de UM mês ────────────────────────────────────────────────────
+
+/**
+ * Evento como a tela de Agenda consome (Calendar + CRM mesclados).
+ * Espelha `AgendaEvento` do client — declarado aqui para a action não
+ * importar de um módulo "use client".
+ */
+export interface EventoMesclado {
+  dealId: string | null;
+  reuniaoData: string;
+  reuniaoLink: string | null;
+  etapa: string | null;
+  valorEstimado: number | null;
+  atletaId: string | null;
+  nome: string;
+  esporte: string | null;
+  classificacao: string | null;
+  temTranscricao: boolean;
+  eventId?: string | null;
+  semLead?: boolean;
+  tituloEvento?: string;
+  emails?: string[];
+  telefone?: string | null;
+  leadId?: string | null;
+}
+
+export interface AgendaDoMes {
+  eventos: EventoMesclado[];
+  aviso: string | null;
+}
+
+/**
+ * Janela do mês pedido, esticada em 7 dias de cada lado.
+ *
+ * A grade do calendário começa no domingo da semana do dia 1 e termina no
+ * sábado da semana do último dia — sem a folga, esses dias de "transbordo"
+ * apareceriam vazios mesmo tendo compromisso.
+ */
+function janelaDoMes(mes: string): { inicio: string; fim: string } {
+  const [ano, m] = mes.split("-").map(Number);
+  const inicio = new Date(Date.UTC(ano, m - 1, 1));
+  const fim = new Date(Date.UTC(ano, m, 1));
+  inicio.setUTCDate(inicio.getUTCDate() - 7);
+  fim.setUTCDate(fim.getUTCDate() + 7);
+  return { inicio: inicio.toISOString(), fim: fim.toISOString() };
+}
+
+/** `YYYY-MM` válido? Evita montar janela a partir de entrada arbitrária. */
+const MES_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * Monta a agenda de um mês: reuniões do CRM + eventos do Calendar.
+ *
+ * Buscar mês a mês em vez de 300 dias de uma vez: a tela mostra um mês por
+ * vez, e a janela larga trouxe 681 eventos para exibir ~30.
+ */
+export async function getAgendaDoMes(mes: string): Promise<AgendaDoMes> {
+  if ((await getUserPapel()) !== "ceo") return { eventos: [], aviso: "Sem permissão." };
+  if (!MES_RE.test(mes)) return { eventos: [], aviso: "Mês inválido." };
+
+  const { inicio, fim } = janelaDoMes(mes);
+  const supabase = await createServerSupabaseClient();
+
+  const { data: deals } = await supabase
+    .from("deals")
+    .select(
+      "id, reuniao_data, reuniao_link, etapa, valor_estimado, google_calendar_event_id, " +
+        "atleta:atletas(id, nome_completo, esporte, lead_classificacao)",
+    )
+    .not("reuniao_data", "is", null)
+    .is("deleted_at", null)
+    .gte("reuniao_data", inicio)
+    .lt("reuniao_data", fim)
+    .order("reuniao_data", { ascending: true });
+
+  type Row = {
+    id: string;
+    reuniao_data: string;
+    reuniao_link: string | null;
+    etapa: string;
+    valor_estimado: number | null;
+    google_calendar_event_id: string | null;
+    atleta:
+      | { id: string; nome_completo: string; esporte: string | null; lead_classificacao: string | null }
+      | Array<{ id: string; nome_completo: string; esporte: string | null; lead_classificacao: string | null }>
+      | null;
+  };
+  const rows = (deals ?? []) as unknown as Row[];
+
+  const comTranscricao = new Set<string>();
+  if (rows.length > 0) {
+    const { data: trans } = await supabase
+      .from("reunioes_transcricoes")
+      .select("deal_id")
+      .in("deal_id", rows.map((d) => d.id));
+    for (const t of (trans ?? []) as unknown as Array<{ deal_id: string | null }>) {
+      if (t.deal_id) comTranscricao.add(t.deal_id);
+    }
+  }
+
+  const doBanco: EventoMesclado[] = rows.map((d) => {
+    const atleta = Array.isArray(d.atleta) ? d.atleta[0] : d.atleta;
+    return {
+      dealId: d.id,
+      reuniaoData: d.reuniao_data,
+      reuniaoLink: d.reuniao_link ?? null,
+      etapa: d.etapa,
+      valorEstimado: d.valor_estimado ?? null,
+      atletaId: atleta?.id ?? null,
+      nome: atleta?.nome_completo ?? "—",
+      esporte: atleta?.esporte ?? null,
+      classificacao: atleta?.lead_classificacao ?? null,
+      temTranscricao: comTranscricao.has(d.id),
+      eventId: d.google_calendar_event_id ?? null,
+    };
+  });
+
+  const calendario = await getEventosCalendar(inicio, fim);
+  if (!calendario.success) {
+    // Sem o Calendar a tela ainda mostra o que o CRM conhece.
+    return { eventos: doBanco, aviso: calendario.error };
+  }
+
+  const jaNoBanco = new Set(doBanco.map((e) => e.eventId).filter(Boolean));
+  const doCalendar: EventoMesclado[] = calendario.data
+    .filter((ev) => ev.inicio && !jaNoBanco.has(ev.eventId))
+    .map((ev) => ({
+      dealId: ev.dealId ?? null,
+      reuniaoData: ev.inicio as string,
+      reuniaoLink: ev.meetLink ?? ev.htmlLink ?? null,
+      etapa: ev.etapa ?? null,
+      valorEstimado: null,
+      atletaId: null,
+      nome: ev.athleteName ?? ev.guardianName ?? ev.titulo,
+      esporte: null,
+      classificacao: null,
+      temTranscricao: false,
+      eventId: ev.eventId,
+      semLead: !ev.leadId && ev.pedeVinculo !== false,
+      tituloEvento: ev.titulo,
+      emails: ev.emails,
+      telefone: ev.telefone,
+      leadId: ev.leadId,
+    }));
+
+  const eventos = [...doBanco, ...doCalendar].sort(
+    (a, b) => new Date(a.reuniaoData).getTime() - new Date(b.reuniaoData).getTime(),
+  );
+  return { eventos, aviso: null };
+}
