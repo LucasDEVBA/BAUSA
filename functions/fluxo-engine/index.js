@@ -103,6 +103,57 @@ const registrarEvento = async (execucaoId, fluxoId, blocoId, tipo, detalhe = {})
   }
 };
 
+// ─── ESCOPO: quem pode acionar fluxo (gate do CEO) ──────────────
+// Decisão do CEO (2026-08-13): "conecte, mas funcional só no momento em que eu
+// quiser, com um chat ou grupo específicos ou global".
+//
+// FAIL-CLOSED por definição: chave ausente, JSON inválido, erro de leitura ou
+// modo desconhecido ⇒ NÃO dispara. Ligar é sempre gesto explícito. O escopo
+// mora AQUI (motor) e não no zapi-inbox porque é o motor que envia — checar na
+// borda seria conselho; checar aqui é garantia.
+//
+// configuracoes_sistema.chave = 'fluxos_escopo'
+//   { modo: 'desligado' | 'lista' | 'global', telefones: [], grupos: [] }
+const ESCOPO_CHAVE = 'fluxos_escopo';
+const ESCOPO_TTL_MS = 60_000;
+let escopoCache = { valor: null, em: 0 };
+
+// tail-10 = mesma normalização usada no matching de telefone do projeto
+// (DDI/9º dígito variam entre o que o lead digita e o que a Z-API devolve).
+const tail10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+
+const lerEscopo = async () => {
+  const agora = Date.now();
+  if (escopoCache.valor && agora - escopoCache.em < ESCOPO_TTL_MS) return escopoCache.valor;
+  try {
+    const rows = await sb(`configuracoes_sistema?chave=eq.${ESCOPO_CHAVE}&select=valor`);
+    const bruto = rows[0]?.valor;
+    const v = typeof bruto === 'string' ? JSON.parse(bruto) : bruto;
+    const valor = v && typeof v === 'object' ? v : { modo: 'desligado' };
+    escopoCache = { valor, em: agora };
+    return valor;
+  } catch (e) {
+    log('WARN', 'escopo_leitura_falhou', { error: e.message });
+    return { modo: 'desligado' }; // fail-closed
+  }
+};
+
+/** true = este contato/grupo pode acionar fluxos agora. */
+const escopoPermite = (escopo, externoId, ehGrupo) => {
+  const modo = escopo && typeof escopo.modo === 'string' ? escopo.modo : 'desligado';
+  if (modo === 'global') return true;
+  if (modo !== 'lista') return false; // 'desligado' e qualquer valor estranho
+  const lista = ehGrupo ? escopo.grupos : escopo.telefones;
+  if (!Array.isArray(lista) || lista.length === 0) return false;
+  if (ehGrupo) {
+    // grupo_id às vezes vem com sufixo @g.us e às vezes não — normalizar as 2 pontas
+    const alvo = String(externoId || '').replace(/@.*$/, '');
+    return lista.some((g) => String(g || '').replace(/@.*$/, '') === alvo);
+  }
+  const alvo = tail10(externoId);
+  return alvo.length >= 8 && lista.some((t) => tail10(t) === alvo);
+};
+
 // ─── Normalização de texto p/ casar palavra-chave ───────────────
 const normalizar = (s) =>
   String(s || '')
@@ -380,6 +431,12 @@ const processarEvento = async (evento) => {
   const texto = String(evento.texto || '');
   if (!canal || !gatilho || !externoId) return { ok: false, motivo: 'evento_incompleto' };
 
+  // GATE DO CEO — fail-closed. Antes de qualquer consulta a fluxo.
+  const escopo = await lerEscopo();
+  if (!escopoPermite(escopo, externoId, evento.ehGrupo === true)) {
+    return { ok: true, disparados: 0, motivo: 'fora_do_escopo' };
+  }
+
   const fluxos = await sb(
     `fluxos?ativo=eq.true&deleted_at=is.null&canal=eq.${canal}&gatilho=eq.${gatilho}&select=*`
   );
@@ -458,6 +515,14 @@ const processarResposta = async (evento) => {
   const canal = String(evento.canal || '');
   const externoId = String(evento.externoId || '');
   const texto = String(evento.texto || '');
+
+  // Mesmo gate na RESPOSTA: tirar um contato do escopo interrompe a conversa
+  // em andamento (senão o "desligar" só valeria para conversas novas).
+  const escopo = await lerEscopo();
+  if (!escopoPermite(escopo, externoId, evento.ehGrupo === true)) {
+    return { ok: true, retomadas: 0, motivo: 'fora_do_escopo' };
+  }
+
   const contatos = await sb(
     `fluxo_contatos?canal=eq.${canal}&externo_id=eq.${encodeURIComponent(externoId)}&select=*`
   );
@@ -618,4 +683,4 @@ functions.http('fluxoEngine', async (req, res) => {
 });
 
 // Export p/ o guard de CI inspecionar as regras puras sem subir o servidor.
-module.exports = { casaPalavra, normalizar, render, validarCampo, CANAIS_ENVIO };
+module.exports = { casaPalavra, normalizar, render, validarCampo, escopoPermite, CANAIS_ENVIO };

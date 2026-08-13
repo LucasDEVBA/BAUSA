@@ -3,6 +3,8 @@ import { Workflow, Users, UserPlus, Percent } from "lucide-react";
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { fetchFluxos, fetchResumoGeral, FluxosError, type FluxoResumo } from "@/lib/fluxos-queries";
+import { getEscopoFluxos } from "@/lib/actions/fluxos-escopo";
+import { EscopoCard } from "@/components/fluxos/EscopoCard";
 import { FluxosNav } from "@/components/fluxos/FluxosNav";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -28,6 +30,7 @@ export default async function FluxosPage() {
   } catch (e) {
     erro = e instanceof FluxosError ? e.message : "Falha ao carregar os fluxos.";
   }
+  const escopo = await getEscopoFluxos();
 
   return (
     <div className="space-y-5">
@@ -37,6 +40,8 @@ export default async function FluxosPage() {
         description="Conversas automáticas que qualificam e capturam contato — no WhatsApp hoje, no Instagram quando a Meta liberar"
         dense
       />
+
+      <EscopoCard escopo={escopo} />
 
       {erro ? (
         <EmptyState icon={Workflow} title="Não foi possível carregar" description={erro} />

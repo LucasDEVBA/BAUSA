@@ -204,6 +204,82 @@ test('captura inválida NÃO avança o fluxo (repete o bloco)', () => {
   assert.match(bloco, /return \{ ok: true, retomadas: 1, revalidacao: true \}/, 'e não segue para o próximo bloco');
 });
 
+// ─── 9. ESCOPO: o gate do CEO é fail-closed ──────────────────────────────
+
+test('escopoPermite: desligado NUNCA libera (nem com listas preenchidas)', () => {
+  const { escopoPermite } = carregarEngine();
+  assert.equal(escopoPermite({ modo: 'desligado', telefones: ['5571991461565'] }, '5571991461565', false), false);
+  assert.equal(escopoPermite({ modo: 'desligado', grupos: ['123'] }, '123', true), false);
+});
+
+test('escopoPermite: entrada inválida/desconhecida é tratada como desligado', () => {
+  const { escopoPermite } = carregarEngine();
+  for (const entrada of [null, undefined, {}, { modo: '' }, { modo: 'talvez' }, { modo: 'GLOBAL' }]) {
+    assert.equal(escopoPermite(entrada, '5571991461565', false), false, `modo ${JSON.stringify(entrada)} deve negar`);
+  }
+});
+
+test('escopoPermite: global libera qualquer contato e grupo', () => {
+  const { escopoPermite } = carregarEngine();
+  assert.equal(escopoPermite({ modo: 'global' }, '5511999998888', false), true);
+  assert.equal(escopoPermite({ modo: 'global' }, '120363000@g.us', true), true);
+});
+
+test('escopoPermite: lista casa telefone por tail-10 (DDI/9º dígito variam)', () => {
+  const { escopoPermite } = carregarEngine();
+  const escopo = { modo: 'lista', telefones: ['5571991461565'], grupos: [] };
+  assert.equal(escopoPermite(escopo, '5571991461565', false), true, 'mesmo número');
+  assert.equal(escopoPermite(escopo, '71991461565', false), true, 'sem DDI');
+  assert.equal(escopoPermite(escopo, '+55 (71) 99146-1565', false), true, 'formatado');
+  assert.equal(escopoPermite(escopo, '5511988887777', false), false, 'outro número NÃO passa');
+});
+
+test('escopoPermite: lista vazia não libera ninguém', () => {
+  const { escopoPermite } = carregarEngine();
+  assert.equal(escopoPermite({ modo: 'lista', telefones: [], grupos: [] }, '5571991461565', false), false);
+});
+
+test('escopoPermite: grupo casa com e sem sufixo @g.us', () => {
+  const { escopoPermite } = carregarEngine();
+  const escopo = { modo: 'lista', telefones: [], grupos: ['120363000000000000'] };
+  assert.equal(escopoPermite(escopo, '120363000000000000@g.us', true), true);
+  assert.equal(escopoPermite(escopo, '120363000000000000', true), true);
+  assert.equal(escopoPermite(escopo, '999999999999999999', true), false);
+});
+
+test('escopoPermite: telefone da lista não libera grupo (e vice-versa)', () => {
+  const { escopoPermite } = carregarEngine();
+  const escopo = { modo: 'lista', telefones: ['5571991461565'], grupos: [] };
+  assert.equal(escopoPermite(escopo, '5571991461565', true), false, 'grupo consulta a lista de GRUPOS');
+});
+
+test('o gate roda ANTES de consultar fluxos, na entrada e na resposta', () => {
+  const fonte = lerFonte(ENGINE_FILE);
+  const entrada = fonte.slice(fonte.indexOf('const processarEvento'), fonte.indexOf('const processarResposta'));
+  const idxGate = entrada.indexOf('escopoPermite');
+  const idxFluxos = entrada.indexOf('`fluxos?ativo=eq.true');
+  assert.ok(idxGate >= 0 && idxGate < idxFluxos, 'na ENTRADA o gate precisa vir antes de buscar fluxos');
+
+  const resposta = fonte.slice(fonte.indexOf('const processarResposta'), fonte.indexOf('const rodarTick'));
+  assert.match(resposta, /escopoPermite/, 'a RESPOSTA também precisa do gate (desligar interrompe conversa em curso)');
+});
+
+test('leitura do escopo é fail-closed em erro', () => {
+  const fonte = lerFonte(ENGINE_FILE);
+  const bloco = fonte.slice(fonte.indexOf('const lerEscopo'), fonte.indexOf('const escopoPermite'));
+  assert.match(bloco, /return \{ modo: 'desligado' \}; \/\/ fail-closed/, 'erro de leitura deve negar, não liberar');
+});
+
+test('o repasse do zapi-inbox não pode derrubar a ingestão', () => {
+  const inbox = lerFonte(path.join(__dirname, '..', 'functions', 'zapi-inbox', 'index.js'));
+  const bloco = inbox.slice(inbox.indexOf('async function encaminharParaFluxos'), inbox.indexOf("functions.http('zapiInbox'"));
+  assert.match(bloco, /if \(!FLUXO_ENGINE_URL \|\| !WEBHOOK_SECRET\) return;/, 'sem env, degrada em silêncio');
+  assert.match(bloco, /catch \(e\)/, 'falha do motor não pode subir para o webhook');
+  assert.doesNotMatch(bloco, /throw /, 'o repasse NUNCA relança — a mensagem já foi gravada');
+  // e o repasse acontece depois da gravação, só para mensagem recebida
+  assert.match(inbox, /if \(!row\.from_me\) \{\s*await encaminharParaFluxos/, 'não repassar o que nós mesmos enviamos');
+});
+
 test('fluxo nasce pausado', () => {
   const fonte = lerFonte(ACTIONS_FILE);
   assert.match(fonte, /ativo: false, \/\/ nasce pausado/, 'ativar é sempre gesto explícito do CEO');
