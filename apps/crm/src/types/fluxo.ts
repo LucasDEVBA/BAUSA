@@ -4,7 +4,7 @@
  *
  * Princípio: o motor é AGNÓSTICO DE CANAL. O mesmo fluxo (gatilho → blocos
  * encadeados) roda em WhatsApp (Z-API, disponível hoje) e em Instagram
- * (depende do App Review de instagram_manage_messages).
+ * (depende do App Review de instagram_business_manage_messages).
  */
 
 // ─── Canais ──────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ export const CANAL_CATALOG: Record<FluxoCanal, CanalInfo> = {
     label: "Instagram",
     disponivel: false,
     bloqueio:
-      "Aguardando App Review da permissão instagram_manage_messages. O fluxo pode ser montado e testado agora; o envio liga sozinho quando a Meta aprovar.",
+      "Aguardando App Review da permissão instagram_business_manage_messages. O fluxo pode ser montado e testado agora; o envio liga sozinho quando a Meta aprovar.",
   },
 };
 

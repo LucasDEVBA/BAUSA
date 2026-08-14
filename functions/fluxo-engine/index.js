@@ -10,7 +10,7 @@
  *
  * Invariantes (travados por tests/fluxo-engine-invariants.test.js):
  *   • Só executa fluxo ATIVO e de canal DISPONÍVEL — instagram não envia até
- *     o App Review de instagram_manage_messages.
+ *     o App Review de instagram_business_manage_messages.
  *   • CAS no claim da execução (lock_until) — dois ticks concorrentes nunca
  *     avançam a mesma execução.
  *   • Idempotência da ENTRADA por UNIQUE(fluxo_id, contato_id, dedupe_key).
@@ -34,7 +34,7 @@ const INSTAGRAM_TOKEN = process.env.INSTAGRAM_TOKEN;
 const INSTAGRAM_GRAPH = 'https://graph.instagram.com';
 
 // Canais que conseguem ENVIAR. O Instagram só entra quando o token existir —
-// e o token só existe depois do App Review de instagram_manage_messages.
+// e o token só existe depois do App Review de instagram_business_manage_messages.
 // Isso torna o gate AUTOMÁTICO: nada de "esqueci de ligar a flag" nem de
 // prometer envio que a Meta ainda não autoriza. Sem env, o Set fica só com
 // whatsapp (travado por guard).
