@@ -54,15 +54,26 @@ function carregarEngine() {
 
 // ─── 1. Canal indisponível não envia ─────────────────────────────────────
 
-test('CANAIS_ENVIO contém whatsapp e NÃO contém instagram (App Review pendente)', () => {
+test('sem INSTAGRAM_TOKEN, o instagram NÃO pode enviar (gate automático)', () => {
+  assert.equal(process.env.INSTAGRAM_TOKEN, undefined, 'pré-condição do teste: env ausente');
   const engine = carregarEngine();
   assert.ok(engine.CANAIS_ENVIO.has('whatsapp'), 'whatsapp deve poder enviar (Z-API está no ar)');
   assert.equal(
     engine.CANAIS_ENVIO.has('instagram'),
     false,
-    'instagram só entra em CANAIS_ENVIO quando instagram_manage_messages for APROVADA — ' +
-      'ligar antes faz o fluxo prometer envio que não acontece'
+    'sem token o instagram não pode enviar — o token só existe após o App Review, ' +
+      'então o gate é automático (nada de flag esquecida ligada)'
   );
+});
+
+test('com INSTAGRAM_TOKEN, o instagram entra na allowlist', () => {
+  process.env.INSTAGRAM_TOKEN = 'token-de-teste';
+  try {
+    const engine = carregarEngine();
+    assert.ok(engine.CANAIS_ENVIO.has('instagram'), 'com token, o canal deve enviar');
+  } finally {
+    delete process.env.INSTAGRAM_TOKEN;
+  }
 });
 
 test('enviarMensagem barra canal fora da allowlist antes de qualquer POST', () => {
