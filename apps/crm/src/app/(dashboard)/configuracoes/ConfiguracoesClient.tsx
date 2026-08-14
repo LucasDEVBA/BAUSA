@@ -9,7 +9,9 @@ import { DOCUMENTO_TIPOS, FAQ_CATEGORIAS } from "@/types/crm";
 import { DEAL_STAGE_CONFIG, PIPELINE_STAGE_ORDER } from "@/types/deal";
 import { UsuariosTab } from "@/components/configuracoes/UsuariosTab";
 import { ParametrosTab } from "@/components/configuracoes/ParametrosTab";
+import { NotificacoesTab } from "@/components/configuracoes/NotificacoesTab";
 import type { ParametrosSistema } from "@/lib/actions/parametros";
+import type { ConfigNotificacoes } from "@/lib/notificacoes-eventos";
 import { PipelinesTab } from "@/components/configuracoes/PipelinesTab";
 import { PageHeader, BrandTabs, Card, Input, Button } from "@/components/ui";
 
@@ -36,6 +38,7 @@ interface ConfiguracoesClientProps {
   configsIniciais: Record<string, unknown>;
   /** Metas/valores/parâmetros já tipados e com defaults resolvidos. */
   parametros: ParametrosSistema;
+  notificacoes: ConfigNotificacoes;
 }
 
 function SaveBtn({ onClick, isPending, label = "Salvar" }: { onClick: () => void; isPending: boolean; label?: string }) {
@@ -129,7 +132,7 @@ function WeightedCriteriaSection({
   );
 }
 
-export function ConfiguracoesClient({ configsIniciais, parametros }: ConfiguracoesClientProps) {
+export function ConfiguracoesClient({ configsIniciais, parametros, notificacoes }: ConfiguracoesClientProps) {
   const [configs, setConfigs] = useState<Record<string, unknown>>(configsIniciais);
   const [activeTab, setActiveTab] = useState<TabValue>("parametros");
   const [isPending, startTransition] = useTransition();
@@ -419,6 +422,7 @@ export function ConfiguracoesClient({ configsIniciais, parametros }: Configuraco
         {/* ===== NOTIFICACOES ===== */}
         {activeTab === "notificacoes" && (
           <div className="space-y-4">
+            <NotificacoesTab inicial={notificacoes} />
             <Card className="space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <Bell className="h-4 w-4 text-primary" />

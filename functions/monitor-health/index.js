@@ -40,6 +40,8 @@ const CEO_WHATSAPP         = process.env.CEO_WHATSAPP || '';
 const RESEND_API_KEY       = process.env.RESEND_API_KEY;
 const BREVO_API_KEY        = process.env.BREVO_API_KEY;
 const FROM_EMAIL           = process.env.FROM_EMAIL || 'Bolsa Atleta USA <contato@bolsaatletausa.com>';
+const ENGINE_URL           = (process.env.ENGINE_URL || 'https://bolsa-atleta-crm.vercel.app').replace(/\/+$/, '');
+const { emailMonitor, emailAprovacaoPendente } = require('./templates');
 
 // Os DADOS monitorados são os de produção — sempre public (padrão do Engine).
 const DATA_SCHEMA = 'public';
@@ -119,6 +121,23 @@ const contar = async (pathAndQuery) => {
   const range = String(result.headers['content-range'] || '');
   const total = parseInt(range.split('/')[1], 10);
   return Number.isFinite(total) ? total : 0;
+};
+
+/** Busca linhas (o monitor só contava; o aviso de aprovação precisa dos nomes). */
+const buscar = async (pathAndQuery) => {
+  const result = await httpRequest(`${SUPABASE_URL}/rest/v1/${pathAndQuery}`, {
+    method: 'GET',
+    headers: supaHeaders(),
+  });
+  if (result.statusCode >= 400) {
+    throw new Error(`select ${pathAndQuery.split('?')[0]} HTTP ${result.statusCode}`);
+  }
+  try {
+    const linhas = JSON.parse(result.body);
+    return Array.isArray(linhas) ? linhas : [];
+  } catch {
+    return [];
+  }
 };
 
 /** Lê o valor de uma chave de configuracoes_sistema (fail-open → {}). */
@@ -429,6 +448,71 @@ const checkSeguro = async (chave, fn) => {
   } catch (error) {
     return { chave, ok: false, valor: -1, detalhe: `verificação falhou: ${error.message}` };
   }
+};
+
+// ─── Aviso da fila de aprovação (evento próprio, não é "monitor") ─────
+// A fila é retenção PROPOSITAL: enquanto o CEO não decide, o lead não entra
+// no pipeline nem recebe mensagem. Por isso este aviso é o único que nasce
+// com WhatsApp ligado — e traz NOME e link direto, em vez de "N leads
+// pendentes", que obriga a abrir o sistema para saber de quem se trata.
+const alertarAprovacaoPendente = async (canais) => {
+  const cfg = canais.lead_aguardando_aprovacao || {};
+  if (cfg.inapp === false && cfg.email !== true && cfg.whatsapp !== true) return 0;
+
+  const limite = encodeURIComponent(isoAtras(APROVACAO_PENDENTE_HORAS));
+  const rows = await buscar(
+    `form_submissions?select=athlete_name,qualification_classification,qualified_at` +
+      `&aprovacao_status=eq.pendente&qualification_classification=in.(QUENTE,MORNO)` +
+      `&qualified_at=lt.${limite}&order=qualified_at.asc&limit=10`,
+  );
+  if (!Array.isArray(rows) || rows.length === 0) return 0;
+
+  const agora = Date.now();
+  const leads = rows.map((r) => ({
+    nome: r.athlete_name,
+    classificacao: r.qualification_classification,
+    esperandoHoras: r.qualified_at
+      ? Math.floor((agora - Date.parse(r.qualified_at)) / 3600000)
+      : null,
+  }));
+  const maisAntigo = leads[0]?.esperandoHoras ?? null;
+  const urlAprovacoes = `${ENGINE_URL}/leads?aprovacoes=1`;
+  const n = leads.length;
+
+  if (cfg.inapp !== false) {
+    await criarNotificacoesInApp(
+      n === 1 ? '1 lead aguardando aprovação' : `${n} leads aguardando aprovação`,
+      leads.map((l) => `${l.nome} (${l.classificacao})`).join(', '),
+    );
+  }
+
+  if (cfg.whatsapp === true) {
+    const lista = leads
+      .slice(0, 5)
+      .map((l) => `• *${l.nome}* — ${l.classificacao}${l.esperandoHoras != null ? ` · há ${l.esperandoHoras}h` : ''}`)
+      .join('\n');
+    const extra = n > 5 ? `\n_...e mais ${n - 5}_` : '';
+    const msg =
+      `👋 *${n === 1 ? 'Tem 1 lead' : `Tem ${n} leads`} esperando sua aprovação*\n\n` +
+      `${lista}${extra}\n\n` +
+      `Enquanto você não decide, ${n === 1 ? 'ele não entra' : 'eles não entram'} no pipeline ` +
+      `e ${n === 1 ? 'não recebe' : 'não recebem'} nenhuma mensagem.\n\n` +
+      `Aprovar agora 👉 ${urlAprovacoes}`;
+    await sendWhatsAppCeo(msg);
+  }
+
+  if (cfg.email === true) {
+    const html = emailAprovacaoPendente({ leads, urlAprovacoes, horas: maisAntigo });
+    const assunto = n === 1
+      ? '1 lead esperando sua aprovação'
+      : `${n} leads esperando sua aprovação`;
+    for (const to of await fetchAlertRecipients()) {
+      await sendEmailWithFallback(to, assunto, html);
+    }
+  }
+
+  log('INFO', 'alerta_aprovacao_pendente', { leads: n, canais: cfg });
+  return n;
 };
 
 const runChecks = async () => {
@@ -840,7 +924,10 @@ functions.http('monitorHealth', async (req, res) => {
     const desativados = new Set(Array.isArray(desativadosRaw) ? desativadosRaw : []);
 
     const checks = await runChecks();
-    const todasFalhas = checks.filter((c) => !c.ok);
+    // A fila de aprovação sai por um aviso próprio (com nomes e link), então
+    // não entra no alerta genérico do monitor — senão o CEO recebe o mesmo
+    // fato duas vezes, com textos diferentes.
+    const todasFalhas = checks.filter((c) => !c.ok && c.chave !== 'aprovacao_pendente_antiga');
     const suprimidas = todasFalhas.filter((c) => desativados.has(c.chave));
     const falhas = todasFalhas.filter((c) => !desativados.has(c.chave));
     if (suprimidas.length > 0) {
@@ -859,22 +946,45 @@ functions.http('monitorHealth', async (req, res) => {
       });
 
       if (paraAlertar.length > 0) {
-        const linhas = paraAlertar.map((c) => `• ${c.detalhe}`).join('\n');
-        const msg =
-          `⚠️ *Monitor BAUSA — atenção no funil*\n\n${linhas}\n\n` +
-          `Ver detalhes: bolsa-atleta-crm → /observabilidade.`;
-        // WhatsApp + E-MAIL sempre juntos: se a falha for a própria Z-API,
-        // o WhatsApp não chega — o e-mail é o canal independente.
-        const enviado = await sendWhatsAppCeo(msg);
-        await criarNotificacoesInApp('Monitor: atenção no funil', linhas);
-        const htmlLinhas = paraAlertar.map((c) => `<li>${c.detalhe}</li>`).join('');
-        const html =
-          `<h2>⚠️ Monitor BAUSA — atenção no funil</h2><ul>${htmlLinhas}</ul>` +
-          `<p>Ver detalhes: BAU Engine → <strong>/observabilidade</strong></p>`;
-        const recipients = await fetchAlertRecipients();
+        // Canais por evento + severidade por check (Configurações →
+        // Notificações). Antes TODA falha saía por WhatsApp E e-mail — virou
+        // ruído, e alerta que o CEO para de ler não protege nada.
+        const canais = await lerConfig('notificacoes_canais');
+        const severidades = await lerConfig('monitor_severidades');
+        // Check sem classificação = 'atencao': novo check nasce silencioso de
+        // propósito (melhor descobrir que faltou classificar do que acordar
+        // o CEO à toa).
+        const criticos = paraAlertar.filter((c) => severidades[c.chave] === 'critico');
+        const atencao = paraAlertar.filter((c) => severidades[c.chave] !== 'critico');
+
+        let enviado = false;
         let emailsEnviados = 0;
-        for (const to of recipients) {
-          if (await sendEmailWithFallback(to, '⚠️ Monitor BAUSA — atenção no funil', html)) emailsEnviados += 1;
+        const recipients = await fetchAlertRecipients();
+
+        for (const [grupo, lista] of [['monitor_critico', criticos], ['monitor_atencao', atencao]]) {
+          if (lista.length === 0) continue;
+          const cfg = canais[grupo] || {};
+          const critico = grupo === 'monitor_critico';
+          const linhas = lista.map((c) => `• ${c.detalhe}`).join('\n');
+          const titulo = critico ? 'Monitor BAUSA — algo parou' : 'Monitor BAUSA — atenção no funil';
+
+          if (cfg.inapp !== false) {
+            await criarNotificacoesInApp(titulo, linhas);
+          }
+          if (cfg.whatsapp === true) {
+            const msg = `${critico ? '🚨' : '⚠️'} *${titulo}*\n\n${linhas}\n\n${ENGINE_URL}/observabilidade`;
+            if (await sendWhatsAppCeo(msg)) enviado = true;
+          }
+          if (cfg.email === true) {
+            const html = emailMonitor({
+              critico,
+              itens: lista.map((c) => c.detalhe),
+              urlObservabilidade: `${ENGINE_URL}/observabilidade`,
+            });
+            for (const to of recipients) {
+              if (await sendEmailWithFallback(to, `${critico ? '🚨' : '⚠️'} ${titulo}`, html)) emailsEnviados += 1;
+            }
+          }
         }
         alertasEnviados = paraAlertar.length;
 
@@ -892,8 +1002,20 @@ functions.http('monitorHealth', async (req, res) => {
       }
     }
 
+    // Aviso da fila de aprovação — canais próprios, independe do cooldown
+    // do monitor (é ação do CEO, não falha de sistema).
+    let aprovacoesAvisadas = 0;
+    if (!dryRun && !alertasDesligados) {
+      try {
+        aprovacoesAvisadas = await alertarAprovacaoPendente(await lerConfig('notificacoes_canais'));
+      } catch (err) {
+        log('WARN', 'alerta_aprovacao_falhou', { erro: err.message });
+      }
+    }
+
     const durationMs = Date.now() - startTime;
     log('INFO', 'monitor_health_complete', {
+      aprovacoesAvisadas,
       dryRun,
       alertasDesligados,
       falhas: falhas.length,
