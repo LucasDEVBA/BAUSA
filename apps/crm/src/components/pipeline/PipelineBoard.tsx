@@ -30,6 +30,7 @@ import {
 import { PipelineTableView } from "./PipelineTableView";
 import { RetrocessoModal } from "./RetrocessoModal";
 import { LossModal, type LossPayload } from "./LossModal";
+import { GanhoEscolasModal } from "./GanhoEscolasModal";
 import { moverDeal, type StructuredLossData } from "@/lib/actions/deals";
 import { reordenarEtapasPipeline } from "@/lib/actions/etapas-pipeline";
 import { EtapaColunaModal } from "./EtapaColunaModal";
@@ -68,6 +69,8 @@ type PendingMove = {
   athleteName: string;
   kind: "retrocesso" | "perdido";
 };
+
+type GanhoPendente = { atletaId: string; athleteName: string };
 
 function applyFilters(
   deals: Deal[],
@@ -115,6 +118,9 @@ export function PipelineBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  // Ganho fechado: a shortlist de escolas é o 1º entregável da jornada da
+  // família, então o modal abre logo após o move (que já aconteceu).
+  const [ganho, setGanho] = useState<GanhoPendente | null>(null);
   const [, startTransition] = useTransition();
 
   const [view, setView] = useState<PipelineView>("kanban");
@@ -237,6 +243,11 @@ export function PipelineBoard({
           description: deal.athlete_name,
         });
         router.refresh();
+        // Ganho: puxa a escolha das escolas na sequência. Não bloqueia o
+        // move — se o CEO fechar, monta a shortlist depois em Matching.
+        if (novaEtapa === "sinal_pago" && deal.atleta_id) {
+          setGanho({ atletaId: deal.atleta_id, athleteName: deal.athlete_name });
+        }
       } else {
         setDeals((prev) =>
           prev.map((d) =>
@@ -388,6 +399,15 @@ export function PipelineBoard({
           });
         }}
       />
+
+      {/* Shortlist de escolas logo após o ganho */}
+      {ganho && (
+        <GanhoEscolasModal
+          atletaId={ganho.atletaId}
+          athleteName={ganho.athleteName}
+          onClose={() => setGanho(null)}
+        />
+      )}
 
       {/* Fila de aprovação aberta pelo card da primeira coluna */}
       {leadAprovacao && (

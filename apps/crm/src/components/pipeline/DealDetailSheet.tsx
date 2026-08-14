@@ -40,6 +40,7 @@ import {
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
 import { atualizarDeal, moverDeal, customizarValorDeal, type StructuredLossData } from "@/lib/actions/deals";
+import { GanhoEscolasModal } from "./GanhoEscolasModal";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
@@ -538,6 +539,8 @@ export function DealDetailSheet({
   const [manualDate, setManualDate] = useState("");
 
   // Dados tab state
+  // Ganho pelo botão Avançar: shortlist de escolas antes de fechar o painel.
+  const [ganhoEscolas, setGanhoEscolas] = useState(false);
   const [atletaEsporte, setAtletaEsporte] = useState(deal?.esporte ?? "");
   const [atletaPosicao, setAtletaPosicao] = useState(deal?.athlete_position ?? "");
   const [atletaNivelComp, setAtletaNivelComp] = useState(deal?.nivel_competitivo ?? "");
@@ -654,6 +657,11 @@ export function DealDetailSheet({
       if (result.success) {
         toast.success(`Avancado para ${nextStageLabel}`);
         router.refresh();
+        // Ganho: escolher as escolas é o 1º passo da jornada da família.
+        if (nextStage === "sinal_pago" && deal.atleta_id) {
+          setGanhoEscolas(true);
+          return;
+        }
         onClose();
       } else {
         toast.error(result.error ?? "Erro ao avancar");
@@ -726,6 +734,17 @@ export function DealDetailSheet({
 
   return (
     <>
+      {ganhoEscolas && deal?.atleta_id && (
+        <GanhoEscolasModal
+          atletaId={deal.atleta_id}
+          athleteName={deal.athlete_name}
+          onClose={() => {
+            setGanhoEscolas(false);
+            onClose();
+          }}
+        />
+      )}
+
       {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
