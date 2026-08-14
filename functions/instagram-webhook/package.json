@@ -1,0 +1,12 @@
+{
+  "name": "instagram-webhook",
+  "version": "1.0.0",
+  "description": "Webhook do Instagram (comentarios/DM/story) — traduz e repassa ao fluxo-engine",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

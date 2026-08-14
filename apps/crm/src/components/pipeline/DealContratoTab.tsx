@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState, useEffect, useTransition, useRef } from "react";
 import {
   Loader2,
@@ -234,6 +236,14 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
           <h3 className="text-sm font-semibold text-foreground">
             Resumo do Contrato
           </h3>
+          {/* A visão completa (parcelas, contratante, fiscal) vive em
+              /contratos — aqui fica o essencial + as ações do dia a dia. */}
+          <Link
+            href={`/contratos/${contrato.id}`}
+            className="ml-auto rounded-md bg-secondary px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            Ver contrato completo
+          </Link>
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>

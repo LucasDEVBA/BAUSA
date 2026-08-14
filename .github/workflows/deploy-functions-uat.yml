@@ -91,6 +91,8 @@ jobs:
             remarketing-unsubscribe)     echo "entry=remarketingUnsubscribe"   >> "$GITHUB_OUTPUT"; echo "name=remarketing-unsubscribe-uat" >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
             sync-meta-spend)             echo "entry=syncMetaSpend"            >> "$GITHUB_OUTPUT"; echo "name=sync-meta-spend-uat"   >> "$GITHUB_OUTPUT"; echo "timeout=300s" >> "$GITHUB_OUTPUT" ;;
             automation-engine)           echo "entry=automationEngine"         >> "$GITHUB_OUTPUT"; echo "name=automation-engine-uat" >> "$GITHUB_OUTPUT"; echo "timeout=540s" >> "$GITHUB_OUTPUT" ;;
+            fluxo-engine)                echo "entry=fluxoEngine"              >> "$GITHUB_OUTPUT"; echo "name=fluxo-engine-uat"      >> "$GITHUB_OUTPUT"; echo "timeout=540s" >> "$GITHUB_OUTPUT" ;;
+            instagram-webhook)           echo "entry=instagramWebhook"         >> "$GITHUB_OUTPUT"; echo "name=instagram-webhook-uat" >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
             meeting-transcripts)         echo "entry=meetingTranscripts"       >> "$GITHUB_OUTPUT"; echo "name=meeting-transcripts-uat" >> "$GITHUB_OUTPUT"; echo "timeout=300s" >> "$GITHUB_OUTPUT" ;;
             billing-reminders)           echo "entry=billingReminders"         >> "$GITHUB_OUTPUT"; echo "name=billing-reminders-uat" >> "$GITHUB_OUTPUT"; echo "timeout=600s" >> "$GITHUB_OUTPUT" ;;
             zapi-inbox)                  echo "entry=zapiInbox"                >> "$GITHUB_OUTPUT"; echo "name=zapi-inbox-uat"        >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;

@@ -11,6 +11,9 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
 // Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
 const RUNS_SCHEMA = 'public';
+const SEND_WHATSAPP_URL = process.env.SEND_WHATSAPP_URL;
+const CEO_WHATSAPP = process.env.CEO_WHATSAPP || '';
+const ENGINE_URL = (process.env.ENGINE_URL || 'https://bolsa-atleta-crm.vercel.app').replace(/\/+$/, '');
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SERVICE_ACCOUNT_EMAIL = process.env.SERVICE_ACCOUNT_EMAIL;
 const RAW_KEY = process.env.SERVICE_ACCOUNT_PRIVATE_KEY || '';
@@ -958,12 +961,12 @@ const notifyAprovacaoPendente = async (leadData, qualification) => {
 // qualificacao_prompt: seções editáveis do prompt (ausente = defaults).
 // Config indisponível JAMAIS bloqueia a qualificação — fallback {} (fail-open).
 const fetchSistemaConfig = async () => {
-  const out = { ativas: {}, promptCfg: {} };
+  const out = { ativas: {}, promptCfg: {}, canais: {} };
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return out;
   try {
     const rows = await supabaseRequest(
       'GET',
-      'configuracoes_sistema?chave=in.(sistema_automacoes_ativas,qualificacao_prompt)&select=chave,valor'
+      'configuracoes_sistema?chave=in.(sistema_automacoes_ativas,qualificacao_prompt,notificacoes_canais)&select=chave,valor'
     );
     if (Array.isArray(rows)) {
       for (const row of rows) {
@@ -972,6 +975,9 @@ const fetchSistemaConfig = async () => {
         }
         if (row.chave === 'qualificacao_prompt' && row.valor && typeof row.valor === 'object') {
           out.promptCfg = row.valor;
+        }
+        if (row.chave === 'notificacoes_canais' && row.valor && typeof row.valor === 'object') {
+          out.canais = row.valor;
         }
       }
     }
@@ -985,6 +991,49 @@ const fetchSistemaConfig = async () => {
 // ID fixo semeado pela migration 20260709220205_automacoes_sistema_runs
 // (guard de CI: tests/automacao-runs-sistema.test.js compara CF ↔ migration).
 const RUN_QUALIFICACAO_ID = 'a0000000-0000-4000-8000-000000000006';
+
+// ─── Aviso de lead esperando aprovação (automação de sistema) ──────────────
+// Dispara na hora da qualificação — não no tick do monitor. Antes o CEO só
+// sabia no próximo ciclo do monitor; agora sabe quando o lead entra na fila.
+// O aviso é curto de propósito: quem, quão quente, e o link.
+const RUN_AVISO_APROVACAO_ID = 'a0000000-0000-4000-8000-000000000009';
+
+const avisarAprovacaoPendente = async (lead, classificacao, canais) => {
+  if (!SEND_WHATSAPP_URL || !CEO_WHATSAPP) {
+    log('WARN', 'aviso_aprovacao_sem_config', { temUrl: Boolean(SEND_WHATSAPP_URL), temCeo: Boolean(CEO_WHATSAPP) });
+    return false;
+  }
+  // Respeita a matriz de canais (Configurações → Notificações). Os canais
+  // vêm do fetchSistemaConfig que a CF já faz — sem consulta extra.
+  const cfg = (canais && canais.lead_aguardando_aprovacao) || {};
+  if (cfg.whatsapp !== true) {
+    log('INFO', 'aviso_aprovacao_canal_desligado', {});
+    return false;
+  }
+
+  const msg =
+    `👋 *Tem 1 lead esperando sua aprovação*\n\n` +
+    `• *${lead.athlete_name}* — ${classificacao}\n\n` +
+    `Aprovar agora 👉 ${ENGINE_URL}/leads?aprovacoes=1`;
+
+  try {
+    const payload = JSON.stringify({
+      record: { athlete_name: lead.athlete_name, guardian_whatsapp: CEO_WHATSAPP },
+      messageType: 'custom',
+      customMessage: msg,
+    });
+    const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) };
+    if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
+    const res = await httpRequest(SEND_WHATSAPP_URL, { method: 'POST', headers }, payload);
+    const ok = res.statusCode < 400;
+    log(ok ? 'INFO' : 'WARN', 'aviso_aprovacao_enviado', { ok, status: res.statusCode, atleta: lead.athlete_name });
+    return ok;
+  } catch (err) {
+    // Nunca derruba a qualificação: o lead já está classificado e na fila.
+    log('WARN', 'aviso_aprovacao_falhou', { erro: err.message });
+    return false;
+  }
+};
 
 // ─── Registrar execução em automacao_runs (observabilidade) ────────────────
 // SEGURANÇA: runs de sistema nascem SEMPRE em estado TERMINAL (sucesso/erro,
@@ -1060,7 +1109,7 @@ functions.http('qualifyLead', async (req, res) => {
     }
 
     // Config dinâmica: toggle on/off + seções editáveis do prompt (/automacoes)
-    const { ativas, promptCfg } = await fetchSistemaConfig();
+    const { ativas, promptCfg, canais } = await fetchSistemaConfig();
     if (ativas.qualificacao === false) {
       // Desativada pelo CEO: NÃO qualifica — marca pendente SEM incrementar
       // attempts (não consome o orçamento de 10 retries do cron) para
@@ -1185,6 +1234,25 @@ functions.http('qualifyLead', async (req, res) => {
     try {
       await updateSupabase(data.id, data.email, data.athlete_name, qualification, timingStatus, scheduledFollowupAt, aprovacaoStatus);
       log('INFO', 'supabase_updated', { email: data.email, timing_status: timingStatus, aprovacao_status: aprovacaoStatus });
+
+      // Aviso imediato ao CEO quando o lead ENTRA na fila (só nesta
+      // qualificação — requalificação de quem já estava pendente não
+      // reavisa, senão o retry diário viraria spam).
+      if (aprovacaoStatus === 'pendente' && statusAprovacaoAtual !== 'pendente') {
+        const enviado = await avisarAprovacaoPendente(data, qualification.classification, canais);
+        await registrarRunSistema({
+          automacaoId: RUN_AVISO_APROVACAO_ID,
+          ok: enviado,
+          lead: data,
+          acoes: [{
+            tipo: 'aviso_aprovacao',
+            status: enviado ? 'ok' : 'pulado',
+            detalhe: enviado
+              ? `WhatsApp ao CEO — ${data.athlete_name} (${qualification.classification})`
+              : 'canal desligado ou envio indisponível',
+          }],
+        });
+      }
 
       // Registro em automacao_runs (aba Execuções) — estado TERMINAL, após a
       // classificação persistida no Supabase.
