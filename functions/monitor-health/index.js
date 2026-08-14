@@ -492,11 +492,11 @@ const alertarAprovacaoPendente = async (canais) => {
       .map((l) => `• *${l.nome}* — ${l.classificacao}${l.esperandoHoras != null ? ` · há ${l.esperandoHoras}h` : ''}`)
       .join('\n');
     const extra = n > 5 ? `\n_...e mais ${n - 5}_` : '';
+    // Curta de propósito: quem, quão quente, e o link. O texto explicando
+    // o custo de não decidir cansava na 3ª vez que chegava.
     const msg =
       `👋 *${n === 1 ? 'Tem 1 lead' : `Tem ${n} leads`} esperando sua aprovação*\n\n` +
       `${lista}${extra}\n\n` +
-      `Enquanto você não decide, ${n === 1 ? 'ele não entra' : 'eles não entram'} no pipeline ` +
-      `e ${n === 1 ? 'não recebe' : 'não recebem'} nenhuma mensagem.\n\n` +
       `Aprovar agora 👉 ${urlAprovacoes}`;
     await sendWhatsAppCeo(msg);
   }

@@ -96,7 +96,17 @@ test('nenhuma CF instrumentada cria run de sistema com status pendente', () => {
   }
 });
 
-test('todos os UUIDs de âncora usados nas CFs existem na migration 20260709220205', () => {
+test('todo UUID de âncora usado nas CFs é semeado por ALGUMA migration', () => {
+  // Migrations são forward-only: uma âncora nova entra por migration nova, e
+  // não editando a de 2026-07. O guard varre todas — o que ele protege é que
+  // a CF não use um id que ninguém semeia (run órfão, invisível na tela).
+  const dir = path.join(__dirname, '..', 'supabase', 'migrations');
+  const todasMigrations = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .map((f) => fs.readFileSync(path.join(dir, f), 'utf8'))
+    .join('\n');
+
   const uuidRegex = /a0000000-0000-4000-8000-[0-9a-f]{12}/g;
   for (const fn of Object.keys(ANCORAS)) {
     const src = lerFonte(fn);
@@ -104,9 +114,9 @@ test('todos os UUIDs de âncora usados nas CFs existem na migration 202607092202
     assert.ok(usados.length > 0, `${fn} deve usar ao menos 1 UUID de âncora`);
     for (const uuid of usados) {
       assert.ok(
-        MIGRATION.includes(uuid),
-        `${fn} usa a âncora ${uuid}, que NÃO existe na migration ` +
-          '20260709220205_automacoes_sistema_runs.sql — CF e migration divergiram',
+        todasMigrations.includes(uuid),
+        `${fn} usa a âncora ${uuid}, que NENHUMA migration semeia — ` +
+          'a execução ficaria órfã e não apareceria em /automacoes',
       );
     }
   }
