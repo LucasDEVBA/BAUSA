@@ -30,9 +30,16 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_SCHEMA = 'public';
 const SEND_WHATSAPP_URL = process.env.SEND_WHATSAPP_URL;
 
-// Canais que conseguem ENVIAR hoje. Instagram entra aqui quando o App Review
-// de instagram_manage_messages sair (e a env INSTAGRAM_TOKEN existir).
+const INSTAGRAM_TOKEN = process.env.INSTAGRAM_TOKEN;
+const INSTAGRAM_GRAPH = 'https://graph.instagram.com';
+
+// Canais que conseguem ENVIAR. O Instagram só entra quando o token existir —
+// e o token só existe depois do App Review de instagram_manage_messages.
+// Isso torna o gate AUTOMÁTICO: nada de "esqueci de ligar a flag" nem de
+// prometer envio que a Meta ainda não autoriza. Sem env, o Set fica só com
+// whatsapp (travado por guard).
 const CANAIS_ENVIO = new Set(['whatsapp']);
+if (INSTAGRAM_TOKEN) CANAIS_ENVIO.add('instagram');
 
 const MAX_BLOCOS_POR_CICLO = 25;      // anti-loop
 const LOCK_MS = 2 * 60 * 1000;        // claim de 2 min
@@ -225,6 +232,36 @@ const enviarMensagem = async (canal, contato, texto) => {
     if (WEBHOOK_SECRET) headers['x-webhook-secret'] = WEBHOOK_SECRET;
     const r = await httpRequest(SEND_WHATSAPP_URL, { method: 'POST', headers, timeoutMs: 60000 }, payload);
     if (r.statusCode >= 400) throw new Error(`send-whatsapp: ${r.statusCode} ${r.body.slice(0, 200)}`);
+    return { enviado: true };
+  }
+  if (canal === 'instagram') {
+    // Send API do Instagram: POST /me/messages { recipient:{id}, message:{text} }.
+    // O `id` é o IGSID do contato (o mesmo que chega no webhook) — não o @.
+    const payload = JSON.stringify({
+      recipient: { id: contato.externo_id },
+      message: { text: texto },
+    });
+    const r = await httpRequest(
+      `${INSTAGRAM_GRAPH}/v23.0/me/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+          Authorization: `Bearer ${INSTAGRAM_TOKEN}`,
+        },
+        timeoutMs: 30000,
+      },
+      payload
+    );
+    if (r.statusCode >= 400) {
+      // Fora da janela de 24h a Meta recusa (erro 10/551). Não é bug nosso:
+      // é política da plataforma — registrar com clareza p/ a métrica não
+      // confundir "recusado por política" com "falha de sistema".
+      const janela = /\b(10|551)\b/.test(r.body) || /outside.*window/i.test(r.body);
+      if (janela) return { enviado: false, motivo: 'fora_janela_24h' };
+      throw new Error(`instagram send: ${r.statusCode} ${r.body.slice(0, 200)}`);
+    }
     return { enviado: true };
   }
   return { enviado: false, motivo: 'canal_desconhecido' };
