@@ -9,7 +9,7 @@
 // Este guard trava as decisões que não podem regredir silenciosamente:
 //
 //   1. Canal indisponível NÃO envia (instagram só entra na lista quando a
-//      permissão instagram_manage_messages for aprovada).
+//      permissão instagram_business_manage_messages for aprovada).
 //   2. Auth fail-closed (sem WEBHOOK_SECRET, ninguém entra).
 //   3. CAS no claim da execução (dois ticks não avançam a mesma).
 //   4. Idempotência da entrada (dedupe_key) e teto por hora (anti-rajada).

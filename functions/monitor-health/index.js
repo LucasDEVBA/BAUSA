@@ -515,6 +515,67 @@ const alertarAprovacaoPendente = async (canais) => {
   return n;
 };
 
+
+// ─── Cloud Scheduler API via metadata server (sem dependência nova) ────
+// Motivação (incidente 2026-08-15): o chatbot-autonomo falhou a cada tick
+// por 24h com "Supabase não configurado" e NENHUM check percebeu — o check
+// de negócio lê a tabela de decisões, e a CF morria ANTES de gravar nela.
+// O único sinal era o status.code=13 no job do Scheduler, que ninguém olha.
+// Este caminho lê a fonte que restou: o resultado da última tentativa de
+// cada job. Pega qualquer CF quebrada na infraestrutura, não só o chatbot.
+const http = require('http');
+
+const metadataToken = () =>
+  new Promise((resolve, reject) => {
+    const req = http.get(
+      {
+        host: 'metadata.google.internal',
+        path: '/computeMetadata/v1/instance/service-accounts/default/token',
+        headers: { 'Metadata-Flavor': 'Google' },
+        timeout: 5000,
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(body).access_token); }
+          catch (e) { reject(new Error(`token metadata: ${e.message}`)); }
+        });
+      },
+    );
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('metadata timeout')); });
+  });
+
+const metadataProjectId = () =>
+  new Promise((resolve, reject) => {
+    const req = http.get(
+      {
+        host: 'metadata.google.internal',
+        path: '/computeMetadata/v1/project/project-id',
+        headers: { 'Metadata-Flavor': 'Google' },
+        timeout: 5000,
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => resolve(body.trim()));
+      },
+    );
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('metadata timeout')); });
+  });
+
+const listarJobsScheduler = async () => {
+  const [token, projectId] = await Promise.all([metadataToken(), metadataProjectId()]);
+  const r = await httpRequest(
+    `https://cloudscheduler.googleapis.com/v1/projects/${projectId}/locations/us-central1/jobs?pageSize=100`,
+    { method: 'GET', headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (r.statusCode >= 400) throw new Error(`scheduler API HTTP ${r.statusCode}`);
+  return (JSON.parse(r.body || '{}').jobs) || [];
+};
+
 const runChecks = async () => {
   const desdeJanela = isoAtras(JANELA_MAX_DIAS * 24);
 
@@ -891,6 +952,38 @@ const runChecks = async () => {
         detalhe: problemas.length === 0
           ? `${autos.length} automação(ões) ativas saudáveis (regras determinísticas)`
           : `${problemas.length} automação(ões) com problema: ${problemas.slice(0, 3).join(' · ')}${problemas.length > 3 ? '…' : ''}`,
+      };
+    }),
+    checkSeguro('scheduler_jobs', async () => {
+      // Só jobs de PRODUÇÃO habilitados: -uat/-dev têm ambiente próprio e
+      // PAUSED é decisão consciente do CEO (billing, NPS) — não é falha.
+      const jobs = await listarJobsScheduler();
+      const falhando = jobs.filter((j) => {
+        const nome = String(j.name || '').split('/').pop();
+        if (/-uat$|-dev$/.test(nome)) return false;
+        if (j.state !== 'ENABLED') return false;
+        if (!j.lastAttemptTime) return false; // nunca rodou — nada a julgar
+        // status vazio = última tentativa OK; code presente = falhou
+        return j.status && typeof j.status.code === 'number' && j.status.code !== 0;
+      });
+      const nomes = falhando.map((j) => String(j.name).split('/').pop());
+      // Sinal F2 para a tela /observabilidade: o Engine roda no Vercel e não
+      // alcança o metadata server do GCP — ele lê este estado, não a API.
+      // Best-effort: falha na gravação não derruba o check.
+      try {
+        await salvarConfigKey('scheduler_jobs_state', {
+          verificado_em: new Date().toISOString(),
+          falhando: nomes,
+        });
+      } catch (e) {
+        log('WARN', 'scheduler_state_gravacao_falhou', { error: e.message });
+      }
+      return {
+        ok: falhando.length === 0,
+        valor: falhando.length,
+        detalhe: falhando.length
+          ? `job(s) do Scheduler falhando na última tentativa: ${nomes.join(', ')}`
+          : 'todos os jobs de produção com última tentativa OK',
       };
     }),
   ]);

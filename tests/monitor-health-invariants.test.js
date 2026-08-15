@@ -134,6 +134,7 @@ test("paridade: os checks novos existem TAMBÉM na tela /observabilidade", () =>
     "sheets_synced_at",
     "weekly_report_state",
     "billing_last_tick_at",
+    "scheduler_jobs",
     "REMARKETING_UNSUBSCRIBE_URL",
   ]) {
     assert.ok(tela.includes(token), `paridade quebrada: '${token}' sumiu da tela /observabilidade`);

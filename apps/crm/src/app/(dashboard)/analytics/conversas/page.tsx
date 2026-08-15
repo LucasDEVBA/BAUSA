@@ -3,6 +3,7 @@ import {
   fetchConversaMetrics,
   fetchFunilAvancado,
   fetchCadenciaPosReuniao,
+  fetchEstadosConversa,
   type ConversaPeriod,
 } from "@/lib/conversas-queries";
 
@@ -24,13 +25,14 @@ export default async function ConversasPage({
     ? (periodo as ConversaPeriod)
     : "30d";
 
-  const [conversa, funil, cadencia] = await Promise.all([
+  const [conversa, funil, cadencia, estados] = await Promise.all([
     fetchConversaMetrics(period),
     fetchFunilAvancado(period),
     fetchCadenciaPosReuniao(period),
+    fetchEstadosConversa(period),
   ]);
 
   return (
-    <ConversasClient period={period} conversa={conversa} funil={funil} cadencia={cadencia} />
+    <ConversasClient period={period} conversa={conversa} funil={funil} cadencia={cadencia} estados={estados} />
   );
 }

@@ -194,6 +194,8 @@ jobs:
           - calendar-create-event
           - monitor-health
           - experiencia-scheduler
+          - fluxo-engine
+          - instagram-webhook
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
