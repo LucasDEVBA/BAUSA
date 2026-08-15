@@ -29,8 +29,25 @@ const APP_SECRET = process.env.INSTAGRAM_APP_SECRET;
 const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN;
 const FLUXO_ENGINE_URL = process.env.FLUXO_ENGINE_URL;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
-/** IGSID da conta (17841453972885804) — usado p/ ignorar eco das nossas msgs. */
-const IG_USER_ID = process.env.IG_USER_ID;
+/**
+ * IDs da NOSSA conta — usados p/ ignorar o eco das nossas próprias mensagens.
+ *
+ * Aceita LISTA separada por vírgula de propósito: a mesma conta tem dois ids
+ * na Meta (`user_id` da conta profissional, 178414…, e o `id` com escopo de
+ * app, 281517…) e a documentação se contradiz sobre qual chega no webhook —
+ * a página de Get Started diz que `entry.id` é o profissional, mas os exemplos
+ * de `messaging_postbacks`/`messaging_referral` usam o placeholder
+ * `<INSTAGRAM_SCOPED_ID>` no MESMO campo. Aceitar os dois custa nada e fecha a
+ * porta do loop; depender de um só é apostar em qual página está certa.
+ */
+const IG_USER_IDS = new Set(
+  String(process.env.IG_USER_ID || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
+
+const ehMinhaConta = (id) => IG_USER_IDS.has(String(id));
 
 const log = (level, action, details = {}) => {
   console.log(JSON.stringify({ level, action, ...details }));
@@ -80,10 +97,21 @@ function assinaturaValida(rawBody, header) {
 function traduzirEntry(entry) {
   const eventos = [];
 
+  // Fail-closed, no mesmo espírito do APP_SECRET: sem saber QUEM SOMOS não dá
+  // para distinguir o eco da nossa mensagem da mensagem de um lead — e o preço
+  // do erro é a conta conversando sozinha em loop. Sem os ids, não traduz nada.
+  if (IG_USER_IDS.size === 0) {
+    log('ERROR', 'ig_user_id_ausente', { motivo: 'anti-loop sem referência — evento descartado' });
+    return eventos;
+  }
+
   // ── Mensagens diretas (campo `messaging`) ──
   for (const m of entry.messaging || []) {
+    // `is_echo` é a marca que a própria Meta põe no eco do que NÓS enviamos.
+    // Segunda barreira independente do id: se um dos dois falhar, o outro segura.
+    if (m.message?.is_echo === true) continue;
     const remetente = m.sender?.id;
-    if (!remetente || remetente === IG_USER_ID) continue; // eco da nossa própria msg
+    if (!remetente || ehMinhaConta(remetente)) continue; // eco da nossa própria msg
     const texto = m.message?.text || '';
     const mid = m.message?.mid || null;
 
@@ -101,7 +129,7 @@ function traduzirEntry(entry) {
     const v = c.value || {};
     if (c.field === 'comments') {
       const autor = v.from?.id;
-      if (!autor || autor === IG_USER_ID) continue; // não reagir ao próprio comentário
+      if (!autor || ehMinhaConta(autor)) continue; // não reagir ao próprio comentário
       eventos.push({
         canal: 'instagram',
         externoId: String(autor),
@@ -115,8 +143,11 @@ function traduzirEntry(entry) {
       });
     }
     if (c.field === 'mentions') {
-      const autor = v.from?.id || v.comment_id;
-      if (!autor) continue;
+      // Só o autor de verdade. O fallback antigo (`|| v.comment_id`) pegava um
+      // id de OUTRO namespace: viraria destinatário inválido de DM e um contato
+      // fantasma no funil. Sem autor identificável não há a quem responder.
+      const autor = v.from?.id;
+      if (!autor || ehMinhaConta(autor)) continue; // nem menção da própria conta
       eventos.push({
         canal: 'instagram',
         externoId: String(autor),

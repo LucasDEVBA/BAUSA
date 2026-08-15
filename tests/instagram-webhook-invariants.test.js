@@ -31,11 +31,25 @@ const lerFonte = () => {
   return fs.readFileSync(WEBHOOK_FILE, 'utf8');
 };
 
+/** Env que o webhook lê — sempre zeradas antes do teste, para o resultado não
+ *  depender do que estiver exportado na máquina de quem roda. */
+const ENV_DO_WEBHOOK = [
+  'INSTAGRAM_APP_SECRET',
+  'INSTAGRAM_VERIFY_TOKEN',
+  'IG_USER_ID',
+  'FLUXO_ENGINE_URL',
+  'WEBHOOK_SECRET',
+];
+
 function carregar(env = {}) {
   const originalLoad = Module._load;
   const anteriores = {};
-  for (const [k, v] of Object.entries(env)) {
+  for (const k of ENV_DO_WEBHOOK) {
     anteriores[k] = process.env[k];
+    delete process.env[k];
+  }
+  for (const [k, v] of Object.entries(env)) {
+    if (!(k in anteriores)) anteriores[k] = process.env[k];
     process.env[k] = v;
   }
   Module._load = function (request, parent, isMain) {
@@ -134,6 +148,79 @@ test('resposta a Story usa o gatilho de story, não o de DM', () => {
     messaging: [{ sender: { id: '999' }, message: { mid: 'm2', text: 'top!', reply_to: { story: { id: 's1' } } } }],
   });
   assert.equal(eventos[1].gatilho, 'resposta_story');
+});
+
+test('SEM IG_USER_ID configurado, nada é traduzido (fail-closed do anti-loop)', () => {
+  const { traduzirEntry } = carregar({});
+  assert.deepEqual(
+    traduzirEntry({ messaging: [{ sender: { id: '999' }, message: { mid: 'm1', text: 'oi' } }] }),
+    [],
+    'sem saber quem somos, qualquer evento pode ser o nosso próprio eco → não traduzir'
+  );
+  assert.deepEqual(
+    traduzirEntry({ changes: [{ field: 'comments', value: { id: 'c1', from: { id: '9' }, text: 'EUA' } }] }),
+    []
+  );
+});
+
+test('IG_USER_ID aceita LISTA — em TODOS os ramos (DM, comentário e menção)', () => {
+  const profissional = '17841453972885804'; // user_id
+  const escopoApp = '28151758617769310'; // id
+  const { traduzirEntry } = carregar({ IG_USER_ID: `${profissional}, ${escopoApp}` });
+
+  // Cada ramo tem que consultar o CONJUNTO. Testar só a DM deixaria passar uma
+  // reversão parcial (provado por mutação: comentário voltando a comparar com
+  // um único id mantinha a suíte verde).
+  const ramos = (meu) => [
+    ['dm', { messaging: [{ sender: { id: meu }, message: { mid: 'm', text: 'oi' } }] }],
+    ['comentario', { changes: [{ field: 'comments', value: { id: 'c1', from: { id: meu }, text: 'EUA' } }] }],
+    ['mencao', { changes: [{ field: 'mentions', value: { from: { id: meu }, media_id: 'x' } }] }],
+  ];
+
+  for (const meu of [profissional, escopoApp]) {
+    for (const [ramo, entry] of ramos(meu)) {
+      assert.deepEqual(
+        traduzirEntry(entry),
+        [],
+        `ramo ${ramo}: id ${meu} é nosso e não pode reentrar (a doc da Meta se contradiz sobre qual chega)`
+      );
+    }
+  }
+
+  // ...e um terceiro continua passando normalmente em todos os ramos
+  assert.equal(traduzirEntry(ramos('999')[0][1]).length, 2, 'DM de terceiro passa');
+  assert.equal(traduzirEntry(ramos('999')[1][1]).length, 1, 'comentário de terceiro passa');
+  assert.equal(traduzirEntry(ramos('999')[2][1]).length, 1, 'menção de terceiro passa');
+});
+
+test('mensagem com is_echo é ignorada mesmo se o id não casar', () => {
+  const { traduzirEntry } = carregar({ IG_USER_ID: 'outro-id-qualquer' });
+  assert.deepEqual(
+    traduzirEntry({
+      messaging: [{ sender: { id: '17841453972885804' }, message: { mid: 'm', text: 'oi', is_echo: true } }],
+    }),
+    [],
+    'is_echo é a 2ª barreira: segura o loop mesmo com IG_USER_ID desalinhado'
+  );
+});
+
+test('menção da PRÓPRIA conta é ignorada e comment_id NUNCA vira autor', () => {
+  const meu = '17841453972885804';
+  const { traduzirEntry } = carregar({ IG_USER_ID: meu });
+
+  assert.deepEqual(
+    traduzirEntry({ changes: [{ field: 'mentions', value: { from: { id: meu }, media_id: 'x' } }] }),
+    [],
+    'nos marcarmos a nós mesmos não pode abrir fluxo'
+  );
+  assert.deepEqual(
+    traduzirEntry({ changes: [{ field: 'mentions', value: { comment_id: 'c1', media_id: 'x' } }] }),
+    [],
+    'comment_id é de outro namespace: viraria destinatário inválido + contato fantasma'
+  );
+  const ok = traduzirEntry({ changes: [{ field: 'mentions', value: { from: { id: '9' }, media_id: 'x' } }] });
+  assert.equal(ok.length, 1);
+  assert.equal(ok[0].externoId, '9');
 });
 
 test('evento da PRÓPRIA conta é ignorado (anti-loop)', () => {
