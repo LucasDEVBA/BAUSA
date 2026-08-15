@@ -567,3 +567,172 @@ export async function fetchCadenciaPosReuniao(period: ConversaPeriod): Promise<C
     amostraReunioes,
   };
 }
+
+// ─── Estados das conversas (caixa de trabalho do CEO) ────────────────────
+// Quatro baldes acionáveis, pedidos em 2026-08-15:
+//   • aguardando o LEAD  — nós falamos por último
+//   • aguardando VOCÊ    — o lead falou por último e ninguém respondeu
+//   • 1º contato sem resposta — o lead puxou papo e NUNCA respondemos
+//   • link enviado, respondeu e não agendou — o funil vazando na boca
+// Mutuamente exclusivos por prioridade (sem resposta > aguardando você >
+// aguardando lead); o balde do link é ortogonal (a conversa pode estar em
+// qualquer estado e ainda assim dever um agendamento).
+
+export interface ConversaEstadoItem {
+  phone: string;
+  /** Nome do atleta/responsável quando o telefone casa com um lead. */
+  nome: string | null;
+  classificacao: string | null;
+  ultimaEm: string;
+  diasNoEstado: number;
+}
+
+export interface EstadosConversa {
+  aguardandoLead: ConversaEstadoItem[];
+  aguardandoVoce: ConversaEstadoItem[];
+  primeiroContatoSemResposta: ConversaEstadoItem[];
+  linkRespondeuNaoAgendou: ConversaEstadoItem[];
+}
+
+const LISTA_MAX = 100;
+
+export async function fetchEstadosConversa(period: ConversaPeriod): Promise<EstadosConversa> {
+  const supabase = await createServerSupabaseClient();
+  const vazio: EstadosConversa = {
+    aguardandoLead: [],
+    aguardandoVoce: [],
+    primeiroContatoSemResposta: [],
+    linkRespondeuNaoAgendou: [],
+  };
+
+  // 3 consultas: mensagens SEM texto (leve), só as mensagens com o link de
+  // agendamento (filtro no servidor — trazer texto de tudo dobraria o
+  // payload à toa) e os leads para nomear/checar agendamento.
+  const [msgsRes, linksRes, leadsRes] = await Promise.all([
+    supabase
+      .from("whatsapp_mensagens")
+      .select("from_me, phone, momment, created_at")
+      .eq("is_grupo", false)
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+    supabase
+      .from("whatsapp_mensagens")
+      .select("phone, momment, created_at")
+      .eq("is_grupo", false)
+      .eq("from_me", true)
+      .or("texto.ilike.%bolsaatletausa.com/agendar%,texto.ilike.%bolsaatletausa.com/l/%")
+      .order("created_at", { ascending: false })
+      .limit(2_000),
+    supabase
+      .from("form_submissions")
+      .select("athlete_name, guardian_name, athlete_whatsapp, guardian_whatsapp, qualification_classification, meeting_scheduled")
+      .limit(3_000),
+  ]);
+  if (msgsRes.error || !msgsRes.data?.length) return vazio;
+
+  type Msg = { from_me: boolean; phone: string; momment: string | null; created_at: string };
+  const tempoMs = (r: Msg) => Date.parse(r.momment ?? r.created_at);
+  const rows = (msgsRes.data as Msg[]).filter(
+    (r) => !CEO_TAIL || !r.phone.replace(/\D/g, "").endsWith(CEO_TAIL),
+  );
+
+  // Índice de leads por tail-10 dos DOIS telefones (atleta e responsável).
+  type LeadInfo = { nome: string; classificacao: string | null; agendou: boolean };
+  const leadPorTail = new Map<string, LeadInfo>();
+  for (const l of (leadsRes.data ?? []) as Array<{
+    athlete_name: string;
+    guardian_name: string | null;
+    athlete_whatsapp: string | null;
+    guardian_whatsapp: string | null;
+    qualification_classification: string | null;
+    meeting_scheduled: boolean | null;
+  }>) {
+    const info: LeadInfo = {
+      nome: l.athlete_name,
+      classificacao: l.qualification_classification,
+      agendou: l.meeting_scheduled === true,
+    };
+    for (const f of [l.athlete_whatsapp, l.guardian_whatsapp]) {
+      const t = f ? tail10(f) : "";
+      if (t.length >= 8 && !leadPorTail.has(t)) leadPorTail.set(t, info);
+    }
+  }
+
+  // 1º link de agendamento por conversa (a resposta que importa é DEPOIS dele)
+  const primeiroLinkMs = new Map<string, number>();
+  for (const r of (linksRes.data ?? []) as Msg[]) {
+    const t = tempoMs(r);
+    const atual = primeiroLinkMs.get(r.phone);
+    if (atual === undefined || t < atual) primeiroLinkMs.set(r.phone, t);
+  }
+
+  // Estado por conversa (rows já vêm DESC → o primeiro visto é o mais recente)
+  type Estado = {
+    ultimaMs: number;
+    ultimaFromMe: boolean;
+    temNossa: boolean;
+    temLead: boolean;
+    leadDepoisDoLinkMs: number | null;
+  };
+  const porPhone = new Map<string, Estado>();
+  for (const r of rows) {
+    const t = tempoMs(r);
+    const linkMs = primeiroLinkMs.get(r.phone);
+    let e = porPhone.get(r.phone);
+    if (!e) {
+      e = { ultimaMs: t, ultimaFromMe: r.from_me, temNossa: false, temLead: false, leadDepoisDoLinkMs: null };
+      porPhone.set(r.phone, e);
+    }
+    if (r.from_me) e.temNossa = true;
+    else {
+      e.temLead = true;
+      if (linkMs !== undefined && t > linkMs) {
+        e.leadDepoisDoLinkMs = Math.max(e.leadDepoisDoLinkMs ?? 0, t);
+      }
+    }
+  }
+
+  const inicio = startMs(period);
+  const agora = Date.now();
+  const item = (phone: string, e: Estado): ConversaEstadoItem => {
+    const lead = leadPorTail.get(tail10(phone));
+    return {
+      phone,
+      nome: lead?.nome ?? null,
+      classificacao: lead?.classificacao ?? null,
+      ultimaEm: new Date(e.ultimaMs).toISOString(),
+      diasNoEstado: Math.floor((agora - e.ultimaMs) / 86_400_000),
+    };
+  };
+
+  const out: EstadosConversa = {
+    aguardandoLead: [],
+    aguardandoVoce: [],
+    primeiroContatoSemResposta: [],
+    linkRespondeuNaoAgendou: [],
+  };
+
+  for (const [phone, e] of porPhone) {
+    // O filtro de período recorta pela ÚLTIMA atividade: os estados são a
+    // situação ATUAL — o período só decide até onde olhar para trás.
+    if (inicio !== null && e.ultimaMs < inicio) continue;
+
+    if (!e.temNossa && e.temLead) out.primeiroContatoSemResposta.push(item(phone, e));
+    else if (!e.ultimaFromMe && e.temNossa) out.aguardandoVoce.push(item(phone, e));
+    else if (e.ultimaFromMe) out.aguardandoLead.push(item(phone, e));
+
+    if (e.leadDepoisDoLinkMs !== null) {
+      const lead = leadPorTail.get(tail10(phone));
+      // Sem lead casado não há registro de reunião de nenhum jeito — conta
+      // como "não agendou" (respondeu ao NOSSO link; é acionável igual).
+      if (!lead || !lead.agendou) out.linkRespondeuNaoAgendou.push(item(phone, e));
+    }
+  }
+
+  // Mais antigo primeiro: quem espera há mais tempo aparece no topo.
+  for (const k of Object.keys(out) as (keyof EstadosConversa)[]) {
+    out[k].sort((a, b) => b.diasNoEstado - a.diasNoEstado);
+    out[k] = out[k].slice(0, LISTA_MAX);
+  }
+  return out;
+}

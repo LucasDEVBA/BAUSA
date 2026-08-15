@@ -1,5 +1,6 @@
 "use client";
 
+import { EstadosSection } from "./EstadosSection";
 import { useRouter } from "next/navigation";
 import {
   Area,
@@ -164,11 +165,13 @@ export function ConversasClient({
   conversa,
   funil,
   cadencia,
+  estados,
 }: {
   period: ConversaPeriod;
   conversa: ConversaMetrics;
   funil: FunilAvancado;
   cadencia: CadenciaPosReuniao;
+  estados: import("@/lib/conversas-queries").EstadosConversa;
 }) {
   const router = useRouter();
   const semDados = conversa.totalMensagens === 0 && conversa.conversasAtivas === 0;
@@ -202,6 +205,7 @@ export function ConversasClient({
         </Card>
       ) : (
         <>
+          <EstadosSection estados={estados} />
           {/* KPIs de conversa */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard

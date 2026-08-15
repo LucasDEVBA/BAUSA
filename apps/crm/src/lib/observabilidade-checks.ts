@@ -1214,6 +1214,45 @@ async function checkBillingTick(supabase: Supabase): Promise<CheckResult> {
   };
 }
 
+async function checkSchedulerJobs(supabase: Supabase): Promise<CheckResult> {
+  // Sinal F2 gravado pelo monitor-health (o Engine roda no Vercel e não
+  // alcança a API do Cloud Scheduler). Origem: incidente 2026-08-15 — o
+  // chatbot falhou a cada tick por 24h e só o status do job denunciava.
+  const id = "scheduler_jobs";
+  const titulo = "Jobs do Cloud Scheduler";
+  const state = await lerConfigValor(supabase, "scheduler_jobs_state");
+  if (typeof state.verificado_em !== "string") {
+    return {
+      id,
+      titulo,
+      status: "info",
+      resumo: "Sem sinal ainda — o monitor grava este estado a cada tick (30min).",
+      detalhes: [],
+    };
+  }
+  const horas = (Date.now() - new Date(state.verificado_em).getTime()) / 3_600_000;
+  if (horas > 2) {
+    return {
+      id,
+      titulo,
+      status: "atencao",
+      resumo: `Sinal do monitor com ${Math.floor(horas)}h — o próprio monitor pode estar parado.`,
+      detalhes: [],
+    };
+  }
+  const falhando = Array.isArray(state.falhando) ? (state.falhando as string[]) : [];
+  return {
+    id,
+    titulo,
+    status: falhando.length === 0 ? "ok" : "critico",
+    resumo:
+      falhando.length === 0
+        ? "Todos os jobs de produção com última tentativa OK."
+        : `Job(s) falhando na última tentativa: ${falhando.join(", ")} — a automação por trás está parada.`,
+    detalhes: falhando,
+  };
+}
+
 async function checkRunsPresos(supabase: Supabase): Promise<CheckResult> {
   const corte = horasAtrasISO(RUNS_PRESOS_HORAS);
   const [pendentes, retryVencido] = await Promise.all([
@@ -1296,6 +1335,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     seguro("sheets_sync_pendente", "Sync Google Sheets", () => checkSheetsSync(supabase)),
     seguro("weekly_report_atrasado", "Relatório semanal", () => checkWeeklyReport(supabase)),
     seguro("billing_tick_atrasado", "Régua de cobrança (heartbeat)", () => checkBillingTick(supabase)),
+    seguro("scheduler_jobs", "Jobs do Cloud Scheduler", () => checkSchedulerJobs(supabase)),
     ...CFS_PING.map((cf) => seguro(`cf_${cf.env.toLowerCase()}`, cf.nome, () => pingCf(cf.nome, cf.env))),
   ]);
 
