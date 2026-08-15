@@ -19,6 +19,11 @@ const RESERVED = new Set<string>([
   "l",
   "api",
   "debug",
+  // Páginas legais. Sem estas duas linhas o encurtador engole a rota: o path
+  // vira /l/privacidade, o slug não existe e o visitante cai na home achando
+  // que leu a política. Foi exatamente o que acontecia antes delas existirem.
+  "privacidade",
+  "exclusao-de-dados",
 ]);
 const SLUG_RE = /^\/([A-Za-z0-9_-]{3,40})$/;
 

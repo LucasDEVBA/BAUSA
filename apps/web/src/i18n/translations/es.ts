@@ -412,6 +412,8 @@ const es: Translations = {
     },
     footer: {
       copyright: "© 2026 BAU Global. Todos los derechos reservados.",
+      privacidade: "Política de Privacidad",
+      exclusaoDados: "Eliminación de Datos",
     },
   },
 
