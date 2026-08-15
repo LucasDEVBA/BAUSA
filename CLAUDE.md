@@ -126,6 +126,8 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | `functions/sync-meta-spend/` | `sync-meta-spend` | `sync-meta-spend-uat` | Cloud Scheduler (diário 06:00 BRT) | Ingestão do gasto de Meta Ads (Marketing API, `level=campaign` + `time_increment=1`, com paginação). Grava **detalhe por campanha/dia** em `meta_ads_campanha` (UNIQUE data,campanha_id) + **rollup mensal** em `investimentos_marketing` (canal=meta, source=meta_api) — fonte única dos TOTAIS do CAC/DRE. `campanha_id` cruza com `form_submissions.utm_id` p/ ROI exato. Env vars: `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`, `META_GRAPH_VERSION`, `META_SYNC_MESES`, `SUPABASE_*`. **Config manual** (credenciais Meta não estão em secrets). Assume conta BRL. |
 | `functions/billing-reminders/` | `billing-reminders` | `billing-reminders-uat` | Cloud Scheduler (diário 09:00 BRT) | Régua de cobrança (D-3 a D+15) sobre `parcelas` previsto/atrasado de contrato ativo. 1 marco por parcela/tick, CAS por coluna `regua_<marco>_at` (idempotente). **NÃO é outreach de lead** — não usa classe Gemini; elegibilidade = parcela em aberto + contrato ativo + marco não enviado. Texto editável em `regua_mensagens`. Envia via `send-whatsapp` (custom) + `send-messages` (customEmail); notifica CEO no D+7/D+15. Guard CI: `tests/billing-reminders-invariants.test.js`. **Nasce pausada.** |
 | `functions/calendar-lead-events/` | `calendar-lead-events` | `calendar-lead-events-uat` | HTTP POST (Engine, `x-webhook-secret` obrigatório) | **Read-only** (`calendar.readonly`): lista os eventos do Calendar do CEO que casam com UM lead (attendee por e-mail OU telefone tail-10 na descrição — mesmo matching do `calendar-webhook`), janela −180d/+120d, flag `temTranscricaoAnexada`. Usado pela UI de **relink** da aba Reunião (`reunioes-relink.ts`): CEO enxerga todas as reuniões do lead e religa o deal ao evento correto pós-remarcação. Env vars Google = **config manual pós-1º deploy** (copiar da `calendar-webhook`). Engine: `CALENDAR_LEAD_EVENTS_URL` no Vercel. |
+| `functions/fluxo-engine/` | `fluxo-engine` | `fluxo-engine-uat` | HTTP POST (borda: `zapi-inbox`/`instagram-webhook`) + Cloud Scheduler (1x/hora) | Motor dos **Fluxos** (`/fluxos` — o "ManyChat próprio"). Canal-agnóstico: o mesmo fluxo roda WhatsApp e Instagram. Casa o gatilho, cria/retoma execução com CAS (`lock_until` + `UNIQUE(fluxo_id, contato_id, dedupe_key)`), executa a cadeia de blocos e grava tudo em `fluxo_eventos` (fonte única das métricas). **Duas travas independentes de envio:** (1) `CANAIS_ENVIO` derivado da presença das env vars — sem `INSTAGRAM_TOKEN` o canal IG não envia; (2) gate `fluxos_escopo` em `configuracoes_sistema` (`desligado`/`lista`/`global`), **fail-closed** — erro de leitura = desligado. Guard CI: `tests/fluxo-engine-invariants.test.js` |
+| `functions/instagram-webhook/` | `instagram-webhook` | `instagram-webhook-uat` | Webhook Meta (GET handshake + POST assinado) | Borda de entrada do Instagram. **Público por exigência da Meta** (não pode ter secret na URL) — a assinatura **HMAC SHA-256 sobre o corpo CRU** (`req.rawBody`, `timingSafeEqual`) é a única prova de origem, **fail-closed sem `INSTAGRAM_APP_SECRET`**. Traduz comentário/DM/story/menção em evento e repassa ao `fluxo-engine`. **Nunca envia mensagem** (quem envia é a engine, que tem os dois gates). Ignora eventos da própria conta (anti-loop). Guard CI: `tests/instagram-webhook-invariants.test.js` |
 
 **Auth entre serviços:** header `x-webhook-secret` em todos os webhooks.
 
@@ -437,6 +439,8 @@ Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test
 - `GOOGLE_CALENDAR_ID` + `SERVICE_ACCOUNT_EMAIL` + `SERVICE_ACCOUNT_PRIVATE_KEY` — process-followup, calendar-webhook, renew-calendar-watch, meeting-transcripts (+ `GEMINI_API_KEY` opcional p/ resumo)
 - `CEO_WHATSAPP` — calendar-webhook (notificação ao CEO)
 - `CALENDAR_WEBHOOK_URL` — renew-calendar-watch (URL do webhook para registrar no Google)
+- `FLUXO_ENGINE_URL` — zapi-inbox, instagram-webhook (borda → motor de fluxos)
+- `INSTAGRAM_TOKEN` + `INSTAGRAM_APP_SECRET` + `IG_USER_ID` + `INSTAGRAM_VERIFY_TOKEN` — instagram-webhook, fluxo-engine. **Config manual** (dependem do App Review + geração de token no console da Meta). **Ausentes = canal IG não envia** — é o gate de canal, não um bug.
 
 ### GitHub Secrets
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` + `GCP_SERVICE_ACCOUNT` — deploy WIF
@@ -498,6 +502,7 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | ✅ **Automações (builder + engine + runs)** | `/automacoes`: builder gatilho→condições→ações (CEO); CF `automation-engine` (Cloud Scheduler 1x/h min 30) executa com CAS duplo (run + lead `*_sent_at`), retry/backoff, órfãos/zumbis, anti-ban, loop-guard; aba Execuções com KPIs + replay. Migration `20260703232151` (+ fix latente do `audit.log_change` p/ tabelas sem `id`). Guard CI `tests/automation-engine-eligibility.test.js` | Implementado 2026-07-04 (PRs #169–#172); pendente UAT: env vars da CF + `scheduler.sh uat` |
 | ✅ **Observabilidade TOTAL** | Pós-incidente Z-API 2026-07-15/17 ("ausência de erro ≠ funcionando"): tela `/observabilidade` (3 abas: Monitor de filas, Geral, Saúde das automações), CF `monitor-health` v2 (18 checks automáticos 30min, paridade travada por guard, alerta WhatsApp+in-app+**E-MAIL** independente da Z-API), sinais novos (`calendar_watch_state`, `form_submissions.sheets_synced_at` CAS, `weekly_report_state`, `billing_last_tick_at`), **dead-man's switch** (`.github/workflows/deadman-monitor.yml` — vigia o vigia via anon key + policy restrita; ativa na main), **auto-instrumentação** (criar automação = nascer vigiada; `sla_horas` opcional). Supressão consciente via `monitor_checks_desativados`. Guards: `monitor-health/deadman/automacoes-saude/observabilidade-invariants` | Implementado 2026-07-20 (PRs #279–#286) |
 | ✅ **Plataforma de Agents (UI)** | Tabela `agents` (capacidades: conversa/automacao/analise/chatbot_autonomo; prompt 10-4000; RLS ceo+head select, ceo write), CRUD em `/agents` ("Seus agents"), 4 integrações com fallback garantido: copiloto de conversa selecionável, análise sob demanda (CEO), `agent_id` em `ia_prompt`/`ia_condicao` (prompt inline continua OBRIGATÓRIO = fallback), agent por conversa no chatbot autônomo (**substitui SÓ a persona — critério de segurança global intocável**). Guard `tests/agents-invariants.test.js` | Implementado 2026-07-20 (PRs #283, #287) |
+| ✅ **Fluxos — o "ManyChat próprio"** | `/fluxos`: motor canal-agnóstico (11 gatilhos × 12 tipos de bloco), builder de perguntas encadeadas, métricas derivadas de `fluxo_eventos` (append-only), sugestão/diagnóstico por IA, agents plugáveis. CFs `fluxo-engine` + `instagram-webhook`; entrada WhatsApp pelo `zapi-inbox`. **Métrica-rei = captura** (o ManyChat deles tinha 213 disparos e 0 capturas). WhatsApp ativo; Instagram atrás do App Review. Guards `tests/fluxo-engine-invariants.test.js` + `tests/instagram-webhook-invariants.test.js` | Implementado 2026-08-13 (PRs #326–#329) |
 | 🔜 **CAC Meta API** | Custo de Aquisição via Meta Marketing API | Planejado (ver `docs/IMPROVEMENTS.md`) |
 | 🔜 **next/image** | Migrar `<img>` para `next/image` (Core Web Vitals) | Planejado |
 
@@ -530,6 +535,19 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | `documentos_atleta` | Checklist de documentos | status workflow (5 etapas) |
 | `faq_artigos` | Base de conhecimento (10 seed) | categoria, acessos |
 | `indicacoes` | Programa de indicação | recompensa_devida, recompensa_entregue |
+| `fluxos` | Fluxos de conversa (`/fluxos`) | canal, gatilho, `ativo` (nasce FALSE), limite_hora, reentrada_horas |
+| `fluxo_blocos` | Nós do fluxo (perguntas encadeadas) | tipo, conteudo (JSONB), proximo_id, ramos |
+| `fluxo_contatos` | Contatos por canal (WhatsApp/IG) | externo_id, tags, campos |
+| `fluxo_execucoes` | Uma por contato que entrou | status, bloco_atual_id, `lock_until` (CAS), UNIQUE(fluxo_id, contato_id, dedupe_key) |
+| `fluxo_eventos` | Trilha append-only | **fonte única das métricas** — funil por bloco sai daqui |
+
+> ⚠️ **DUAS travas independentes de envio nos Fluxos.** (1) `fluxos.ativo` — nasce
+> `FALSE`, como as automações. (2) Gate global `fluxos_escopo` em
+> `configuracoes_sistema`: `desligado` (padrão) → `lista` (só os IDs listados) →
+> `global`. A leitura é **fail-closed**: erro ao ler o gate = `desligado`.
+> Ligar o fluxo **não** basta; ligar o escopo **não** basta. Isso é de propósito —
+> o CEO pediu explicitamente controle de "quando eu quiser, chat/grupo específico
+> ou global". Nunca "simplifique" removendo uma das duas.
 
 ### Funções SQL Críticas
 
