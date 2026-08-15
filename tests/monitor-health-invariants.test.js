@@ -30,6 +30,9 @@ const CHAVES_CF = [
   "runs_erro",
   "zapi_conexao",
   "envios_sem_espelho",
+  // Credencial de canal que morre calada (mesma classe do zapi_conexao):
+  // o token de Instagram Login expira e a Meta NÃO expõe a data.
+  "instagram_token",
   "entrada_zero",
   "chatbot_erro",
   "remarketing_presa",
@@ -115,6 +118,7 @@ test("monitor-health: auth fail-closed preservada", () => {
 test("paridade: os checks novos existem TAMBÉM na tela /observabilidade", () => {
   for (const token of [
     "entrada_zero",
+    "instagram_token",
     "aprovacao_pendente_antiga",
     "chatbot_erro",
     "remarketing_presa",
@@ -138,6 +142,57 @@ test("paridade: os checks novos existem TAMBÉM na tela /observabilidade", () =>
     "REMARKETING_UNSUBSCRIBE_URL",
   ]) {
     assert.ok(tela.includes(token), `paridade quebrada: '${token}' sumiu da tela /observabilidade`);
+  }
+});
+
+// O teste acima é `includes` no arquivo inteiro — necessário, porque parte da
+// lista são nomes de COLUNA/env, não ids de check. Mas isso o torna fraco para
+// ids: basta a função existir, mesmo desconectada, e a menção passa.
+// Descoberto por mutação (2026-08-14): remover o `seguro("instagram_token", …)`
+// da tela mantinha a suíte verde, porque `const id = "instagram_token"` seguia
+// dentro da própria função órfã. Este teste exige o REGISTRO, não a menção.
+// Só os checks que a aba GERAL espelha. Ficam de fora, de propósito:
+//  · qualificacao_travada / fila_whatsapp_presa / runs_erro → aba Monitor de filas
+//    (fetchMonitorData em automacoes-queries.ts), não runChecksGeral;
+//  · automacoes_saude → aba própria (observabilidade-automacoes.ts);
+//  · zapi_conexao → registrado como variável (`zapiPromise`) porque o resultado
+//    alimenta envios_sem_espelho.
+const CHAVES_TELA_GERAL = [
+  "envios_sem_espelho",
+  "instagram_token",
+  "entrada_zero",
+  "aprovacao_pendente_antiga",
+  "chatbot_erro",
+  "remarketing_presa",
+  "regua_cobranca",
+  "experiencia_nps",
+  "meta_frescor",
+  "ads_cpl_alvo",
+  "transcricao_faltante",
+  "runs_presos",
+  "calendar_watch_expirando",
+  "sheets_sync_pendente",
+  "weekly_report_atrasado",
+  "billing_tick_atrasado",
+];
+
+test("paridade forte: cada check da aba Geral está REGISTRADO, não só mencionado", () => {
+  for (const chave of CHAVES_TELA_GERAL) {
+    assert.ok(
+      tela.includes(`seguro("${chave}"`),
+      `'${chave}' aparece na tela mas NÃO está registrado em runChecksGeral — ` +
+        `check órfão não roda e ninguém percebe`,
+    );
+  }
+});
+
+test("paridade forte: todo check da aba Geral também roda no watchdog", () => {
+  for (const chave of CHAVES_TELA_GERAL) {
+    assert.ok(
+      CHAVES_CF.includes(chave),
+      `'${chave}' está na tela mas não na lista do watchdog — diagnóstico sob ` +
+        `demanda sem alerta automático é o padrão que gerou o incidente da Z-API`,
+    );
   }
 });
 
