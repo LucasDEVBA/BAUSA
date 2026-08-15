@@ -355,10 +355,19 @@ const COLUNAS_ENVIO = [
   'scheduled_followup_sent_at',
 ];
 
-const tail10 = (phone) => {
-  if (typeof phone !== 'string') return null;
+// A Z-API espelha número BR ora com, ora sem o nono dígito
+// (5548999202289 no cadastro vs 554899202289 no SentCallback) — comparar um
+// único tail-10 gera falso positivo "sem espelho" com a mensagem entregue
+// (incidente 2026-08-15, 5 leads). Cada número vira o conjunto de tails das
+// duas grafias.
+const tailsDe = (phone) => {
+  if (typeof phone !== 'string') return [];
   const d = phone.replace(/\D/g, '');
-  return d.length >= 8 ? d.slice(-10) : null;
+  if (d.length < 8) return [];
+  const variantes = [d];
+  if (/^55\d{2}9\d{8}$/.test(d)) variantes.push(d.slice(0, 4) + d.slice(5));
+  else if (/^55\d{10}$/.test(d)) variantes.push(d.slice(0, 4) + '9' + d.slice(4));
+  return variantes.map((v) => v.slice(-10));
 };
 
 /**
@@ -370,9 +379,11 @@ const tail10 = (phone) => {
 const checkEnviosSemEspelho = async () => {
   const desde = isoAtras(ESPELHO_JANELA_HORAS);
   const selects = `id,athlete_name,athlete_whatsapp,guardian_whatsapp,${COLUNAS_ENVIO.join(',')}`;
+  // order + limit: sem order o PostgREST devolve um subconjunto arbitrário e
+  // a lista de flagados muda a cada tick (o alerta "flapava" entre 6 e 2).
   const marcasRes = await Promise.all(COLUNAS_ENVIO.map((col) =>
     httpRequest(
-      `${SUPABASE_URL}/rest/v1/form_submissions?select=${selects}&${col}=gt.${encodeURIComponent(desde)}&limit=50`,
+      `${SUPABASE_URL}/rest/v1/form_submissions?select=${selects}&${col}=gt.${encodeURIComponent(desde)}&order=${col}.desc&limit=50`,
       { method: 'GET', headers: supaHeaders() },
     ),
   ));
@@ -380,7 +391,7 @@ const checkEnviosSemEspelho = async () => {
   marcasRes.forEach((r, i) => {
     if (r.statusCode >= 400) throw new Error(`espelho marcas HTTP ${r.statusCode}`);
     for (const row of JSON.parse(r.body || '[]')) {
-      const tails = [tail10(row.athlete_whatsapp), tail10(row.guardian_whatsapp)].filter(Boolean);
+      const tails = [...tailsDe(row.athlete_whatsapp), ...tailsDe(row.guardian_whatsapp)];
       marcas.push({ nome: row.athlete_name, quandoMs: Date.parse(row[COLUNAS_ENVIO[i]]), tails });
     }
   });
@@ -390,12 +401,12 @@ const checkEnviosSemEspelho = async () => {
 
   const minIso = new Date(Math.min(...marcas.map((m) => m.quandoMs)) - ESPELHO_MARGEM_MIN * 60000).toISOString();
   const espRes = await httpRequest(
-    `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?select=phone,created_at&from_me=is.true&created_at=gt.${encodeURIComponent(minIso)}&limit=500`,
+    `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?select=phone,created_at&from_me=is.true&created_at=gt.${encodeURIComponent(minIso)}&order=created_at.desc&limit=500`,
     { method: 'GET', headers: supaHeaders() },
   );
   if (espRes.statusCode >= 400) throw new Error(`espelho HTTP ${espRes.statusCode}`);
   const espelho = JSON.parse(espRes.body || '[]').map((e) => ({
-    tail: tail10(e.phone),
+    tails: tailsDe(e.phone),
     ms: Date.parse(e.created_at),
   }));
 
@@ -404,7 +415,7 @@ const checkEnviosSemEspelho = async () => {
   for (const m of marcas) {
     if (m.quandoMs > limiteIdade) continue; // webhook pode só estar atrasado
     const tem = espelho.some((e) =>
-      e.tail && m.tails.includes(e.tail) &&
+      e.tails.some((t) => m.tails.includes(t)) &&
       e.ms >= m.quandoMs - ESPELHO_MARGEM_MIN * 60000 &&
       e.ms <= m.quandoMs + ESPELHO_POS_MIN * 60000);
     if (!tem) nomes.push(m.nome);
