@@ -263,11 +263,20 @@ const COLUNAS_ENVIO: { col: string; label: string }[] = [
   { col: "scheduled_followup_sent_at", label: "Retomada agendada" },
 ];
 
-/** Últimos 10 dígitos do telefone (mesmo matching do calendar-webhook). */
-function tail10(phone: unknown): string | null {
-  if (typeof phone !== "string") return null;
+/**
+ * Tails de 10 dígitos do telefone, nas DUAS grafias do nono dígito. A Z-API
+ * espelha número BR ora com, ora sem o 9 (5548999202289 no cadastro vs
+ * 554899202289 no SentCallback) — comparar um único tail-10 gerava falso
+ * positivo "sem espelho" com a mensagem entregue (incidente 2026-08-15).
+ */
+function tailsDe(phone: unknown): string[] {
+  if (typeof phone !== "string") return [];
   const digitos = phone.replace(/\D/g, "");
-  return digitos.length >= 8 ? digitos.slice(-10) : null;
+  if (digitos.length < 8) return [];
+  const variantes = [digitos];
+  if (/^55\d{2}9\d{8}$/.test(digitos)) variantes.push(digitos.slice(0, 4) + digitos.slice(5));
+  else if (/^55\d{10}$/.test(digitos)) variantes.push(digitos.slice(0, 4) + "9" + digitos.slice(4));
+  return variantes.map((v) => v.slice(-10));
 }
 
 /**
@@ -331,9 +340,7 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
     for (const raw of res.data ?? []) {
       const row = raw as Record<string, unknown>;
       const quandoIso = row[col] as string;
-      const tails = [tail10(row.athlete_whatsapp), tail10(row.guardian_whatsapp)].filter(
-        (t): t is string => t !== null,
-      );
+      const tails = [...tailsDe(row.athlete_whatsapp), ...tailsDe(row.guardian_whatsapp)];
       marcas.push({ nome: String(row.athlete_name), label, quandoMs: new Date(quandoIso).getTime(), quandoIso, tails });
     }
   });
@@ -366,7 +373,7 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
   }
   const espelho = (espelhoRows ?? []).map((raw) => {
     const r = raw as Record<string, unknown>;
-    return { tail: tail10(r.phone), ms: new Date(String(r.created_at)).getTime() };
+    return { tails: tailsDe(r.phone), ms: new Date(String(r.created_at)).getTime() };
   });
   if (espelho.length >= 1000) {
     erros.push("Janela de espelho truncada em 1000 mensagens — resultado pode subnotificar.");
@@ -382,7 +389,7 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
     const antes = m.quandoMs - ESPELHO_MARGEM_MIN * 60_000;
     const depois = m.quandoMs + ESPELHO_JANELA_POS_MIN * 60_000;
     const temEspelho = espelho.some(
-      (e) => e.ms >= antes && e.ms <= depois && e.tail !== null && m.tails.includes(e.tail),
+      (e) => e.ms >= antes && e.ms <= depois && e.tails.some((t) => m.tails.includes(t)),
     );
     if (!temEspelho) {
       suspeitos.push(`${m.nome} — ${m.label} marcado ${fmtQuando(m.quandoIso)} sem espelho de envio`);

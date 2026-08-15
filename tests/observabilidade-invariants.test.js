@@ -140,8 +140,10 @@ test("observabilidade: ping de CF SEMPRE envia secret inválido (nunca sem heade
   );
 });
 
-test("observabilidade: espelho correlaciona POR MARCA e por telefone (tail-10)", () => {
-  assert.match(src, /tail10\(/, "correlação por tail-10 do telefone sumiu");
+test("observabilidade: espelho correlaciona POR MARCA e por telefone (tails)", () => {
+  // tailsDe substitui o tail10 único (2026-08-15): a Z-API espelha número BR
+  // ora com, ora sem o nono dígito — as duas grafias precisam casar.
+  assert.match(src, /tailsDe\(/, "correlação por tail do telefone sumiu");
   assert.match(src, /athlete_whatsapp/, "telefone do atleta saiu da correlação");
   assert.match(src, /guardian_whatsapp/, "telefone do responsável saiu da correlação");
 });
