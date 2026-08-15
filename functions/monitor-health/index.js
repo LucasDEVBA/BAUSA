@@ -36,6 +36,8 @@ const ZAPI_INSTANCE_ID     = process.env.ZAPI_INSTANCE_ID;
 const ZAPI_TOKEN           = process.env.ZAPI_TOKEN;
 const ZAPI_CLIENT_TOKEN    = process.env.ZAPI_CLIENT_TOKEN;
 const CEO_WHATSAPP         = process.env.CEO_WHATSAPP || '';
+// Token do canal Instagram (Fluxos). Config manual — ausente = canal desligado.
+const INSTAGRAM_TOKEN      = process.env.INSTAGRAM_TOKEN;
 // Canal de e-mail (config manual pós-deploy — o CI só seta WEBHOOK_SECRET)
 const RESEND_API_KEY       = process.env.RESEND_API_KEY;
 const BREVO_API_KEY        = process.env.BREVO_API_KEY;
@@ -297,6 +299,52 @@ const checkZapiConexao = async () => {
     };
   } catch (error) {
     return { ok: false, valor: 1, detalhe: `Z-API sem resposta: ${error.message}` };
+  }
+};
+
+/**
+ * Saúde do token do Instagram.
+ *
+ * Por que existe: o token de Instagram Login expira (tipicamente 60 dias) e a
+ * Meta NÃO expõe a data — `debug_token` recusa o app do Instagram nos dois
+ * hosts. Sem este check, o vencimento se manifestaria como o canal parando de
+ * responder, calado, exatamente como a Z-API caída de 2026-07. Um GET barato
+ * a cada tick troca "descobrir num mês" por "descobrir em 30 minutos".
+ *
+ * Distingue token inválido (4xx = crítico, alguém precisa regerar) de rede
+ * fora (mensagem diferente) — alerta que não diz o que fazer vira ruído, e
+ * ruído vira check suprimido.
+ */
+const checkInstagramToken = async () => {
+  if (!INSTAGRAM_TOKEN) {
+    return { ok: true, valor: 0, detalhe: 'Canal Instagram não configurado nesta instância (check pulado)' };
+  }
+  try {
+    const result = await httpRequest('https://graph.instagram.com/v23.0/me?fields=id,username', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${INSTAGRAM_TOKEN}` },
+      timeoutMs: 15000,
+    });
+    if (result.statusCode === 200) {
+      const data = JSON.parse(result.body || '{}');
+      return { ok: true, valor: 0, detalhe: `Token do Instagram válido (@${data.username || data.id || '?'})` };
+    }
+    let motivo = `HTTP ${result.statusCode}`;
+    try {
+      const erro = JSON.parse(result.body || '{}').error || {};
+      if (erro.message) motivo = erro.message;
+    } catch {
+      // corpo não-JSON: o status já basta para o diagnóstico
+    }
+    return {
+      ok: false,
+      valor: 1,
+      detalhe:
+        `TOKEN DO INSTAGRAM INVÁLIDO/EXPIRADO (${motivo}) — o canal IG dos Fluxos parou de enviar. ` +
+        'Regenerar em developers.facebook.com > Instagram > Configuração da API e atualizar INSTAGRAM_TOKEN.',
+    };
+  } catch (error) {
+    return { ok: false, valor: 1, detalhe: `API do Instagram sem resposta: ${error.message}` };
   }
 };
 
@@ -631,6 +679,8 @@ const runChecks = async () => {
     // ── Anti-incidente (Z-API caída com envios fantasma) ─────
     checkSeguro('zapi_conexao', checkZapiConexao),
     checkSeguro('envios_sem_espelho', checkEnviosSemEspelho),
+    // Mesma classe do zapi_conexao: credencial de canal que morre em silêncio.
+    checkSeguro('instagram_token', checkInstagramToken),
 
     // ── Funil de entrada ─────────────────────────────────────
     checkSeguro('entrada_zero', async () => {

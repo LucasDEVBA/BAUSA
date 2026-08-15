@@ -825,6 +825,60 @@ async function checkGemini(): Promise<CheckResult> {
   }
 }
 
+/**
+ * Saúde do token do Instagram — paridade com `instagram_token` na CF.
+ *
+ * A Meta não expõe a expiração desses tokens (`debug_token` recusa o app do
+ * Instagram), então o único jeito de saber se ainda vale é usá-lo.
+ *
+ * O Engine normalmente NÃO tem `INSTAGRAM_TOKEN` (o token vive nas Cloud
+ * Functions, que são quem envia). Nesse caso o check informa em vez de
+ * inventar — quem vigia de verdade é o watchdog, a cada 30 min.
+ */
+async function checkInstagramToken(): Promise<CheckResult> {
+  const id = "instagram_token";
+  const titulo = "Token do Instagram (Fluxos)";
+  const token = process.env.INSTAGRAM_TOKEN;
+  if (!token) {
+    return {
+      id,
+      titulo,
+      status: "info",
+      resumo: "INSTAGRAM_TOKEN não configurado no Engine — quem vigia é a CF monitor-health (30 min).",
+      detalhes: [],
+    };
+  }
+  const t0 = Date.now();
+  try {
+    const r = await fetch("https://graph.instagram.com/v23.0/me?fields=id,username", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    const latenciaMs = Date.now() - t0;
+    if (r.ok) {
+      const d = (await r.json()) as { username?: string; id?: string };
+      return { id, titulo, status: "ok", resumo: `Token válido (@${d.username ?? d.id ?? "?"}).`, detalhes: [], latenciaMs };
+    }
+    const corpo = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: `Token inválido/expirado (${corpo.error?.message ?? `HTTP ${r.status}`}) — o canal Instagram parou de enviar.`,
+      detalhes: ["Regenerar em developers.facebook.com > Instagram > Configuração da API e atualizar INSTAGRAM_TOKEN nas Cloud Functions."],
+      latenciaMs,
+    };
+  } catch (e) {
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: `API do Instagram sem resposta: ${e instanceof Error ? e.message : String(e)}`,
+      detalhes: [],
+    };
+  }
+}
+
 // ─── Checks de fluxo (paridade com o watchdog monitor-health v2) ─────────────
 // A MESMA lógica roda automaticamente na CF a cada 30min (alerta) e aqui
 // on-demand (diagnóstico) — o guard tests/monitor-health-invariants.test.js
@@ -1319,6 +1373,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     zapiPromise,
     seguro("supabase", "Supabase (banco de dados)", () => checkSupabaseConexao(supabase)),
     seguro("gemini", "Gemini (IA)", () => checkGemini()),
+    seguro("instagram_token", "Token do Instagram (Fluxos)", () => checkInstagramToken()),
     seguro("calendar", "Google Calendar (detecção de reuniões)", () => checkCalendar(supabase)),
     // Paridade com o watchdog monitor-health v2 (mesma lógica, on-demand)
     seguro("entrada_zero", "Entrada de leads (formulário)", () => checkEntradaZero(supabase)),
