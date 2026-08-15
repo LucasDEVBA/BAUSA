@@ -441,6 +441,8 @@ Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test
 - `CALENDAR_WEBHOOK_URL` — renew-calendar-watch (URL do webhook para registrar no Google)
 - `FLUXO_ENGINE_URL` — zapi-inbox, instagram-webhook (borda → motor de fluxos)
 - `INSTAGRAM_TOKEN` + `INSTAGRAM_APP_SECRET` + `IG_USER_ID` + `INSTAGRAM_VERIFY_TOKEN` — instagram-webhook, fluxo-engine. **Config manual** (dependem do App Review + geração de token no console da Meta). **Ausentes = canal IG não envia** — é o gate de canal, não um bug.
+  - `IG_USER_ID` aceita **lista separada por vírgula** e deve conter os **dois** ids da conta: o profissional (`user_id`, ex. `17841453972885804`) e o de escopo de app (`id`, ex. `28151758617769310`). Pegue os dois de uma vez: `GET graph.instagram.com/v23.0/me?fields=id,user_id`. A doc da Meta se contradiz sobre qual chega em `entry.id` — por isso aceitamos os dois.
+  - ⚠️ **Sem `IG_USER_ID` o webhook descarta todo evento** (fail-closed do anti-loop, log `ig_user_id_ausente`). É proposital: sem saber quem somos, qualquer evento pode ser o eco da nossa própria mensagem e a conta passa a conversar sozinha. Mas **é config obrigatória em PRD** — o CI não injeta essa env var.
 
 ### GitHub Secrets
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` + `GCP_SERVICE_ACCOUNT` — deploy WIF
