@@ -3,6 +3,7 @@
 import { LayoutGrid, List, Search, X } from "lucide-react";
 import type { LeadClassification } from "@/types/lead";
 import type { ProductTier } from "@/types/deal";
+import { PipelineSortMenu, type PipelineSortMode } from "./PipelineSortMenu";
 import { cn } from "@/lib/utils";
 
 export type PipelineView = "kanban" | "tabela";
@@ -23,6 +24,10 @@ interface Props {
   totalDeals: number;
   filteredDeals: number;
   hasCurrentUser: boolean;
+  /** Ordenação de exibição dos cards nas colunas (só faz sentido no Kanban —
+   *  a Tabela tem ordenação própria por coluna). */
+  sort: PipelineSortMode;
+  onSortChange: (mode: PipelineSortMode) => void;
 }
 
 const CLASSIFICATION_OPTIONS: Array<{
@@ -102,6 +107,8 @@ export function PipelineFiltersBar({
   totalDeals,
   filteredDeals,
   hasCurrentUser,
+  sort,
+  onSortChange,
 }: Props) {
   const hasActive =
     filters.search.trim() !== "" ||
@@ -201,6 +208,10 @@ export function PipelineFiltersBar({
           ? `${totalDeals} deals`
           : `${filteredDeals} / ${totalDeals}`}
       </span>
+
+      {view === "kanban" && (
+        <PipelineSortMenu value={sort} onChange={onSortChange} />
+      )}
 
       <SegmentedToggle
         options={[
