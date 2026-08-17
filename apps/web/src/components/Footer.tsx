@@ -52,10 +52,22 @@ const Footer = memo(() => {
           </div>
 
 
-          {/* Copyright */}
+          {/* Copyright + legal */}
           <div className="text-center md:text-right">
             <p className="text-[10px] sm:text-sm text-muted-foreground">
               {t("landing.footer.copyright")}
+            </p>
+            {/* A Meta exige política de privacidade alcançável a partir do site
+                para aprovar o app do Instagram — e, independente disso, é o
+                lugar onde qualquer pessoa espera encontrar. */}
+            <p className="mt-2 text-[10px] sm:text-xs text-muted-foreground">
+              <Link href="/privacidade" className="hover:text-burgundy transition-colors">
+                {t("landing.footer.privacidade")}
+              </Link>
+              <span className="mx-2 opacity-40">·</span>
+              <Link href="/exclusao-de-dados" className="hover:text-burgundy transition-colors">
+                {t("landing.footer.exclusaoDados")}
+              </Link>
             </p>
           </div>
         </div>

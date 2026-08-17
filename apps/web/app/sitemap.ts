@@ -7,6 +7,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const pages = [
     { path: "", changeFrequency: "monthly" as const, priority: 1.0 },
     { path: "/acesso", changeFrequency: "monthly" as const, priority: 0.7 },
+    { path: "/privacidade", changeFrequency: "yearly" as const, priority: 0.3 },
+    { path: "/exclusao-de-dados", changeFrequency: "yearly" as const, priority: 0.3 },
   ];
 
   return pages.flatMap((page) =>
