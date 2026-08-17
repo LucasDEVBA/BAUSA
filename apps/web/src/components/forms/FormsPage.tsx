@@ -433,6 +433,10 @@ const Forms = () => {
 
       const submissionData = {
         submission_id: submissionIdRef.current,
+        // Reenvio de lead excluído no Engine (soft delete) REVIVE o cadastro:
+        // o upsert em email+athlete_name zera o deleted_at junto com os
+        // demais campos — senão a nova submissão ficaria invisível.
+        deleted_at: null,
         email: data.guardianEmail.trim(),
         athlete_name: data.athleteName.trim(),
         birth_date: birthDateValue,

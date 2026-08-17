@@ -106,12 +106,14 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     // Total de leads
     supabase
       .from("form_submissions")
-      .select("id", { count: "exact", head: true }),
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null),
 
     // Qualificados hoje
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .not("qualified_at", "is", null)
       .gte("qualified_at", inicioHoje),
 
@@ -119,6 +121,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .not("whatsapp_sent_at", "is", null)
       .gte("whatsapp_sent_at", inicioHoje),
 
@@ -126,18 +129,21 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .or(`followup_1_sent_at.gte.${inicioHoje},followup_2_sent_at.gte.${inicioHoje}`),
 
     // Reunioes detectadas total
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("meeting_scheduled", true),
 
     // Pendentes de qualificacao (submitted > 1h sem qualified_at)
     supabase
       .from("form_submissions")
       .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
+      .is("deleted_at", null)
       .is("qualified_at", null)
       // form_submissions NÃO tem created_at — a coluna de entrada é submitted_at.
       // (Bug histórico: o PostgREST devolvia 400 sem lançar e as filas ficavam
@@ -150,6 +156,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("qualified_at", "is", null)
       .lt("qualified_at", h22atras)
@@ -167,6 +174,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("whatsapp_sent_at", "is", null)
       .lt("whatsapp_sent_at", h48atras)
@@ -180,6 +188,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("whatsapp_sent_at", "is", null)
       .lt("whatsapp_sent_at", d7atras)
@@ -194,6 +203,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("id, athlete_name, email, qualification_classification, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, meeting_scheduled, submitted_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("qualified_at", "is", null)
       .lt("qualified_at", hTrancado)
@@ -207,6 +217,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("whatsapp_sent_at")
+      .is("deleted_at", null)
       .not("whatsapp_sent_at", "is", null)
       .order("whatsapp_sent_at", { ascending: false })
       .limit(1),
@@ -215,6 +226,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("followup_1_sent_at")
+      .is("deleted_at", null)
       .not("followup_1_sent_at", "is", null)
       .order("followup_1_sent_at", { ascending: false })
       .limit(1),
@@ -223,6 +235,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("followup_2_sent_at")
+      .is("deleted_at", null)
       .not("followup_2_sent_at", "is", null)
       .order("followup_2_sent_at", { ascending: false })
       .limit(1),
@@ -231,6 +244,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("meeting_scheduled_at")
+      .is("deleted_at", null)
       .eq("meeting_scheduled", true)
       .not("meeting_scheduled_at", "is", null)
       .order("meeting_scheduled_at", { ascending: false })
@@ -240,6 +254,7 @@ export async function fetchMonitorData(): Promise<MonitorData> {
     supabase
       .from("form_submissions")
       .select("qualified_at")
+      .is("deleted_at", null)
       .not("qualified_at", "is", null)
       .order("qualified_at", { ascending: false })
       .limit(1),

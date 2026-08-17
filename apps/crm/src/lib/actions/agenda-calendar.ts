@@ -228,6 +228,7 @@ export async function buscarLeadsParaVincular(termo: string): Promise<LeadBusca[
   const { data } = await supabase
     .from("form_submissions")
     .select("id, athlete_name, guardian_name, email, qualification_classification, meeting_scheduled")
+    .is("deleted_at", null)
     .or(
       `athlete_name.ilike.%${escapado}%,guardian_name.ilike.%${escapado}%,` +
         `email.ilike.%${escapado}%,guardian_email.ilike.%${escapado}%`,

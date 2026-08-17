@@ -4,9 +4,58 @@
     {
       "name": "crm",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@bolsa-atleta/engine", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@bolsa-atleta/engine",
+        "dev"
+      ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@bolsa-atleta/web",
+        "dev"
+      ],
+      "port": 3001,
+      "autoPort": true
+    },
+    {
+      "name": "in-vita",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "/Users/lucasbau/clinica-invita",
+        "dev"
+      ],
+      "port": 3200
+    },
+    {
+      "name": "system-clinic",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "/Users/lucasbau/system-clinic",
+        "dev"
+      ],
+      "port": 3100
+    },
+    {
+      "name": "integra-apresentacao",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "/Users/lucasbau/system-clinic",
+        "exec",
+        "next",
+        "dev",
+        "-p",
+        "3105"
+      ],
+      "port": 3105
     }
   ]
 }

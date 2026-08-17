@@ -79,8 +79,13 @@ const formatPhone = (phone) => {
     cleaned = '55' + cleaned;
   }
 
-  // Validação mínima: precisa ter pelo menos 12 dígitos
-  if (cleaned.length < 12) {
+  // Mínimo de 12 dígitos só vale para o caminho BR (55 + DDD + número).
+  // E.164 confia no DDI do lead: EUA/Canadá (+1) e Austrália (+61) têm 11
+  // dígitos no total — o piso 12 rejeitava todo lead internacional com
+  // invalid_phone e o scheduler marcava como enviado (2026-08-15: Felipe +1
+  // e Benjamin +61 nunca receberam nada). Teto 15 = máximo do E.164.
+  const minimo = isE164 ? 8 : 12;
+  if (cleaned.length < minimo || cleaned.length > 15) {
     return null;
   }
 

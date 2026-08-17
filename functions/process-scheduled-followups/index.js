@@ -64,6 +64,8 @@ const fetchEligibleLeads = async () => {
     + `&scheduled_followup_at=lte.${encodeURIComponent(nowIso)}`
     + `&scheduled_followup_sent_at=is.null`
     + `&aprovacao_status=eq.aprovado`
+    // Lead excluído (soft delete) nunca recebe a retomada.
+    + `&deleted_at=is.null`
     + `&select=*`
     + `&order=scheduled_followup_at.asc`
     + `&limit=${MAX_LEADS_PER_RUN}`;

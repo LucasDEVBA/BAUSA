@@ -474,8 +474,15 @@ const processarEvento = async (evento) => {
     return { ok: true, disparados: 0, motivo: 'fora_do_escopo' };
   }
 
+  // No WhatsApp toda mensagem 1:1 chega da borda como
+  // 'mensagem_palavra_chave' — o gatilho "primeira mensagem do contato"
+  // (dm_primeira_msg, o mesmo do Instagram) é decidido AQUI: vale quando o
+  // número nunca recebeu uma mensagem NOSSA (nenhum from_me no espelho).
+  const gatilhos = canal === 'whatsapp' && gatilho === 'mensagem_palavra_chave'
+    ? ['mensagem_palavra_chave', 'dm_primeira_msg']
+    : [gatilho];
   const fluxos = await sb(
-    `fluxos?ativo=eq.true&deleted_at=is.null&canal=eq.${canal}&gatilho=eq.${gatilho}&select=*`
+    `fluxos?ativo=eq.true&deleted_at=is.null&canal=eq.${canal}&gatilho=in.(${gatilhos.join(',')})&select=*`
   );
   if (fluxos.length === 0) return { ok: true, disparados: 0, motivo: 'nenhum_fluxo' };
 
@@ -485,10 +492,31 @@ const processarEvento = async (evento) => {
     return { ok: true, disparados: 0, motivo: 'optout' };
   }
 
+  // Memoizado por evento: vários fluxos dm_primeira_msg não repetem a
+  // consulta. tail-8 no like: o espelho grava o número ora com, ora sem o
+  // nono dígito (incidente 2026-08-15) — tail-10 daria falso "primeira vez".
+  let primeiraVezCache = null;
+  const ehPrimeiroContato = async () => {
+    if (primeiraVezCache !== null) return primeiraVezCache;
+    const tail = externoId.replace(/\D/g, '').slice(-8);
+    if (tail.length < 8) {
+      primeiraVezCache = false;
+      return false;
+    }
+    const anteriores = await sb(
+      `whatsapp_mensagens?from_me=is.true&is_grupo=is.false&phone=like.*${tail}&select=id&limit=1`
+    );
+    primeiraVezCache = anteriores.length === 0;
+    return primeiraVezCache;
+  };
+
   let disparados = 0;
   for (const fluxo of fluxos) {
     const cfg = fluxo.gatilho_config && typeof fluxo.gatilho_config === 'object' ? fluxo.gatilho_config : {};
-    if (!casaPalavra(texto, cfg.palavras, cfg.match)) continue;
+    if (fluxo.gatilho === 'dm_primeira_msg' && gatilho === 'mensagem_palavra_chave') {
+      // Derivado no WhatsApp: sem filtro de palavra; exige primeiro contato.
+      if (!(await ehPrimeiroContato())) continue;
+    } else if (!casaPalavra(texto, cfg.palavras, cfg.match)) continue;
     if (cfg.postAlvo && evento.postId && String(cfg.postAlvo) !== String(evento.postId)) continue;
     if (!fluxo.bloco_inicial_id) continue;
 

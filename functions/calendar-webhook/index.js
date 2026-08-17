@@ -221,7 +221,8 @@ const findLeadByContact = async (email, phone, schema = SUPABASE_SCHEMA) => {
   // campo undefined como string vazia. Um SELECT incompleto apaga endereço,
   // esporte, escola, qualificação, follow-ups e UTMs da planilha.
   // Bug histórico (2026-04-10 → 2026-05-28): 42 leads afetados.
-  const url = `${SUPABASE_URL}/rest/v1/form_submissions?${filter}&select=*&limit=1`;
+  // Lead excluído (soft delete) não pode "capturar" a reunião de um homônimo.
+  const url = `${SUPABASE_URL}/rest/v1/form_submissions?${filter}&deleted_at=is.null&select=*&limit=1`;
 
   const result = await httpRequest(url, {
     method: 'GET',

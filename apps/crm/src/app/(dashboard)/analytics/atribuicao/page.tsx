@@ -19,6 +19,7 @@ export default async function AtribuicaoPage() {
     .select(
       "utm_source, utm_medium, utm_campaign, cta_source, device_type, qualification_classification, submitted_at",
     )
+    .is("deleted_at", null)
     .order("submitted_at", { ascending: false });
 
   return <AtribuicaoClient leads={(rows as LeadAttribution[]) ?? []} />;

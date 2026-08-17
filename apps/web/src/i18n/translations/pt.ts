@@ -410,6 +410,8 @@ export const pt = {
     },
     footer: {
       copyright: "© 2026 Bolsa Atleta USA. Todos os direitos reservados.",
+      privacidade: "Política de Privacidade",
+      exclusaoDados: "Exclusão de Dados",
     },
   },
 

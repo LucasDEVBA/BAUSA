@@ -263,11 +263,20 @@ const COLUNAS_ENVIO: { col: string; label: string }[] = [
   { col: "scheduled_followup_sent_at", label: "Retomada agendada" },
 ];
 
-/** Últimos 10 dígitos do telefone (mesmo matching do calendar-webhook). */
-function tail10(phone: unknown): string | null {
-  if (typeof phone !== "string") return null;
+/**
+ * Tails de 10 dígitos do telefone, nas DUAS grafias do nono dígito. A Z-API
+ * espelha número BR ora com, ora sem o 9 (5548999202289 no cadastro vs
+ * 554899202289 no SentCallback) — comparar um único tail-10 gerava falso
+ * positivo "sem espelho" com a mensagem entregue (incidente 2026-08-15).
+ */
+function tailsDe(phone: unknown): string[] {
+  if (typeof phone !== "string") return [];
   const digitos = phone.replace(/\D/g, "");
-  return digitos.length >= 8 ? digitos.slice(-10) : null;
+  if (digitos.length < 8) return [];
+  const variantes = [digitos];
+  if (/^55\d{2}9\d{8}$/.test(digitos)) variantes.push(digitos.slice(0, 4) + digitos.slice(5));
+  else if (/^55\d{10}$/.test(digitos)) variantes.push(digitos.slice(0, 4) + "9" + digitos.slice(4));
+  return variantes.map((v) => v.slice(-10));
 }
 
 /**
@@ -308,6 +317,7 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
         .select(
           "id, athlete_name, athlete_whatsapp, guardian_whatsapp, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, scheduled_followup_sent_at",
         )
+        .is("deleted_at", null)
         .gte(c.col, desdeMarcas)
         .order(c.col, { ascending: true })
         .limit(100),
@@ -331,9 +341,7 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
     for (const raw of res.data ?? []) {
       const row = raw as Record<string, unknown>;
       const quandoIso = row[col] as string;
-      const tails = [tail10(row.athlete_whatsapp), tail10(row.guardian_whatsapp)].filter(
-        (t): t is string => t !== null,
-      );
+      const tails = [...tailsDe(row.athlete_whatsapp), ...tailsDe(row.guardian_whatsapp)];
       marcas.push({ nome: String(row.athlete_name), label, quandoMs: new Date(quandoIso).getTime(), quandoIso, tails });
     }
   });
@@ -366,7 +374,7 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
   }
   const espelho = (espelhoRows ?? []).map((raw) => {
     const r = raw as Record<string, unknown>;
-    return { tail: tail10(r.phone), ms: new Date(String(r.created_at)).getTime() };
+    return { tails: tailsDe(r.phone), ms: new Date(String(r.created_at)).getTime() };
   });
   if (espelho.length >= 1000) {
     erros.push("Janela de espelho truncada em 1000 mensagens — resultado pode subnotificar.");
@@ -382,7 +390,7 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
     const antes = m.quandoMs - ESPELHO_MARGEM_MIN * 60_000;
     const depois = m.quandoMs + ESPELHO_JANELA_POS_MIN * 60_000;
     const temEspelho = espelho.some(
-      (e) => e.ms >= antes && e.ms <= depois && e.tail !== null && m.tails.includes(e.tail),
+      (e) => e.ms >= antes && e.ms <= depois && e.tails.some((t) => m.tails.includes(t)),
     );
     if (!temEspelho) {
       suspeitos.push(`${m.nome} — ${m.label} marcado ${fmtQuando(m.quandoIso)} sem espelho de envio`);
@@ -455,6 +463,7 @@ async function checkTimingEtapas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, timing_status")
+      .is("deleted_at", null)
       // Janela por QUALQUER etapa recente — pega FU despejado agora sobre
       // inicial antigo (cenário pós-backlog/incidente).
       .or(`whatsapp_sent_at.gte.${d30},followup_1_sent_at.gte.${d30},followup_2_sent_at.gte.${d30}`)
@@ -463,12 +472,14 @@ async function checkTimingEtapas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, followup_1_sent_at")
+      .is("deleted_at", null)
       .gte("followup_1_sent_at", d30)
       .is("whatsapp_sent_at", null)
       .limit(50),
     supabase
       .from("form_submissions")
       .select("athlete_name, followup_2_sent_at")
+      .is("deleted_at", null)
       .gte("followup_2_sent_at", d30)
       .is("followup_1_sent_at", null)
       .limit(50),
@@ -554,6 +565,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .from("form_submissions")
       // A coluna de entrada é submitted_at — form_submissions NÃO tem created_at.
       .select("athlete_name, submitted_at")
+      .is("deleted_at", null)
       .is("qualified_at", null)
       .lt("submitted_at", corteQualificacao)
       .order("submitted_at", { ascending: true })
@@ -561,6 +573,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, qualified_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("qualified_at", "is", null)
       .lt("qualified_at", corteInicial)
@@ -574,6 +587,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, qualified_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("qualified_at", "is", null)
       .lt("qualified_at", corteAlt)
@@ -585,6 +599,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, whatsapp_sent_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("whatsapp_sent_at", "is", null)
       .lt("whatsapp_sent_at", corteFu1)
@@ -596,6 +611,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, whatsapp_sent_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("whatsapp_sent_at", "is", null)
       .lt("whatsapp_sent_at", corteFu2)
@@ -608,6 +624,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, scheduled_followup_at")
+      .is("deleted_at", null)
       .eq("timing_status", "muito_cedo")
       .lte("scheduled_followup_at", agora)
       .is("scheduled_followup_sent_at", null)
@@ -730,6 +747,7 @@ export async function runChecksFilas(): Promise<ObservabilidadeFilas> {
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .or(
         `whatsapp_sent_at.gte.${d1},followup_1_sent_at.gte.${d1},followup_2_sent_at.gte.${d1},scheduled_followup_sent_at.gte.${d1}`,
       ),
@@ -825,6 +843,60 @@ async function checkGemini(): Promise<CheckResult> {
   }
 }
 
+/**
+ * Saúde do token do Instagram — paridade com `instagram_token` na CF.
+ *
+ * A Meta não expõe a expiração desses tokens (`debug_token` recusa o app do
+ * Instagram), então o único jeito de saber se ainda vale é usá-lo.
+ *
+ * O Engine normalmente NÃO tem `INSTAGRAM_TOKEN` (o token vive nas Cloud
+ * Functions, que são quem envia). Nesse caso o check informa em vez de
+ * inventar — quem vigia de verdade é o watchdog, a cada 30 min.
+ */
+async function checkInstagramToken(): Promise<CheckResult> {
+  const id = "instagram_token";
+  const titulo = "Token do Instagram (Fluxos)";
+  const token = process.env.INSTAGRAM_TOKEN;
+  if (!token) {
+    return {
+      id,
+      titulo,
+      status: "info",
+      resumo: "INSTAGRAM_TOKEN não configurado no Engine — quem vigia é a CF monitor-health (30 min).",
+      detalhes: [],
+    };
+  }
+  const t0 = Date.now();
+  try {
+    const r = await fetch("https://graph.instagram.com/v23.0/me?fields=id,username", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    const latenciaMs = Date.now() - t0;
+    if (r.ok) {
+      const d = (await r.json()) as { username?: string; id?: string };
+      return { id, titulo, status: "ok", resumo: `Token válido (@${d.username ?? d.id ?? "?"}).`, detalhes: [], latenciaMs };
+    }
+    const corpo = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: `Token inválido/expirado (${corpo.error?.message ?? `HTTP ${r.status}`}) — o canal Instagram parou de enviar.`,
+      detalhes: ["Regenerar em developers.facebook.com > Instagram > Configuração da API e atualizar INSTAGRAM_TOKEN nas Cloud Functions."],
+      latenciaMs,
+    };
+  } catch (e) {
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: `API do Instagram sem resposta: ${e instanceof Error ? e.message : String(e)}`,
+      detalhes: [],
+    };
+  }
+}
+
 // ─── Checks de fluxo (paridade com o watchdog monitor-health v2) ─────────────
 // A MESMA lógica roda automaticamente na CF a cada 30min (alerta) e aqui
 // on-demand (diagnóstico) — o guard tests/monitor-health-invariants.test.js
@@ -853,7 +925,7 @@ async function contarSimples(
 async function checkEntradaZero(supabase: Supabase): Promise<CheckResult> {
   const n = await contarSimples(
     supabase,
-    (q) => q.select("id", { count: "exact", head: true }).gte("submitted_at", horasAtrasISO(ENTRADA_ZERO_HORAS)),
+    (q) => q.select("id", { count: "exact", head: true }).is("deleted_at", null).gte("submitted_at", horasAtrasISO(ENTRADA_ZERO_HORAS)),
     "form_submissions",
   );
   return {
@@ -876,6 +948,7 @@ async function checkAprovacaoPendenteAntiga(supabase: Supabase): Promise<CheckRe
     (q) =>
       q
         .select("id", { count: "exact", head: true })
+        .is("deleted_at", null)
         .eq("aprovacao_status", "pendente")
         .in("qualification_classification", ["QUENTE", "MORNO"])
         .lt("qualified_at", horasAtrasISO(HORAS)),
@@ -1065,6 +1138,7 @@ async function checkAdsCplAlvo(supabase: Supabase): Promise<CheckResult> {
     const { count } = await supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("utm_id", cid)
       .gte("submitted_at", corteTs);
     const leads = count ?? 0;
@@ -1164,6 +1238,7 @@ async function checkSheetsSync(supabase: Supabase): Promise<CheckResult> {
   const n = await contarSimples(
     supabase,
     (q) => q.select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .is("sheets_synced_at", null)
       .lt("submitted_at", horasAtrasISO(2))
       .gte("submitted_at", horasAtrasISO(7 * 24)),
@@ -1277,6 +1352,7 @@ async function checkCalendar(supabase: Supabase): Promise<CheckResult> {
   const { data } = await supabase
     .from("form_submissions")
     .select("meeting_scheduled_at")
+    .is("deleted_at", null)
     .eq("meeting_scheduled", true)
     .not("meeting_scheduled_at", "is", null)
     .order("meeting_scheduled_at", { ascending: false })
@@ -1319,6 +1395,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     zapiPromise,
     seguro("supabase", "Supabase (banco de dados)", () => checkSupabaseConexao(supabase)),
     seguro("gemini", "Gemini (IA)", () => checkGemini()),
+    seguro("instagram_token", "Token do Instagram (Fluxos)", () => checkInstagramToken()),
     seguro("calendar", "Google Calendar (detecção de reuniões)", () => checkCalendar(supabase)),
     // Paridade com o watchdog monitor-health v2 (mesma lógica, on-demand)
     seguro("entrada_zero", "Entrada de leads (formulário)", () => checkEntradaZero(supabase)),
@@ -1342,16 +1419,17 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
   const cfs = cfsEDados as CheckResult[];
 
   const [leadsRes, qualifRes, waRes, espelhadasRes, reunioesRes] = await Promise.all([
-    supabase.from("form_submissions").select("id", { count: "exact", head: true }).gte("submitted_at", d1),
-    supabase.from("form_submissions").select("id", { count: "exact", head: true }).gte("qualified_at", d1),
+    supabase.from("form_submissions").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("submitted_at", d1),
+    supabase.from("form_submissions").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("qualified_at", d1),
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .or(
         `whatsapp_sent_at.gte.${d1},followup_1_sent_at.gte.${d1},followup_2_sent_at.gte.${d1},scheduled_followup_sent_at.gte.${d1}`,
       ),
     supabase.from("whatsapp_mensagens").select("id", { count: "exact", head: true }).eq("from_me", true).gte("created_at", d1),
-    supabase.from("form_submissions").select("id", { count: "exact", head: true }).gte("meeting_scheduled_at", d1),
+    supabase.from("form_submissions").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("meeting_scheduled_at", d1),
   ]);
 
   return {

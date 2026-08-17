@@ -517,6 +517,7 @@ export async function fetchFunilPorCampanha(supabase: SupabaseServer): Promise<M
   const { data, error } = await supabase
     .from("form_submissions")
     .select("utm_id, qualification_classification, meeting_scheduled, submitted_at")
+    .is("deleted_at", null)
     .not("utm_id", "is", null);
   if (error) throw new MetaAdsError(`form_submissions: ${error.message}`);
 
@@ -547,6 +548,7 @@ export async function fetchLeadsCampanha(supabase: SupabaseServer, campanhaId: s
   const { data, error } = await supabase
     .from("form_submissions")
     .select("athlete_name, submitted_at, qualification_classification, meeting_scheduled")
+    .is("deleted_at", null)
     .eq("utm_id", campanhaId)
     .order("submitted_at", { ascending: false })
     .limit(50);
@@ -646,6 +648,7 @@ export async function fetchLeadsPorDia(
   let query = supabase
     .from("form_submissions")
     .select("submitted_at")
+    .is("deleted_at", null)
     .not("utm_id", "is", null)
     .gte("submitted_at", `${range.since}T00:00:00Z`)
     .lte("submitted_at", `${range.until}T23:59:59Z`);

@@ -184,3 +184,30 @@ test('guard: detecta corretamente quando uma cláusula está ausente', () => {
     'O guard deve reportar ausência quando a cláusula não existe.',
   );
 });
+
+// ─── Soft delete de lead (2026-08-17) ───────────────────────────────────
+// Lead excluído pelo CEO no Engine (form_submissions.deleted_at) NUNCA pode
+// receber outreach. A cláusula precisa existir em TODO scheduler que
+// seleciona leads para envio — mesma classe dos incidentes de elegibilidade.
+const CLAUSE_SOFT_DELETE = 'deleted_at=is.null';
+
+test('process-pending-whatsapp: Buckets A e B excluem leads soft-deletados', () => {
+  const src = loadExecutableSource('process-pending-whatsapp');
+  const occurrences = countOccurrences(src, CLAUSE_SOFT_DELETE);
+  assert.ok(
+    occurrences >= 2,
+    `INVARIANTE VIOLADO: '${CLAUSE_SOFT_DELETE}' deve aparecer em AMBOS os ` +
+      `buckets. Encontrado ${occurrences}x. Sem isso, lead excluído recebe WhatsApp.`,
+  );
+});
+
+for (const fn of ['process-followup-whatsapp', 'process-scheduled-followups']) {
+  test(`${fn}: elegibilidade exclui leads soft-deletados`, () => {
+    const src = loadExecutableSource(fn);
+    assert.ok(
+      src.includes(CLAUSE_SOFT_DELETE),
+      `INVARIANTE VIOLADO: ${fn} deve filtrar '${CLAUSE_SOFT_DELETE}' — ` +
+        `lead excluído pelo CEO não pode receber mensagem automática.`,
+    );
+  });
+}

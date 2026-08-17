@@ -41,6 +41,34 @@ export interface PageSeoConfig {
 }
 
 export const PAGE_SEO: Record<string, PageSeoConfig> = {
+  privacidade: {
+    title: {
+      pt: "Política de Privacidade",
+      en: "Privacy Policy",
+      es: "Política de Privacidad",
+    },
+    description: {
+      pt: "Quais dados a Bolsa Atleta USA coleta, por que coleta, com quem compartilha e como você pode acessar, corrigir ou excluir os seus.",
+      en: "What data Bolsa Atleta USA collects, why we collect it, who we share it with, and how you can access, correct or delete yours.",
+      es: "Qué datos recopila Bolsa Atleta USA, por qué los recopila, con quién los comparte y cómo puede acceder, corregir o eliminar los suyos.",
+    },
+    canonicalPath: "/privacidade",
+    ogType: "article",
+  },
+  exclusaoDados: {
+    title: {
+      pt: "Exclusão de Dados",
+      en: "Data Deletion",
+      es: "Eliminación de Datos",
+    },
+    description: {
+      pt: "Como pedir a exclusão dos seus dados dos sistemas da Bolsa Atleta USA, o que é apagado e em quanto tempo.",
+      en: "How to request deletion of your data from Bolsa Atleta USA's systems, what gets deleted, and how long it takes.",
+      es: "Cómo solicitar la eliminación de sus datos de los sistemas de Bolsa Atleta USA, qué se elimina y en cuánto tiempo.",
+    },
+    canonicalPath: "/exclusao-de-dados",
+    ogType: "article",
+  },
   home: {
     title: {
       pt: "Bolsa Atleta USA | Educação Esportiva Inteligente®",

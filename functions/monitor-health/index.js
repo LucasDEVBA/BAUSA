@@ -36,6 +36,8 @@ const ZAPI_INSTANCE_ID     = process.env.ZAPI_INSTANCE_ID;
 const ZAPI_TOKEN           = process.env.ZAPI_TOKEN;
 const ZAPI_CLIENT_TOKEN    = process.env.ZAPI_CLIENT_TOKEN;
 const CEO_WHATSAPP         = process.env.CEO_WHATSAPP || '';
+// Token do canal Instagram (Fluxos). Config manual — ausente = canal desligado.
+const INSTAGRAM_TOKEN      = process.env.INSTAGRAM_TOKEN;
 // Canal de e-mail (config manual pós-deploy — o CI só seta WEBHOOK_SECRET)
 const RESEND_API_KEY       = process.env.RESEND_API_KEY;
 const BREVO_API_KEY        = process.env.BREVO_API_KEY;
@@ -300,6 +302,52 @@ const checkZapiConexao = async () => {
   }
 };
 
+/**
+ * Saúde do token do Instagram.
+ *
+ * Por que existe: o token de Instagram Login expira (tipicamente 60 dias) e a
+ * Meta NÃO expõe a data — `debug_token` recusa o app do Instagram nos dois
+ * hosts. Sem este check, o vencimento se manifestaria como o canal parando de
+ * responder, calado, exatamente como a Z-API caída de 2026-07. Um GET barato
+ * a cada tick troca "descobrir num mês" por "descobrir em 30 minutos".
+ *
+ * Distingue token inválido (4xx = crítico, alguém precisa regerar) de rede
+ * fora (mensagem diferente) — alerta que não diz o que fazer vira ruído, e
+ * ruído vira check suprimido.
+ */
+const checkInstagramToken = async () => {
+  if (!INSTAGRAM_TOKEN) {
+    return { ok: true, valor: 0, detalhe: 'Canal Instagram não configurado nesta instância (check pulado)' };
+  }
+  try {
+    const result = await httpRequest('https://graph.instagram.com/v23.0/me?fields=id,username', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${INSTAGRAM_TOKEN}` },
+      timeoutMs: 15000,
+    });
+    if (result.statusCode === 200) {
+      const data = JSON.parse(result.body || '{}');
+      return { ok: true, valor: 0, detalhe: `Token do Instagram válido (@${data.username || data.id || '?'})` };
+    }
+    let motivo = `HTTP ${result.statusCode}`;
+    try {
+      const erro = JSON.parse(result.body || '{}').error || {};
+      if (erro.message) motivo = erro.message;
+    } catch {
+      // corpo não-JSON: o status já basta para o diagnóstico
+    }
+    return {
+      ok: false,
+      valor: 1,
+      detalhe:
+        `TOKEN DO INSTAGRAM INVÁLIDO/EXPIRADO (${motivo}) — o canal IG dos Fluxos parou de enviar. ` +
+        'Regenerar em developers.facebook.com > Instagram > Configuração da API e atualizar INSTAGRAM_TOKEN.',
+    };
+  } catch (error) {
+    return { ok: false, valor: 1, detalhe: `API do Instagram sem resposta: ${error.message}` };
+  }
+};
+
 const COLUNAS_ENVIO = [
   'whatsapp_sent_at',
   'followup_1_sent_at',
@@ -307,10 +355,19 @@ const COLUNAS_ENVIO = [
   'scheduled_followup_sent_at',
 ];
 
-const tail10 = (phone) => {
-  if (typeof phone !== 'string') return null;
+// A Z-API espelha número BR ora com, ora sem o nono dígito
+// (5548999202289 no cadastro vs 554899202289 no SentCallback) — comparar um
+// único tail-10 gera falso positivo "sem espelho" com a mensagem entregue
+// (incidente 2026-08-15, 5 leads). Cada número vira o conjunto de tails das
+// duas grafias.
+const tailsDe = (phone) => {
+  if (typeof phone !== 'string') return [];
   const d = phone.replace(/\D/g, '');
-  return d.length >= 8 ? d.slice(-10) : null;
+  if (d.length < 8) return [];
+  const variantes = [d];
+  if (/^55\d{2}9\d{8}$/.test(d)) variantes.push(d.slice(0, 4) + d.slice(5));
+  else if (/^55\d{10}$/.test(d)) variantes.push(d.slice(0, 4) + '9' + d.slice(4));
+  return variantes.map((v) => v.slice(-10));
 };
 
 /**
@@ -322,9 +379,11 @@ const tail10 = (phone) => {
 const checkEnviosSemEspelho = async () => {
   const desde = isoAtras(ESPELHO_JANELA_HORAS);
   const selects = `id,athlete_name,athlete_whatsapp,guardian_whatsapp,${COLUNAS_ENVIO.join(',')}`;
+  // order + limit: sem order o PostgREST devolve um subconjunto arbitrário e
+  // a lista de flagados muda a cada tick (o alerta "flapava" entre 6 e 2).
   const marcasRes = await Promise.all(COLUNAS_ENVIO.map((col) =>
     httpRequest(
-      `${SUPABASE_URL}/rest/v1/form_submissions?select=${selects}&${col}=gt.${encodeURIComponent(desde)}&limit=50`,
+      `${SUPABASE_URL}/rest/v1/form_submissions?select=${selects}&${col}=gt.${encodeURIComponent(desde)}&deleted_at=is.null&order=${col}.desc&limit=50`,
       { method: 'GET', headers: supaHeaders() },
     ),
   ));
@@ -332,7 +391,7 @@ const checkEnviosSemEspelho = async () => {
   marcasRes.forEach((r, i) => {
     if (r.statusCode >= 400) throw new Error(`espelho marcas HTTP ${r.statusCode}`);
     for (const row of JSON.parse(r.body || '[]')) {
-      const tails = [tail10(row.athlete_whatsapp), tail10(row.guardian_whatsapp)].filter(Boolean);
+      const tails = [...tailsDe(row.athlete_whatsapp), ...tailsDe(row.guardian_whatsapp)];
       marcas.push({ nome: row.athlete_name, quandoMs: Date.parse(row[COLUNAS_ENVIO[i]]), tails });
     }
   });
@@ -342,12 +401,12 @@ const checkEnviosSemEspelho = async () => {
 
   const minIso = new Date(Math.min(...marcas.map((m) => m.quandoMs)) - ESPELHO_MARGEM_MIN * 60000).toISOString();
   const espRes = await httpRequest(
-    `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?select=phone,created_at&from_me=is.true&created_at=gt.${encodeURIComponent(minIso)}&limit=500`,
+    `${SUPABASE_URL}/rest/v1/whatsapp_mensagens?select=phone,created_at&from_me=is.true&created_at=gt.${encodeURIComponent(minIso)}&order=created_at.desc&limit=500`,
     { method: 'GET', headers: supaHeaders() },
   );
   if (espRes.statusCode >= 400) throw new Error(`espelho HTTP ${espRes.statusCode}`);
   const espelho = JSON.parse(espRes.body || '[]').map((e) => ({
-    tail: tail10(e.phone),
+    tails: tailsDe(e.phone),
     ms: Date.parse(e.created_at),
   }));
 
@@ -356,7 +415,7 @@ const checkEnviosSemEspelho = async () => {
   for (const m of marcas) {
     if (m.quandoMs > limiteIdade) continue; // webhook pode só estar atrasado
     const tem = espelho.some((e) =>
-      e.tail && m.tails.includes(e.tail) &&
+      e.tails.some((t) => m.tails.includes(t)) &&
       e.ms >= m.quandoMs - ESPELHO_MARGEM_MIN * 60000 &&
       e.ms <= m.quandoMs + ESPELHO_POS_MIN * 60000);
     if (!tem) nomes.push(m.nome);
@@ -463,7 +522,7 @@ const alertarAprovacaoPendente = async (canais) => {
   const rows = await buscar(
     `form_submissions?select=athlete_name,qualification_classification,qualified_at` +
       `&aprovacao_status=eq.pendente&qualification_classification=in.(QUENTE,MORNO)` +
-      `&qualified_at=lt.${limite}&order=qualified_at.asc&limit=10`,
+      `&deleted_at=is.null&qualified_at=lt.${limite}&order=qualified_at.asc&limit=10`,
   );
   if (!Array.isArray(rows) || rows.length === 0) return 0;
 
@@ -589,6 +648,7 @@ const runChecks = async () => {
     checkSeguro('qualificacao_travada', async () => {
       const n = await contar(
         `form_submissions?select=id&qualification_classification=is.null` +
+          `&deleted_at=is.null` +
           `&submitted_at=lt.${encodeURIComponent(isoAtras(QUALIFICACAO_TRAVADA_HORAS))}` +
           `&submitted_at=gt.${encodeURIComponent(desdeJanela)}`,
       );
@@ -601,6 +661,7 @@ const runChecks = async () => {
       const n = await contar(
         `form_submissions?select=id&qualification_classification=in.(QUENTE,MORNO)` +
           `&whatsapp_sent_at=is.null` +
+          `&deleted_at=is.null` +
           `&qualified_at=lt.${encodeURIComponent(isoAtras(limiteFila))}` +
           `&qualified_at=gt.${encodeURIComponent(desdeJanela)}` +
           `&or=(timing_status.is.null,timing_status.eq.ideal)` +
@@ -615,6 +676,7 @@ const runChecks = async () => {
       const n = await contar(
         `form_submissions?select=id&aprovacao_status=eq.pendente` +
           `&qualification_classification=in.(QUENTE,MORNO)` +
+          `&deleted_at=is.null` +
           `&qualified_at=lt.${encodeURIComponent(isoAtras(APROVACAO_PENDENTE_HORAS))}` +
           `&qualified_at=gt.${encodeURIComponent(desdeJanela)}`,
       );
@@ -631,6 +693,8 @@ const runChecks = async () => {
     // ── Anti-incidente (Z-API caída com envios fantasma) ─────
     checkSeguro('zapi_conexao', checkZapiConexao),
     checkSeguro('envios_sem_espelho', checkEnviosSemEspelho),
+    // Mesma classe do zapi_conexao: credencial de canal que morre em silêncio.
+    checkSeguro('instagram_token', checkInstagramToken),
 
     // ── Funil de entrada ─────────────────────────────────────
     checkSeguro('entrada_zero', async () => {
@@ -827,6 +891,7 @@ const runChecks = async () => {
     checkSeguro('sheets_sync_pendente', async () => {
       const n = await contar(
         `form_submissions?select=id&sheets_synced_at=is.null` +
+          `&deleted_at=is.null` +
           `&submitted_at=lt.${encodeURIComponent(isoAtras(SHEETS_SYNC_FOLGA_HORAS))}` +
           `&submitted_at=gt.${encodeURIComponent(desdeJanela)}`,
       );

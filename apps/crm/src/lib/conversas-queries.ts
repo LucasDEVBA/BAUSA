@@ -626,6 +626,7 @@ export async function fetchEstadosConversa(period: ConversaPeriod): Promise<Esta
     supabase
       .from("form_submissions")
       .select("athlete_name, guardian_name, athlete_whatsapp, guardian_whatsapp, qualification_classification, meeting_scheduled")
+      .is("deleted_at", null)
       .limit(3_000),
   ]);
   if (msgsRes.error || !msgsRes.data?.length) return vazio;
