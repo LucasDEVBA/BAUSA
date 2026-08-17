@@ -3,6 +3,7 @@
 import { LayoutGrid, List, Search, X } from "lucide-react";
 import type { LeadClassification } from "@/types/lead";
 import type { ProductTier } from "@/types/deal";
+import { PipelineSortMenu, type PipelineSortMode } from "./PipelineSortMenu";
 import { cn } from "@/lib/utils";
 
 export type PipelineView = "kanban" | "tabela";
@@ -23,6 +24,10 @@ interface Props {
   totalDeals: number;
   filteredDeals: number;
   hasCurrentUser: boolean;
+  /** Modo comum quando TODAS as colunas coincidem; "padrao" quando divergem. */
+  sortTodas: PipelineSortMode;
+  /** "Aplicar a todas": seta o modo em todas as colunas e limpa overrides. */
+  onSortTodasChange: (mode: PipelineSortMode) => void;
 }
 
 const CLASSIFICATION_OPTIONS: Array<{
@@ -102,6 +107,8 @@ export function PipelineFiltersBar({
   totalDeals,
   filteredDeals,
   hasCurrentUser,
+  sortTodas,
+  onSortTodasChange,
 }: Props) {
   const hasActive =
     filters.search.trim() !== "" ||
@@ -201,6 +208,15 @@ export function PipelineFiltersBar({
           ? `${totalDeals} deals`
           : `${filteredDeals} / ${totalDeals}`}
       </span>
+
+      {view === "kanban" && (
+        <PipelineSortMenu
+          value={sortTodas}
+          onChange={onSortTodasChange}
+          ariaLabel="Ordenar todas as colunas"
+          menuLabel="Ordenar todas as colunas"
+        />
+      )}
 
       <SegmentedToggle
         options={[

@@ -267,6 +267,43 @@ const insertTranscript = async (row) => {
   return 'inserted';
 };
 
+// ─── Avanço automático do pipeline pós-transcrição ────────────
+// Transcrição capturada = prova de que a reunião ACONTECEU. Deal parado em
+// reuniao_marcada avança para reuniao_realizada (auditoria 2026-08-17: 88
+// deals presos — nada movia a etapa sem drag manual do CEO). CAS na etapa:
+// só move quem AINDA está em reuniao_marcada — deal já adiantado (proposta,
+// contrato…) nunca retrocede. Roda também em 'duplicate' (self-healing para
+// transcrição capturada antes desta feature). Falha aqui não derruba a
+// captura (fail-open).
+const avancarDealPosTranscricao = async (dealId) => {
+  if (!dealId) return;
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/deals?id=eq.${dealId}` +
+      `&etapa=eq.reuniao_marcada&deleted_at=is.null`;
+    const postData = JSON.stringify({
+      etapa: 'reuniao_realizada',
+      reuniao_realizada_at: new Date().toISOString(),
+    });
+    const result = await httpRequest(url, {
+      method: 'PATCH',
+      headers: {
+        ...supabaseHeaders('Content-Profile'),
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'Prefer': 'return=representation',
+      },
+    }, postData);
+    if (result.statusCode >= 400) {
+      log('WARN', 'deal_avanco_falhou', { dealId, statusCode: result.statusCode });
+      return;
+    }
+    const movidos = JSON.parse(result.body || '[]');
+    if (movidos.length > 0) log('INFO', 'deal_avancado_reuniao_realizada', { dealId });
+  } catch (e) {
+    log('WARN', 'deal_avanco_falhou', { dealId, error: e.message });
+  }
+};
+
 // ─── Busca a linha já capturada de UM evento (modo sob demanda) ───
 const fetchTranscriptRowByEventId = async (eventId) => {
   const url = `${SUPABASE_URL}/rest/v1/reunioes_transcricoes` +
@@ -360,6 +397,8 @@ const captureSingleEvent = async ({ eventId, dealId, formSubmissionId }) => {
     capturada_at: new Date().toISOString(),
   };
   const outcome = await insertTranscript(row);
+
+  await avancarDealPosTranscricao(row.deal_id);
 
   if (outcome === 'duplicate') {
     // Corrida com o cron: outra execução inseriu entre o passo 1 e agora.
@@ -562,6 +601,8 @@ functions.http('meetingTranscripts', async (req, res) => {
           resumo,
           capturada_at: new Date().toISOString(),
         });
+
+        await avancarDealPosTranscricao(deal.id);
 
         if (outcome === 'duplicate') {
           counters.duplicates++;

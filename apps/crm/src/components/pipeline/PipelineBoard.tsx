@@ -28,6 +28,14 @@ import {
   type PipelineView,
 } from "./PipelineFiltersBar";
 import { PipelineTableView } from "./PipelineTableView";
+import {
+  DEFAULT_PIPELINE_SORT,
+  PIPELINE_SORT_STORAGE_KEY,
+  parseStoredSortMap,
+  sortDealsForDisplay,
+  type PipelineSortMap,
+  type PipelineSortMode,
+} from "./PipelineSortMenu";
 import { RetrocessoModal } from "./RetrocessoModal";
 import { LossModal, type LossPayload } from "./LossModal";
 import { GanhoEscolasModal } from "./GanhoEscolasModal";
@@ -128,6 +136,41 @@ export function PipelineBoard({
     emptyPipelineFilters(),
   );
 
+  // Ordenação de exibição POR COLUNA (escolha do CEO, persistida numa chave
+  // única). Começa vazio (= padrão em todas) e só lê o localStorage após
+  // montar — evita mismatch de hidratação.
+  const [sortMap, setSortMap] = useState<PipelineSortMap>({});
+  useEffect(() => {
+    try {
+      setSortMap(
+        parseStoredSortMap(
+          window.localStorage.getItem(PIPELINE_SORT_STORAGE_KEY),
+        ),
+      );
+    } catch {
+      // localStorage indisponível (modo privado/iframe) — mantém o padrão.
+    }
+  }, []);
+
+  const persistSortMap = (next: PipelineSortMap) => {
+    setSortMap(next);
+    try {
+      window.localStorage.setItem(
+        PIPELINE_SORT_STORAGE_KEY,
+        JSON.stringify(next),
+      );
+    } catch {
+      // Sem persistência disponível — a escolha ainda vale nesta sessão.
+    }
+  };
+
+  const handleColumnSortChange = (stage: DealStage, mode: PipelineSortMode) => {
+    const next = { ...sortMap };
+    if (mode === DEFAULT_PIPELINE_SORT) delete next[stage];
+    else next[stage] = mode;
+    persistSortMap(next);
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
@@ -138,12 +181,45 @@ export function PipelineBoard({
   );
 
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
-  const dealsByStage = getDealsByStage(filteredDeals);
+
+  // Transform SÓ de render, aplicado coluna a coluna dentro do agrupamento.
+  // Mover card entre colunas (dnd) muda `stage`, não posição — o drag-and-drop
+  // continua intacto.
+  const dealsByStage = useMemo(() => {
+    const grouped = getDealsByStage(filteredDeals);
+    for (const [stage, stageDeals] of Object.entries(grouped)) {
+      const mode = sortMap[stage] ?? DEFAULT_PIPELINE_SORT;
+      if (mode !== DEFAULT_PIPELINE_SORT) {
+        grouped[stage] = sortDealsForDisplay(stageDeals, mode);
+      }
+    }
+    return grouped;
+  }, [filteredDeals, sortMap]);
 
   // Colunas na ordem configurada. Coluna OCULTA some do board SÓ quando não
   // tem deals visíveis — com deals, renderiza com badge "Oculta" (deals nunca
   // são escondidos pela configuração).
   const boardStages = useMemo(() => orderedKanbanStages(stageConfig), [stageConfig]);
+
+  // Seletor global = "aplicar a todas": exibe o modo comum quando todas as
+  // colunas coincidem (sem override = padrão) e, ao mudar, seta o modo em
+  // TODAS as colunas, limpando overrides individuais.
+  const sortTodas = useMemo<PipelineSortMode>(() => {
+    const modes = new Set<PipelineSortMode>(
+      boardStages.map((s) => sortMap[s] ?? DEFAULT_PIPELINE_SORT),
+    );
+    return modes.size === 1
+      ? (Array.from(modes)[0] ?? DEFAULT_PIPELINE_SORT)
+      : DEFAULT_PIPELINE_SORT;
+  }, [boardStages, sortMap]);
+
+  const handleSortTodasChange = (mode: PipelineSortMode) => {
+    const next: PipelineSortMap = {};
+    if (mode !== DEFAULT_PIPELINE_SORT) {
+      for (const stage of boardStages) next[stage] = mode;
+    }
+    persistSortMap(next);
+  };
   // Ordem local: aplica o arraste na hora e persiste em segundo plano
   // (rollback para a ordem do servidor se a gravação falhar).
   const [ordemLocal, setOrdemLocal] = useState<DealStage[] | null>(null);
@@ -323,6 +399,8 @@ export function PipelineBoard({
         totalDeals={deals.length}
         filteredDeals={filteredDeals.length}
         hasCurrentUser={!!currentUserId}
+        sortTodas={sortTodas}
+        onSortTodasChange={handleSortTodasChange}
       />
 
       {view === "kanban" ? (
@@ -350,6 +428,8 @@ export function PipelineBoard({
                 onColumnDrop={podeEditarColunas ? soltarColuna : undefined}
                 onColumnDragEnd={() => setArrastandoColuna(null)}
                 arrastandoColuna={arrastandoColuna}
+                sort={sortMap[stage] ?? DEFAULT_PIPELINE_SORT}
+                onSortChange={handleColumnSortChange}
               />
             ))}
           </div>

@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getUserPapel } from "@/lib/auth";
+import type { CaracteristicasReuniao } from "@/lib/actions/reuniao-caracteristicas";
 
 export interface ReuniaoTranscricao {
   id: string;
@@ -11,6 +12,8 @@ export interface ReuniaoTranscricao {
   doc_url: string | null;
   transcript_text: string | null;
   resumo: string | null;
+  /** Características valorizadas extraídas por IA (null = ainda não extraída). */
+  caracteristicas: CaracteristicasReuniao | null;
   capturada_at: string;
 }
 
@@ -34,7 +37,7 @@ export async function getTranscricaoReuniao(
   let query = supabase
     .from("reunioes_transcricoes")
     .select(
-      "id, deal_id, form_submission_id, google_event_id, doc_url, transcript_text, resumo, capturada_at",
+      "id, deal_id, form_submission_id, google_event_id, doc_url, transcript_text, resumo, caracteristicas, capturada_at",
     )
     .order("capturada_at", { ascending: false })
     .limit(1);
@@ -70,7 +73,7 @@ export async function listarTranscricoesReuniao(
   let query = supabase
     .from("reunioes_transcricoes")
     .select(
-      "id, deal_id, form_submission_id, google_event_id, doc_url, transcript_text, resumo, capturada_at",
+      "id, deal_id, form_submission_id, google_event_id, doc_url, transcript_text, resumo, caracteristicas, capturada_at",
     )
     .order("capturada_at", { ascending: false });
 
@@ -128,7 +131,7 @@ export async function obterTranscricaoEvento(
   const { data: cached, error: cacheError } = await supabase
     .from("reunioes_transcricoes")
     .select(
-      "id, deal_id, form_submission_id, google_event_id, doc_url, transcript_text, resumo, capturada_at",
+      "id, deal_id, form_submission_id, google_event_id, doc_url, transcript_text, resumo, caracteristicas, capturada_at",
     )
     .eq("google_event_id", eventId)
     .limit(1);
@@ -176,7 +179,12 @@ export async function obterTranscricaoEvento(
       return {
         success: true,
         status: "ok",
-        transcricao: { id: body.transcript.id ?? eventId, ...body.transcript } as ReuniaoTranscricao,
+        transcricao: {
+          ...body.transcript,
+          id: body.transcript.id ?? eventId,
+          // A CF não conhece a coluna caracteristicas — normaliza p/ null.
+          caracteristicas: body.transcript.caracteristicas ?? null,
+        } as ReuniaoTranscricao,
       };
     }
     if (body.status === "not_ready") {
