@@ -28,6 +28,13 @@ import {
   type PipelineView,
 } from "./PipelineFiltersBar";
 import { PipelineTableView } from "./PipelineTableView";
+import {
+  DEFAULT_PIPELINE_SORT,
+  PIPELINE_SORT_STORAGE_KEY,
+  isPipelineSortMode,
+  sortDealsForDisplay,
+  type PipelineSortMode,
+} from "./PipelineSortMenu";
 import { RetrocessoModal } from "./RetrocessoModal";
 import { LossModal, type LossPayload } from "./LossModal";
 import { GanhoEscolasModal } from "./GanhoEscolasModal";
@@ -128,6 +135,27 @@ export function PipelineBoard({
     emptyPipelineFilters(),
   );
 
+  // Ordenação de exibição dos cards (escolha do CEO, persistida). Começa no
+  // padrão e só lê o localStorage após montar — evita mismatch de hidratação.
+  const [sort, setSort] = useState<PipelineSortMode>(DEFAULT_PIPELINE_SORT);
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(PIPELINE_SORT_STORAGE_KEY);
+      if (stored && isPipelineSortMode(stored)) setSort(stored);
+    } catch {
+      // localStorage indisponível (modo privado/iframe) — mantém o padrão.
+    }
+  }, []);
+
+  const handleSortChange = (mode: PipelineSortMode) => {
+    setSort(mode);
+    try {
+      window.localStorage.setItem(PIPELINE_SORT_STORAGE_KEY, mode);
+    } catch {
+      // Sem persistência disponível — a escolha ainda vale nesta sessão.
+    }
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
@@ -138,7 +166,14 @@ export function PipelineBoard({
   );
 
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
-  const dealsByStage = getDealsByStage(filteredDeals);
+
+  // Transform SÓ de render: ordena a lista filtrada e agrupa — a ordem dentro
+  // de cada coluna segue. Mover card de coluna (dnd) muda `stage`, não posição,
+  // então o drag-and-drop continua intacto.
+  const dealsByStage = useMemo(
+    () => getDealsByStage(sortDealsForDisplay(filteredDeals, sort)),
+    [filteredDeals, sort],
+  );
 
   // Colunas na ordem configurada. Coluna OCULTA some do board SÓ quando não
   // tem deals visíveis — com deals, renderiza com badge "Oculta" (deals nunca
@@ -323,6 +358,8 @@ export function PipelineBoard({
         totalDeals={deals.length}
         filteredDeals={filteredDeals.length}
         hasCurrentUser={!!currentUserId}
+        sort={sort}
+        onSortChange={handleSortChange}
       />
 
       {view === "kanban" ? (
