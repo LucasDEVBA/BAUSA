@@ -157,7 +157,7 @@ const fetchWeeklyKPIs = async () => {
     crises,
     gastoMes,
   ] = await Promise.all([
-    supaGet(`form_submissions?select=qualification_classification&submitted_at=gte.${since}`),
+    supaGet(`form_submissions?select=qualification_classification&deleted_at=is.null&submitted_at=gte.${since}`),
     supaGet(`deals?select=etapa,updated_at&deleted_at=is.null&updated_at=gte.${since}`),
     supaGet(`contratos_financeiros?select=valor_total&deleted_at=is.null&created_at=gte.${since}`),
     supaGet('deals?select=next_action&deleted_at=is.null&etapa=not.in.(perdido,concluido,cancelamento_solicitado)'),

@@ -374,6 +374,7 @@ export async function contarLeadsPendentesAprovacao(): Promise<number | null> {
   const { count, error } = await supabase
     .from("form_submissions")
     .select("id", { count: "exact", head: true })
+    .is("deleted_at", null)
     .eq("aprovacao_status", "pendente")
     .in("qualification_classification", ["QUENTE", "MORNO"]);
 
@@ -404,6 +405,7 @@ export async function listarLeadsPendentesCards(): Promise<LeadPendenteCard[]> {
   const { data, error } = await supabase
     .from("form_submissions")
     .select("id, athlete_name, qualification_classification, city_state, position, timing_status, submitted_at")
+    .is("deleted_at", null)
     .eq("aprovacao_status", "pendente")
     .in("qualification_classification", ["QUENTE", "MORNO"])
     .order("submitted_at", { ascending: true });
@@ -423,6 +425,7 @@ export async function listarLeadsPendentesAprovacao(): Promise<
   const { data, error } = await supabase
     .from("form_submissions")
     .select(COLUNAS_FILA_APROVACAO)
+    .is("deleted_at", null)
     .eq("aprovacao_status", "pendente")
     // Defesa em profundidade: um 'pendente' residual requalificado como FRIO
     // não deve ser aprovável (a CF também limpa pendente→NULL nesse caso).

@@ -159,6 +159,8 @@ const fetchPendingLeads = async () => {
       // Gate humano: só leads aprovados pelo CEO/CTO recebem outreach.
       // NULL (pré-feature sem backfill) e 'pendente'/'reprovado' ficam fora.
       'aprovacao_status=eq.aprovado',
+      // Lead excluído (soft delete) nunca recebe outreach.
+      'deleted_at=is.null',
     ]);
   }
 
@@ -178,6 +180,8 @@ const fetchPendingLeads = async () => {
       'whatsapp_sent_at=is.null',
       // Gate humano (paridade com Bucket A): aprovação obrigatória.
       'aprovacao_status=eq.aprovado',
+      // Lead excluído (soft delete) nunca recebe outreach.
+      'deleted_at=is.null',
     ]);
   }
 

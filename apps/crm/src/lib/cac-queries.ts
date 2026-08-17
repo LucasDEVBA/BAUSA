@@ -157,6 +157,7 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
     supabase
       .from("form_submissions")
       .select("qualification_classification, utm_source")
+      .is("deleted_at", null)
       .gte("submitted_at", startISO),
     supabase
       .from("contratos_financeiros")
@@ -309,6 +310,7 @@ export async function fetchCampanhaMetrics(
     supabase
       .from("form_submissions")
       .select("utm_id, qualification_classification")
+      .is("deleted_at", null)
       .gte("submitted_at", startISO),
     supabase
       .from("contratos_financeiros")

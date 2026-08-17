@@ -376,7 +376,11 @@ const resolveLead = async (phone) => {
   try {
     fs = await sbGet(
       `form_submissions?or=(guardian_whatsapp.like.*${suffix},athlete_whatsapp.like.*${suffix})`
-      + '&select=id,athlete_name,guardian_name&order=created_at.desc&limit=1'
+      // deleted_at: lead excluído volta a ser tratado como contato desconhecido.
+      // order por submitted_at — form_submissions NÃO tem created_at; o order
+      // antigo por created_at fazia o PostgREST devolver 400, o catch abaixo
+      // engolia e NENHUM lead era vinculado (fail-closed virava fail-always).
+      + '&deleted_at=is.null&select=id,athlete_name,guardian_name&order=submitted_at.desc&limit=1'
     );
   } catch (e) {
     // Erro de DB (não "sem match") → não sabemos quem é o lead → fail-closed.

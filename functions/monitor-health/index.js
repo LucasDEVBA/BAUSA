@@ -383,7 +383,7 @@ const checkEnviosSemEspelho = async () => {
   // a lista de flagados muda a cada tick (o alerta "flapava" entre 6 e 2).
   const marcasRes = await Promise.all(COLUNAS_ENVIO.map((col) =>
     httpRequest(
-      `${SUPABASE_URL}/rest/v1/form_submissions?select=${selects}&${col}=gt.${encodeURIComponent(desde)}&order=${col}.desc&limit=50`,
+      `${SUPABASE_URL}/rest/v1/form_submissions?select=${selects}&${col}=gt.${encodeURIComponent(desde)}&deleted_at=is.null&order=${col}.desc&limit=50`,
       { method: 'GET', headers: supaHeaders() },
     ),
   ));
@@ -522,7 +522,7 @@ const alertarAprovacaoPendente = async (canais) => {
   const rows = await buscar(
     `form_submissions?select=athlete_name,qualification_classification,qualified_at` +
       `&aprovacao_status=eq.pendente&qualification_classification=in.(QUENTE,MORNO)` +
-      `&qualified_at=lt.${limite}&order=qualified_at.asc&limit=10`,
+      `&deleted_at=is.null&qualified_at=lt.${limite}&order=qualified_at.asc&limit=10`,
   );
   if (!Array.isArray(rows) || rows.length === 0) return 0;
 
@@ -648,6 +648,7 @@ const runChecks = async () => {
     checkSeguro('qualificacao_travada', async () => {
       const n = await contar(
         `form_submissions?select=id&qualification_classification=is.null` +
+          `&deleted_at=is.null` +
           `&submitted_at=lt.${encodeURIComponent(isoAtras(QUALIFICACAO_TRAVADA_HORAS))}` +
           `&submitted_at=gt.${encodeURIComponent(desdeJanela)}`,
       );
@@ -660,6 +661,7 @@ const runChecks = async () => {
       const n = await contar(
         `form_submissions?select=id&qualification_classification=in.(QUENTE,MORNO)` +
           `&whatsapp_sent_at=is.null` +
+          `&deleted_at=is.null` +
           `&qualified_at=lt.${encodeURIComponent(isoAtras(limiteFila))}` +
           `&qualified_at=gt.${encodeURIComponent(desdeJanela)}` +
           `&or=(timing_status.is.null,timing_status.eq.ideal)` +
@@ -674,6 +676,7 @@ const runChecks = async () => {
       const n = await contar(
         `form_submissions?select=id&aprovacao_status=eq.pendente` +
           `&qualification_classification=in.(QUENTE,MORNO)` +
+          `&deleted_at=is.null` +
           `&qualified_at=lt.${encodeURIComponent(isoAtras(APROVACAO_PENDENTE_HORAS))}` +
           `&qualified_at=gt.${encodeURIComponent(desdeJanela)}`,
       );
@@ -888,6 +891,7 @@ const runChecks = async () => {
     checkSeguro('sheets_sync_pendente', async () => {
       const n = await contar(
         `form_submissions?select=id&sheets_synced_at=is.null` +
+          `&deleted_at=is.null` +
           `&submitted_at=lt.${encodeURIComponent(isoAtras(SHEETS_SYNC_FOLGA_HORAS))}` +
           `&submitted_at=gt.${encodeURIComponent(desdeJanela)}`,
       );

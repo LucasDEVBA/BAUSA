@@ -556,6 +556,7 @@ export async function fetchPendingQualifications(): Promise<PendingQualification
   const { data, error } = await supabase
     .from("form_submissions")
     .select("id,email,athlete_name,submitted_at,qualification_attempts,last_qualification_attempt_at,last_qualification_error")
+    .is("deleted_at", null)
     .eq("qualification_pending", true)
     .order("last_qualification_attempt_at", { ascending: true, nullsFirst: true });
 
@@ -588,6 +589,7 @@ export async function fetchLeadsAguardandoAprovacao(): Promise<number> {
   const { count, error } = await supabase
     .from("form_submissions")
     .select("id", { count: "exact", head: true })
+    .is("deleted_at", null)
     .eq("aprovacao_status", "pendente")
     .in("qualification_classification", ["QUENTE", "MORNO"]);
 
@@ -611,14 +613,17 @@ export async function fetchTimingAlternatives(): Promise<TimingAlternativeSummar
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("timing_status", "muito_cedo"),
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("timing_status", "tarde_demais"),
     supabase
       .from("form_submissions")
       .select("scheduled_followup_at")
+      .is("deleted_at", null)
       .eq("timing_status", "muito_cedo")
       .not("scheduled_followup_at", "is", null)
       .is("scheduled_followup_sent_at", null)

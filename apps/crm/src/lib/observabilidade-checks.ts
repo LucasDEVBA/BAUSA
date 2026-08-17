@@ -317,6 +317,7 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
         .select(
           "id, athlete_name, athlete_whatsapp, guardian_whatsapp, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, scheduled_followup_sent_at",
         )
+        .is("deleted_at", null)
         .gte(c.col, desdeMarcas)
         .order(c.col, { ascending: true })
         .limit(100),
@@ -462,6 +463,7 @@ async function checkTimingEtapas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, qualified_at, whatsapp_sent_at, followup_1_sent_at, followup_2_sent_at, timing_status")
+      .is("deleted_at", null)
       // Janela por QUALQUER etapa recente — pega FU despejado agora sobre
       // inicial antigo (cenário pós-backlog/incidente).
       .or(`whatsapp_sent_at.gte.${d30},followup_1_sent_at.gte.${d30},followup_2_sent_at.gte.${d30}`)
@@ -470,12 +472,14 @@ async function checkTimingEtapas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, followup_1_sent_at")
+      .is("deleted_at", null)
       .gte("followup_1_sent_at", d30)
       .is("whatsapp_sent_at", null)
       .limit(50),
     supabase
       .from("form_submissions")
       .select("athlete_name, followup_2_sent_at")
+      .is("deleted_at", null)
       .gte("followup_2_sent_at", d30)
       .is("followup_1_sent_at", null)
       .limit(50),
@@ -561,6 +565,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .from("form_submissions")
       // A coluna de entrada é submitted_at — form_submissions NÃO tem created_at.
       .select("athlete_name, submitted_at")
+      .is("deleted_at", null)
       .is("qualified_at", null)
       .lt("submitted_at", corteQualificacao)
       .order("submitted_at", { ascending: true })
@@ -568,6 +573,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, qualified_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("qualified_at", "is", null)
       .lt("qualified_at", corteInicial)
@@ -581,6 +587,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, qualified_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("qualified_at", "is", null)
       .lt("qualified_at", corteAlt)
@@ -592,6 +599,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, whatsapp_sent_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("whatsapp_sent_at", "is", null)
       .lt("whatsapp_sent_at", corteFu1)
@@ -603,6 +611,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, whatsapp_sent_at")
+      .is("deleted_at", null)
       .in("qualification_classification", ["QUENTE", "MORNO"])
       .not("whatsapp_sent_at", "is", null)
       .lt("whatsapp_sent_at", corteFu2)
@@ -615,6 +624,7 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
     supabase
       .from("form_submissions")
       .select("athlete_name, scheduled_followup_at")
+      .is("deleted_at", null)
       .eq("timing_status", "muito_cedo")
       .lte("scheduled_followup_at", agora)
       .is("scheduled_followup_sent_at", null)
@@ -737,6 +747,7 @@ export async function runChecksFilas(): Promise<ObservabilidadeFilas> {
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .or(
         `whatsapp_sent_at.gte.${d1},followup_1_sent_at.gte.${d1},followup_2_sent_at.gte.${d1},scheduled_followup_sent_at.gte.${d1}`,
       ),
@@ -914,7 +925,7 @@ async function contarSimples(
 async function checkEntradaZero(supabase: Supabase): Promise<CheckResult> {
   const n = await contarSimples(
     supabase,
-    (q) => q.select("id", { count: "exact", head: true }).gte("submitted_at", horasAtrasISO(ENTRADA_ZERO_HORAS)),
+    (q) => q.select("id", { count: "exact", head: true }).is("deleted_at", null).gte("submitted_at", horasAtrasISO(ENTRADA_ZERO_HORAS)),
     "form_submissions",
   );
   return {
@@ -937,6 +948,7 @@ async function checkAprovacaoPendenteAntiga(supabase: Supabase): Promise<CheckRe
     (q) =>
       q
         .select("id", { count: "exact", head: true })
+        .is("deleted_at", null)
         .eq("aprovacao_status", "pendente")
         .in("qualification_classification", ["QUENTE", "MORNO"])
         .lt("qualified_at", horasAtrasISO(HORAS)),
@@ -1126,6 +1138,7 @@ async function checkAdsCplAlvo(supabase: Supabase): Promise<CheckResult> {
     const { count } = await supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("utm_id", cid)
       .gte("submitted_at", corteTs);
     const leads = count ?? 0;
@@ -1225,6 +1238,7 @@ async function checkSheetsSync(supabase: Supabase): Promise<CheckResult> {
   const n = await contarSimples(
     supabase,
     (q) => q.select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .is("sheets_synced_at", null)
       .lt("submitted_at", horasAtrasISO(2))
       .gte("submitted_at", horasAtrasISO(7 * 24)),
@@ -1338,6 +1352,7 @@ async function checkCalendar(supabase: Supabase): Promise<CheckResult> {
   const { data } = await supabase
     .from("form_submissions")
     .select("meeting_scheduled_at")
+    .is("deleted_at", null)
     .eq("meeting_scheduled", true)
     .not("meeting_scheduled_at", "is", null)
     .order("meeting_scheduled_at", { ascending: false })
@@ -1404,16 +1419,17 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
   const cfs = cfsEDados as CheckResult[];
 
   const [leadsRes, qualifRes, waRes, espelhadasRes, reunioesRes] = await Promise.all([
-    supabase.from("form_submissions").select("id", { count: "exact", head: true }).gte("submitted_at", d1),
-    supabase.from("form_submissions").select("id", { count: "exact", head: true }).gte("qualified_at", d1),
+    supabase.from("form_submissions").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("submitted_at", d1),
+    supabase.from("form_submissions").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("qualified_at", d1),
     supabase
       .from("form_submissions")
       .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
       .or(
         `whatsapp_sent_at.gte.${d1},followup_1_sent_at.gte.${d1},followup_2_sent_at.gte.${d1},scheduled_followup_sent_at.gte.${d1}`,
       ),
     supabase.from("whatsapp_mensagens").select("id", { count: "exact", head: true }).eq("from_me", true).gte("created_at", d1),
-    supabase.from("form_submissions").select("id", { count: "exact", head: true }).gte("meeting_scheduled_at", d1),
+    supabase.from("form_submissions").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("meeting_scheduled_at", d1),
   ]);
 
   return {
