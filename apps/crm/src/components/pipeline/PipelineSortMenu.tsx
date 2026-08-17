@@ -6,14 +6,18 @@ import type { Deal } from "@/types/deal";
 import { cn } from "@/lib/utils";
 
 /**
- * Ordenação de EXIBIÇÃO dos cards dentro das colunas do Kanban.
- * É só um transform de render — não persiste ordem no banco e não interfere
- * no drag-and-drop entre colunas (que muda `stage`, não a posição).
+ * Ordenação de EXIBIÇÃO dos cards dentro das colunas do Kanban — escolhida
+ * POR COLUNA (stage). É só um transform de render: não persiste ordem no
+ * banco e não interfere no drag-and-drop entre colunas (que muda `stage`,
+ * não a posição).
  */
 export type PipelineSortMode = "padrao" | "recentes" | "antigos" | "alfabetica";
 
-/** Chave única no localStorage — escolha do CEO sobrevive ao reload. */
-export const PIPELINE_SORT_STORAGE_KEY = "bausa-pipeline-sort";
+/** Escolha por coluna. Coluna ausente = "padrao" (ordem do servidor). */
+export type PipelineSortMap = Record<string, PipelineSortMode>;
+
+/** Chave única no localStorage — Record<stage, modo> serializado em JSON. */
+export const PIPELINE_SORT_STORAGE_KEY = "bausa-pipeline-sort-colunas";
 
 export const DEFAULT_PIPELINE_SORT: PipelineSortMode = "padrao";
 
@@ -24,8 +28,32 @@ const SORT_OPTIONS: Array<{ value: PipelineSortMode; label: string }> = [
   { value: "alfabetica", label: "Ordem alfabética" },
 ];
 
-export function isPipelineSortMode(value: string): value is PipelineSortMode {
-  return SORT_OPTIONS.some((opt) => opt.value === value);
+export function isPipelineSortMode(value: unknown): value is PipelineSortMode {
+  return (
+    typeof value === "string" &&
+    SORT_OPTIONS.some((opt) => opt.value === value)
+  );
+}
+
+/**
+ * Reidrata o mapa por coluna do localStorage. Valor corrompido/parcial não
+ * quebra: entradas inválidas são descartadas e o resto sobrevive.
+ */
+export function parseStoredSortMap(raw: string | null): PipelineSortMap {
+  if (!raw) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      return {};
+    const map: PipelineSortMap = {};
+    for (const [stage, mode] of Object.entries(parsed)) {
+      if (isPipelineSortMode(mode)) map[stage] = mode;
+    }
+    return map;
+  } catch {
+    // JSON inválido — recomeça do padrão.
+    return {};
+  }
 }
 
 function createdAtMs(deal: Deal): number {
@@ -60,13 +88,28 @@ export function sortDealsForDisplay(
 interface PipelineSortMenuProps {
   value: PipelineSortMode;
   onChange: (mode: PipelineSortMode) => void;
+  /** Rótulo acessível do gatilho (ex.: "Ordenar coluna Lead"). */
+  ariaLabel: string;
+  /** Título do menu (contexto: coluna X ou o board todo). */
+  menuLabel?: string;
+  /** true = só o ícone (header de coluna); false = botão da barra de filtros. */
+  compact?: boolean;
 }
 
 /**
- * Controle discreto de ordenação do board (ícone ArrowUpDown + menu).
+ * Controle discreto de ordenação (ícone ArrowUpDown + menu).
  * Radix DropdownMenu = navegação por setas/Enter/Esc e roving focus de graça.
+ * O gatilho bloqueia dragstart/click de subir — o header da coluna é draggable
+ * (reordenação de colunas) e tem clique-para-editar; abrir o menu não pode
+ * disparar nenhum dos dois.
  */
-export function PipelineSortMenu({ value, onChange }: PipelineSortMenuProps) {
+export function PipelineSortMenu({
+  value,
+  onChange,
+  ariaLabel,
+  menuLabel = "Ordenar cards",
+  compact = false,
+}: PipelineSortMenuProps) {
   const active = SORT_OPTIONS.find((opt) => opt.value === value);
   const isCustom = value !== DEFAULT_PIPELINE_SORT;
 
@@ -75,17 +118,37 @@ export function PipelineSortMenu({ value, onChange }: PipelineSortMenuProps) {
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          aria-label={`Ordenar cards das colunas — atual: ${active?.label ?? "Padrão"}`}
-          title="Ordenar cards das colunas"
+          aria-label={`${ariaLabel} — atual: ${active?.label ?? "Padrão"}`}
+          title={ariaLabel}
+          draggable={false}
+          onDragStart={(e) => {
+            // Header da coluna é draggable — o botão não pode iniciar arraste.
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           className={cn(
-            "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-            isCustom
-              ? "border-primary/30 bg-primary/5 text-primary"
-              : "border-border bg-background text-muted-foreground hover:text-foreground",
+            "shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+            compact
+              ? cn(
+                  "flex h-5 w-5 items-center justify-center rounded-md",
+                  isCustom
+                    ? "text-primary hover:bg-card/70"
+                    : "text-muted-foreground hover:bg-card/70 hover:text-foreground",
+                )
+              : cn(
+                  "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium",
+                  isCustom
+                    ? "border-primary/30 bg-primary/5 text-primary"
+                    : "border-border bg-background text-muted-foreground hover:text-foreground",
+                ),
           )}
         >
           <ArrowUpDown className="h-3 w-3" />
-          {isCustom && <span className="hidden sm:inline">{active?.label}</span>}
+          {!compact && isCustom && (
+            <span className="hidden sm:inline">{active?.label}</span>
+          )}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -96,7 +159,7 @@ export function PipelineSortMenu({ value, onChange }: PipelineSortMenuProps) {
           className="z-50 min-w-44 rounded-lg border border-border bg-card p-1 shadow-lg"
         >
           <DropdownMenu.Label className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Ordenar cards
+            {menuLabel}
           </DropdownMenu.Label>
           <DropdownMenu.RadioGroup
             value={value}

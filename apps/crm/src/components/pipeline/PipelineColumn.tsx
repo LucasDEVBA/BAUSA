@@ -7,6 +7,7 @@ import {
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
 import { DealCard } from "./DealCard";
+import { PipelineSortMenu, type PipelineSortMode } from "./PipelineSortMenu";
 import { cn } from "@/lib/utils";
 
 interface PipelineColumnProps {
@@ -24,6 +25,9 @@ interface PipelineColumnProps {
   /** Fim do arraste (inclusive cancelado por ESC/solto fora). */
   onColumnDragEnd?: () => void;
   arrastandoColuna?: DealStage | null;
+  /** Ordenação de exibição dos cards DESTA coluna (transform de render). */
+  sort: PipelineSortMode;
+  onSortChange: (stage: DealStage, mode: PipelineSortMode) => void;
 }
 
 function fmtCompact(value: number): string {
@@ -42,6 +46,8 @@ export function PipelineColumn({
   onColumnDrop,
   onColumnDragEnd,
   arrastandoColuna,
+  sort,
+  onSortChange,
 }: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const config = stageConfig[stage];
@@ -108,11 +114,20 @@ export function PipelineColumn({
             </span>
           )}
         </button>
-        {totalValue > 0 && (
-          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-            {fmtCompact(totalValue)}
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {totalValue > 0 && (
+            <span className="text-[10px] tabular-nums text-muted-foreground">
+              {fmtCompact(totalValue)}
+            </span>
+          )}
+          <PipelineSortMenu
+            compact
+            value={sort}
+            onChange={(mode) => onSortChange(stage, mode)}
+            ariaLabel={`Ordenar coluna ${config.label}`}
+            menuLabel={`Ordenar · ${config.shortLabel}`}
+          />
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">

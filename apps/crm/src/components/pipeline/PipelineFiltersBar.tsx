@@ -24,10 +24,10 @@ interface Props {
   totalDeals: number;
   filteredDeals: number;
   hasCurrentUser: boolean;
-  /** Ordenação de exibição dos cards nas colunas (só faz sentido no Kanban —
-   *  a Tabela tem ordenação própria por coluna). */
-  sort: PipelineSortMode;
-  onSortChange: (mode: PipelineSortMode) => void;
+  /** Modo comum quando TODAS as colunas coincidem; "padrao" quando divergem. */
+  sortTodas: PipelineSortMode;
+  /** "Aplicar a todas": seta o modo em todas as colunas e limpa overrides. */
+  onSortTodasChange: (mode: PipelineSortMode) => void;
 }
 
 const CLASSIFICATION_OPTIONS: Array<{
@@ -107,8 +107,8 @@ export function PipelineFiltersBar({
   totalDeals,
   filteredDeals,
   hasCurrentUser,
-  sort,
-  onSortChange,
+  sortTodas,
+  onSortTodasChange,
 }: Props) {
   const hasActive =
     filters.search.trim() !== "" ||
@@ -210,7 +210,12 @@ export function PipelineFiltersBar({
       </span>
 
       {view === "kanban" && (
-        <PipelineSortMenu value={sort} onChange={onSortChange} />
+        <PipelineSortMenu
+          value={sortTodas}
+          onChange={onSortTodasChange}
+          ariaLabel="Ordenar todas as colunas"
+          menuLabel="Ordenar todas as colunas"
+        />
       )}
 
       <SegmentedToggle
