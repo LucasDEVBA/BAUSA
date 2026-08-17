@@ -95,9 +95,10 @@ export const GATILHO_FLUXO_CATALOG: Record<FluxoGatilho, GatilhoFluxoInfo> = {
     usaPalavras: true,
   },
   dm_primeira_msg: {
-    label: "Primeira DM do contato",
-    descricao: "A primeira vez que aquele contato manda mensagem — só dispara uma vez por pessoa.",
-    canais: ["instagram"],
+    label: "Primeira mensagem do contato",
+    descricao:
+      "A primeira vez que aquele contato manda mensagem — só dispara uma vez por pessoa. No WhatsApp vale para número que nunca recebeu mensagem sua antes: responde na hora e já abre a conversa com as perguntas do fluxo.",
+    canais: ["instagram", "whatsapp"],
   },
   link_ref: {
     label: "Link de referência",

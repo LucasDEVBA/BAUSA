@@ -63,6 +63,7 @@ const fetchPendingLeads = async () => {
     + `?qualification_pending=is.true`
     + `&last_qualification_attempt_at=lt.${encodeURIComponent(cooldownThreshold)}`
     + `&qualification_attempts=lt.${MAX_AUTOMATIC_ATTEMPTS}`
+    + `&deleted_at=is.null`
     + `&select=id,email,athlete_name,qualification_attempts,last_qualification_error`
     + `&order=last_qualification_attempt_at.asc.nullsfirst`
     + `&limit=${MAX_LEADS_PER_RUN}`;

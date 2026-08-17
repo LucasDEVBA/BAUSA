@@ -105,6 +105,7 @@ export default async function LeadsPage() {
   const { data: rows } = await supabase
     .from("form_submissions")
     .select("*")
+    .is("deleted_at", null)
     .order("submitted_at", { ascending: false });
 
   // Buscar leads promovidos com etapa do deal + responsavel_id para siblings

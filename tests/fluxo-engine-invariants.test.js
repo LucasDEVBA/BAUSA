@@ -295,3 +295,36 @@ test('fluxo nasce pausado', () => {
   const fonte = lerFonte(ACTIONS_FILE);
   assert.match(fonte, /ativo: false, \/\/ nasce pausado/, 'ativar é sempre gesto explícito do CEO');
 });
+
+// ─── dm_primeira_msg no WhatsApp (2026-08-17) ───────────────────────────
+// A borda WhatsApp só emite 'mensagem_palavra_chave'; o gatilho "primeira
+// mensagem do contato" é DERIVADO no motor e exige a prova no espelho:
+// nenhum from_me anterior para aquele número. Sem essa checagem, todo
+// contato dispararia o fluxo de boas-vindas em TODA mensagem.
+test('dm_primeira_msg no WhatsApp deriva de mensagem_palavra_chave e exige espelho vazio', () => {
+  const fonte = lerFonte(ENGINE_FILE);
+  assert.match(
+    fonte,
+    /mensagem_palavra_chave', 'dm_primeira_msg'/,
+    'o motor deve buscar fluxos dm_primeira_msg junto com mensagem_palavra_chave no WhatsApp',
+  );
+  assert.match(
+    fonte,
+    /whatsapp_mensagens\?from_me=is\.true&is_grupo=is\.false&phone=like\./,
+    'primeira vez = nenhum from_me anterior no espelho (tail tolerante ao nono dígito)',
+  );
+  assert.match(
+    fonte,
+    /ehPrimeiroContato/,
+    'a decisão de primeiro contato deve estar isolada e memoizada por evento',
+  );
+});
+
+test('catálogo da tela oferece dm_primeira_msg no WhatsApp', () => {
+  const catalogo = fs.readFileSync(
+    path.join(__dirname, '..', 'apps', 'crm', 'src', 'types', 'fluxo.ts'),
+    'utf8',
+  );
+  const bloco = catalogo.slice(catalogo.indexOf('dm_primeira_msg: {'), catalogo.indexOf('link_ref: {'));
+  assert.match(bloco, /"instagram", "whatsapp"/, 'dm_primeira_msg deve estar disponível nos dois canais');
+});

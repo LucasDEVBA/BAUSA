@@ -261,6 +261,8 @@ const fetchFollowupLeads = async (followupNumber, executionStartTime) => {
     // de process-pending-whatsapp.
     'or=(timing_status.is.null,timing_status.eq.ideal)',
     isFollowup1 ? 'followup_1_sent_at=is.null' : 'followup_2_sent_at=is.null',
+    // Lead excluído (soft delete) nunca recebe follow-up.
+    'deleted_at=is.null',
   ];
 
   if (!isFollowup1) {

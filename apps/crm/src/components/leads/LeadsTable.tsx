@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, useMemo, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
@@ -12,8 +12,9 @@ import {
   type SortingState,
   flexRender,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, MessageCircle, Check, Calendar, Send, Clock, AlertTriangle, X, Users, EyeOff } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, MessageCircle, Check, Calendar, Send, Clock, AlertTriangle, X, Users, EyeOff, Trash2 } from "lucide-react";
 import { type Lead, type LeadClassification } from "@/types/lead";
+import { excluirLead } from "@/lib/actions/leads-excluir";
 import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
 import { LeadStatusBadge } from "./LeadStatusBadge";
 import { LeadOrDealSheet } from "./LeadOrDealSheet";
@@ -50,6 +51,11 @@ export function LeadsTable({ leads }: LeadsTableProps) {
   const [globalFilter, setGlobalFilter] = useState(qParam);
   const [classificationFilter, setClassificationFilter] = useState<LeadClassification | "ALL">("ALL");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  // Confirmação de exclusão fora das colunas memoizadas (closure stale) —
+  // dentro da coluna só vive o setter, que é estável.
+  const [leadParaExcluir, setLeadParaExcluir] = useState<Lead | null>(null);
+  const [excluindo, startExcluir] = useTransition();
+  const router = useRouter();
 
   // ?atleta=<id> abre direto o detalhe do lead correspondente (deep-link das
   // Execuções). Casa pelo atleta do pipeline. Auto-abre UMA vez por valor de
@@ -345,6 +351,25 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         ),
         size: 100,
       },
+      {
+        id: "acoes",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setLeadParaExcluir(row.original);
+            }}
+            aria-label={`Excluir lead ${row.original.athlete_name}`}
+            title="Excluir lead"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-label-tertiary transition-colors hover:bg-sys-red/10 hover:text-sys-red"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        ),
+        size: 44,
+      },
     ],
     []
   );
@@ -496,6 +521,67 @@ export function LeadsTable({ leads }: LeadsTableProps) {
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
         />
+      )}
+
+      {/* Confirmação de exclusão (soft delete) */}
+      {leadParaExcluir && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !excluindo && setLeadParaExcluir(null)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="excluir-lead-titulo"
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sys-red/10">
+                <Trash2 className="h-4 w-4 text-sys-red" />
+              </div>
+              <div className="min-w-0">
+                <h2 id="excluir-lead-titulo" className="text-sm font-semibold text-foreground">
+                  Excluir {leadParaExcluir.athlete_name}?
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  O lead sai das listas, do pipeline e de todas as mensagens
+                  automáticas. Nada é apagado de verdade — a exclusão é
+                  reversível pelo suporte.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setLeadParaExcluir(null)}
+                disabled={excluindo}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const lead = leadParaExcluir;
+                  startExcluir(async () => {
+                    const r = await excluirLead(lead.id);
+                    if (r.success) {
+                      toast.success(`Lead ${lead.athlete_name} excluído.`);
+                      if ("aviso" in r && r.aviso) toast.warning(r.aviso);
+                      setLeadParaExcluir(null);
+                      router.refresh();
+                    } else {
+                      toast.error(r.error ?? "Erro ao excluir.");
+                    }
+                  });
+                }}
+                disabled={excluindo}
+                className="rounded-lg bg-sys-red px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-sys-red/90 disabled:opacity-60"
+              >
+                {excluindo ? "Excluindo…" : "Sim, excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
