@@ -33,10 +33,15 @@ export function EmailModal({
 
   useEffect(() => {
     if (!aberto) return;
+    // Capture + stopPropagation: quando o modal abre DENTRO de outro modal
+    // (aba E-mails do detalhe do lead/deal), Esc fecha SÓ este — sem o guard,
+    // o listener do modal pai fecharia os dois (padrão MensagemDiretaComposer).
     const aoTeclar = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onFechar();
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onFechar();
     };
-    document.addEventListener("keydown", aoTeclar);
+    document.addEventListener("keydown", aoTeclar, true);
     // Trava o scroll do fundo enquanto o modal está aberto.
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -44,7 +49,7 @@ export function EmailModal({
       ?.querySelector<HTMLElement>("input,select,textarea,button:not([aria-label='Fechar'])")
       ?.focus();
     return () => {
-      document.removeEventListener("keydown", aoTeclar);
+      document.removeEventListener("keydown", aoTeclar, true);
       document.body.style.overflow = overflow;
     };
   }, [aberto, onFechar]);

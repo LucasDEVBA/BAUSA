@@ -19,6 +19,7 @@ import {
   MailOpen,
   Plus,
   Reply,
+  Route,
   Send,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,18 +33,26 @@ import {
   EmptyState,
   PageHeader,
   StatCard,
-  type BadgeTone,
 } from "@/components/ui";
+import {
+  assuntoResposta,
+  localPart,
+  montarThreadContexto,
+  statusChips,
+} from "@/components/emails/email-status";
 import { carregarThreadEmail } from "@/lib/actions/emails";
-import type { EmailMensagem, EmailMetricas } from "@/lib/emails-queries";
+import type {
+  EmailMensagem,
+  EmailMetricas,
+  EmailRoteamentoRegra,
+} from "@/lib/emails-queries";
 import { formatRelativeTime } from "@/lib/utils";
 
 import { CompositorEmail, type CompositorPrefill } from "./compositor";
 import { EmailModal } from "./modal";
+import { RoteamentoTab } from "./roteamento";
 
-type TabId = "caixa" | "enviados" | "metricas";
-
-const REMETENTE = "contato@bolsaatletausa.com";
+export type TabId = "caixa" | "enviados" | "metricas" | "roteamento";
 
 function pct(v: number | null): string {
   return v == null ? "—" : `${(v * 100).toFixed(0)}%`;
@@ -55,37 +64,29 @@ function diaLabel(dia: string): string {
   return `${d}/${m}`;
 }
 
-/** Prefixo "Re:" sem duplicar (Re: Re: …). */
-function assuntoResposta(assunto: string): string {
-  return /^re:/i.test(assunto.trim()) ? assunto : `Re: ${assunto}`;
-}
-
-/** Chips de status do e-mail enviado, derivados dos timestamps do Resend. */
-function statusChips(email: EmailMensagem): Array<{ label: string; tone: BadgeTone }> {
-  const chips: Array<{ label: string; tone: BadgeTone }> = [];
-  if (email.falhaMotivo) chips.push({ label: "Falha", tone: "red" });
-  if (email.bounceAt) chips.push({ label: "Bounce", tone: "red" });
-  if (email.reclamadoAt) chips.push({ label: "Reclamado", tone: "red" });
-  if (chips.length > 0) return chips;
-
-  // Progressão: mostra o estágio mais avançado alcançado.
-  if (email.clicadoAt) return [{ label: "Clicado", tone: "purple" }];
-  if (email.abertoAt) return [{ label: "Aberto", tone: "green" }];
-  if (email.entregueAt) return [{ label: "Entregue", tone: "blue" }];
-  return [{ label: "Enviado", tone: "neutral" }];
-}
-
 export function EmailsClient({
   recebidos,
   enviados,
   metricas,
+  contas,
+  padraoEnvio,
+  caixaAtiva,
+  roteamento,
+  tabInicial = "caixa",
 }: {
   recebidos: EmailMensagem[];
   enviados: EmailMensagem[];
   metricas: EmailMetricas;
+  /** Contas sincronizadas (config `emails_contas`) — pílulas + De: do compositor. */
+  contas: string[];
+  padraoEnvio: string;
+  /** Filtro de caixa aplicado server-side (querystring); null = Todas. */
+  caixaAtiva: string | null;
+  roteamento: EmailRoteamentoRegra[];
+  tabInicial?: TabId;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabId>("caixa");
+  const [tab, setTab] = useState<TabId>(tabInicial);
 
   // Compositor
   const [compositorAberto, setCompositorAberto] = useState(false);
@@ -123,28 +124,57 @@ export function EmailsClient({
   const responder = (email: EmailMensagem) => {
     // Responde à outra ponta: num recebido, o remetente; num enviado, o destinatário.
     const para = email.direcao === "recebido" ? email.deEmail : email.paraEmail;
+    // Contexto p/ "Rascunhar resposta com IA": a thread carregada (ou a própria msg).
+    const conversa = threadMensagens.length > 0 ? threadMensagens : [email];
     setPrefill({
       para,
       assunto: assuntoResposta(email.assunto),
       formSubmissionId: email.formSubmissionId ?? undefined,
       leadNome: email.leadNome ?? undefined,
+      threadContexto: montarThreadContexto(conversa),
+      // Responder pela caixa em que a conversa está (se sincronizada).
+      de: email.caixaEmail?.toLowerCase() ?? undefined,
     });
     setThreadAberta(null);
     setCompositorAberto(true);
+  };
+
+  /** Troca o filtro de caixa — server-side via querystring (mantém a aba). */
+  const mudarCaixa = (caixa: string | null) => {
+    const params = new URLSearchParams();
+    if (tab !== "caixa") params.set("tab", tab);
+    if (caixa) params.set("caixa", caixa);
+    const qs = params.toString();
+    router.replace(qs ? `/emails?${qs}` : "/emails");
   };
 
   const tabs = [
     { id: "caixa", label: `Caixa de entrada (${recebidos.length})`, icon: Inbox },
     { id: "enviados", label: `Enviados (${enviados.length})`, icon: Send },
     { id: "metricas", label: "Métricas", icon: BarChart3 },
+    { id: "roteamento", label: "Roteamento", icon: Route },
   ];
+
+  const mostrarPillsCaixa = contas.length > 1 && tab !== "roteamento";
+
+  /** Mini-badge da caixa numa linha da lista (só quando o filtro = Todas). */
+  const badgeCaixa = (email: EmailMensagem) =>
+    caixaAtiva === null && contas.length > 1 && email.caixaEmail ? (
+      <Badge tone="neutral" size="sm">
+        {localPart(email.caixaEmail)}
+      </Badge>
+    ) : null;
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Comercial"
         title="E-mails"
-        description="Caixa de entrada da contato@, envios do compositor e métricas do Resend."
+        description={
+          contas.length > 1
+            ? "Caixas sincronizadas, envios do compositor, métricas do Resend e roteamento de alias."
+            : "Caixa de entrada da contato@, envios do compositor e métricas do Resend."
+        }
         actions={
           <Button size="sm" onClick={novoEmail}>
             <Plus />
@@ -182,6 +212,35 @@ export function EmailsClient({
         })}
       </div>
 
+      {/* Filtro por caixa (multi-conta) — aplicado server-side via querystring */}
+      {mostrarPillsCaixa && (
+        <div
+          role="group"
+          aria-label="Filtrar por caixa"
+          className="flex flex-wrap items-center gap-1.5"
+        >
+          {[null, ...contas].map((conta) => {
+            const active = caixaAtiva === conta;
+            return (
+              <button
+                key={conta ?? "todas"}
+                type="button"
+                aria-pressed={active}
+                onClick={() => mudarCaixa(conta)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground"
+                }`}
+                title={conta ?? "Todas as caixas"}
+              >
+                {conta ? localPart(conta) : "Todas"}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {tab === "caixa" && (
         <Card padding="none">
           {recebidos.length === 0 ? (
@@ -204,6 +263,7 @@ export function EmailsClient({
                         {email.deEmail}
                       </span>
                       {email.leadNome && <Badge tone="brand">{email.leadNome}</Badge>}
+                      {badgeCaixa(email)}
                       <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                         {formatRelativeTime(email.mensagemEm)}
                       </span>
@@ -252,6 +312,7 @@ export function EmailsClient({
                         {email.paraEmail}
                       </span>
                       {email.leadNome && <Badge tone="brand">{email.leadNome}</Badge>}
+                      {badgeCaixa(email)}
                       {statusChips(email).map((chip) => (
                         <Badge key={chip.label} tone={chip.tone}>
                           {chip.label}
@@ -336,7 +397,9 @@ export function EmailsClient({
             <>
               <ChartCard
                 title="Envios por dia"
-                subtitle={`Últimos ${metricas.dias} dias — aberturas atribuídas ao dia do envio`}
+                subtitle={`Últimos ${metricas.dias} dias — aberturas atribuídas ao dia do envio${
+                  caixaAtiva ? ` — caixa ${localPart(caixaAtiva)}` : ""
+                }`}
               >
                 <ResponsiveContainer width="100%" height={220}>
                   <AreaChart data={metricas.serie}>
@@ -435,6 +498,8 @@ export function EmailsClient({
         </div>
       )}
 
+      {tab === "roteamento" && <RoteamentoTab contas={contas} regras={roteamento} />}
+
       {/* Painel da conversa */}
       <EmailModal
         aberto={threadAberta !== null}
@@ -460,7 +525,8 @@ export function EmailsClient({
         ) : (
           <ul className="space-y-3">
             {threadMensagens.map((msg) => {
-              const nossa = msg.deEmail.toLowerCase() === REMETENTE || msg.direcao === "enviado";
+              const nossa =
+                msg.direcao === "enviado" || contas.includes(msg.deEmail.toLowerCase());
               return (
                 <li
                   key={msg.id}
@@ -495,6 +561,8 @@ export function EmailsClient({
       {compositorAberto && (
         <CompositorEmail
           prefill={prefill}
+          contas={contas}
+          padraoEnvio={padraoEnvio}
           onFechar={() => setCompositorAberto(false)}
           onEnviado={() => router.refresh()}
         />
