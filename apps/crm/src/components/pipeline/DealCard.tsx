@@ -1,7 +1,7 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/core";
-import { Clock, AlertTriangle, CheckCircle, ArrowLeft, CalendarClock } from "lucide-react";
+import { Clock, AlertTriangle, CheckCircle, ArrowLeft, CalendarClock, Trash2 } from "lucide-react";
 import {
   type Deal,
   DEAL_STAGE_CONFIG,
@@ -37,9 +37,11 @@ interface DealCardProps {
   onClick?: () => void;
   /** Config de exibição das etapas (rótulo/cor do CEO). Default = estático. */
   stageConfig?: DealStageConfigMap;
+  /** Excluir o LEAD inteiro (soft delete em cascata) direto do card. */
+  onExcluir?: () => void;
 }
 
-export function DealCard({ deal, isDragging, onClick, stageConfig: configMap }: DealCardProps) {
+export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, onExcluir }: DealCardProps) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: deal.id,
   });
@@ -74,7 +76,7 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap }: 
       onClick={onClick}
       title={
         isUnconfigured && !isLost
-          ? 'Preencha "Próxima ação" e a data antes de avançar.'
+          ? 'Próxima ação não preenchida.'
           : undefined
       }
       className={cn(
@@ -92,6 +94,25 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap }: 
           timing?.faixa ?? stageConfig.dotColor,
         )}
       />
+
+      {/* Excluir o lead — aparece no hover; não dispara drag nem o clique
+          do card (o root tem os listeners do dnd-kit no pointerdown). */}
+      {onExcluir && (
+        <button
+          type="button"
+          aria-label={`Excluir lead ${deal.athlete_name}`}
+          title="Excluir lead"
+          draggable={false}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onExcluir();
+          }}
+          className="absolute bottom-1.5 right-1.5 z-10 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity text-label-tertiary hover:bg-sys-red/10 hover:text-sys-red focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
 
       {/* Sinal de incompleto */}
       {isUnconfigured && !isLost && (

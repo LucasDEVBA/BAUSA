@@ -28,6 +28,8 @@ interface PipelineColumnProps {
   /** Ordenação de exibição dos cards DESTA coluna (transform de render). */
   sort: PipelineSortMode;
   onSortChange: (stage: DealStage, mode: PipelineSortMode) => void;
+  /** Excluir o lead direto do card (soft delete em cascata, com confirmação). */
+  onExcluirDeal?: (deal: Deal) => void;
 }
 
 function fmtCompact(value: number): string {
@@ -48,6 +50,7 @@ export function PipelineColumn({
   arrastandoColuna,
   sort,
   onSortChange,
+  onExcluirDeal,
 }: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const config = stageConfig[stage];
@@ -142,6 +145,7 @@ export function PipelineColumn({
               key={deal.id}
               deal={deal}
               onClick={() => onDealClick(deal)}
+              onExcluir={onExcluirDeal ? () => onExcluirDeal(deal) : undefined}
             />
           ))
         )}

@@ -84,3 +84,66 @@ export async function excluirLead(formSubmissionId: string) {
   revalidatePath("/war-room");
   return { success: true, atletasExcluidos, dealsExcluidos };
 }
+
+/**
+ * Exclusão a partir do CARD do pipeline: resolve deal → atleta →
+ * form_submission e aplica o mesmo soft delete em cascata. Deal sem
+ * form_submission (lead criado manualmente) exclui atleta + deals.
+ */
+export async function excluirLeadPorDeal(dealId: string) {
+  const papel = await getUserPapel();
+  if (papel !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem excluir leads." };
+  }
+  if (!z.string().uuid().safeParse(dealId).success) {
+    return { success: false, error: "Id inválido." };
+  }
+
+  const supabase = await createAuditedSupabaseClient();
+  const { data: deal } = await supabase
+    .from("deals")
+    .select("id, atleta_id")
+    .eq("id", dealId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!deal) {
+    return { success: false, error: "Deal não encontrado (já excluído?)." };
+  }
+
+  if (deal.atleta_id) {
+    const { data: atleta } = await supabase
+      .from("atletas")
+      .select("id, form_submission_id")
+      .eq("id", deal.atleta_id)
+      .maybeSingle();
+    if (atleta?.form_submission_id) {
+      return excluirLead(atleta.form_submission_id);
+    }
+  }
+
+  // Sem form_submission vinculada: cascata direta atleta + deals.
+  const agora = new Date().toISOString();
+  if (deal.atleta_id) {
+    await supabase
+      .from("deals")
+      .update({ deleted_at: agora })
+      .eq("atleta_id", deal.atleta_id)
+      .is("deleted_at", null);
+    await supabase
+      .from("atletas")
+      .update({ deleted_at: agora })
+      .eq("id", deal.atleta_id)
+      .is("deleted_at", null);
+  } else {
+    await supabase
+      .from("deals")
+      .update({ deleted_at: agora })
+      .eq("id", dealId)
+      .is("deleted_at", null);
+  }
+
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  revalidatePath("/war-room");
+  return { success: true, atletasExcluidos: deal.atleta_id ? 1 : 0, dealsExcluidos: 1 };
+}
