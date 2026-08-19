@@ -88,12 +88,14 @@ const sb = async (path, method = 'GET', body = null, prefer = null) => {
 // ─── Token Gmail: JWT RS256 assinado na unha (zero deps) ───────
 const b64u = (buf) => Buffer.from(buf).toString('base64url');
 
-const gmailToken = async () => {
+// Multi-conta (2026-08-19): o DWD vale para a organização inteira — a mesma
+// SA impersona qualquer caixa listada em configuracoes_sistema.emails_contas.
+const gmailToken = async (conta) => {
   const now = Math.floor(Date.now() / 1000);
   const header = b64u(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const claims = b64u(JSON.stringify({
     iss: SERVICE_ACCOUNT_EMAIL,
-    sub: GMAIL_USER, // impersonação via domain-wide delegation
+    sub: conta, // impersonação via domain-wide delegation
     scope: 'https://www.googleapis.com/auth/gmail.readonly',
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
@@ -124,12 +126,41 @@ const gmailToken = async () => {
   return JSON.parse(res.body).access_token;
 };
 
-const gmail = async (token, path) => {
-  const res = await httpRequest(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(GMAIL_USER)}/${path}`, {
+const gmail = async (token, conta, path) => {
+  const res = await httpRequest(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(conta)}/${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (res.statusCode >= 400) throw new Error(`gmail ${path.split('?')[0]}: ${res.statusCode} ${res.body.slice(0, 200)}`);
   return JSON.parse(res.body);
+};
+
+// ─── Config: contas sincronizadas + regras de roteamento ────────
+// Fail-open para a conta da env: erro de config nunca para o sync.
+const lerContasERegras = async () => {
+  let contas = [GMAIL_USER];
+  const regras = {};
+  try {
+    const rows = await sb(
+      'configuracoes_sistema?chave=in.(emails_contas,emails_roteamento)&select=chave,valor'
+    );
+    for (const r of rows) {
+      const v = r.valor && typeof r.valor === 'object' ? r.valor : {};
+      if (r.chave === 'emails_contas' && Array.isArray(v.contas) && v.contas.length > 0) {
+        contas = v.contas.map((c) => String(c).toLowerCase()).filter((c) => c.includes('@'));
+      }
+      if (r.chave === 'emails_roteamento' && Array.isArray(v.regras)) {
+        // alias (To:) → caixa de destino na tela do Engine
+        for (const regra of v.regras) {
+          if (regra && regra.alias && regra.caixa) {
+            regras[String(regra.alias).toLowerCase()] = String(regra.caixa).toLowerCase();
+          }
+        }
+      }
+    }
+  } catch (e) {
+    log('WARN', 'config_contas_falhou', { error: e.message });
+  }
+  return { contas, regras };
 };
 
 // ─── Parsing ────────────────────────────────────────────────────
@@ -185,31 +216,22 @@ const salvarEstado = async (estado) => {
   }
 };
 
-// ─── Sync ───────────────────────────────────────────────────────
-const sincronizar = async () => {
-  const token = await gmailToken();
-  const estado = await lerEstado();
-
-  const desdeMs = estado.ultima_varredura_ms
-    ? Number(estado.ultima_varredura_ms) - OVERLAP_MS
-    : Date.now() - PRIMEIRA_JANELA_DIAS * 24 * 60 * 60 * 1000;
-  const inicioTickMs = Date.now();
-
+// ─── Sync de UMA conta ──────────────────────────────────────────
+const sincronizarConta = async (conta, regras, desdeMs) => {
+  const token = await gmailToken(conta);
   const q = encodeURIComponent(`after:${Math.floor(desdeMs / 1000)} -in:spam -in:trash -in:chat`);
   let ids = [];
   let pageToken = '';
   for (let p = 0; p < MAX_PAGINAS; p++) {
-    const lista = await gmail(token, `messages?q=${q}&maxResults=100&includeSpamTrash=false${pageToken ? `&pageToken=${pageToken}` : ''}`);
+    const lista = await gmail(token, conta, `messages?q=${q}&maxResults=100&includeSpamTrash=false${pageToken ? `&pageToken=${pageToken}` : ''}`);
     ids.push(...(lista.messages || []).map((m) => m.id));
     pageToken = lista.nextPageToken || '';
     if (!pageToken) break;
   }
-  if (ids.length === 0) {
-    await salvarEstado({ ...estado, ultima_varredura_ms: inicioTickMs, verificado_em: new Date().toISOString(), novas: 0 });
-    return { listadas: 0, novas: 0 };
-  }
+  if (ids.length === 0) return { listadas: 0, novas: 0 };
 
-  // Anti-join local (o UNIQUE do banco cobre corridas)
+  // Anti-join local por caixa (o UNIQUE (caixa_email, gmail_message_id)
+  // cobre corridas e o caso de a MESMA mensagem existir nas duas contas)
   const existentes = new Set();
   for (let i = 0; i < ids.length; i += 100) {
     const fatia = ids.slice(i, i + 100);
@@ -221,12 +243,12 @@ const sincronizar = async () => {
   let inseridas = 0;
   for (const id of novas) {
     try {
-      const msg = await gmail(token, `messages/${id}?format=full`);
+      const msg = await gmail(token, conta, `messages/${id}?format=full`);
       const de = extrairEmail(headerDe(msg.payload, 'From'));
-      const para = extrairEmail(headerDe(msg.payload, 'To')) || GMAIL_USER;
+      const para = extrairEmail(headerDe(msg.payload, 'To')) || conta;
       const assunto = headerDe(msg.payload, 'Subject') || '(sem assunto)';
       const quando = msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : new Date().toISOString();
-      const direcao = de === GMAIL_USER.toLowerCase() ? 'enviado' : 'recebido';
+      const direcao = de === conta.toLowerCase() ? 'enviado' : 'recebido';
       const contraparte = direcao === 'recebido' ? de : para;
 
       let formSubmissionId = null;
@@ -239,11 +261,16 @@ const sincronizar = async () => {
         }
       }
 
+      // Roteamento de alias: e-mail recebido PARA o endereço x aparece na
+      // caixa y do Engine (regra da tela /emails). Sem regra = a própria conta.
+      const caixa = (direcao === 'recebido' && regras[para]) ? regras[para] : conta;
+
       const corpo = extrairCorpo(msg.payload).slice(0, MAX_CORPO_CHARS);
       await sb('emails_mensagens', 'POST', {
         direcao,
         origem: 'gmail',
-        de_email: de || GMAIL_USER,
+        caixa_email: caixa,
+        de_email: de || conta,
         para_email: para,
         assunto: assunto.slice(0, 500),
         corpo_text: corpo || null,
@@ -256,17 +283,53 @@ const sincronizar = async () => {
       }, 'resolution=ignore-duplicates,return=minimal');
       inseridas++;
     } catch (e) {
-      log('WARN', 'mensagem_falhou', { id, error: e.message });
+      log('WARN', 'mensagem_falhou', { conta, id, error: e.message });
+    }
+  }
+  return { listadas: ids.length, novas: inseridas };
+};
+
+// ─── Sync de todas as contas configuradas ───────────────────────
+const sincronizar = async () => {
+  const { contas, regras } = await lerContasERegras();
+  const estado = await lerEstado();
+  // Estado por conta; o formato antigo (flat) vale como legado da 1ª conta.
+  const porConta = estado.contas && typeof estado.contas === 'object' ? estado.contas : {};
+  const legadoMs = Number(estado.ultima_varredura_ms) || null;
+  const inicioTickMs = Date.now();
+
+  const totais = { listadas: 0, novas: 0, contas: {}, erros: 0 };
+  for (const conta of contas) {
+    const anteriorMs = Number(porConta[conta]?.ultima_varredura_ms) || (conta === contas[0] ? legadoMs : null);
+    const desdeMs = anteriorMs
+      ? anteriorMs - OVERLAP_MS
+      : inicioTickMs - PRIMEIRA_JANELA_DIAS * 24 * 60 * 60 * 1000;
+    try {
+      const r = await sincronizarConta(conta, regras, desdeMs);
+      totais.listadas += r.listadas;
+      totais.novas += r.novas;
+      totais.contas[conta] = r;
+      porConta[conta] = { ultima_varredura_ms: inicioTickMs };
+    } catch (e) {
+      // Uma conta com problema (ex.: DWD revogado) não derruba as demais.
+      totais.erros++;
+      totais.contas[conta] = { erro: e.message };
+      log('ERROR', 'conta_falhou', { conta, error: e.message });
     }
   }
 
   await salvarEstado({
-    ultima_varredura_ms: inicioTickMs,
+    contas: porConta,
     verificado_em: new Date().toISOString(),
-    listadas: ids.length,
-    novas: inseridas,
+    listadas: totais.listadas,
+    novas: totais.novas,
+    erros: totais.erros,
   });
-  return { listadas: ids.length, novas: inseridas };
+  // Todas as contas falharam = tick falho (o monitor de jobs precisa ver).
+  if (totais.erros > 0 && totais.erros === contas.length) {
+    throw new Error(`todas as ${contas.length} contas falharam no sync`);
+  }
+  return totais;
 };
 
 functions.http('emailInboxSync', async (req, res) => {

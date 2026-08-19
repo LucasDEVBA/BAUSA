@@ -14,16 +14,26 @@ import {
 
 import { CampoEmail, EmailModal } from "./modal";
 
-/** Pré-preenchimento (fluxo "Responder" da caixa de entrada). */
+/** Pré-preenchimento (fluxo "Responder" da caixa de entrada / aba do lead). */
 export interface CompositorPrefill {
   para?: string;
   assunto?: string;
   formSubmissionId?: string;
   leadNome?: string;
+  /**
+   * Modo resposta: últimas mensagens da conversa (montadas pelo caller via
+   * montarThreadContexto) — habilita o botão "Rascunhar resposta com IA".
+   */
+  threadContexto?: string;
+  /** Caixa preferida como "De:" (ex.: responder pela caixa que recebeu). */
+  de?: string;
 }
 
 const BUSCA_DEBOUNCE_MS = 300;
 const BUSCA_MIN_CHARS = 2;
+
+const OBJETIVO_RESPOSTA_PADRAO =
+  "Responder ao e-mail mais recente da conversa, dando sequência natural e propondo o próximo passo.";
 
 const TONS = [
   { value: "", label: "Consultivo premium (padrão)" },
@@ -42,13 +52,23 @@ const SELECT_CLS =
  */
 export function CompositorEmail({
   prefill,
+  contas,
+  padraoEnvio,
   onFechar,
   onEnviado,
 }: {
   prefill?: CompositorPrefill | null;
+  /** Contas de `emails_contas` (query server-side, via props). */
+  contas: string[];
+  /** Conta pré-selecionada no "De:" (padrao_envio da config). */
+  padraoEnvio: string;
   onFechar: () => void;
   onEnviado: () => void;
 }) {
+  const [de, setDe] = useState(() => {
+    if (prefill?.de && contas.includes(prefill.de)) return prefill.de;
+    return contas.includes(padraoEnvio) ? padraoEnvio : (contas[0] ?? padraoEnvio);
+  });
   const [para, setPara] = useState(prefill?.para ?? "");
   const [assunto, setAssunto] = useState(prefill?.assunto ?? "");
   const [corpo, setCorpo] = useState("");
@@ -130,13 +150,18 @@ export function CompositorEmail({
     setSugestoes([]);
   };
 
-  const rascunhar = () => {
+  const modoResposta = Boolean(prefill?.threadContexto);
+
+  const rascunhar = (comThread: boolean) => {
     setIaAviso(null);
     startRascunho(async () => {
       const res = await rascunharEmailIA({
         formSubmissionId: leadVinculado?.id,
-        objetivo,
+        // No modo resposta o objetivo é opcional — sem ele, usa o padrão.
+        objetivo:
+          comThread && objetivo.trim().length < 5 ? OBJETIVO_RESPOSTA_PADRAO : objetivo,
         tom: tom || undefined,
+        threadContexto: comThread ? prefill?.threadContexto : undefined,
       });
       if (!res.success) {
         if (res.notConfigured) {
@@ -155,6 +180,7 @@ export function CompositorEmail({
   const enviar = () => {
     startEnvio(async () => {
       const res = await enviarEmail({
+        de,
         para: para.trim(),
         assunto,
         corpo,
@@ -178,8 +204,8 @@ export function CompositorEmail({
   return (
     <EmailModal
       aberto
-      titulo="Novo e-mail"
-      descricao="Enviado como contato@bolsaatletausa.com — respostas caem na caixa de entrada."
+      titulo={modoResposta ? "Responder e-mail" : "Novo e-mail"}
+      descricao={`Enviado como ${de} — respostas caem na caixa de entrada.`}
       onFechar={onFechar}
       footer={
         <>
@@ -194,6 +220,29 @@ export function CompositorEmail({
       }
     >
       <div className="space-y-4">
+        {/* Conta remetente (De:) — contas de emails_contas */}
+        <CampoEmail
+          label="De"
+          ajuda={
+            contas.length > 1
+              ? "A resposta do lead cai na caixa da conta escolhida."
+              : undefined
+          }
+        >
+          <select
+            value={de}
+            onChange={(e) => setDe(e.target.value)}
+            className={SELECT_CLS}
+            disabled={contas.length <= 1}
+          >
+            {contas.map((conta) => (
+              <option key={conta} value={conta}>
+                {conta}
+              </option>
+            ))}
+          </select>
+        </CampoEmail>
+
         {/* Destinatário: lead vinculado (chip) OU busca/e-mail livre */}
         <CampoEmail
           label="Destinatário"
@@ -359,13 +408,24 @@ export function CompositorEmail({
             <Button
               variant="secondary"
               size="md"
-              onClick={rascunhar}
+              onClick={() => rascunhar(false)}
               disabled={rascunhando || objetivo.trim().length < 5}
             >
               {rascunhando ? <Loader2 className="animate-spin" /> : <Sparkles />}
               Rascunhar
             </Button>
           </div>
+          {modoResposta && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => rascunhar(true)} disabled={rascunhando}>
+                {rascunhando ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                Rascunhar resposta com IA
+              </Button>
+              <span className="text-[11px] text-label-tertiary">
+                Usa as últimas mensagens da conversa (objetivo é opcional).
+              </span>
+            </div>
+          )}
           {iaAviso && (
             <p role="status" className="text-xs font-medium text-sys-orange">
               {iaAviso} O envio manual continua funcionando normalmente.

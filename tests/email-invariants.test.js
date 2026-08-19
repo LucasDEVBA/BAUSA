@@ -118,3 +118,35 @@ test('customEmail: validações originais intactas + replyTo validado', () => {
     assert.ok(sendSrc.includes(`Campo ${campo}`), `validação de ${campo} presente`);
   }
 });
+
+// ─── Multi-conta (2026-08-19) ───────────────────────────────────
+
+test('inbox-sync: contas vêm da config, com fail-open para a env', () => {
+  assert.match(syncSrc, /emails_contas,emails_roteamento/, 'lê contas e regras da config');
+  assert.match(syncSrc, /let contas = \[GMAIL_USER\]/, 'erro de config nunca para o sync (fail-open)');
+});
+
+test('inbox-sync: toda linha nasce com caixa_email (roteamento aplicado)', () => {
+  assert.match(syncSrc, /caixa_email: caixa/, 'insert grava a caixa após as regras de alias');
+  assert.match(
+    syncSrc,
+    /regras\[para\]\) \? regras\[para\] : conta/,
+    'regra de alias só vale para recebidos; fallback = a própria conta',
+  );
+});
+
+test('inbox-sync: uma conta com erro não derruba as demais; todas falhando = tick falho', () => {
+  assert.match(syncSrc, /conta_falhou/, 'erro por conta é isolado e logado');
+  assert.match(
+    syncSrc,
+    /totais\.erros === contas\.length/,
+    'só relança quando TODAS as contas falharam — o monitor de jobs precisa ver',
+  );
+});
+
+test("customEmail: 'from' restrito a @bolsaatletausa.com (anti-spoofing)", () => {
+  assert.ok(
+    sendSrc.includes('endsWith("@bolsaatletausa.com")'),
+    'remetente arbitrário assinado pela nossa chave do Resend seria spoofing',
+  );
+});

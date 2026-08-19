@@ -18,6 +18,23 @@ type SupabaseServer = Awaited<ReturnType<typeof createServerSupabaseClient>>;
 
 export type EmailDirecao = "enviado" | "recebido";
 
+/** Caixa histórica/padrão — fallback quando a config `emails_contas` falha. */
+export const CAIXA_EMAIL_PADRAO = "contato@bolsaatletausa.com";
+
+export interface EmailsContasConfig {
+  /** Contas sincronizadas (caixas visíveis no Engine). */
+  contas: string[];
+  /** Conta usada como "De:" por padrão no compositor. */
+  padraoEnvio: string;
+}
+
+export interface EmailRoteamentoRegra {
+  /** Endereço que RECEBE (alias do Workspace), ex.: vendas@bolsaatletausa.com. */
+  alias: string;
+  /** Caixa sincronizada onde o e-mail aparece no Engine. */
+  caixa: string;
+}
+
 export interface EmailMensagem {
   id: string;
   direcao: EmailDirecao;
@@ -37,6 +54,8 @@ export interface EmailMensagem {
   reclamadoAt: string | null;
   falhaMotivo: string | null;
   mensagemEm: string;
+  /** Caixa do Engine a que a mensagem pertence (multi-conta; backfill = contato@). */
+  caixaEmail: string | null;
   /** Nome do atleta vinculado (enriquecido via form_submissions). */
   leadNome: string | null;
 }
@@ -95,12 +114,13 @@ interface EmailRow {
   reclamado_at: string | null;
   falha_motivo: string | null;
   mensagem_em: string;
+  caixa_email: string | null;
 }
 
 const EMAIL_COLS =
   "id, direcao, origem, de_email, para_email, assunto, corpo_text, snippet, " +
   "form_submission_id, provider, gmail_thread_id, entregue_at, aberto_at, " +
-  "clicado_at, bounce_at, reclamado_at, falha_motivo, mensagem_em";
+  "clicado_at, bounce_at, reclamado_at, falha_motivo, mensagem_em, caixa_email";
 
 function mapRow(row: EmailRow, nomes: Map<string, string>): EmailMensagem {
   return {
@@ -122,6 +142,7 @@ function mapRow(row: EmailRow, nomes: Map<string, string>): EmailMensagem {
     reclamadoAt: row.reclamado_at,
     falhaMotivo: row.falha_motivo,
     mensagemEm: row.mensagem_em,
+    caixaEmail: row.caixa_email,
     leadNome: row.form_submission_id
       ? (nomes.get(row.form_submission_id) ?? null)
       : null,
@@ -153,10 +174,105 @@ async function fetchNomesLeads(
   return nomes;
 }
 
-/** Lista de e-mails (por direção, mais recentes primeiro), com nome do lead. */
+/** true se o valor parece um e-mail do domínio da BAUSA. */
+function isEmailBausa(value: unknown): value is string {
+  return typeof value === "string" && /^[^\s@]+@bolsaatletausa\.com$/i.test(value.trim());
+}
+
+/**
+ * Config `emails_contas` (contas sincronizadas + padrão de envio).
+ * Fail-open: config ausente/quebrada → só a caixa histórica (contato@) —
+ * uma config ruim nunca derruba a tela nem o envio pela conta padrão.
+ */
+export async function fetchEmailsContasConfig(
+  supabase: SupabaseServer,
+): Promise<EmailsContasConfig> {
+  const fallback: EmailsContasConfig = {
+    contas: [CAIXA_EMAIL_PADRAO],
+    padraoEnvio: CAIXA_EMAIL_PADRAO,
+  };
+  try {
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "emails_contas")
+      .maybeSingle();
+
+    if (error) {
+      console.error({ level: "error", action: "emails_contas_config", error: error.message });
+      return fallback;
+    }
+
+    const valor = data?.valor as { contas?: unknown; padrao_envio?: unknown } | null;
+    const contas = Array.isArray(valor?.contas)
+      ? valor.contas.filter(isEmailBausa).map((c) => c.trim().toLowerCase())
+      : [];
+    if (contas.length === 0) return fallback;
+
+    const padraoRaw = isEmailBausa(valor?.padrao_envio)
+      ? valor.padrao_envio.trim().toLowerCase()
+      : null;
+    return {
+      contas,
+      padraoEnvio: padraoRaw && contas.includes(padraoRaw) ? padraoRaw : contas[0],
+    };
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "emails_contas_config",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return fallback;
+  }
+}
+
+/**
+ * Regras de roteamento alias→caixa (chave `emails_roteamento`).
+ * Fail-open: erro/config quebrada → lista vazia (o sync usa o default).
+ */
+export async function fetchEmailsRoteamento(
+  supabase: SupabaseServer,
+): Promise<EmailRoteamentoRegra[]> {
+  try {
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "emails_roteamento")
+      .maybeSingle();
+
+    if (error) {
+      console.error({ level: "error", action: "emails_roteamento_fetch", error: error.message });
+      return [];
+    }
+
+    const valor = data?.valor as { regras?: unknown } | null;
+    if (!Array.isArray(valor?.regras)) return [];
+    return valor.regras
+      .filter(
+        (r): r is { alias: string; caixa: string } =>
+          typeof r === "object" && r !== null &&
+          isEmailBausa((r as { alias?: unknown }).alias) &&
+          isEmailBausa((r as { caixa?: unknown }).caixa),
+      )
+      .map((r) => ({
+        alias: r.alias.trim().toLowerCase(),
+        caixa: r.caixa.trim().toLowerCase(),
+      }));
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "emails_roteamento_fetch",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
+
+/** Lista de e-mails (por direção e caixa, mais recentes primeiro), com nome do lead. */
 export async function fetchEmails(
   supabase: SupabaseServer,
   direcao?: EmailDirecao,
+  caixa?: string,
   limite = 100,
 ): Promise<EmailMensagem[]> {
   let query = supabase
@@ -166,6 +282,7 @@ export async function fetchEmails(
     .order("mensagem_em", { ascending: false })
     .limit(limite);
   if (direcao) query = query.eq("direcao", direcao);
+  if (caixa) query = query.eq("caixa_email", caixa);
 
   const { data, error } = await query;
   if (error) {
@@ -206,6 +323,31 @@ export async function fetchThread(
   return rows.map((r) => mapRow(r, nomes));
 }
 
+/**
+ * E-mails de UM lead (aba E-mails do detalhe), mais recentes primeiro.
+ * Sem enriquecimento de nome — o chamador já conhece o lead.
+ */
+export async function fetchEmailsLead(
+  supabase: SupabaseServer,
+  formSubmissionId: string,
+  limite = 50,
+): Promise<EmailMensagem[]> {
+  const { data, error } = await supabase
+    .from("emails_mensagens")
+    .select(EMAIL_COLS)
+    .eq("form_submission_id", formSubmissionId)
+    .is("deleted_at", null)
+    .order("mensagem_em", { ascending: false })
+    .limit(limite);
+
+  if (error) {
+    console.error({ level: "error", action: "emails_fetch_lead", error: error.message });
+    return [];
+  }
+  const vazio = new Map<string, string>();
+  return ((data ?? []) as unknown as EmailRow[]).map((r) => mapRow(r, vazio));
+}
+
 /** YYYY-MM-DD em UTC (mesma janela UTC das demais queries do Engine). */
 function diaUTC(iso: string): string {
   return iso.slice(0, 10);
@@ -220,28 +362,32 @@ function diaUTC(iso: string): string {
 export async function fetchEmailMetricas(
   supabase: SupabaseServer,
   dias = 30,
+  caixa?: string,
 ): Promise<EmailMetricas> {
   const desde = new Date(Date.now() - dias * 86_400_000).toISOString();
 
-  const [enviadosRes, recebidosRes] = await Promise.all([
-    supabase
-      .from("emails_mensagens")
-      .select(
-        "id, form_submission_id, provider, entregue_at, aberto_at, clicado_at, bounce_at, reclamado_at, mensagem_em",
-      )
-      .eq("direcao", "enviado")
-      .is("deleted_at", null)
-      .gte("mensagem_em", desde)
-      .order("mensagem_em", { ascending: true }),
-    // Respostas recebidas de leads no período (entram no "top por interação").
-    supabase
-      .from("emails_mensagens")
-      .select("id, form_submission_id, mensagem_em")
-      .eq("direcao", "recebido")
-      .is("deleted_at", null)
-      .gte("mensagem_em", desde)
-      .not("form_submission_id", "is", null),
-  ]);
+  let enviadosQuery = supabase
+    .from("emails_mensagens")
+    .select(
+      "id, form_submission_id, provider, entregue_at, aberto_at, clicado_at, bounce_at, reclamado_at, mensagem_em",
+    )
+    .eq("direcao", "enviado")
+    .is("deleted_at", null)
+    .gte("mensagem_em", desde)
+    .order("mensagem_em", { ascending: true });
+  if (caixa) enviadosQuery = enviadosQuery.eq("caixa_email", caixa);
+
+  // Respostas recebidas de leads no período (entram no "top por interação").
+  let recebidosQuery = supabase
+    .from("emails_mensagens")
+    .select("id, form_submission_id, mensagem_em")
+    .eq("direcao", "recebido")
+    .is("deleted_at", null)
+    .gte("mensagem_em", desde)
+    .not("form_submission_id", "is", null);
+  if (caixa) recebidosQuery = recebidosQuery.eq("caixa_email", caixa);
+
+  const [enviadosRes, recebidosRes] = await Promise.all([enviadosQuery, recebidosQuery]);
 
   if (enviadosRes.error) {
     console.error({
