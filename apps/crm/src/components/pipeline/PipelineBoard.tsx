@@ -46,6 +46,8 @@ import { AprovacaoColumn } from "./AprovacaoColumn";
 import { AprovacaoLeadsModal } from "@/components/leads/AprovacoesLeads";
 import type { LeadPendenteCard } from "@/lib/actions/leads";
 import { labelEtapa, type MoveDealAction } from "@/lib/move-deal-result";
+import { excluirLeadPorDeal } from "@/lib/actions/leads-excluir";
+import { Trash2 } from "lucide-react";
 import type { StatusDeal } from "@/types/crm";
 import { toast } from "sonner";
 
@@ -126,6 +128,10 @@ export function PipelineBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  // Excluir lead direto do card (mesmo padrão da tabela de /leads):
+  // confirmação fora do card, setter estável dentro do render.
+  const [dealParaExcluir, setDealParaExcluir] = useState<Deal | null>(null);
+  const [excluindoLead, startExcluirLead] = useTransition();
   // Ganho fechado: a shortlist de escolas é o 1º entregável da jornada da
   // família, então o modal abre logo após o move (que já aconteceu).
   const [ganho, setGanho] = useState<GanhoPendente | null>(null);
@@ -430,6 +436,7 @@ export function PipelineBoard({
                 arrastandoColuna={arrastandoColuna}
                 sort={sortMap[stage] ?? DEFAULT_PIPELINE_SORT}
                 onSortChange={handleColumnSortChange}
+                onExcluirDeal={setDealParaExcluir}
               />
             ))}
           </div>
@@ -517,6 +524,66 @@ export function PipelineBoard({
           onClose={() => setSelectedDeal(null)}
           stageConfig={stageConfig}
         />
+      )}
+
+      {/* Confirmação de exclusão de lead pelo card (soft delete em cascata) */}
+      {dealParaExcluir && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !excluindoLead && setDealParaExcluir(null)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="excluir-deal-titulo"
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sys-red/10">
+                <Trash2 className="h-4 w-4 text-sys-red" />
+              </div>
+              <div className="min-w-0">
+                <h2 id="excluir-deal-titulo" className="text-sm font-semibold text-foreground">
+                  Excluir {dealParaExcluir.athlete_name}?
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Exclui o lead inteiro: some do pipeline, das listas e de
+                  todas as mensagens automáticas. Nada é apagado de verdade —
+                  reversível pelo suporte.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setDealParaExcluir(null)}
+                disabled={excluindoLead}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const alvo = dealParaExcluir;
+                  startExcluirLead(async () => {
+                    const r = await excluirLeadPorDeal(alvo.id);
+                    if (r.success) {
+                      toast.success(`Lead ${alvo.athlete_name} excluído.`);
+                      setDealParaExcluir(null);
+                      router.refresh();
+                    } else {
+                      toast.error(r.error ?? "Erro ao excluir.");
+                    }
+                  });
+                }}
+                disabled={excluindoLead}
+                className="rounded-lg bg-sys-red px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-sys-red/90 disabled:opacity-60"
+              >
+                {excluindoLead ? "Excluindo…" : "Sim, excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

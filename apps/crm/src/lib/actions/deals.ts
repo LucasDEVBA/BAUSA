@@ -64,44 +64,13 @@ export async function moverDeal(
     novaEtapa !== "aguardando_timing" &&
     deal.etapa !== "aguardando_timing";
 
-  // Estacionar não exige próxima ação — o deal fica dormente por design
-  if (ordemNova > ordemAtual && novaEtapa !== "aguardando_timing") {
-    if (!deal.next_action || !deal.data_proxima_acao) {
-      console.error("[moverDeal] missing next_action", { dealId, novaEtapa });
-      return failMove("MISSING_NEXT_ACTION", {
-        field: !deal.next_action ? "next_action" : "data_proxima_acao",
-        action: { type: "open_deal", dealId },
-      });
-    }
-  }
-
-  if (
-    deal.etapa === "reuniao_realizada" &&
-    ordemNova > ordemAtual &&
-    !deal.notas_reuniao?.trim()
-  ) {
-    console.error("[moverDeal] missing meeting notes", { dealId });
-    return failMove("MISSING_MEETING_NOTES", {
-      field: "notas_reuniao",
-      action: { type: "open_deal", dealId },
-    });
-  }
-
-  if (novaEtapa === "contrato_assinado") {
-    const { data: contrato } = await supabase
-      .from("contratos_financeiros")
-      .select("id")
-      .eq("deal_id", dealId)
-      .is("deleted_at", null)
-      .maybeSingle();
-
-    if (!contrato) {
-      console.error("[moverDeal] missing contract", { dealId });
-      return failMove("MISSING_CONTRACT", {
-        action: { type: "create_contract", dealId },
-      });
-    }
-  }
+  // Decisão do CEO (2026-08-19): o pipeline é LIVRE — nenhum gate rígido de
+  // avanço. Os antigos bloqueios (próxima ação preenchida, notas da reunião
+  // antes de Diagnóstico/Fit, contrato antes de Contrato Assinado) travavam o
+  // uso real ("Quero poder mover para onde eu quiser"). Os sinais continuam
+  // visíveis (pontinho vermelho no card, aba Contrato); só não barram mais o
+  // drag. Retrocesso e Perdido seguem pedindo MOTIVO — é coleta de contexto
+  // em modal, não bloqueio.
 
   if (isRetrocesso && !motivo) {
     console.error("[moverDeal] retrocesso reason required", {
