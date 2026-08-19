@@ -196,6 +196,8 @@ jobs:
           - experiencia-scheduler
           - fluxo-engine
           - instagram-webhook
+          - email-events
+          - email-inbox-sync
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

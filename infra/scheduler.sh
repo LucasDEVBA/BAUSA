@@ -491,4 +491,35 @@ gcloud scheduler jobs update http "${JOB_SF}" \
 
 echo "✓ ${JOB_SF} configurado"
 
+# ─── Job: Sync da caixa de e-mail (a cada 15 min) ─────────────────────
+# Espelha o Gmail da contato@ em emails_mensagens (caixa de entrada do
+# Engine). Requer domain-wide delegation da SA com gmail.readonly — sem o
+# grant, o job falha com 'dwd_ausente' e o check scheduler_jobs acusa.
+JOB_EI="email-inbox-sync-job${SUFFIX}"
+EMAIL_INBOX_SYNC_URL="${EMAIL_INBOX_SYNC_URL:-https://email-inbox-sync${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_EI}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/15 * * * *" \
+  --uri="${EMAIL_INBOX_SYNC_URL}" \
+  --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --message-body='{"tick":true}' \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_EI}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="*/15 * * * *" \
+  --uri="${EMAIL_INBOX_SYNC_URL}" \
+  --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --message-body='{"tick":true}' \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s
+
+echo "✓ ${JOB_EI} configurado"
+
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"

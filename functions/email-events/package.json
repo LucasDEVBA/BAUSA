@@ -1,0 +1,12 @@
+{
+  "name": "email-events",
+  "version": "1.0.0",
+  "description": "Webhook do Resend (entrega/abertura/clique/bounce) — métricas de e-mail em emails_mensagens",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
