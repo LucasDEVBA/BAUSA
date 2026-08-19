@@ -77,6 +77,7 @@ import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
 import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 import { MemoriaLeadSection } from "@/components/leads/MemoriaLeadSection";
+import { EmailsLeadSection } from "@/components/emails/EmailsLeadSection";
 
 interface DealDetailModalProps {
   deal: Deal | null;
@@ -97,6 +98,7 @@ type SectionId =
   | "reuniao"
   | "conversa"
   | "comunicacoes"
+  | "emails"
   | "atribuicao"
   | "financeiro"
   | "documentos"
@@ -127,6 +129,7 @@ const NAV_ITEMS: NavItem[] = [
   // Operação
   { id: "conversa", label: "Conversa", icon: MessageCircle, group: "operacao" },
   { id: "comunicacoes", label: "Comunicações", icon: MessageSquare, group: "operacao" },
+  { id: "emails", label: "E-mails", icon: Mail, group: "operacao" },
   { id: "atribuicao", label: "Atribuição & UTM", icon: BarChart3, group: "operacao" },
   { id: "documentos", label: "Documentos", icon: FileText, group: "operacao" },
   // Auditoria
@@ -565,6 +568,13 @@ export function DealDetailModal({
                 />
               )}
               {section === "comunicacoes" && <ComunicacoesSection deal={deal} />}
+              {section === "emails" && (
+                <EmailsLeadSection
+                  formSubmissionId={deal.lead_id ?? null}
+                  leadNome={deal.athlete_name}
+                  leadEmail={deal.guardian_email ?? deal.email ?? null}
+                />
+              )}
               {section === "atribuicao" && <AtribuicaoSection deal={deal} />}
               {section === "financeiro" && (
                 <DealContratoTab dealId={deal.id} atletaId={deal.atleta_id} />

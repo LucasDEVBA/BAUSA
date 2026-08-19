@@ -49,7 +49,9 @@ const httpRequest = (options, postData) => {
 // ─── Provider 1: Resend (primário) ──────────────────────────────
 const sendViaResend = async (to, subject, html, opts = {}) => {
   const postData = JSON.stringify({
-    from: FROM_EMAIL,
+    // from selecionável (multi-conta do Engine) — o domínio já foi validado
+    // no handler; o Resend aceita qualquer endereço do domínio verificado.
+    from: opts.from ? `Bolsa Atleta USA <${opts.from}>` : FROM_EMAIL,
     to: [to],
     subject,
     html,
@@ -83,7 +85,7 @@ const sendViaResend = async (to, subject, html, opts = {}) => {
 const sendViaBrevo = async (to, subject, html, opts = {}) => {
   const from = parseFromEmail(FROM_EMAIL);
   const postData = JSON.stringify({
-    sender: { name: from.name, email: from.email },
+    sender: { name: from.name, email: opts.from || from.email },
     to: [{ email: to }],
     subject,
     htmlContent: html,
@@ -691,6 +693,13 @@ functions.http("sendMessages", async (req, res) => {
           (typeof customEmail.replyTo !== "string" || !customEmail.replyTo.includes("@"))) {
         errors.push("Campo 'replyTo' inválido");
       }
+      // from restrito ao domínio próprio — remetente arbitrário aqui seria
+      // spoofing autenticado pela nossa chave do Resend.
+      if (customEmail.from !== undefined &&
+          (typeof customEmail.from !== "string" ||
+           !customEmail.from.toLowerCase().endsWith("@bolsaatletausa.com"))) {
+        errors.push("Campo 'from' inválido (precisa ser @bolsaatletausa.com)");
+      }
       if (errors.length > 0) {
         console.log(JSON.stringify({
           level: "WARN", action: "custom_email_validation_failed", errors,
@@ -711,7 +720,10 @@ functions.http("sendMessages", async (req, res) => {
           linkTitle: typeof customEmail.linkTitle === "string" ? customEmail.linkTitle.trim() : undefined,
         }),
         "CUSTOM",
-        { replyTo: customEmail.replyTo ? customEmail.replyTo.trim() : undefined }
+        {
+          replyTo: customEmail.replyTo ? customEmail.replyTo.trim() : undefined,
+          from: customEmail.from ? customEmail.from.trim().toLowerCase() : undefined,
+        }
       );
       const durationMs = Date.now() - startTime;
       console.log(JSON.stringify({
