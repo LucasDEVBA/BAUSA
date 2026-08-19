@@ -47,12 +47,15 @@ const httpRequest = (options, postData) => {
 };
 
 // ─── Provider 1: Resend (primário) ──────────────────────────────
-const sendViaResend = async (to, subject, html) => {
+const sendViaResend = async (to, subject, html, opts = {}) => {
   const postData = JSON.stringify({
     from: FROM_EMAIL,
     to: [to],
     subject,
     html,
+    // reply_to: respostas caem na caixa da contato@ (espelhada pelo
+    // email-inbox-sync) — essencial para o compositor do Engine.
+    ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
   });
 
   const options = {
@@ -70,17 +73,21 @@ const sendViaResend = async (to, subject, html) => {
   if (result.statusCode >= 400) {
     throw new Error(`Resend HTTP ${result.statusCode}: ${result.body}`);
   }
-  return { provider: "resend", statusCode: result.statusCode, body: result.body };
+  // id do Resend correlaciona com os webhooks de métrica (CF email-events).
+  let providerId = null;
+  try { providerId = JSON.parse(result.body)?.id ?? null; } catch { /* body não-JSON */ }
+  return { provider: "resend", statusCode: result.statusCode, body: result.body, providerId };
 };
 
 // ─── Provider 2: Brevo (fallback) ───────────────────────────────
-const sendViaBrevo = async (to, subject, html) => {
+const sendViaBrevo = async (to, subject, html, opts = {}) => {
   const from = parseFromEmail(FROM_EMAIL);
   const postData = JSON.stringify({
     sender: { name: from.name, email: from.email },
     to: [{ email: to }],
     subject,
     htmlContent: html,
+    ...(opts.replyTo ? { replyTo: { email: opts.replyTo } } : {}),
   });
 
   const options = {
@@ -102,7 +109,7 @@ const sendViaBrevo = async (to, subject, html) => {
 };
 
 // ─── Envio com fallback automático ──────────────────────────────
-const sendEmailWithFallback = async (to, subject, html, label) => {
+const sendEmailWithFallback = async (to, subject, html, label, opts = {}) => {
   if (!to || !to.includes("@")) {
     console.log(JSON.stringify({
       level: "WARN", action: "email_skip", label,
@@ -126,12 +133,12 @@ const sendEmailWithFallback = async (to, subject, html, label) => {
     }
 
     try {
-      const result = await provider.fn(to, subject, html);
+      const result = await provider.fn(to, subject, html, opts);
       console.log(JSON.stringify({
         level: "INFO", action: "email_sent", provider: result.provider,
         label, to, statusCode: result.statusCode,
       }));
-      return { success: true, provider: result.provider };
+      return { success: true, provider: result.provider, providerId: result.providerId ?? null };
     } catch (error) {
       console.log(JSON.stringify({
         level: "ERROR", action: "email_failed", provider: provider.name,
@@ -680,6 +687,10 @@ functions.http("sendMessages", async (req, res) => {
       if (customEmail.linkTitle !== undefined && typeof customEmail.linkTitle !== "string") {
         errors.push("Campo 'linkTitle' inválido");
       }
+      if (customEmail.replyTo !== undefined &&
+          (typeof customEmail.replyTo !== "string" || !customEmail.replyTo.includes("@"))) {
+        errors.push("Campo 'replyTo' inválido");
+      }
       if (errors.length > 0) {
         console.log(JSON.stringify({
           level: "WARN", action: "custom_email_validation_failed", errors,
@@ -699,7 +710,8 @@ functions.http("sendMessages", async (req, res) => {
           linkUrl: customEmail.linkUrl ? customEmail.linkUrl.trim() : undefined,
           linkTitle: typeof customEmail.linkTitle === "string" ? customEmail.linkTitle.trim() : undefined,
         }),
-        "CUSTOM"
+        "CUSTOM",
+        { replyTo: customEmail.replyTo ? customEmail.replyTo.trim() : undefined }
       );
       const durationMs = Date.now() - startTime;
       console.log(JSON.stringify({
@@ -711,7 +723,9 @@ functions.http("sendMessages", async (req, res) => {
       // >=400 como erro e faz retry com backoff.
       return res.status(result.success ? 200 : 502).send({
         success: result.success,
-        ...(result.success ? { provider: result.provider } : { error: result.reason }),
+        ...(result.success
+          ? { provider: result.provider, providerId: result.providerId ?? null }
+          : { error: result.reason }),
         durationMs,
       });
     }
