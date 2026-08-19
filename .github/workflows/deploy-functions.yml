@@ -104,6 +104,8 @@ jobs:
             monitor-health)              echo "entry=monitorHealth"            >> "$GITHUB_OUTPUT"; echo "name=monitor-health"        >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
             experiencia-scheduler)       echo "entry=experienciaScheduler"     >> "$GITHUB_OUTPUT"; echo "name=experiencia-scheduler" >> "$GITHUB_OUTPUT"; echo "timeout=300s" >> "$GITHUB_OUTPUT" ;;
             chatbot-autonomo)            echo "entry=chatbotAutonomo"          >> "$GITHUB_OUTPUT"; echo "name=chatbot-autonomo"      >> "$GITHUB_OUTPUT"; echo "timeout=300s" >> "$GITHUB_OUTPUT" ;;
+            email-events)                echo "entry=emailEvents"              >> "$GITHUB_OUTPUT"; echo "name=email-events"          >> "$GITHUB_OUTPUT"; echo "timeout=120s" >> "$GITHUB_OUTPUT" ;;
+            email-inbox-sync)            echo "entry=emailInboxSync"           >> "$GITHUB_OUTPUT"; echo "name=email-inbox-sync"      >> "$GITHUB_OUTPUT"; echo "timeout=300s" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Deploy
         run: |

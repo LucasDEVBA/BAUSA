@@ -51,6 +51,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   "/financeiro": { label: "Financeiro", parent: "Comercial" },
   "/remarketing": { label: "Re-marketing", parent: "Comercial" },
   "/whatsapp": { label: "WhatsApp", parent: "Comercial" },
+  "/emails": { label: "E-mails", parent: "Comercial" },
   "/automacoes": { label: "Automações", parent: "Comercial" },
   "/fluxos": { label: "Fluxos", parent: "Comercial" },
   "/fluxos/metricas": { label: "Métricas", parent: "Fluxos" },
