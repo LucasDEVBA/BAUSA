@@ -80,21 +80,23 @@ export interface ConquistaDef {
   /** tipo contado; null = qualquer evento */
   tipo: TipoEventoGamificacao | null;
   quantidade: number;
+  /** epica = marco grande → celebração completa; normal = micro-celebração */
+  tier: "normal" | "epica";
 }
 
 export const CONQUISTAS_CATALOGO: ConquistaDef[] = [
-  { id: "primeiro_passo", nome: "Primeiro Passo", descricao: "Primeira ação pontuada no Engine", selo: "👟", tipo: null, quantidade: 1 },
-  { id: "olheiro", nome: "Olheiro", descricao: "10 leads aprovados", selo: "🔭", tipo: "lead_aprovado", quantidade: 10 },
-  { id: "scout_chefe", nome: "Scout Chefe", descricao: "50 leads aprovados", selo: "🎯", tipo: "lead_aprovado", quantidade: 50 },
-  { id: "primeiro_fechamento", nome: "Primeiro Fechamento", descricao: "Primeiro contrato criado", selo: "✍️", tipo: "contrato_criado", quantidade: 1 },
-  { id: "fechador", nome: "Fechador", descricao: "5 contratos criados", selo: "🏆", tipo: "contrato_criado", quantidade: 5 },
-  { id: "sinal_verde", nome: "Sinal Verde", descricao: "Primeiro sinal recebido", selo: "💰", tipo: "sinal_pago", quantidade: 1 },
-  { id: "maquina_pipeline", nome: "Máquina do Pipeline", descricao: "50 avanços de etapa", selo: "🚀", tipo: "deal_avancado", quantidade: 50 },
-  { id: "comunicador", nome: "Comunicador", descricao: "100 mensagens enviadas (e-mail + WhatsApp)", selo: "📣", tipo: null, quantidade: 0 }, // regra própria
-  { id: "anjo_da_guarda", nome: "Anjo da Guarda", descricao: "50 contatos com famílias", selo: "🛡️", tipo: "contato_familia", quantidade: 50 },
-  { id: "executor", nome: "Executor", descricao: "25 tarefas concluídas", selo: "✅", tipo: "tarefa_concluida", quantidade: 25 },
-  { id: "semana_perfeita", nome: "Semana Perfeita", descricao: "Ações em 7 dias seguidos", selo: "🔥", tipo: null, quantidade: 0 }, // regra própria
-  { id: "madrugador", nome: "Madrugador", descricao: "Ação pontuada antes das 7h", selo: "🌅", tipo: null, quantidade: 0 }, // regra própria
+  { id: "primeiro_passo", nome: "Primeiro Passo", descricao: "Primeira ação pontuada no Engine", selo: "👟", tipo: null, quantidade: 1, tier: "normal" },
+  { id: "olheiro", nome: "Olheiro", descricao: "10 leads aprovados", selo: "🔭", tipo: "lead_aprovado", quantidade: 10, tier: "normal" },
+  { id: "scout_chefe", nome: "Scout Chefe", descricao: "50 leads aprovados", selo: "🎯", tipo: "lead_aprovado", quantidade: 50, tier: "epica" },
+  { id: "primeiro_fechamento", nome: "Primeiro Fechamento", descricao: "Primeiro contrato criado", selo: "✍️", tipo: "contrato_criado", quantidade: 1, tier: "epica" },
+  { id: "fechador", nome: "Fechador", descricao: "5 contratos criados", selo: "🏆", tipo: "contrato_criado", quantidade: 5, tier: "epica" },
+  { id: "sinal_verde", nome: "Sinal Verde", descricao: "Primeiro sinal recebido", selo: "💰", tipo: "sinal_pago", quantidade: 1, tier: "epica" },
+  { id: "maquina_pipeline", nome: "Máquina do Pipeline", descricao: "50 avanços de etapa", selo: "🚀", tipo: "deal_avancado", quantidade: 50, tier: "epica" },
+  { id: "comunicador", nome: "Comunicador", descricao: "100 mensagens enviadas (e-mail + WhatsApp)", selo: "📣", tipo: null, quantidade: 0, tier: "normal" }, // regra própria
+  { id: "anjo_da_guarda", nome: "Anjo da Guarda", descricao: "50 contatos com famílias", selo: "🛡️", tipo: "contato_familia", quantidade: 50, tier: "epica" },
+  { id: "executor", nome: "Executor", descricao: "25 tarefas concluídas", selo: "✅", tipo: "tarefa_concluida", quantidade: 25, tier: "normal" },
+  { id: "semana_perfeita", nome: "Semana Perfeita", descricao: "Ações em 7 dias seguidos", selo: "🔥", tipo: null, quantidade: 0, tier: "epica" }, // regra própria
+  { id: "madrugador", nome: "Madrugador", descricao: "Ação pontuada antes das 7h", selo: "🌅", tipo: null, quantidade: 0, tier: "normal" }, // regra própria
 ];
 
 // ─── Registro (fail-open) ────────────────────────────────────────────────
@@ -105,7 +107,7 @@ export interface ResultadoGamificacao {
   nivel: number;
   nivelNome: string;
   subiuDeNivel: boolean;
-  conquistasNovas: Array<{ id: string; nome: string; descricao: string; selo: string }>;
+  conquistasNovas: Array<{ id: string; nome: string; descricao: string; selo: string; tier: "normal" | "epica" }>;
 }
 
 /**
@@ -187,7 +189,7 @@ export async function registrarEventoGamificacao(
           .from("gamificacao_conquistas")
           .insert({ user_id: userId, conquista: c.id });
         // corrida entre abas: UNIQUE resolve; só celebra quem inseriu
-        if (!error) novas.push({ id: c.id, nome: c.nome, descricao: c.descricao, selo: c.selo });
+        if (!error) novas.push({ id: c.id, nome: c.nome, descricao: c.descricao, selo: c.selo, tier: c.tier });
       }
     }
 

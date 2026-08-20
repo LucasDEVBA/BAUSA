@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { Crown, Flame, Medal, Sparkles, Trophy, Zap } from "lucide-react";
@@ -14,6 +15,7 @@ import {
 } from "recharts";
 
 import type {
+  ConquistaView,
   PerfilGamificacao,
   RankingUsuario,
 } from "@/lib/gamificacao-queries";
@@ -76,19 +78,7 @@ export function ConquistasClient({
 
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-start gap-4">
-            {avatarUrl ? (
-              <Image
-                src={avatarUrl}
-                alt={`Foto de ${nome}`}
-                width={64}
-                height={64}
-                className="size-16 shrink-0 rounded-2xl object-cover shadow-sm"
-              />
-            ) : (
-              <span className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-brand text-xl font-bold text-white shadow-sm">
-                {getInitials(nome)}
-              </span>
-            )}
+            <FotoPerfil url={avatarUrl} nome={nome} tamanho="hero" />
 
             <div className="min-w-0 flex-1">
               <p className="text-eyebrow text-primary">
@@ -197,6 +187,7 @@ export function ConquistasClient({
                       >
                         {primeiro ? <Crown aria-hidden className="size-4" /> : `${i + 1}º`}
                       </span>
+                      <FotoPerfil url={r.avatarUrl} nome={r.nome} tamanho="linha" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <p className="truncate text-sm font-semibold text-foreground">{r.nome}</p>
@@ -290,77 +281,9 @@ export function ConquistasClient({
           </header>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-            {perfil.conquistas.map((c, i) => {
-              const pct =
-                c.progressoMeta && c.progressoMeta > 0
-                  ? Math.min(100, Math.round(((c.progressoAtual ?? 0) / c.progressoMeta) * 100))
-                  : 0;
-              return (
-                <motion.div
-                  key={c.id}
-                  initial={reduzido ? { opacity: 0 } : { opacity: 0, scale: 0.92 }}
-                  animate={reduzido ? { opacity: 1 } : { opacity: 1, scale: 1 }}
-                  transition={
-                    reduzido
-                      ? { duration: 0.15 }
-                      : { type: "spring", stiffness: 300, damping: 24, delay: i * 0.03 }
-                  }
-                  className={cn(
-                    "flex flex-col items-center rounded-2xl border p-4 text-center",
-                    c.desbloqueada ? "border-primary/20 bg-primary/5" : "border-border bg-card/60",
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "flex size-14 items-center justify-center rounded-full text-3xl ring-2",
-                      c.desbloqueada
-                        ? "bg-primary/10 ring-primary/30"
-                        : "bg-secondary opacity-55 grayscale ring-border",
-                    )}
-                  >
-                    {c.selo}
-                  </span>
-                  <p
-                    className={cn(
-                      "mt-2.5 text-sm font-semibold",
-                      c.desbloqueada ? "text-foreground" : "text-muted-foreground",
-                    )}
-                  >
-                    {c.nome}
-                  </p>
-                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                    {c.descricao}
-                  </p>
-
-                  {c.desbloqueada && c.desbloqueadaEm ? (
-                    <Badge tone="brand" size="sm" className="mt-2">
-                      {formatDate(c.desbloqueadaEm)}
-                    </Badge>
-                  ) : (
-                    <div className="mt-2.5 w-full">
-                      {c.progressoMeta !== null && c.progressoMeta > 1 ? (
-                        <>
-                          <div className="h-1 overflow-hidden rounded-full bg-secondary">
-                            <div
-                              className="h-full rounded-full bg-primary/60"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <p className="mt-1 text-[10px] font-semibold tabular-nums text-label-tertiary">
-                            {c.progressoAtual ?? 0}/{c.progressoMeta}
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
-                          Bloqueada
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-              );
-            })}
+            {perfil.conquistas.map((c, i) => (
+              <ConquistaCard key={c.id} conquista={c} indice={i} reduzido={reduzido} />
+            ))}
           </div>
         </Card>
 
@@ -420,5 +343,224 @@ function HeroStat({
         {rotulo}
       </p>
     </div>
+  );
+}
+
+// ─── Foto de perfil (bucket público `avatars`) ───────────────────────────
+// Mesmo padrão do Header/Sidebar: next/image com `unoptimized` (o host do
+// Supabase Storage NÃO está em images.remotePatterns — sem a flag o otimizador
+// rejeita a URL e a foto some). Fallback gracioso: URL quebrada → inicial.
+
+function FotoPerfil({
+  url,
+  nome,
+  tamanho,
+}: {
+  url: string | null;
+  nome: string;
+  tamanho: "hero" | "linha";
+}) {
+  const [erro, setErro] = useState(false);
+  const hero = tamanho === "hero";
+
+  if (url && !erro) {
+    const foto = (
+      <Image
+        src={url}
+        alt={`Foto de ${nome}`}
+        width={hero ? 80 : 32}
+        height={hero ? 80 : 32}
+        unoptimized
+        onError={() => setErro(true)}
+        className={
+          hero
+            ? "size-20 rounded-full border-2 border-card object-cover"
+            : "size-8 shrink-0 rounded-full object-cover ring-1 ring-border"
+        }
+      />
+    );
+    if (!hero) return foto;
+    return (
+      <span className="shrink-0 rounded-full bg-gradient-brand p-[3px] shadow-sm">{foto}</span>
+    );
+  }
+
+  const inicial = (
+    <span
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-full bg-gradient-brand font-bold text-white",
+        hero ? "size-20 border-2 border-card text-2xl" : "size-8 text-[11px]",
+      )}
+    >
+      {getInitials(nome)}
+    </span>
+  );
+  if (!hero) return inicial;
+  return (
+    <span className="flex shrink-0 rounded-full bg-gradient-brand p-[3px] shadow-sm">{inicial}</span>
+  );
+}
+
+// ─── Card de conquista da galeria ────────────────────────────────────────
+// Camadas de animação (todas viram fade/estático com prefers-reduced-motion):
+//  - entrada em stagger sutil (delay por índice — a lista vem do catálogo e é
+//    estática, então não há o gotcha do filho novo em staggerParent)
+//  - hover: selo desbloqueado dá scale+tilt com spring; bloqueado balança
+//    (denied shake) ao clicar
+//  - desbloqueada: brilho periódico varrendo o card (gradiente animado)
+//  - ÉPICA desbloqueada: anel de gradiente da marca em rotação lenta
+
+const SHAKE_X = [0, -6, 6, -4, 4, 0];
+
+function ConquistaCard({
+  conquista: c,
+  indice,
+  reduzido,
+}: {
+  conquista: ConquistaView;
+  indice: number;
+  reduzido: boolean;
+}) {
+  const [balancando, setBalancando] = useState(false);
+  const epicaDesbloqueada = c.tier === "epica" && c.desbloqueada;
+  const pct =
+    c.progressoMeta && c.progressoMeta > 0
+      ? Math.min(100, Math.round(((c.progressoAtual ?? 0) / c.progressoMeta) * 100))
+      : 0;
+
+  return (
+    <motion.div
+      initial={reduzido ? { opacity: 0 } : { opacity: 0, scale: 0.92 }}
+      animate={reduzido ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+      transition={
+        reduzido
+          ? { duration: 0.15 }
+          : { type: "spring", stiffness: 300, damping: 24, delay: indice * 0.03 }
+      }
+      whileHover={
+        !reduzido && c.desbloqueada
+          ? {
+              scale: 1.045,
+              rotate: -1.5,
+              y: -2,
+              transition: { type: "spring", stiffness: 320, damping: 18 },
+            }
+          : undefined
+      }
+      onClick={!c.desbloqueada && !reduzido ? () => setBalancando(true) : undefined}
+      className={cn(
+        "relative rounded-2xl",
+        epicaDesbloqueada && "overflow-hidden p-px",
+        !c.desbloqueada && "cursor-not-allowed select-none",
+      )}
+    >
+      {/* Anel gradiente animado — só épica desbloqueada */}
+      {epicaDesbloqueada &&
+        (reduzido ? (
+          <span aria-hidden className="absolute inset-0 bg-gradient-brand" />
+        ) : (
+          <motion.span
+            aria-hidden
+            style={{
+              x: "-50%",
+              y: "-50%",
+              background:
+                "conic-gradient(from 0deg, var(--bau-blue), var(--bau-burgundy-2), var(--bau-blue-2), var(--bau-burgundy), var(--bau-blue))",
+            }}
+            animate={{ rotate: 360 }}
+            transition={{ duration: 9, repeat: Infinity, ease: "linear" }}
+            className="absolute left-1/2 top-1/2 aspect-square w-[250%]"
+          />
+        ))}
+
+      <motion.div
+        animate={balancando ? { x: SHAKE_X } : { x: 0 }}
+        transition={balancando ? { duration: 0.35, ease: "easeInOut" } : { duration: 0 }}
+        onAnimationComplete={() => {
+          if (balancando) setBalancando(false);
+        }}
+        className={cn(
+          "relative flex h-full flex-col items-center overflow-hidden p-4 text-center",
+          epicaDesbloqueada
+            ? "rounded-[calc(1rem-1px)] bg-card"
+            : cn(
+                "rounded-2xl border",
+                c.desbloqueada ? "border-primary/20 bg-primary/5" : "border-border bg-card/60",
+              ),
+        )}
+      >
+        {epicaDesbloqueada && (
+          <span aria-hidden className="pointer-events-none absolute inset-0 bg-primary/5" />
+        )}
+
+        {/* Brilho periódico discreto — só desbloqueadas, dessincronizado por índice */}
+        {c.desbloqueada && !reduzido && (
+          <motion.span
+            aria-hidden
+            initial={{ x: "-120%" }}
+            animate={{ x: "320%" }}
+            transition={{
+              duration: 1.4,
+              ease: "easeInOut",
+              repeat: Infinity,
+              repeatDelay: 6.5,
+              delay: 1.2 + indice * 0.7,
+            }}
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-primary/10 to-transparent"
+          />
+        )}
+
+        <span
+          aria-hidden
+          className={cn(
+            "relative flex size-14 items-center justify-center rounded-full text-3xl ring-2",
+            c.desbloqueada
+              ? epicaDesbloqueada
+                ? "bg-primary/10 ring-bau-burgundy/35"
+                : "bg-primary/10 ring-primary/30"
+              : "bg-secondary opacity-55 grayscale ring-border",
+          )}
+        >
+          {c.selo}
+        </span>
+        <p
+          className={cn(
+            "relative mt-2.5 text-sm font-semibold",
+            c.desbloqueada ? "text-foreground" : "text-muted-foreground",
+          )}
+        >
+          {c.nome}
+        </p>
+        <p className="relative mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+          {c.descricao}
+        </p>
+
+        {c.desbloqueada && c.desbloqueadaEm ? (
+          <Badge tone="brand" size="sm" className="relative mt-2">
+            {formatDate(c.desbloqueadaEm)}
+          </Badge>
+        ) : (
+          <div className="relative mt-2.5 w-full">
+            {c.progressoMeta !== null && c.progressoMeta > 1 ? (
+              <>
+                <div className="h-1 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full rounded-full bg-primary/60"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] font-semibold tabular-nums text-label-tertiary">
+                  {c.progressoAtual ?? 0}/{c.progressoMeta}
+                </p>
+              </>
+            ) : (
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
+                Bloqueada
+              </p>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
   );
 }

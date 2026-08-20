@@ -90,13 +90,15 @@ const b64u = (buf) => Buffer.from(buf).toString('base64url');
 
 // Multi-conta (2026-08-19): o DWD vale para a organização inteira — a mesma
 // SA impersona qualquer caixa listada em configuracoes_sistema.emails_contas.
-const gmailToken = async (conta) => {
+// scope extra admin.directory.user.readonly habilita a DESCOBERTA automática
+// de todas as contas do Workspace (grant no mesmo client id).
+const gmailToken = async (conta, scope = 'https://www.googleapis.com/auth/gmail.readonly') => {
   const now = Math.floor(Date.now() / 1000);
   const header = b64u(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const claims = b64u(JSON.stringify({
     iss: SERVICE_ACCOUNT_EMAIL,
     sub: conta, // impersonação via domain-wide delegation
-    scope: 'https://www.googleapis.com/auth/gmail.readonly',
+    scope,
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600,
@@ -134,11 +136,44 @@ const gmail = async (token, conta, path) => {
   return JSON.parse(res.body);
 };
 
+// ─── Descoberta automática de contas (Directory API) ────────────
+// emails_contas.descobrir_automaticamente = true → lista TODOS os usuários
+// ativos do Workspace (impersonando o admin). Requer o scope
+// admin.directory.user.readonly no MESMO grant de DWD. Fail-open: qualquer
+// erro devolve null e o sync usa a lista manual.
+const GMAIL_ADMIN = process.env.GMAIL_ADMIN || 'leandro.ribeiro@bolsaatletausa.com';
+
+const descobrirContasWorkspace = async () => {
+  try {
+    const token = await gmailToken(GMAIL_ADMIN, 'https://www.googleapis.com/auth/admin.directory.user.readonly');
+    const contas = [];
+    let pageToken = '';
+    for (let p = 0; p < 5; p++) {
+      const res = await httpRequest(
+        `https://admin.googleapis.com/admin/directory/v1/users?customer=my_customer&maxResults=100&projection=basic${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (res.statusCode >= 400) throw new Error(`directory: ${res.statusCode} ${res.body.slice(0, 150)}`);
+      const data = JSON.parse(res.body);
+      for (const u of data.users || []) {
+        if (!u.suspended && u.primaryEmail) contas.push(String(u.primaryEmail).toLowerCase());
+      }
+      pageToken = data.nextPageToken || '';
+      if (!pageToken) break;
+    }
+    return contas.length > 0 ? contas : null;
+  } catch (e) {
+    log('WARN', 'directory_indisponivel', { error: e.message });
+    return null;
+  }
+};
+
 // ─── Config: contas sincronizadas + regras de roteamento ────────
 // Fail-open para a conta da env: erro de config nunca para o sync.
 const lerContasERegras = async () => {
   let contas = [GMAIL_USER];
   const regras = {};
+  let descobrir = false;
   try {
     const rows = await sb(
       'configuracoes_sistema?chave=in.(emails_contas,emails_roteamento)&select=chave,valor'
@@ -147,6 +182,7 @@ const lerContasERegras = async () => {
       const v = r.valor && typeof r.valor === 'object' ? r.valor : {};
       if (r.chave === 'emails_contas' && Array.isArray(v.contas) && v.contas.length > 0) {
         contas = v.contas.map((c) => String(c).toLowerCase()).filter((c) => c.includes('@'));
+        descobrir = v.descobrir_automaticamente === true;
       }
       if (r.chave === 'emails_roteamento' && Array.isArray(v.regras)) {
         // alias (To:) → caixa de destino na tela do Engine
@@ -159,6 +195,17 @@ const lerContasERegras = async () => {
     }
   } catch (e) {
     log('WARN', 'config_contas_falhou', { error: e.message });
+  }
+
+  // Descoberta automática: união (lista manual sempre entra — remoção de
+  // conta continua sendo gesto explícito na config, nunca da descoberta).
+  if (descobrir) {
+    const descobertas = await descobrirContasWorkspace();
+    if (descobertas) {
+      const uniao = new Set([...contas, ...descobertas]);
+      log('INFO', 'contas_descobertas', { manuais: contas.length, workspace: descobertas.length, total: uniao.size });
+      contas = [...uniao];
+    }
   }
   return { contas, regras };
 };
@@ -229,7 +276,12 @@ const sincronizarConta = async (conta, regras, desdeMs) => {
     if (!pageToken) break;
   }
   if (ids.length === 0) return { listadas: 0, novas: 0 };
+  const inseridas = await processarIds(token, conta, regras, ids, MAX_NOVAS_POR_TICK);
+  return { listadas: ids.length, novas: inseridas };
+};
 
+// ─── Processa uma lista de ids (compartilhado: incremental + backfill) ──
+const processarIds = async (token, conta, regras, ids, teto) => {
   // Anti-join local por caixa (o UNIQUE (caixa_email, gmail_message_id)
   // cobre corridas e o caso de a MESMA mensagem existir nas duas contas)
   const existentes = new Set();
@@ -238,7 +290,7 @@ const sincronizarConta = async (conta, regras, desdeMs) => {
     const rows = await sb(`emails_mensagens?select=gmail_message_id&gmail_message_id=in.(${fatia.map((x) => `"${x}"`).join(',')})`);
     rows.forEach((r) => existentes.add(r.gmail_message_id));
   }
-  const novas = ids.filter((id) => !existentes.has(id)).slice(0, MAX_NOVAS_POR_TICK);
+  const novas = ids.filter((id) => !existentes.has(id)).slice(0, teto);
 
   let inseridas = 0;
   for (const id of novas) {
@@ -286,7 +338,72 @@ const sincronizarConta = async (conta, regras, desdeMs) => {
       log('WARN', 'mensagem_falhou', { conta, id, error: e.message });
     }
   }
-  return { listadas: ids.length, novas: inseridas };
+  return inseridas;
+};
+
+// ─── Backfill histórico (desde o 1º e-mail da caixa) ────────────
+// POST {backfill:true}: percorre TODA a caixa em páginas, retomável por
+// pageToken salvo no estado (email_inbox_state.contas[conta].backfill).
+// Cada invocação processa até BACKFILL_TETO_POR_RUN mensagens novas — o
+// driver chama repetidamente até `concluido` em todas as contas. Convive
+// com o tick incremental (mesmo UNIQUE, ignore-duplicates).
+const BACKFILL_TETO_POR_RUN = 250;
+
+const backfillConta = async (conta, regras, estadoBackfill) => {
+  if (estadoBackfill?.concluido) {
+    return { novas: 0, concluido: true, total: estadoBackfill.total || 0 };
+  }
+  const token = await gmailToken(conta);
+  const q = encodeURIComponent('-in:spam -in:trash -in:chat');
+  let pageToken = estadoBackfill?.page_token || '';
+  let inseridas = 0;
+  let concluido = false;
+
+  while (inseridas < BACKFILL_TETO_POR_RUN) {
+    const lista = await gmail(token, conta, `messages?q=${q}&maxResults=100&includeSpamTrash=false${pageToken ? `&pageToken=${pageToken}` : ''}`);
+    const ids = (lista.messages || []).map((m) => m.id);
+    if (ids.length > 0) {
+      inseridas += await processarIds(token, conta, regras, ids, BACKFILL_TETO_POR_RUN - inseridas);
+    }
+    pageToken = lista.nextPageToken || '';
+    if (!pageToken) {
+      concluido = true;
+      break;
+    }
+  }
+
+  return {
+    novas: inseridas,
+    concluido,
+    page_token: pageToken || null,
+    total: (estadoBackfill?.total || 0) + inseridas,
+  };
+};
+
+const executarBackfill = async () => {
+  const { contas, regras } = await lerContasERegras();
+  const estado = await lerEstado();
+  const porConta = estado.contas && typeof estado.contas === 'object' ? estado.contas : {};
+
+  const progresso = {};
+  let restam = 0;
+  for (const conta of contas) {
+    try {
+      const r = await backfillConta(conta, regras, porConta[conta]?.backfill);
+      porConta[conta] = {
+        ...(porConta[conta] || {}),
+        backfill: { page_token: r.page_token ?? null, concluido: r.concluido, total: r.total },
+      };
+      progresso[conta] = { novas: r.novas, concluido: r.concluido, total: r.total };
+      if (!r.concluido) restam++;
+    } catch (e) {
+      progresso[conta] = { erro: e.message };
+      restam++;
+      log('ERROR', 'backfill_conta_falhou', { conta, error: e.message });
+    }
+  }
+  await salvarEstado({ ...estado, contas: porConta, backfill_verificado_em: new Date().toISOString() });
+  return { progresso, concluido_geral: restam === 0 };
 };
 
 // ─── Sync de todas as contas configuradas ───────────────────────
@@ -342,6 +459,12 @@ functions.http('emailInboxSync', async (req, res) => {
 
   const t0 = Date.now();
   try {
+    // Modo BACKFILL: {backfill:true} — histórico completo, retomável.
+    if (req.body?.backfill === true) {
+      const r = await executarBackfill();
+      log('INFO', 'backfill_ok', { ...r.progresso, concluido: r.concluido_geral, durationMs: Date.now() - t0 });
+      return res.status(200).send({ ok: true, modo: 'backfill', ...r });
+    }
     const r = await sincronizar();
     log('INFO', 'sync_ok', { ...r, durationMs: Date.now() - t0 });
     return res.status(200).send({ ok: true, ...r });

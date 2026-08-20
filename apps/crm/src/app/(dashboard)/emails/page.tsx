@@ -4,6 +4,7 @@ import { requirePapel } from "@/lib/auth";
 import {
   fetchEmailMetricas,
   fetchEmails,
+  fetchEmailsContagens,
   fetchEmailsContasConfig,
   fetchEmailsRoteamento,
 } from "@/lib/emails-queries";
@@ -22,6 +23,9 @@ const TABS_VALIDAS: TabId[] = ["caixa", "enviados", "metricas", "roteamento"];
  * Multi-conta: caixas de `emails_contas`, filtro por caixa via querystring
  * (?caixa=…&tab=…), regras de alias em `emails_roteamento`. Tudo lido de
  * emails_mensagens (RLS SELECT nível CEO).
+ * A tabela guarda o histórico completo das caixas — a page carrega só a
+ * PRIMEIRA página (cursor keyset, 50 por direção); as demais chegam via
+ * server action `paginarEmails` no scroll infinito do client.
  */
 export default async function EmailsPage({
   searchParams,
@@ -45,17 +49,21 @@ export default async function EmailsPage({
     ? (tabParam as TabId)
     : undefined;
 
-  const [recebidos, enviados, metricas, roteamento] = await Promise.all([
-    fetchEmails(supabase, "recebido", caixa),
-    fetchEmails(supabase, "enviado", caixa),
+  const [recebidos, enviados, metricas, roteamento, contagens] = await Promise.all([
+    fetchEmails(supabase, { direcao: "recebido", caixa }),
+    fetchEmails(supabase, { direcao: "enviado", caixa }),
     fetchEmailMetricas(supabase, 30, caixa),
     fetchEmailsRoteamento(supabase),
+    fetchEmailsContagens(supabase, caixa),
   ]);
 
   return (
     <EmailsClient
-      recebidos={recebidos}
-      enviados={enviados}
+      recebidos={recebidos.itens}
+      cursorRecebidos={recebidos.proximoCursor}
+      enviados={enviados.itens}
+      cursorEnviados={enviados.proximoCursor}
+      contagens={contagens}
       metricas={metricas}
       contas={contasCfg.contas}
       padraoEnvio={contasCfg.padraoEnvio}
