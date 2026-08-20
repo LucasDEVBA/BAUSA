@@ -37,6 +37,12 @@ export interface EmailRoteamentoRegra {
   caixa: string;
 }
 
+/** Registro de anexo na linha do enviado ({nome, bytes}) — o arquivo vai pelo provider. */
+export interface EmailAnexoRegistro {
+  nome: string;
+  bytes: number;
+}
+
 export interface EmailMensagem {
   id: string;
   direcao: EmailDirecao;
@@ -58,6 +64,8 @@ export interface EmailMensagem {
   mensagemEm: string;
   /** Caixa do Engine a que a mensagem pertence (multi-conta; backfill = contato@). */
   caixaEmail: string | null;
+  /** Anexos registrados no envio (recebidos do Gmail não têm registro). */
+  anexos: EmailAnexoRegistro[] | null;
   /** Nome do atleta vinculado (enriquecido via form_submissions). */
   leadNome: string | null;
 }
@@ -117,12 +125,29 @@ interface EmailRow {
   falha_motivo: string | null;
   mensagem_em: string;
   caixa_email: string | null;
+  anexos: unknown;
 }
 
 const EMAIL_COLS =
   "id, direcao, origem, de_email, para_email, assunto, corpo_text, snippet, " +
   "form_submission_id, provider, gmail_thread_id, entregue_at, aberto_at, " +
-  "clicado_at, bounce_at, reclamado_at, falha_motivo, mensagem_em, caixa_email";
+  "clicado_at, bounce_at, reclamado_at, falha_motivo, mensagem_em, caixa_email, anexos";
+
+/** Parse defensivo do jsonb `anexos` — forma inesperada nunca derruba a lista. */
+function parseAnexos(valor: unknown): EmailAnexoRegistro[] | null {
+  if (!Array.isArray(valor)) return null;
+  const anexos: EmailAnexoRegistro[] = [];
+  for (const item of valor) {
+    if (typeof item !== "object" || item === null) continue;
+    const { nome, bytes } = item as { nome?: unknown; bytes?: unknown };
+    if (typeof nome !== "string" || nome.trim().length === 0) continue;
+    anexos.push({
+      nome: nome.trim(),
+      bytes: typeof bytes === "number" && Number.isFinite(bytes) ? bytes : 0,
+    });
+  }
+  return anexos.length > 0 ? anexos : null;
+}
 
 function mapRow(row: EmailRow, nomes: Map<string, string>): EmailMensagem {
   return {
@@ -145,6 +170,7 @@ function mapRow(row: EmailRow, nomes: Map<string, string>): EmailMensagem {
     falhaMotivo: row.falha_motivo,
     mensagemEm: row.mensagem_em,
     caixaEmail: row.caixa_email,
+    anexos: parseAnexos(row.anexos),
     leadNome: row.form_submission_id
       ? (nomes.get(row.form_submission_id) ?? null)
       : null,
@@ -289,6 +315,46 @@ export async function fetchEmailsRoteamento(
       error: err instanceof Error ? err.message : String(err),
     });
     return [];
+  }
+}
+
+/**
+ * Assinaturas por conta (chave `emails_assinaturas`, seedada `{}`):
+ * `{ "conta@bolsaatletausa.com": "texto" }`. Fail-open: erro/forma
+ * inesperada → `{}` — uma config quebrada nunca derruba a tela nem o envio.
+ */
+export async function fetchEmailsAssinaturas(
+  supabase: SupabaseServer,
+): Promise<Record<string, string>> {
+  try {
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "emails_assinaturas")
+      .maybeSingle();
+
+    if (error) {
+      console.error({ level: "error", action: "emails_assinaturas_fetch", error: error.message });
+      return {};
+    }
+
+    const valor = data?.valor;
+    if (!valor || typeof valor !== "object" || Array.isArray(valor)) return {};
+
+    const assinaturas: Record<string, string> = {};
+    for (const [conta, texto] of Object.entries(valor as Record<string, unknown>)) {
+      if (isEmailBausa(conta) && typeof texto === "string" && texto.trim().length > 0) {
+        assinaturas[conta.trim().toLowerCase()] = texto;
+      }
+    }
+    return assinaturas;
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "emails_assinaturas_fetch",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {};
   }
 }
 

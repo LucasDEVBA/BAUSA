@@ -4,6 +4,7 @@ import { requirePapel } from "@/lib/auth";
 import {
   fetchEmailMetricas,
   fetchEmails,
+  fetchEmailsAssinaturas,
   fetchEmailsContagens,
   fetchEmailsContasConfig,
   fetchEmailsRoteamento,
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
   title: "E-mails",
 };
 
-const TABS_VALIDAS: TabId[] = ["caixa", "enviados", "metricas", "roteamento"];
+const TABS_VALIDAS: TabId[] = ["caixa", "enviados", "metricas", "roteamento", "assinaturas"];
 
 /**
  * Módulo de E-mail (/emails) — apenas CEO.
@@ -49,13 +50,15 @@ export default async function EmailsPage({
     ? (tabParam as TabId)
     : undefined;
 
-  const [recebidos, enviados, metricas, roteamento, contagens] = await Promise.all([
-    fetchEmails(supabase, { direcao: "recebido", caixa }),
-    fetchEmails(supabase, { direcao: "enviado", caixa }),
-    fetchEmailMetricas(supabase, 30, caixa),
-    fetchEmailsRoteamento(supabase),
-    fetchEmailsContagens(supabase, caixa),
-  ]);
+  const [recebidos, enviados, metricas, roteamento, contagens, assinaturas] =
+    await Promise.all([
+      fetchEmails(supabase, { direcao: "recebido", caixa }),
+      fetchEmails(supabase, { direcao: "enviado", caixa }),
+      fetchEmailMetricas(supabase, 30, caixa),
+      fetchEmailsRoteamento(supabase),
+      fetchEmailsContagens(supabase, caixa),
+      fetchEmailsAssinaturas(supabase),
+    ]);
 
   return (
     <EmailsClient
@@ -70,6 +73,7 @@ export default async function EmailsPage({
       padraoEnvio={contasCfg.padraoEnvio}
       caixaAtiva={caixa ?? null}
       roteamento={roteamento}
+      assinaturas={assinaturas}
       tabInicial={tabInicial}
     />
   );
