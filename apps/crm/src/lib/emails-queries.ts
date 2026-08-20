@@ -318,14 +318,57 @@ export async function fetchEmailsRoteamento(
   }
 }
 
+// ── Assinaturas ricas (v2: LISTA por conta) ──────────────────────────────
+
+/** Uma assinatura rica de e-mail — HTML sanitizado no SALVAR (server action). */
+export interface EmailAssinatura {
+  id: string;
+  /** Nome de exibição no seletor do compositor (ex.: "Padrão", "Institucional"). */
+  nome: string;
+  /** HTML da assinatura (negrito/cor/sublinhado/imagem) — já sanitizado. */
+  html: string;
+  /** Assinatura pré-selecionada quando a conta é escolhida no "De:". */
+  padrao: boolean;
+}
+
+/** Escapa texto puro p/ HTML (conversão do formato legado de assinatura). */
+function textoParaHtml(texto: string): string {
+  return texto
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+}
+
+/** Parse defensivo de UMA entrada da lista de assinaturas. */
+function parseAssinatura(item: unknown): EmailAssinatura | null {
+  if (typeof item !== "object" || item === null) return null;
+  const { id, nome, html, padrao } = item as {
+    id?: unknown;
+    nome?: unknown;
+    html?: unknown;
+    padrao?: unknown;
+  };
+  if (typeof id !== "string" || id.trim().length === 0) return null;
+  if (typeof html !== "string" || html.trim().length === 0) return null;
+  return {
+    id: id.trim(),
+    nome: typeof nome === "string" && nome.trim().length > 0 ? nome.trim() : "Assinatura",
+    html,
+    padrao: padrao === true,
+  };
+}
+
 /**
- * Assinaturas por conta (chave `emails_assinaturas`, seedada `{}`):
- * `{ "conta@bolsaatletausa.com": "texto" }`. Fail-open: erro/forma
- * inesperada → `{}` — uma config quebrada nunca derruba a tela nem o envio.
+ * Assinaturas por conta (chave `emails_assinaturas`):
+ * v2 = `{ conta: [{id, nome, html, padrao}] }`. O formato legado (v1,
+ * `{ conta: "texto" }`) é convertido na leitura — texto vira HTML escapado
+ * com `<br>` e entra como assinatura única padrão. Fail-open: erro/forma
+ * inesperada → `{}` — config quebrada nunca derruba a tela nem o envio.
  */
 export async function fetchEmailsAssinaturas(
   supabase: SupabaseServer,
-): Promise<Record<string, string>> {
+): Promise<Record<string, EmailAssinatura[]>> {
   try {
     const { data, error } = await supabase
       .from("configuracoes_sistema")
@@ -341,11 +384,30 @@ export async function fetchEmailsAssinaturas(
     const valor = data?.valor;
     if (!valor || typeof valor !== "object" || Array.isArray(valor)) return {};
 
-    const assinaturas: Record<string, string> = {};
-    for (const [conta, texto] of Object.entries(valor as Record<string, unknown>)) {
-      if (isEmailBausa(conta) && typeof texto === "string" && texto.trim().length > 0) {
-        assinaturas[conta.trim().toLowerCase()] = texto;
+    const assinaturas: Record<string, EmailAssinatura[]> = {};
+    for (const [contaRaw, entrada] of Object.entries(valor as Record<string, unknown>)) {
+      if (!isEmailBausa(contaRaw)) continue;
+      const conta = contaRaw.trim().toLowerCase();
+
+      // Legado (v1): string de texto puro → assinatura única padrão.
+      if (typeof entrada === "string" && entrada.trim().length > 0) {
+        assinaturas[conta] = [
+          { id: "legado", nome: "Assinatura", html: textoParaHtml(entrada), padrao: true },
+        ];
+        continue;
       }
+
+      if (!Array.isArray(entrada)) continue;
+      const lista = entrada
+        .map(parseAssinatura)
+        .filter((a): a is EmailAssinatura => a !== null);
+      if (lista.length === 0) continue;
+      // Invariante de leitura: exatamente UMA padrão (a primeira marcada vence).
+      const idxPadrao = lista.findIndex((a) => a.padrao);
+      assinaturas[conta] = lista.map((a, i) => ({
+        ...a,
+        padrao: i === (idxPadrao === -1 ? 0 : idxPadrao),
+      }));
     }
     return assinaturas;
   } catch (err) {
@@ -355,6 +417,58 @@ export async function fetchEmailsAssinaturas(
       error: err instanceof Error ? err.message : String(err),
     });
     return {};
+  }
+}
+
+// ── Permissões da Head (chave `emails_permissoes`) ───────────────────────
+
+export interface EmailsPermissoes {
+  /** Caixas que a Head pode VER (recebidos/enviados/métricas). */
+  caixas: string[];
+  /** Contas pelas quais a Head pode ENVIAR (De: do compositor). */
+  envio: string[];
+}
+
+/**
+ * Acessos da Head ao /emails (o CEO define na aba Acessos). FAIL-CLOSED:
+ * erro de leitura/forma inesperada = NENHUM acesso — uma config quebrada
+ * jamais pode abrir caixa que o CEO não liberou (oposto do fail-open das
+ * demais configs deste módulo, que só afetam a experiência do próprio CEO).
+ */
+export async function fetchEmailsPermissoesHead(
+  supabase: SupabaseServer,
+): Promise<EmailsPermissoes> {
+  const nenhum: EmailsPermissoes = { caixas: [], envio: [] };
+  try {
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .select("valor")
+      .eq("chave", "emails_permissoes")
+      .maybeSingle();
+
+    if (error) {
+      console.error({ level: "error", action: "emails_permissoes_fetch", error: error.message });
+      return nenhum;
+    }
+
+    const head = (data?.valor as { head_sucesso?: unknown } | null)?.head_sucesso;
+    if (!head || typeof head !== "object" || Array.isArray(head)) return nenhum;
+    const { caixas, envio } = head as { caixas?: unknown; envio?: unknown };
+    return {
+      caixas: Array.isArray(caixas)
+        ? caixas.filter(isEmailBausa).map((c) => c.trim().toLowerCase())
+        : [],
+      envio: Array.isArray(envio)
+        ? envio.filter(isEmailBausa).map((c) => c.trim().toLowerCase())
+        : [],
+    };
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "emails_permissoes_fetch",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return nenhum;
   }
 }
 
@@ -391,6 +505,11 @@ export interface FetchEmailsParams {
   limite?: number;
   /** Busca server-side (assunto/de/para/snippet) — ignorada com <2 chars. */
   busca?: string;
+  /**
+   * Recorte da Head: SÓ estas caixas entram no resultado (emails_permissoes).
+   * Lista vazia = nada (fail-closed). CEO não passa (vê tudo).
+   */
+  caixasPermitidas?: string[];
 }
 
 /**
@@ -417,8 +536,13 @@ export async function fetchEmails(
   supabase: SupabaseServer,
   params: FetchEmailsParams = {},
 ): Promise<EmailsPagina> {
-  const { direcao, caixa, cursor, busca } = params;
+  const { direcao, caixa, cursor, busca, caixasPermitidas } = params;
   const limite = Math.min(Math.max(params.limite ?? EMAILS_PAGINA_PADRAO, 1), EMAILS_PAGINA_MAX);
+
+  // Fail-closed: recorte da Head sem caixa liberada = resultado vazio.
+  if (caixasPermitidas && caixasPermitidas.length === 0) {
+    return { itens: [], proximoCursor: null };
+  }
 
   let query = supabase
     .from("emails_mensagens")
@@ -429,6 +553,7 @@ export async function fetchEmails(
     .limit(limite + 1);
   if (direcao) query = query.eq("direcao", direcao);
   if (caixa) query = query.eq("caixa_email", caixa);
+  else if (caixasPermitidas) query = query.in("caixa_email", caixasPermitidas);
   if (cursor) {
     // Keyset estável — estritamente "depois" do último item já carregado.
     query = query.or(
@@ -483,7 +608,11 @@ export interface EmailsContagens {
 export async function fetchEmailsContagens(
   supabase: SupabaseServer,
   caixa?: string,
+  caixasPermitidas?: string[],
 ): Promise<EmailsContagens> {
+  if (caixasPermitidas && caixasPermitidas.length === 0) {
+    return { recebidos: 0, enviados: 0 };
+  }
   const contar = async (direcao: EmailDirecao): Promise<number> => {
     let query = supabase
       .from("emails_mensagens")
@@ -491,6 +620,7 @@ export async function fetchEmailsContagens(
       .is("deleted_at", null)
       .eq("direcao", direcao);
     if (caixa) query = query.eq("caixa_email", caixa);
+    else if (caixasPermitidas) query = query.in("caixa_email", caixasPermitidas);
 
     const { count, error } = await query;
     if (error) {
@@ -513,13 +643,18 @@ export async function fetchEmailsContagens(
 export async function fetchThread(
   supabase: SupabaseServer,
   gmailThreadId: string,
+  caixasPermitidas?: string[],
 ): Promise<EmailMensagem[]> {
-  const { data, error } = await supabase
+  if (caixasPermitidas && caixasPermitidas.length === 0) return [];
+
+  let query = supabase
     .from("emails_mensagens")
     .select(EMAIL_COLS)
     .eq("gmail_thread_id", gmailThreadId)
     .is("deleted_at", null)
     .order("mensagem_em", { ascending: true });
+  if (caixasPermitidas) query = query.in("caixa_email", caixasPermitidas);
+  const { data, error } = await query;
 
   if (error) {
     console.error({ level: "error", action: "emails_fetch_thread", error: error.message });
@@ -574,8 +709,36 @@ export async function fetchEmailMetricas(
   supabase: SupabaseServer,
   dias = 30,
   caixa?: string,
+  caixasPermitidas?: string[],
 ): Promise<EmailMetricas> {
   const desde = new Date(Date.now() - dias * 86_400_000).toISOString();
+
+  // Fail-closed (recorte da Head sem caixa liberada) — métricas zeradas.
+  if (caixasPermitidas && caixasPermitidas.length === 0) {
+    const serieVazia: EmailSerieDia[] = [];
+    for (let i = dias - 1; i >= 0; i--) {
+      serieVazia.push({
+        dia: new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10),
+        enviados: 0,
+        abertos: 0,
+      });
+    }
+    return {
+      dias,
+      enviados: 0,
+      enviadosResend: 0,
+      entregues: 0,
+      abertos: 0,
+      clicados: 0,
+      bounces: 0,
+      reclamados: 0,
+      taxaEntrega: null,
+      taxaAbertura: null,
+      taxaClique: null,
+      serie: serieVazia,
+      topLeads: [],
+    };
+  }
 
   let enviadosQuery = supabase
     .from("emails_mensagens")
@@ -587,6 +750,7 @@ export async function fetchEmailMetricas(
     .gte("mensagem_em", desde)
     .order("mensagem_em", { ascending: true });
   if (caixa) enviadosQuery = enviadosQuery.eq("caixa_email", caixa);
+  else if (caixasPermitidas) enviadosQuery = enviadosQuery.in("caixa_email", caixasPermitidas);
 
   // Respostas recebidas de leads no período (entram no "top por interação").
   let recebidosQuery = supabase
@@ -597,6 +761,7 @@ export async function fetchEmailMetricas(
     .gte("mensagem_em", desde)
     .not("form_submission_id", "is", null);
   if (caixa) recebidosQuery = recebidosQuery.eq("caixa_email", caixa);
+  else if (caixasPermitidas) recebidosQuery = recebidosQuery.in("caixa_email", caixasPermitidas);
 
   const [enviadosRes, recebidosRes] = await Promise.all([enviadosQuery, recebidosQuery]);
 

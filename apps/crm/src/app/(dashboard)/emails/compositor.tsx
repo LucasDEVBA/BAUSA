@@ -13,6 +13,8 @@ import {
   rascunharEmailIA,
   type LeadBusca,
 } from "@/lib/actions/emails";
+import { sanitizarHtmlAssinatura } from "@/lib/email-assinatura-sanitize";
+import type { EmailAssinatura } from "@/lib/emails-queries";
 
 /** Pré-preenchimento (fluxo "Responder" da caixa de entrada / aba do lead). */
 export interface CompositorPrefill {
@@ -40,13 +42,6 @@ const PROMPT_IA_MAX_CHARS = 2000;
 const ANEXOS_MAX = 5;
 const ANEXOS_BYTES_MAX = 8 * 1024 * 1024;
 const ANEXO_NOME_MAX = 120;
-
-/**
- * Separador do bloco de assinatura no corpo (convenção "--" de e-mail).
- * A troca de conta substitui SÓ o que vem depois do ÚLTIMO separador —
- * o texto do usuário acima é preservado.
- */
-const ASSINATURA_SEP = "\n\n--\n";
 
 const TONS = [
   { value: "", label: "Consultivo premium (padrão)" },
@@ -94,16 +89,13 @@ const SELECT_CLS =
 const TEXTAREA_IA_CLS =
   "min-h-16 w-full resize-y rounded-lg border border-input bg-card px-3 py-2 text-sm leading-relaxed text-foreground outline-none transition-colors placeholder:text-placeholder focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/25 motion-reduce:transition-none";
 
-/** Divide o corpo em texto do usuário + assinatura (após o ÚLTIMO separador). */
-function dividirCorpo(corpo: string): { texto: string; assinatura: string | null } {
-  const idx = corpo.lastIndexOf(ASSINATURA_SEP);
-  if (idx === -1) return { texto: corpo, assinatura: null };
-  return { texto: corpo.slice(0, idx), assinatura: corpo.slice(idx + ASSINATURA_SEP.length) };
-}
-
-/** Junta texto + bloco de assinatura (sem bloco quando não há assinatura). */
-function montarCorpo(texto: string, assinatura: string | undefined): string {
-  return assinatura ? `${texto}${ASSINATURA_SEP}${assinatura}` : texto;
+/** Assinatura padrão da conta ("" = nenhuma configurada). */
+function assinaturaPadraoDe(
+  assinaturas: Record<string, EmailAssinatura[]> | undefined,
+  conta: string,
+): string {
+  const lista = assinaturas?.[conta] ?? [];
+  return (lista.find((a) => a.padrao) ?? lista[0])?.id ?? "";
 }
 
 /** File → base64 puro (sem o prefixo data:) via FileReader. */
@@ -175,8 +167,10 @@ const CAMPO_INLINE_CLS =
  * cada abertura remonta o componente, então o estado inicial vem direto do
  * prefill (sem effect de reset — exigência do react-hooks/set-state-in-effect).
  *
- * Assinatura: a da conta do "De:" nasce inserida no corpo (bloco "--" —
- * visível e editável, nada oculto); trocar o De: troca só o bloco.
+ * Assinatura (v2 rica): o seletor escolhe QUAL assinatura da conta do "De:"
+ * vai NESTE envio (padrão pré-selecionada); o preview renderizado aparece
+ * abaixo do corpo. O envio manda só o `assinaturaId` — o HTML é resolvido
+ * no servidor (nunca sai do client).
  */
 export function CompositorEmail({
   prefill,
@@ -191,8 +185,8 @@ export function CompositorEmail({
   contas: string[];
   /** Conta pré-selecionada no "De:" (padrao_envio da config). */
   padraoEnvio: string;
-  /** Assinatura por conta (config `emails_assinaturas`) — opcional. */
-  assinaturas?: Record<string, string>;
+  /** Assinaturas ricas por conta (config `emails_assinaturas`) — opcional. */
+  assinaturas?: Record<string, EmailAssinatura[]>;
   onFechar: () => void;
   onEnviado: () => void;
 }) {
@@ -206,9 +200,11 @@ export function CompositorEmail({
   const [de, setDe] = useState(deInicial);
   const [para, setPara] = useState(prefill?.para ?? "");
   const [assunto, setAssunto] = useState(prefill?.assunto ?? "");
-  const [incluirAssinatura, setIncluirAssinatura] = useState(true);
-  // Corpo nasce com o bloco de assinatura da conta inicial (quando existe).
-  const [corpo, setCorpo] = useState(() => montarCorpo("", assinaturas?.[deInicial]));
+  // Assinatura escolhida p/ ESTE envio ("" = sem assinatura).
+  const [assinaturaId, setAssinaturaId] = useState(() =>
+    assinaturaPadraoDe(assinaturas, deInicial),
+  );
+  const [corpo, setCorpo] = useState("");
   const [leadVinculado, setLeadVinculado] = useState<{ id: string; nome: string } | null>(
     prefill?.formSubmissionId
       ? { id: prefill.formSubmissionId, nome: prefill.leadNome ?? "Lead" }
@@ -309,32 +305,21 @@ export function CompositorEmail({
   const modoResposta = Boolean(prefill?.threadContexto);
   const titulo = modoResposta ? "Responder e-mail" : "Nova mensagem";
 
-  // ── Assinatura ─────────────────────────────────────────────────────────
-  const assinaturaContaAtual = assinaturas?.[de];
+  // ── Assinatura (v2 — seletor por envio + preview renderizado) ──────────
+  const assinaturasContaAtual = assinaturas?.[de] ?? [];
+  const assinaturaAtual = assinaturasContaAtual.find((a) => a.id === assinaturaId) ?? null;
 
-  /** Troca o De: substituindo SÓ o bloco de assinatura (texto acima intacto). */
+  /** Troca o De: e pré-seleciona a assinatura padrão da nova conta. */
   const trocarDe = (novaConta: string) => {
     setDe(novaConta);
-    if (!incluirAssinatura) return;
-    setCorpo((prev) => montarCorpo(dividirCorpo(prev).texto, assinaturas?.[novaConta]));
-  };
-
-  /** Liga/desliga a assinatura NESTE envio (edita o corpo — nada oculto). */
-  const alternarAssinatura = (ligar: boolean) => {
-    setIncluirAssinatura(ligar);
-    setCorpo((prev) =>
-      montarCorpo(dividirCorpo(prev).texto, ligar ? assinaturas?.[de] : undefined),
-    );
+    setAssinaturaId(assinaturaPadraoDe(assinaturas, novaConta));
   };
 
   // ── IA ─────────────────────────────────────────────────────────────────
 
-  /** Aplica assunto+corpo gerados ACIMA do bloco de assinatura (sem duplicar). */
   const aplicarRascunho = (assuntoNovo: string, corpoNovo: string) => {
     setAssunto(assuntoNovo);
-    setCorpo(() =>
-      montarCorpo(corpoNovo, incluirAssinatura ? assinaturas?.[de] : undefined),
-    );
+    setCorpo(corpoNovo);
   };
 
   const promptTrim = promptIa.trim();
@@ -373,7 +358,7 @@ export function CompositorEmail({
 
   /** Refino de 1 clique: manda o RASCUNHO ATUAL (corpo editado conta). */
   const refinar = (instrucao: string) => {
-    const textoAtual = dividirCorpo(corpo).texto.trim();
+    const textoAtual = corpo.trim();
     if (!textoAtual) return;
     setIaAviso(null);
     startRascunho(async () => {
@@ -392,8 +377,8 @@ export function CompositorEmail({
     });
   };
 
-  /** Há texto próprio (fora da assinatura) — habilita os refinos. */
-  const temTextoParaRefinar = dividirCorpo(corpo).texto.trim().length > 0;
+  /** Há texto no corpo — habilita os refinos. */
+  const temTextoParaRefinar = corpo.trim().length > 0;
 
   // ── Anexos ─────────────────────────────────────────────────────────────
 
@@ -449,6 +434,7 @@ export function CompositorEmail({
         para: para.trim(),
         assunto,
         corpo,
+        assinaturaId: assinaturaId || undefined,
         formSubmissionId: leadVinculado?.id,
         linkUrl: linkUrl.trim() || undefined,
         linkTitle: linkTitle.trim() || undefined,
@@ -609,17 +595,36 @@ export function CompositorEmail({
           className="min-h-40 w-full resize-y bg-transparent py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-placeholder"
         />
 
-        {/* Toggle da assinatura — só quando a conta atual tem uma configurada */}
-        {assinaturaContaAtual && (
-          <label className="mb-3 flex w-fit cursor-pointer items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={incluirAssinatura}
-              onChange={(e) => alternarAssinatura(e.target.checked)}
-              className="size-3.5 accent-primary"
-            />
-            Incluir assinatura de {de}
-          </label>
+        {/* Assinatura — seletor por envio + preview renderizado (v2 rica) */}
+        {assinaturasContaAtual.length > 0 && (
+          <div className="mb-3 space-y-2">
+            <label className="flex w-fit items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              Assinatura
+              <select
+                value={assinaturaId}
+                onChange={(e) => setAssinaturaId(e.target.value)}
+                aria-label={`Assinatura do envio pela conta ${de}`}
+                className="h-7 rounded-md border border-input bg-card px-2 text-xs text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/25"
+              >
+                <option value="">Sem assinatura</option>
+                {assinaturasContaAtual.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nome}
+                    {a.padrao ? " (padrão)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {assinaturaAtual && (
+              <div
+                aria-label="Prévia da assinatura"
+                className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm leading-relaxed text-foreground [&_img]:max-w-[220px]"
+                // Sanitizado no SALVAR + na CF; re-sanitizar aqui protege o
+                // preview mesmo se a config for editada por fora.
+                dangerouslySetInnerHTML={{ __html: sanitizarHtmlAssinatura(assinaturaAtual.html) }}
+              />
+            )}
+          </div>
         )}
 
         {/* Chips de anexos */}

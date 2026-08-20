@@ -177,3 +177,109 @@ test('customEmail: anexos com teto duro (5 arquivos / 8MB) e filename validado',
   assert.match(sendSrc, /11 \* 1024 \* 1024/, 'teto total em base64 (~8MB reais)');
   assert.match(sendSrc, /a\.filename\.length > 120/, 'filename com tamanho máximo');
 });
+
+test('customEmail: cc validado (array, máx 3, restrito ao domínio próprio)', () => {
+  assert.ok(sendSrc.includes("Campo 'cc' inválido"), 'cc tem bloco de validação');
+  assert.match(sendSrc, /customEmail\.cc\.length\s*>\s*3/, 'teto de 3 destinatários em cópia');
+  // cc arbitrário seria capacidade genérica de spam autenticada pela nossa chave:
+  assert.match(sendSrc, /cc\.some\([\s\S]{0,120}endsWith\("@bolsaatletausa\.com"\)/,
+    'cc restrito a @bolsaatletausa.com');
+  // O cc chega aos DOIS provedores (paridade Resend/Brevo):
+  assert.match(sendSrc, /opts\.cc \? \{ cc: opts\.cc \}/, 'Resend recebe cc');
+  assert.match(sendSrc, /opts\.cc\.map\(\(e\) => \(\{ email: e \}\)\)/, 'Brevo recebe cc');
+});
+
+test('customEmail: signatureHtml sanitizado remove vetores de XSS e preserva formatação', () => {
+  assert.ok(sendSrc.includes("Campo 'signatureHtml' inválido"), 'signatureHtml validado (teto 20000)');
+  const sm = sendSrc.match(/const sanitizeSignatureHtml = \(html\) => \{[\s\S]*?\n\};/);
+  assert.ok(sm, 'sanitizeSignatureHtml não encontrada — atualize o guard se renomeou');
+  // eslint-disable-next-line no-new-func
+  const sanitizar = new Function(`${sm[0]}; return sanitizeSignatureHtml;`)();
+
+  // Vetores reais que DEVEM ser neutralizados:
+  assert.ok(!sanitizar('<script>alert(1)</script>').includes('<script'), 'script tag');
+  assert.ok(!/onerror\s*=/.test(sanitizar('<img src=x onerror="alert(1)">')), 'handler on*');
+  assert.ok(!/javascript:/i.test(sanitizar('<a href="javascript:alert(1)">x</a>')), 'href javascript:');
+  assert.ok(!/data:text\/html/i.test(sanitizar('<a href="data:text/html,<b>x</b>">x</a>')), 'href data:text/html');
+  assert.ok(!sanitizar('<iframe src="https://evil.tld"></iframe>').includes('<iframe'), 'iframe');
+  assert.ok(!sanitizar('<style>*{display:none}</style>').includes('<style'), 'style tag');
+
+  // BYPASSES da revisão adversarial 2026-08-20 — NUNCA podem voltar a passar:
+  assert.ok(!/on\w+\s*=/.test(sanitizar('<img/onerror=alert(1) src=x>')),
+    'handler com / como separador de atributo (<img/onerror>)');
+  assert.ok(!sanitizar('<scr<script>ipt>alert(1)</scr<script>ipt>').includes('<script'),
+    'tag aninhada reconstruída em passagem única (<scr<script>ipt>)');
+  assert.ok(!/on\w+\s*=/.test(sanitizar('<sv<script>g/onload=alert(1)>')),
+    'svg reconstruído com handler');
+  assert.ok(!/formaction\s*=\s*("|')?\s*javascript:/i.test(
+    sanitizar('<button formaction=javascript:alert(1)>x</button>')),
+    'formaction javascript:');
+  assert.ok(!/url\(\s*javascript:/i.test(
+    sanitizar('<span style="background:url(javascript:alert(1))">x</span>')),
+    'CSS url(javascript:)');
+
+  // Formatação rica LEGÍTIMA sobrevive (negrito, cor, sublinhado, imagem):
+  const rica = '<p><b>Leandro</b> <u>Ribeiro</u> <span style="color:#8e1824">CEO</span></p><img src="https://x.supabase.co/storage/v1/object/public/email-assets/a.png" alt="logo">';
+  const out = sanitizar(rica);
+  for (const parte of ['<b>', '<u>', 'color:#8e1824', '<img', 'email-assets/a.png']) {
+    assert.ok(out.includes(parte), `formatação legítima preservada: ${parte}`);
+  }
+
+  // A assinatura entra no template DEPOIS de sanitizada:
+  assert.match(sendSrc, /sanitizeSignatureHtml\(media\.signatureHtml\)/, 'template usa a versão sanitizada');
+});
+
+// ─── Engine (server actions) — Head + CC forçado + assinaturas ───────────
+
+const actionsSrc = fs.readFileSync(
+  path.join(__dirname, '..', 'apps', 'crm', 'src', 'lib', 'actions', 'emails.js')
+    .replace(/emails\.js$/, 'emails.ts'), 'utf8');
+
+test('enviarEmail: CC do CEO é FORÇADO nos envios da Head (código, não config)', () => {
+  assert.ok(
+    actionsSrc.includes('CC_CEO_EMAIL = "leandro.ribeiro@bolsaatletausa.com"'),
+    'constante do CC do CEO existe');
+  // A decisão usa o papel resolvido no SERVIDOR, nunca um flag vindo do client:
+  assert.match(actionsSrc, /acesso\.papel === "head_sucesso"[\s\S]{0,200}CC_CEO_EMAIL/,
+    'cc derivado do papel head_sucesso');
+  assert.ok(!actionsSrc.includes('ccDesligado') && !actionsSrc.includes('semCc'),
+    'não existe caminho para desligar o CC');
+  // Head também não envia por conta fora de emails_permissoes.envio:
+  assert.match(actionsSrc, /permissoes\.envio\.includes\(de\)/, 'whitelist de envio da Head');
+});
+
+test('leitura da Head é recortada por caixas permitidas (fail-closed)', () => {
+  // paginarEmails valida a caixa pedida e restringe o "todas":
+  assert.match(actionsSrc, /permissoes\.caixas\.includes\(parsed\.data\.caixa\)/,
+    'caixa pedida precisa estar liberada');
+  assert.match(actionsSrc, /caixasPermitidas = acesso\.permissoes\.caixas/,
+    'recorte aplicado no fetch');
+  const queriesSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'apps', 'crm', 'src', 'lib', 'emails-queries.ts'), 'utf8');
+  // A query respeita o recorte e lista VAZIA devolve nada (não "tudo"):
+  assert.match(queriesSrc, /caixasPermitidas && caixasPermitidas\.length === 0/,
+    'lista vazia = resultado vazio (fail-closed)');
+  assert.match(queriesSrc, /\.in\("caixa_email", caixasPermitidas\)/,
+    'recorte vira filtro .in() no PostgREST');
+});
+
+test('assinaturas ricas: HTML sanitizado no SALVAR e ID resolvido no servidor', () => {
+  const sanitizeSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'apps', 'crm', 'src', 'lib', 'email-assinatura-sanitize.ts'),
+    'utf8');
+  // Espelho da CF: mesma lista de tags, mesma iteração até estabilizar e a
+  // mesma classe [\s/"'] nos handlers (paridade dos pontos que importam).
+  for (const trecho of [
+    'script|style|iframe|object|embed|form|link|meta|svg|math|base|template',
+    String.raw`[\s/"']on\w+`,
+    'while (out !== prev)',
+  ]) {
+    assert.ok(sanitizeSrc.includes(trecho), `Engine tem: ${trecho}`);
+    assert.ok(sendSrc.includes(trecho), `CF tem: ${trecho}`);
+  }
+  assert.match(actionsSrc, /sanitizarHtmlAssinatura\(entrada\.html\)/,
+    'todo HTML passa pela sanitização antes de persistir');
+  // O compositor manda só o ID — o HTML vem da config, nunca do client:
+  assert.match(actionsSrc, /assinaturas\[de\] \?\? \[\]\)\.find\(\(a\) => a\.id === assinaturaId\)/,
+    'HTML da assinatura resolvido da config pelo ID');
+});

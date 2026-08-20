@@ -58,6 +58,7 @@ const sendViaResend = async (to, subject, html, opts = {}) => {
     // reply_to: respostas caem na caixa da contato@ (espelhada pelo
     // email-inbox-sync) — essencial para o compositor do Engine.
     ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+    ...(opts.cc ? { cc: opts.cc } : {}),
     ...(opts.attachments ? { attachments: opts.attachments } : {}),
   });
 
@@ -91,6 +92,7 @@ const sendViaBrevo = async (to, subject, html, opts = {}) => {
     subject,
     htmlContent: html,
     ...(opts.replyTo ? { replyTo: { email: opts.replyTo } } : {}),
+    ...(opts.cc ? { cc: opts.cc.map((e) => ({ email: e })) } : {}),
     ...(opts.attachments
       ? { attachment: opts.attachments.map((a) => ({ name: a.filename, content: a.content })) }
       : {}),
@@ -174,6 +176,30 @@ const validatePayload = (data) => {
 const sanitize = (str) => {
   if (!str || typeof str !== "string") return "";
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+};
+
+// ─── Sanitização de HTML de assinatura (denylist endurecida) ───────────
+// Assinatura rica é autorada pelo CEO no Engine, mas passa por aqui como
+// defesa em profundidade: remove todo vetor ativo, preservando formatação
+// (b/i/u/font/color/img/a/table…). ITERATIVA até estabilizar — remoção de
+// passagem única reconstrói tag aninhada (<scr<script>ipt>). Handlers on*
+// aceitam `/` como separador de atributo (<img/onerror=…>), por isso a
+// classe [\s/"'] no prefixo. Espelho: sanitizarHtmlAssinatura no Engine.
+const sanitizeSignatureHtml = (html) => {
+  if (!html || typeof html !== "string") return "";
+  let out = html;
+  let prev;
+  do {
+    prev = out;
+    out = out
+      .replace(/<\s*\/?\s*(script|style|iframe|object|embed|form|link|meta|svg|math|base|template)[^>]*>/gi, "")
+      .replace(/[\s/"']on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/(href|src|formaction|action|xlink:href|srcdoc|data)\s*=\s*("|')?\s*(javascript|vbscript):[^"'\s>]*("|')?/gi, "")
+      .replace(/(href|src|formaction|action)\s*=\s*("|')?\s*data\s*:\s*text\/html[^"'\s>]*("|')?/gi, "")
+      .replace(/expression\s*\(/gi, "")
+      .replace(/url\s*\(\s*("|')?\s*(javascript|vbscript):/gi, "url(");
+  } while (out !== prev);
+  return out;
 };
 
 // ─── Wrapper HTML compartilhado (header + footer Bolsa Atleta USA) ───
@@ -263,6 +289,11 @@ const getCustomEmailHtml = (text, media = {}) => {
       <tr><td style="padding:32px 40px;">
         <div style="color:#2D3748;font-size:16px;line-height:1.7;">${paragraphs}</div>
       </td></tr>
+      ${media.signatureHtml
+        ? `<tr><td style="padding:0 40px 24px 40px;">
+        <div style="border-top:1px solid #E2E8F0;padding-top:16px;color:#2D3748;font-size:14px;line-height:1.6;">${sanitizeSignatureHtml(media.signatureHtml)}</div>
+      </td></tr>`
+        : ""}
       ${buttonHtml}
       <tr><td style="padding:24px 40px;background-color:#F7FAFC;border-radius:0 0 12px 12px;border-top:1px solid #E2E8F0;">
         <p style="margin:0;font-size:13px;color:#718096;text-align:center;line-height:1.6;">&copy; ${new Date().getFullYear()} Bolsa Atleta USA. Todos os direitos reservados.<br><span style="font-size:11px;">Este é um e-mail automático, por favor não responda.</span></p>
@@ -704,6 +735,24 @@ functions.http("sendMessages", async (req, res) => {
            !customEmail.from.toLowerCase().endsWith("@bolsaatletausa.com"))) {
         errors.push("Campo 'from' inválido (precisa ser @bolsaatletausa.com)");
       }
+      // cc: usado pelo Engine p/ colocar o CEO em cópia nos envios da Head
+      // (forçado na server action — aqui só valida e entrega). Restrito ao
+      // domínio próprio: o único uso real é interno, e cc arbitrário seria
+      // capacidade genérica de spam autenticada pela nossa chave.
+      if (customEmail.cc !== undefined) {
+        if (!Array.isArray(customEmail.cc) || customEmail.cc.length > 3 ||
+            customEmail.cc.some((e) => typeof e !== "string" ||
+              !e.trim().toLowerCase().endsWith("@bolsaatletausa.com"))) {
+          errors.push("Campo 'cc' inválido (até 3 e-mails @bolsaatletausa.com)");
+        }
+      }
+      // signatureHtml: assinatura RICA (imagem/negrito/cor) montada no Engine.
+      // Sanitização dura no servidor: e-mail não executa script, mas markup
+      // ativo aqui seria vetor se o HTML vazasse p/ outra superfície.
+      if (customEmail.signatureHtml !== undefined &&
+          (typeof customEmail.signatureHtml !== "string" || customEmail.signatureHtml.length > 20000)) {
+        errors.push("Campo 'signatureHtml' inválido (máx 20000 chars)");
+      }
       // Anexos: até 5 arquivos, 8MB somados (base64 conta ~+33% — teto do
       // Resend é 40MB, mas o gargalo real é o bodySizeLimit do chamador).
       if (customEmail.attachments !== undefined) {
@@ -742,11 +791,15 @@ functions.http("sendMessages", async (req, res) => {
           imageUrl: customEmail.imageUrl ? customEmail.imageUrl.trim() : undefined,
           linkUrl: customEmail.linkUrl ? customEmail.linkUrl.trim() : undefined,
           linkTitle: typeof customEmail.linkTitle === "string" ? customEmail.linkTitle.trim() : undefined,
+          signatureHtml: typeof customEmail.signatureHtml === "string" ? customEmail.signatureHtml : undefined,
         }),
         "CUSTOM",
         {
           replyTo: customEmail.replyTo ? customEmail.replyTo.trim() : undefined,
           from: customEmail.from ? customEmail.from.trim().toLowerCase() : undefined,
+          cc: Array.isArray(customEmail.cc) && customEmail.cc.length > 0
+            ? customEmail.cc.map((e) => e.trim().toLowerCase())
+            : undefined,
           attachments: Array.isArray(customEmail.attachments) && customEmail.attachments.length > 0
             ? customEmail.attachments.map((a) => ({ filename: a.filename.trim(), content: a.content }))
             : undefined,
