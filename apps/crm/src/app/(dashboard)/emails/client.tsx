@@ -26,6 +26,7 @@ import {
   RotateCw,
   Search,
   Send,
+  ShieldCheck,
   Shuffle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -52,20 +53,29 @@ import {
 import { carregarThreadEmail, paginarEmails } from "@/lib/actions/emails";
 import { BUSCA_EMAILS_MIN_CHARS } from "@/lib/emails-queries";
 import type {
+  EmailAssinatura,
   EmailDirecao,
   EmailMensagem,
   EmailMetricas,
   EmailRoteamentoRegra,
   EmailsContagens,
   EmailsCursor,
+  EmailsPermissoes,
 } from "@/lib/emails-queries";
 import { cn, formatDateTime, getInitials } from "@/lib/utils";
 
+import { AcessosTab } from "./acessos";
 import { AssinaturasTab } from "./assinaturas";
 import { CompositorEmail, type CompositorPrefill } from "./compositor";
 import { RoteamentoTab } from "./roteamento";
 
-export type TabId = "caixa" | "enviados" | "metricas" | "roteamento" | "assinaturas";
+export type TabId =
+  | "caixa"
+  | "enviados"
+  | "metricas"
+  | "roteamento"
+  | "assinaturas"
+  | "acessos";
 
 /** Debounce da busca server-side (guard de sequência contra resposta velha). */
 const BUSCA_SERVER_DEBOUNCE_MS = 350;
@@ -351,6 +361,7 @@ function MensagemThread({
 // ── Tela ─────────────────────────────────────────────────────────────────
 
 export function EmailsClient({
+  isCeo,
   recebidos,
   cursorRecebidos,
   enviados,
@@ -363,8 +374,12 @@ export function EmailsClient({
   caixaAtiva,
   roteamento,
   assinaturas,
+  contasEnvioTodas,
+  permissoesHead,
   tabInicial = "caixa",
 }: {
+  /** CEO vê tudo + abas de config; Head vê só as caixas/contas liberadas. */
+  isCeo: boolean;
   /** 1ª página (server) — as seguintes chegam via paginarEmails no scroll. */
   recebidos: EmailMensagem[];
   cursorRecebidos: EmailsCursor | null;
@@ -373,16 +388,20 @@ export function EmailsClient({
   /** Contagem exata por direção (respeitando o filtro de caixa) — rail. */
   contagens: EmailsContagens;
   metricas: EmailMetricas;
-  /** Lista MANUAL (config) — whitelist do De: do compositor. */
+  /** Contas de ENVIO deste papel — whitelist do De: do compositor. */
   contas: string[];
-  /** TODAS as caixas visíveis (manuais ∪ descobertas pelo sync) — rail/filtros. */
+  /** Caixas visíveis PARA ESTE PAPEL (Head = interseção com as liberadas). */
   caixas: string[];
   padraoEnvio: string;
   /** Filtro de caixa aplicado server-side (querystring); null = Todas. */
   caixaAtiva: string | null;
   roteamento: EmailRoteamentoRegra[];
-  /** Assinatura por conta de envio (config `emails_assinaturas`). */
-  assinaturas: Record<string, string>;
+  /** Assinaturas ricas por conta de envio (config `emails_assinaturas`). */
+  assinaturas: Record<string, EmailAssinatura[]>;
+  /** Whitelist COMPLETA de envio (aba Acessos do CEO). */
+  contasEnvioTodas: string[];
+  /** Acessos atuais da Head (aba Acessos do CEO). */
+  permissoesHead: EmailsPermissoes;
   tabInicial?: TabId;
 }) {
   const router = useRouter();
@@ -543,7 +562,7 @@ export function EmailsClient({
   };
 
   const buscaDesabilitada =
-    tab === "metricas" || tab === "roteamento" || tab === "assinaturas";
+    tab === "metricas" || tab === "roteamento" || tab === "assinaturas" || tab === "acessos";
   const termoBusca = busca.trim();
   const buscaServerAtiva =
     !buscaDesabilitada && termoBusca.length >= BUSCA_EMAILS_MIN_CHARS;
@@ -654,6 +673,25 @@ export function EmailsClient({
     return () => io.disconnect();
   }, [haMais, emConversa, aguardandoBusca, tab, buscaServerAtiva, totalVisivel]);
 
+  // Head ainda sem acesso liberado — mensagem clara em vez de tela vazia.
+  if (!isCeo && caixas.length === 0 && contas.length === 0) {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        <PageHeader eyebrow="Comercial" title="E-mails" dense />
+        <Card className="max-w-xl">
+          <h2 className="mb-1 text-sm font-semibold text-foreground">
+            Nenhuma caixa liberada ainda
+          </h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            O CEO define quais caixas de e-mail você enxerga e por quais contas você envia
+            (aba Acessos da tela de e-mails dele). Assim que houver liberação, tudo aparece
+            aqui automaticamente.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       {/* Barra superior: identidade + busca estilo Gmail + sincronizar */}
@@ -703,16 +741,19 @@ export function EmailsClient({
           aria-label="Navegação do módulo de e-mail"
           className="flex w-14 shrink-0 flex-col gap-1 lg:w-56"
         >
-          <Button
-            size="lg"
-            onClick={novoEmail}
-            aria-label="Escrever novo e-mail"
-            title="Escrever"
-            className="mb-2 h-11 w-11 self-center rounded-full px-0 shadow-md lg:w-auto lg:self-start lg:px-5"
-          >
-            <Pencil />
-            <span className="hidden lg:inline">Escrever</span>
-          </Button>
+          {/* Sem conta de envio liberada (Head só-leitura) = sem Escrever */}
+          {contas.length > 0 && (
+            <Button
+              size="lg"
+              onClick={novoEmail}
+              aria-label="Escrever novo e-mail"
+              title="Escrever"
+              className="mb-2 h-11 w-11 self-center rounded-full px-0 shadow-md lg:w-auto lg:self-start lg:px-5"
+            >
+              <Pencil />
+              <span className="hidden lg:inline">Escrever</span>
+            </Button>
+          )}
 
           <nav aria-label="Seções" className="flex flex-col gap-0.5">
             <RailItem
@@ -735,18 +776,29 @@ export function EmailsClient({
               ativo={tab === "metricas"}
               onClick={() => mudarTab("metricas")}
             />
-            <RailItem
-              icon={Shuffle}
-              label="Roteamento"
-              ativo={tab === "roteamento"}
-              onClick={() => mudarTab("roteamento")}
-            />
-            <RailItem
-              icon={PenLine}
-              label="Assinaturas"
-              ativo={tab === "assinaturas"}
-              onClick={() => mudarTab("assinaturas")}
-            />
+            {/* Configuração do módulo — só o CEO */}
+            {isCeo && (
+              <>
+                <RailItem
+                  icon={Shuffle}
+                  label="Roteamento"
+                  ativo={tab === "roteamento"}
+                  onClick={() => mudarTab("roteamento")}
+                />
+                <RailItem
+                  icon={PenLine}
+                  label="Assinaturas"
+                  ativo={tab === "assinaturas"}
+                  onClick={() => mudarTab("assinaturas")}
+                />
+                <RailItem
+                  icon={ShieldCheck}
+                  label="Acessos"
+                  ativo={tab === "acessos"}
+                  onClick={() => mudarTab("acessos")}
+                />
+              </>
+            )}
           </nav>
 
           {/* Caixas (multi-conta) — como labels do Gmail; filtro server-side */}
@@ -830,7 +882,7 @@ export function EmailsClient({
                           expandida={expandidas.has(msg.id)}
                           aoAlternar={() => alternarMensagem(msg.id)}
                           rodape={
-                            ehUltima ? (
+                            ehUltima && contas.length > 0 ? (
                               <div className="mt-3">
                                 <Button size="sm" onClick={() => responder(threadAberta)}>
                                   <Reply />
@@ -1085,9 +1137,17 @@ export function EmailsClient({
             <div className="min-h-0 flex-1 overflow-y-auto pb-1">
               <RoteamentoTab contas={caixas} regras={roteamento} />
             </div>
-          ) : (
+          ) : tab === "assinaturas" ? (
             <div className="min-h-0 flex-1 overflow-y-auto pb-1">
               <AssinaturasTab contas={contas} assinaturas={assinaturas} />
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto pb-1">
+              <AcessosTab
+                caixas={caixas}
+                contasEnvio={contasEnvioTodas}
+                permissoes={permissoesHead}
+              />
             </div>
           )}
         </section>

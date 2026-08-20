@@ -13,18 +13,25 @@ import {
   fetchEmailsAssinaturas,
   fetchEmailsContasConfig,
   fetchEmailsLead,
+  fetchEmailsPermissoesHead,
   fetchThread,
+  type EmailAssinatura,
   type EmailMensagem,
   type EmailRoteamentoRegra,
   type EmailsCursor,
+  type EmailsPermissoes,
 } from "@/lib/emails-queries";
+import { sanitizarHtmlAssinatura } from "@/lib/email-assinatura-sanitize";
 import { registrarEventoGamificacao, type ResultadoGamificacao } from "@/lib/gamificacao";
 import { createAdminClient, hasServiceKey } from "@/lib/supabase-admin";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { formatInvestmentRange } from "@/lib/utils";
 
 // ════════════════════════════════════════════════════════════════════════
-// Módulo de E-mail (/emails) — server actions, apenas CEO.
+// Módulo de E-mail (/emails) — server actions. CEO = acesso total; Head =
+// recorte por `emails_permissoes` (caixas/contas que o CEO liberou) + CC
+// FORÇADO do CEO em todo envio dela (contextoAcessoEmails/CC_CEO_EMAIL).
+// Config (roteamento/assinaturas/acessos) segue CEO-only.
 //
 // • enviarEmail      — compositor → CF send-messages (caminho customEmail,
 //   mesmo contrato do mensagem-direta) + registro em emails_mensagens.
@@ -54,7 +61,40 @@ const ANEXOS_MAX = 5;
 const ANEXOS_BYTES_MAX = 8 * 1024 * 1024;
 const ANEXO_NOME_MAX = 120;
 
-const ASSINATURA_MAX_CHARS = 2000;
+// Assinaturas ricas — mesmos tetos da CF send-messages (signatureHtml ≤ 20000).
+const ASSINATURA_HTML_MAX = 20_000;
+const ASSINATURA_NOME_MAX = 60;
+const ASSINATURAS_POR_CONTA_MAX = 5;
+
+// Imagem de assinatura (bucket email-assets — 3MB, só imagem).
+const ASSINATURA_IMAGEM_BYTES_MAX = 3 * 1024 * 1024;
+const ASSINATURA_IMAGEM_TIPOS = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
+
+/**
+ * CC FORÇADO nos envios da Head — exigência do CEO (2026-08-20): todo e-mail
+ * enviado pela Head leva o CEO em cópia. É CÓDIGO, não config — não existe
+ * chave para desligar, e o client não participa da decisão.
+ */
+const CC_CEO_EMAIL = "leandro.ribeiro@bolsaatletausa.com";
+
+/**
+ * Papel do usuário no módulo de e-mail. CEO = acesso total; Head =
+ * recorte por `emails_permissoes` (fail-closed); demais papéis = nada.
+ */
+type AcessoEmails =
+  | { papel: "ceo" }
+  | { papel: "head_sucesso"; permissoes: EmailsPermissoes }
+  | null;
+
+async function contextoAcessoEmails(): Promise<AcessoEmails> {
+  const papel = await getUserPapel();
+  if (papel === "ceo") return { papel: "ceo" };
+  if (papel === "head_sucesso") {
+    const supabase = await createServerSupabaseClient();
+    return { papel: "head_sucesso", permissoes: await fetchEmailsPermissoesHead(supabase) };
+  }
+  return null;
+}
 
 const emailBausa = z
   .email("E-mail inválido.")
@@ -112,6 +152,12 @@ const enviarSchema = z
       .array(anexoSchema)
       .max(ANEXOS_MAX, `Máximo de ${ANEXOS_MAX} anexos por e-mail.`)
       .optional(),
+    /**
+     * ID da assinatura escolhida p/ ESTE envio — o HTML é resolvido no
+     * servidor a partir da config `emails_assinaturas` da conta do "De:"
+     * (o client NUNCA manda HTML de assinatura). Ausente = sem assinatura.
+     */
+    assinaturaId: z.string().trim().min(1).max(80).optional(),
   })
   .superRefine((val, ctx) => {
     if (val.linkTitle && !val.linkUrl) {
@@ -159,15 +205,17 @@ interface RespostaCf {
 }
 
 export async function enviarEmail(input: EnviarEmailInput): Promise<EnviarEmailResult> {
-  if ((await getUserPapel()) !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode enviar e-mails." };
+  const acesso = await contextoAcessoEmails();
+  if (!acesso) {
+    return { success: false, error: "Você não tem acesso ao envio de e-mails." };
   }
 
   const parsed = enviarSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
-  const { para, assunto, corpo, formSubmissionId, linkUrl, linkTitle, anexos } = parsed.data;
+  const { para, assunto, corpo, formSubmissionId, linkUrl, linkTitle, anexos, assinaturaId } =
+    parsed.data;
 
   /** Registro `[{nome, bytes}]` p/ a linha do histórico (o arquivo vai no provider). */
   const anexosRegistro =
@@ -204,6 +252,34 @@ export async function enviarEmail(input: EnviarEmailInput): Promise<EnviarEmailR
       error: `A conta ${de} não está entre as caixas sincronizadas (emails_contas).`,
     };
   }
+  // Head: só envia pelas contas que o CEO liberou (emails_permissoes.envio).
+  if (acesso.papel === "head_sucesso" && !acesso.permissoes.envio.includes(de)) {
+    return {
+      success: false,
+      error: `Você não tem permissão para enviar pela conta ${de}. Peça ao CEO para liberar na aba Acessos.`,
+    };
+  }
+
+  // Assinatura: o ID escolhido no compositor vira HTML AQUI, lido da config
+  // da conta do "De:" — nunca do client. ID inexistente = erro claro.
+  let assinaturaHtml: string | undefined;
+  if (assinaturaId) {
+    const assinaturas = await fetchEmailsAssinaturas(sessao);
+    const escolhida = (assinaturas[de] ?? []).find((a) => a.id === assinaturaId);
+    if (!escolhida) {
+      return {
+        success: false,
+        error: "A assinatura escolhida não existe mais para esta conta. Recarregue e tente de novo.",
+      };
+    }
+    assinaturaHtml = escolhida.html;
+  }
+
+  // CC forçado da Head: CEO em cópia em TODO envio dela (código, não config).
+  const ccForcado =
+    acesso.papel === "head_sucesso" && para.trim().toLowerCase() !== CC_CEO_EMAIL
+      ? [CC_CEO_EMAIL]
+      : undefined;
 
   let resposta: RespostaCf | null = null;
   try {
@@ -222,6 +298,8 @@ export async function enviarEmail(input: EnviarEmailInput): Promise<EnviarEmailR
           // replyTo = from para a resposta cair na mesma caixa.
           from: de,
           replyTo: de,
+          ...(ccForcado ? { cc: ccForcado } : {}),
+          ...(assinaturaHtml ? { signatureHtml: assinaturaHtml } : {}),
           ...(linkUrl ? { linkUrl, linkTitle: linkTitle || undefined } : {}),
           ...(anexos && anexos.length > 0
             ? { attachments: anexos.map((a) => ({ filename: a.nome, content: a.base64 })) }
@@ -314,6 +392,9 @@ export async function enviarEmail(input: EnviarEmailInput): Promise<EnviarEmailR
     action: "email_enviar",
     de,
     para: mask(para),
+    papel: acesso.papel,
+    ccForcado: Boolean(ccForcado),
+    comAssinatura: Boolean(assinaturaHtml),
     provider: resposta.provider ?? null,
     comLink: Boolean(linkUrl),
     totalAnexos: anexos?.length ?? 0,
@@ -605,8 +686,8 @@ Retorne APENAS este JSON, sem markdown e sem texto adicional:
 export async function rascunharEmailIA(
   input: RascunharEmailInput,
 ): Promise<RascunharEmailResult> {
-  if ((await getUserPapel()) !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode rascunhar e-mails com IA." };
+  if (!(await contextoAcessoEmails())) {
+    return { success: false, error: "Você não tem acesso ao rascunho de e-mails com IA." };
   }
 
   const parsed = rascunhoInputSchema.safeParse(input);
@@ -693,8 +774,8 @@ function escapeLike(termo: string): string {
 }
 
 export async function buscarLeadsEmail(termo: string): Promise<BuscarLeadsResult> {
-  if ((await getUserPapel()) !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode buscar leads." };
+  if (!(await contextoAcessoEmails())) {
+    return { success: false, error: "Você não tem acesso à busca de leads." };
   }
 
   const parsed = buscaSchema.safeParse(termo);
@@ -742,8 +823,9 @@ export type CarregarThreadResult =
 export async function carregarThreadEmail(
   gmailThreadId: string,
 ): Promise<CarregarThreadResult> {
-  if ((await getUserPapel()) !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode ver as conversas." };
+  const acesso = await contextoAcessoEmails();
+  if (!acesso) {
+    return { success: false, error: "Você não tem acesso às conversas." };
   }
 
   const idParsed = z.string().trim().min(1).max(200).safeParse(gmailThreadId);
@@ -752,7 +834,12 @@ export async function carregarThreadEmail(
   }
 
   const supabase = await createServerSupabaseClient();
-  const mensagens = await fetchThread(supabase, idParsed.data);
+  const mensagens = await fetchThread(
+    supabase,
+    idParsed.data,
+    // Head só enxerga o pedaço da conversa das caixas liberadas (fail-closed).
+    acesso.papel === "head_sucesso" ? acesso.permissoes.caixas : undefined,
+  );
   return { success: true, mensagens };
 }
 
@@ -787,8 +874,9 @@ export type PaginarEmailsResult =
 export async function paginarEmails(
   input: PaginarEmailsInput,
 ): Promise<PaginarEmailsResult> {
-  if ((await getUserPapel()) !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode ver os e-mails." };
+  const acesso = await contextoAcessoEmails();
+  if (!acesso) {
+    return { success: false, error: "Você não tem acesso aos e-mails." };
   }
 
   const parsed = paginarSchema.safeParse(input);
@@ -799,8 +887,21 @@ export async function paginarEmails(
     };
   }
 
+  // Recorte da Head: caixa pedida precisa estar liberada; sem caixa, o
+  // filtro `caixasPermitidas` restringe o "todas" às caixas dela.
+  let caixasPermitidas: string[] | undefined;
+  if (acesso.papel === "head_sucesso") {
+    if (parsed.data.caixa && !acesso.permissoes.caixas.includes(parsed.data.caixa)) {
+      return { success: false, error: "Você não tem acesso a esta caixa." };
+    }
+    caixasPermitidas = acesso.permissoes.caixas;
+  }
+
   const supabase = await createServerSupabaseClient();
-  const { itens, proximoCursor } = await fetchEmails(supabase, parsed.data);
+  const { itens, proximoCursor } = await fetchEmails(supabase, {
+    ...parsed.data,
+    caixasPermitidas,
+  });
   return { success: true, itens, proximoCursor };
 }
 
@@ -813,8 +914,8 @@ export type ListarEmailsLeadResult =
       /** Contas p/ o compositor embutido na aba (De: + padrão). */
       contas: string[];
       padraoEnvio: string;
-      /** Assinatura por conta — inserção automática no compositor embutido. */
-      assinaturas: Record<string, string>;
+      /** Assinaturas por conta (v2: lista rica) — seletor do compositor embutido. */
+      assinaturas: Record<string, EmailAssinatura[]>;
     }
   | { success: false; error: string };
 
@@ -952,23 +1053,38 @@ export async function salvarRoteamentoEmails(
 
 // ── Assinaturas por conta (aba Assinaturas) ──────────────────────────────
 
+const assinaturaEntradaSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  nome: z
+    .string()
+    .trim()
+    .min(1, "Toda assinatura precisa de um nome.")
+    .max(ASSINATURA_NOME_MAX, `Nome de assinatura muito longo (máx ${ASSINATURA_NOME_MAX}).`),
+  html: z
+    .string()
+    .max(ASSINATURA_HTML_MAX, `Assinatura muito longa (máx ${ASSINATURA_HTML_MAX} caracteres).`),
+  padrao: z.boolean(),
+});
+
 const assinaturasSchema = z.record(
   z.string(),
   z
-    .string()
-    .max(ASSINATURA_MAX_CHARS, `Assinatura muito longa (máx ${ASSINATURA_MAX_CHARS} caracteres).`),
+    .array(assinaturaEntradaSchema)
+    .max(ASSINATURAS_POR_CONTA_MAX, `Máximo de ${ASSINATURAS_POR_CONTA_MAX} assinaturas por conta.`),
 );
 
 export type SalvarAssinaturasResult = { success: boolean; error?: string };
 
 /**
- * Substitui o mapa da chave `emails_assinaturas` (CEO-only): conta de ENVIO →
- * texto da assinatura. Texto vazio remove a assinatura da conta. Escrita via
- * createAdminClient; a chave é seedada na migration, mas ainda conferimos a
- * linha afetada (lição configuracoes-patch-sem-upsert).
+ * Substitui o mapa da chave `emails_assinaturas` (CEO-only) — v2: conta de
+ * ENVIO → LISTA de assinaturas ricas. O HTML é SANITIZADO aqui (server-side,
+ * espelho da CF) antes de persistir; assinatura vazia após sanitizar cai
+ * fora; exatamente UMA padrão por conta (a primeira marcada — ou a primeira
+ * da lista). Escrita via createAdminClient; conferimos a linha afetada
+ * (lição configuracoes-patch-sem-upsert).
  */
 export async function salvarAssinaturasEmails(
-  assinaturas: Record<string, string>,
+  assinaturas: Record<string, EmailAssinatura[]>,
 ): Promise<SalvarAssinaturasResult> {
   if ((await getUserPapel()) !== "ceo") {
     return { success: false, error: "Apenas o CEO pode editar as assinaturas." };
@@ -992,8 +1108,8 @@ export async function salvarAssinaturasEmails(
   // assinatura só faz sentido em conta que aparece no "De:" do compositor.
   const sessao = await createServerSupabaseClient();
   const contasCfg = await fetchEmailsContasConfig(sessao);
-  const valor: Record<string, string> = {};
-  for (const [contaRaw, textoRaw] of Object.entries(parsed.data)) {
+  const valor: Record<string, EmailAssinatura[]> = {};
+  for (const [contaRaw, listaRaw] of Object.entries(parsed.data)) {
     const conta = contaRaw.trim().toLowerCase();
     if (!contasCfg.contas.includes(conta)) {
       return {
@@ -1001,8 +1117,26 @@ export async function salvarAssinaturasEmails(
         error: `A conta ${conta} não está entre as contas de envio (emails_contas).`,
       };
     }
-    const texto = textoRaw.trim();
-    if (texto.length > 0) valor[conta] = texto; // vazio = sem assinatura
+
+    const lista: EmailAssinatura[] = [];
+    const idsVistos = new Set<string>();
+    for (const entrada of listaRaw) {
+      const html = sanitizarHtmlAssinatura(entrada.html).trim();
+      if (!html) continue; // vazia (ou só vetor removido) = não persiste
+      if (idsVistos.has(entrada.id)) {
+        return { success: false, error: `Assinatura duplicada (id ${entrada.id}) em ${conta}.` };
+      }
+      idsVistos.add(entrada.id);
+      lista.push({ id: entrada.id, nome: entrada.nome, html, padrao: entrada.padrao });
+    }
+    if (lista.length === 0) continue; // conta sem assinatura
+
+    // Invariante: exatamente UMA padrão.
+    const idxPadrao = lista.findIndex((a) => a.padrao);
+    valor[conta] = lista.map((a, i) => ({
+      ...a,
+      padrao: i === (idxPadrao === -1 ? 0 : idxPadrao),
+    }));
   }
 
   try {
@@ -1045,4 +1179,174 @@ export async function salvarAssinaturasEmails(
   });
   revalidatePath("/emails");
   return { success: true };
+}
+
+// ── Acessos da Head (aba Acessos — CEO define) ───────────────────────────
+
+const permissoesSchema = z.object({
+  caixas: z.array(emailBausa).max(30, "Lista de caixas grande demais."),
+  envio: z.array(emailBausa).max(30, "Lista de contas grande demais."),
+});
+
+export type SalvarPermissoesInput = z.input<typeof permissoesSchema>;
+export type SalvarPermissoesResult = { success: boolean; error?: string };
+
+/**
+ * Substitui os acessos da Head na chave `emails_permissoes` (CEO-only):
+ * caixas visíveis + contas de envio. Cada item precisa existir nas listas
+ * reais (caixas sincronizadas / whitelist de envio). O CC forçado do CEO
+ * nos envios dela é CÓDIGO no enviarEmail — não passa por aqui.
+ */
+export async function salvarPermissoesEmails(
+  input: SalvarPermissoesInput,
+): Promise<SalvarPermissoesResult> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas o CEO pode definir os acessos." };
+  }
+  if (!hasServiceKey()) {
+    return {
+      success: false,
+      error: "Edição indisponível: SUPABASE_SERVICE_KEY ausente no ambiente do Engine.",
+    };
+  }
+
+  const parsed = permissoesSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Acessos inválidos." };
+  }
+
+  const sessao = await createServerSupabaseClient();
+  const contasCfg = await fetchEmailsContasConfig(sessao);
+  const caixas = [...new Set(parsed.data.caixas)];
+  const envio = [...new Set(parsed.data.envio)];
+
+  const caixaInvalida = caixas.find((c) => !contasCfg.caixas.includes(c));
+  if (caixaInvalida) {
+    return {
+      success: false,
+      error: `A caixa ${caixaInvalida} não está entre as contas sincronizadas.`,
+    };
+  }
+  const envioInvalido = envio.find((c) => !contasCfg.contas.includes(c));
+  if (envioInvalido) {
+    return {
+      success: false,
+      error: `A conta ${envioInvalido} não está na whitelist de envio (emails_contas).`,
+    };
+  }
+
+  try {
+    const {
+      data: { user },
+    } = await sessao.auth.getUser();
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("configuracoes_sistema")
+      .update({
+        valor: { head_sucesso: { caixas, envio } },
+        updated_by: user?.id ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("chave", "emails_permissoes")
+      .select("chave");
+
+    if (error || !data || data.length === 0) {
+      console.error({
+        level: "error",
+        action: "emails_permissoes_salvar",
+        error: error?.message ?? "chave emails_permissoes inexistente (seed ausente)",
+      });
+      return { success: false, error: "Não foi possível salvar os acessos agora." };
+    }
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "emails_permissoes_salvar",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { success: false, error: "Não foi possível salvar os acessos agora." };
+  }
+
+  console.log({
+    level: "info",
+    action: "emails_permissoes_salvar",
+    totalCaixas: caixas.length,
+    totalEnvio: envio.length,
+  });
+  revalidatePath("/emails");
+  return { success: true };
+}
+
+// ── Upload de imagem de assinatura (bucket email-assets) ─────────────────
+
+export type UploadImagemAssinaturaResult =
+  | { success: true; url: string }
+  | { success: false; error: string };
+
+/**
+ * Sobe UMA imagem (logo/foto) p/ o bucket público `email-assets` e devolve a
+ * URL pública — o editor insere o <img src> na assinatura. CEO-only; escrita
+ * via admin client (o bucket não tem policy de INSERT para authenticated).
+ * Validação tripla: presença, tipo (só imagem) e tamanho (3MB, teto do bucket).
+ */
+export async function uploadImagemAssinatura(
+  formData: FormData,
+): Promise<UploadImagemAssinaturaResult> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas o CEO pode subir imagens de assinatura." };
+  }
+  if (!hasServiceKey()) {
+    return {
+      success: false,
+      error: "Upload indisponível: SUPABASE_SERVICE_KEY ausente no ambiente do Engine.",
+    };
+  }
+
+  const arquivo = formData.get("arquivo");
+  if (!(arquivo instanceof File) || arquivo.size === 0) {
+    return { success: false, error: "Escolha uma imagem para enviar." };
+  }
+  if (!ASSINATURA_IMAGEM_TIPOS.has(arquivo.type)) {
+    return { success: false, error: "Formato inválido — use PNG, JPG ou WebP." };
+  }
+  if (arquivo.size > ASSINATURA_IMAGEM_BYTES_MAX) {
+    return { success: false, error: "Imagem grande demais (máx 3MB)." };
+  }
+
+  const extensao =
+    arquivo.type === "image/png" ? "png" : arquivo.type === "image/webp" ? "webp" : "jpg";
+  const caminho = `assinaturas/${crypto.randomUUID()}.${extensao}`;
+
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.storage
+      .from("email-assets")
+      .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false });
+
+    if (error) {
+      console.error({ level: "error", action: "emails_assinatura_upload", error: error.message });
+      return { success: false, error: "Não foi possível subir a imagem agora." };
+    }
+
+    const { data } = admin.storage.from("email-assets").getPublicUrl(caminho);
+    if (!data?.publicUrl) {
+      return { success: false, error: "Não foi possível obter a URL pública da imagem." };
+    }
+
+    console.log({
+      level: "info",
+      action: "emails_assinatura_upload",
+      bytes: arquivo.size,
+      tipo: arquivo.type,
+    });
+    return { success: true, url: data.publicUrl };
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "emails_assinatura_upload",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { success: false, error: "Não foi possível subir a imagem agora." };
+  }
 }

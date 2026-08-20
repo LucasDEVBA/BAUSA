@@ -149,7 +149,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/contratos", label: "Contratos", icon: FileSignature, roles: ["ceo"] },
       { href: "/remarketing", label: "Re-marketing", icon: Megaphone, roles: ["ceo"] },
       { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["ceo", "head_sucesso"] },
-      { href: "/emails", label: "E-mails", icon: Mail, roles: ["ceo"] },
+      { href: "/emails", label: "E-mails", icon: Mail, roles: ["ceo", "head_sucesso"] },
       { href: "/automacoes", label: "Automações", icon: Workflow, roles: ["ceo"] },
       { href: "/fluxos", label: "Fluxos", icon: GitBranch, roles: ["ceo"], activeRoutes: ["/fluxos", "/fluxos/metricas", "/fluxos/contatos"] },
     ],

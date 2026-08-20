@@ -10,7 +10,7 @@ import {
   type CompositorPrefill,
 } from "@/app/(dashboard)/emails/compositor";
 import { listarEmailsLead } from "@/lib/actions/emails";
-import type { EmailMensagem } from "@/lib/emails-queries";
+import type { EmailAssinatura, EmailMensagem } from "@/lib/emails-queries";
 import { CAIXA_EMAIL_PADRAO } from "@/lib/emails-queries";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
@@ -33,7 +33,7 @@ export function EmailsLeadSection({
   const [mensagens, setMensagens] = useState<EmailMensagem[]>([]);
   const [contas, setContas] = useState<string[]>([CAIXA_EMAIL_PADRAO]);
   const [padraoEnvio, setPadraoEnvio] = useState(CAIXA_EMAIL_PADRAO);
-  const [assinaturas, setAssinaturas] = useState<Record<string, string>>({});
+  const [assinaturas, setAssinaturas] = useState<Record<string, EmailAssinatura[]>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [expandidoId, setExpandidoId] = useState<string | null>(null);
   const [compositorAberto, setCompositorAberto] = useState(false);
