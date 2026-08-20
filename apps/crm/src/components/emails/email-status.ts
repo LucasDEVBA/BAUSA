@@ -37,6 +37,14 @@ export function localPart(email: string): string {
   return email.split("@")[0] || email;
 }
 
+/** Tamanho de anexo legível ("14 KB", "1.2 MB"); vazio p/ valor inválido. */
+export function formatarBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /**
  * Hora no formato do Gmail: "14:32" se hoje, "12 de ago" no mesmo ano,
  * "12/08/25" em anos anteriores. Vazio para data inválida.

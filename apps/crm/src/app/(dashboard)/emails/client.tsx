@@ -18,7 +18,9 @@ import {
   Loader2,
   Mail,
   MailOpen,
+  Paperclip,
   Pencil,
+  PenLine,
   Plus,
   Reply,
   RotateCw,
@@ -41,6 +43,7 @@ import {
 } from "@/components/ui";
 import {
   assuntoResposta,
+  formatarBytes,
   horaEstiloGmail,
   localPart,
   montarThreadContexto,
@@ -58,10 +61,11 @@ import type {
 } from "@/lib/emails-queries";
 import { cn, formatDateTime, getInitials } from "@/lib/utils";
 
+import { AssinaturasTab } from "./assinaturas";
 import { CompositorEmail, type CompositorPrefill } from "./compositor";
 import { RoteamentoTab } from "./roteamento";
 
-export type TabId = "caixa" | "enviados" | "metricas" | "roteamento";
+export type TabId = "caixa" | "enviados" | "metricas" | "roteamento" | "assinaturas";
 
 /** Debounce da busca server-side (guard de sequência contra resposta velha). */
 const BUSCA_SERVER_DEBOUNCE_MS = 350;
@@ -213,6 +217,17 @@ function LinhaEmail({
           )}
         </span>
         <span className="hidden shrink-0 items-center gap-1 sm:flex">
+          {email.anexos && email.anexos.length > 0 && (
+            <Badge
+              tone="neutral"
+              size="sm"
+              title={email.anexos.map((a) => a.nome).join(", ")}
+            >
+              <Paperclip aria-hidden className="size-3" />
+              <span className="max-w-24 truncate">{email.anexos[0].nome}</span>
+              {email.anexos.length > 1 && `+${email.anexos.length - 1}`}
+            </Badge>
+          )}
           {email.leadNome && (
             <Badge tone="brand" size="sm">
               {email.leadNome}
@@ -306,6 +321,26 @@ function MensagemThread({
           <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
             {msg.corpoText ?? msg.snippet ?? "(sem conteúdo)"}
           </p>
+          {msg.anexos && msg.anexos.length > 0 && (
+            <ul aria-label="Anexos da mensagem" className="mt-3 flex flex-wrap gap-1.5">
+              {msg.anexos.map((anexo, i) => (
+                <li
+                  key={`${anexo.nome}-${i}`}
+                  className="flex max-w-full items-center gap-1.5 rounded-full border border-border bg-secondary px-2.5 py-1 text-xs text-foreground"
+                >
+                  <Paperclip aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 truncate" title={anexo.nome}>
+                    {anexo.nome}
+                  </span>
+                  {anexo.bytes > 0 && (
+                    <span className="shrink-0 text-muted-foreground">
+                      {formatarBytes(anexo.bytes)}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
           {rodape}
         </div>
       )}
@@ -327,6 +362,7 @@ export function EmailsClient({
   padraoEnvio,
   caixaAtiva,
   roteamento,
+  assinaturas,
   tabInicial = "caixa",
 }: {
   /** 1ª página (server) — as seguintes chegam via paginarEmails no scroll. */
@@ -345,6 +381,8 @@ export function EmailsClient({
   /** Filtro de caixa aplicado server-side (querystring); null = Todas. */
   caixaAtiva: string | null;
   roteamento: EmailRoteamentoRegra[];
+  /** Assinatura por conta de envio (config `emails_assinaturas`). */
+  assinaturas: Record<string, string>;
   tabInicial?: TabId;
 }) {
   const router = useRouter();
@@ -504,7 +542,8 @@ export function EmailsClient({
     }
   };
 
-  const buscaDesabilitada = tab === "metricas" || tab === "roteamento";
+  const buscaDesabilitada =
+    tab === "metricas" || tab === "roteamento" || tab === "assinaturas";
   const termoBusca = busca.trim();
   const buscaServerAtiva =
     !buscaDesabilitada && termoBusca.length >= BUSCA_EMAILS_MIN_CHARS;
@@ -701,6 +740,12 @@ export function EmailsClient({
               label="Roteamento"
               ativo={tab === "roteamento"}
               onClick={() => mudarTab("roteamento")}
+            />
+            <RailItem
+              icon={PenLine}
+              label="Assinaturas"
+              ativo={tab === "assinaturas"}
+              onClick={() => mudarTab("assinaturas")}
             />
           </nav>
 
@@ -1036,9 +1081,13 @@ export function EmailsClient({
                 </>
               )}
             </div>
-          ) : (
+          ) : tab === "roteamento" ? (
             <div className="min-h-0 flex-1 overflow-y-auto pb-1">
               <RoteamentoTab contas={caixas} regras={roteamento} />
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto pb-1">
+              <AssinaturasTab contas={contas} assinaturas={assinaturas} />
             </div>
           )}
         </section>
@@ -1050,6 +1099,7 @@ export function EmailsClient({
           prefill={prefill}
           contas={contas}
           padraoEnvio={padraoEnvio}
+          assinaturas={assinaturas}
           onFechar={() => setCompositorAberto(false)}
           onEnviado={() => router.refresh()}
         />

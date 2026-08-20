@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { ArrowDownLeft, ArrowUpRight, Loader2, Mail, Plus } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Loader2, Mail, Paperclip, Plus } from "lucide-react";
 
 import { Badge, Button } from "@/components/ui";
 import { localPart, statusChips } from "@/components/emails/email-status";
@@ -33,6 +33,7 @@ export function EmailsLeadSection({
   const [mensagens, setMensagens] = useState<EmailMensagem[]>([]);
   const [contas, setContas] = useState<string[]>([CAIXA_EMAIL_PADRAO]);
   const [padraoEnvio, setPadraoEnvio] = useState(CAIXA_EMAIL_PADRAO);
+  const [assinaturas, setAssinaturas] = useState<Record<string, string>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [expandidoId, setExpandidoId] = useState<string | null>(null);
   const [compositorAberto, setCompositorAberto] = useState(false);
@@ -50,6 +51,7 @@ export function EmailsLeadSection({
       setMensagens(res.mensagens);
       setContas(res.contas);
       setPadraoEnvio(res.padraoEnvio);
+      setAssinaturas(res.assinaturas);
     });
   }, [formSubmissionId]);
 
@@ -145,6 +147,16 @@ export function EmailsLeadSection({
                             {chip.label}
                           </Badge>
                         ))}
+                      {msg.anexos && msg.anexos.length > 0 && (
+                        <Badge
+                          tone="neutral"
+                          size="sm"
+                          title={msg.anexos.map((a) => a.nome).join(", ")}
+                        >
+                          <Paperclip aria-hidden className="h-3 w-3" />
+                          {msg.anexos.length}
+                        </Badge>
+                      )}
                       {contas.length > 1 && msg.caixaEmail && (
                         <Badge tone="neutral" size="sm">
                           {localPart(msg.caixaEmail)}
@@ -183,6 +195,7 @@ export function EmailsLeadSection({
           prefill={prefill}
           contas={contas}
           padraoEnvio={padraoEnvio}
+          assinaturas={assinaturas}
           onFechar={() => setCompositorAberto(false)}
           onEnviado={carregar}
         />

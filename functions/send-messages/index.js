@@ -58,6 +58,7 @@ const sendViaResend = async (to, subject, html, opts = {}) => {
     // reply_to: respostas caem na caixa da contato@ (espelhada pelo
     // email-inbox-sync) — essencial para o compositor do Engine.
     ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+    ...(opts.attachments ? { attachments: opts.attachments } : {}),
   });
 
   const options = {
@@ -90,6 +91,9 @@ const sendViaBrevo = async (to, subject, html, opts = {}) => {
     subject,
     htmlContent: html,
     ...(opts.replyTo ? { replyTo: { email: opts.replyTo } } : {}),
+    ...(opts.attachments
+      ? { attachment: opts.attachments.map((a) => ({ name: a.filename, content: a.content })) }
+      : {}),
   });
 
   const options = {
@@ -700,6 +704,26 @@ functions.http("sendMessages", async (req, res) => {
            !customEmail.from.toLowerCase().endsWith("@bolsaatletausa.com"))) {
         errors.push("Campo 'from' inválido (precisa ser @bolsaatletausa.com)");
       }
+      // Anexos: até 5 arquivos, 8MB somados (base64 conta ~+33% — teto do
+      // Resend é 40MB, mas o gargalo real é o bodySizeLimit do chamador).
+      if (customEmail.attachments !== undefined) {
+        if (!Array.isArray(customEmail.attachments) || customEmail.attachments.length > 5) {
+          errors.push("Campo 'attachments' inválido (máximo 5 arquivos)");
+        } else {
+          let totalB64 = 0;
+          for (const a of customEmail.attachments) {
+            if (!a || typeof a.filename !== "string" || a.filename.trim().length === 0 ||
+                a.filename.length > 120 || typeof a.content !== "string") {
+              errors.push("Anexo inválido (filename + content base64 obrigatórios)");
+              break;
+            }
+            totalB64 += a.content.length;
+          }
+          if (totalB64 > 11 * 1024 * 1024) {
+            errors.push("Anexos excedem o limite total de 8MB");
+          }
+        }
+      }
       if (errors.length > 0) {
         console.log(JSON.stringify({
           level: "WARN", action: "custom_email_validation_failed", errors,
@@ -723,6 +747,9 @@ functions.http("sendMessages", async (req, res) => {
         {
           replyTo: customEmail.replyTo ? customEmail.replyTo.trim() : undefined,
           from: customEmail.from ? customEmail.from.trim().toLowerCase() : undefined,
+          attachments: Array.isArray(customEmail.attachments) && customEmail.attachments.length > 0
+            ? customEmail.attachments.map((a) => ({ filename: a.filename.trim(), content: a.content }))
+            : undefined,
         }
       );
       const durationMs = Date.now() - startTime;
