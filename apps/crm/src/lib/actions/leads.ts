@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
 import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
+import { registrarEventoGamificacao } from "@/lib/gamificacao";
 
 function mapInvestmentToEnum(range: string | null): string {
   if (!range) return "ate_20k";
@@ -502,7 +503,8 @@ export async function aprovarLead(formSubmissionId: string) {
     if ((atual as { aprovacao_status?: string } | null)?.aprovacao_status === "aprovado") {
       revalidatePath("/leads");
       revalidatePath("/pipeline");
-      return { success: true, atletaId: promocao.atletaId, dealId: promocao.dealId };
+      // Sem XP aqui: quem venceu o CAS (outra aba) já pontuou.
+      return { success: true, atletaId: promocao.atletaId, dealId: promocao.dealId, gamificacao: null };
     }
     return {
       success: false,
@@ -511,10 +513,16 @@ export async function aprovarLead(formSubmissionId: string) {
     };
   }
 
+  // Gamificação (fail-open — null nunca quebra a aprovação)
+  const gamificacao = await registrarEventoGamificacao(
+    "lead_aprovado",
+    promocao.dealId ? { tipo: "deal", id: promocao.dealId } : undefined,
+  );
+
   revalidatePath("/leads");
   revalidatePath("/pipeline");
   revalidatePath("/war-room");
-  return { success: true, atletaId: promocao.atletaId, dealId: promocao.dealId };
+  return { success: true, atletaId: promocao.atletaId, dealId: promocao.dealId, gamificacao };
 }
 
 export async function reprovarLead(formSubmissionId: string, motivo?: string) {
@@ -545,7 +553,13 @@ export async function reprovarLead(formSubmissionId: string, motivo?: string) {
     return { success: false, error: "Lead não está mais pendente (já decidido em outra aba?)." };
   }
 
+  // Gamificação: decidir também é trabalho (evita viés de aprovar tudo)
+  const gamificacao = await registrarEventoGamificacao("lead_reprovado", {
+    tipo: "form_submission",
+    id: formSubmissionId,
+  });
+
   revalidatePath("/leads");
   revalidatePath("/war-room");
-  return { success: true };
+  return { success: true, gamificacao };
 }

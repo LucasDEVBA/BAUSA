@@ -53,6 +53,8 @@ import { FileUploader, AttachmentList, type UploadedFile } from "./FileUploader"
 import { HealthScoreCard } from "./HealthBadge";
 import { OnboardingTab } from "./OnboardingTab";
 import { ReunioesTab } from "./ReunioesTab";
+import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
+import { celebrar } from "@/lib/gamificacao-store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -935,6 +937,7 @@ function TabRegistros({
       });
       if (result.success) {
         toast.success("Contato registrado", { description: athleteName });
+        celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.contato_familia);
         setResumo("");
         setAnexos([]);
         onSaved();

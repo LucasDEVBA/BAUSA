@@ -15,6 +15,7 @@ import {
   type EmailMensagem,
   type EmailRoteamentoRegra,
 } from "@/lib/emails-queries";
+import { registrarEventoGamificacao, type ResultadoGamificacao } from "@/lib/gamificacao";
 import { createAdminClient, hasServiceKey } from "@/lib/supabase-admin";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { formatInvestmentRange } from "@/lib/utils";
@@ -90,6 +91,8 @@ export interface EnviarEmailResult {
   error?: string;
   /** Aviso não-bloqueante (ex.: enviado mas registro no histórico falhou). */
   detalhe?: string;
+  /** XP do envio (fail-open — pode ser null/ausente). */
+  gamificacao?: ResultadoGamificacao | null;
 }
 
 /** Mascara e-mail para log (nunca logar o contato completo). */
@@ -261,8 +264,14 @@ export async function enviarEmail(input: EnviarEmailInput): Promise<EnviarEmailR
     leadVinculado: Boolean(formSubmissionId),
   });
 
+  // Gamificação (fail-open — o e-mail já saiu; null nunca vira erro)
+  const gamificacao = await registrarEventoGamificacao(
+    "email_enviado",
+    formSubmissionId ? { tipo: "form_submission", id: formSubmissionId } : undefined,
+  );
+
   revalidatePath("/emails");
-  return { success: true, ...(detalhe ? { detalhe } : {}) };
+  return { success: true, gamificacao, ...(detalhe ? { detalhe } : {}) };
 }
 
 // ── Rascunho por IA ──────────────────────────────────────────────────────

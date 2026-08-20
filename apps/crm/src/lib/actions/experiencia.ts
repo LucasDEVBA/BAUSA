@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { registrarEventoGamificacao } from "@/lib/gamificacao";
 
 type FaseExperiencia =
   | "envio_opcoes"
@@ -137,9 +138,17 @@ export async function registrarContato(
     .eq("id", experienciaId);
   if (updateError) return fail(updateError.message);
 
+  // Gamificação (fail-open — null nunca quebra o registro do contato)
+  const gamificacao = await registrarEventoGamificacao("contato_familia", {
+    tipo: "experiencia",
+    id: experienciaId,
+  });
+
   revalidatePath("/familias-crm");
   revalidatePath("/familias-pipeline");
-  return ok();
+  // Literal direto (não o helper ok()): o spread genérico do helper colapsa o
+  // campo extra no tipo inferido e o call site perderia `gamificacao`.
+  return { success: true as const, gamificacao };
 }
 
 // ─── Atualizar experiencia (indicadores, status, fase) ───────

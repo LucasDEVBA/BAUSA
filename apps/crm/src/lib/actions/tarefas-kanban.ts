@@ -4,9 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { registrarEventoGamificacao, type ResultadoGamificacao } from "@/lib/gamificacao";
 import type { QuadroColuna } from "@/types/crm";
 
-type ActionResult = { success: true } | { success: false; error: string };
+type ActionResult =
+  | { success: true; gamificacao?: ResultadoGamificacao | null }
+  | { success: false; error: string };
 
 const COLUNAS: QuadroColuna[] = ["backlog", "a_fazer", "fazendo", "feito"];
 
@@ -39,6 +42,16 @@ export async function moverTarefaQuadro(
   }
 
   const supabase = await createAuditedSupabaseClient();
+
+  // Pré-leitura para o XP: só pontua a TRANSIÇÃO para "feito" (re-arrastar
+  // uma tarefa já concluída não gera ponto de novo).
+  const { data: antes } = await supabase
+    .from("tarefas")
+    .select("quadro_coluna")
+    .eq("id", tarefaId)
+    .maybeSingle();
+  const jaEstavaFeita = (antes as { quadro_coluna?: QuadroColuna } | null)?.quadro_coluna === "feito";
+
   const agora = new Date().toISOString();
   const { data, error } = await supabase
     .from("tarefas")
@@ -56,8 +69,14 @@ export async function moverTarefaQuadro(
   if (!data || data.length === 0) {
     return { success: false, error: "Tarefa não encontrada ou sem permissão." };
   }
+
+  const gamificacao =
+    coluna === "feito" && !jaEstavaFeita
+      ? await registrarEventoGamificacao("tarefa_concluida", { tipo: "tarefa", id: tarefaId })
+      : null;
+
   revalidatePath("/tarefas");
-  return { success: true };
+  return { success: true, gamificacao };
 }
 
 /** Vincula (ou desvincula, com null) uma tarefa a uma sprint. */

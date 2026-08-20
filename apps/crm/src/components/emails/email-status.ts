@@ -38,6 +38,37 @@ export function localPart(email: string): string {
 }
 
 /**
+ * Hora no formato do Gmail: "14:32" se hoje, "12 de ago" no mesmo ano,
+ * "12/08/25" em anos anteriores. Vazio para data inválida.
+ */
+export function horaEstiloGmail(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const agora = new Date();
+  const mesmoDia =
+    d.getFullYear() === agora.getFullYear() &&
+    d.getMonth() === agora.getMonth() &&
+    d.getDate() === agora.getDate();
+  if (mesmoDia) {
+    return new Intl.DateTimeFormat("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d);
+  }
+  if (d.getFullYear() === agora.getFullYear()) {
+    // "12 de ago." → sem o ponto do mês abreviado
+    return new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "short" })
+      .format(d)
+      .replace(/\./g, "");
+  }
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(d);
+}
+
+/**
  * Contexto de conversa p/ o modo "responder com IA": últimas `max` mensagens
  * em texto simples, da mais antiga para a mais recente. O server action trata
  * tudo como DADOS delimitados (anti-injection) — aqui só montamos o texto.
