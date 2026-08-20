@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Link2, Loader2, Send, Sparkles, Trash2, X } from "lucide-react";
+import { Link2, Loader2, Paperclip, Send, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge, Button, Input } from "@/components/ui";
+import { formatarBytes } from "@/components/emails/email-status";
 import {
   buscarLeadsEmail,
   enviarEmail,
@@ -21,7 +22,7 @@ export interface CompositorPrefill {
   leadNome?: string;
   /**
    * Modo resposta: últimas mensagens da conversa (montadas pelo caller via
-   * montarThreadContexto) — habilita o botão "Rascunhar resposta com IA".
+   * montarThreadContexto) — a IA responde à conversa mesmo sem instrução.
    */
   threadContexto?: string;
   /** Caixa preferida como "De:" (ex.: responder pela caixa que recebeu). */
@@ -31,8 +32,21 @@ export interface CompositorPrefill {
 const BUSCA_DEBOUNCE_MS = 300;
 const BUSCA_MIN_CHARS = 2;
 
-const OBJETIVO_RESPOSTA_PADRAO =
-  "Responder ao e-mail mais recente da conversa, dando sequência natural e propondo o próximo passo.";
+/** Instrução mínima p/ a IA (espelha o Zod da action). */
+const PROMPT_IA_MIN_CHARS = 5;
+const PROMPT_IA_MAX_CHARS = 2000;
+
+// Anexos — mesmos tetos da server action e da CF send-messages.
+const ANEXOS_MAX = 5;
+const ANEXOS_BYTES_MAX = 8 * 1024 * 1024;
+const ANEXO_NOME_MAX = 120;
+
+/**
+ * Separador do bloco de assinatura no corpo (convenção "--" de e-mail).
+ * A troca de conta substitui SÓ o que vem depois do ÚLTIMO separador —
+ * o texto do usuário acima é preservado.
+ */
+const ASSINATURA_SEP = "\n\n--\n";
 
 const TONS = [
   { value: "", label: "Consultivo premium (padrão)" },
@@ -41,8 +55,81 @@ const TONS = [
   { value: "formal e institucional", label: "Formal e institucional" },
 ] as const;
 
+type TamanhoIA = "" | "curto" | "medio" | "longo";
+
+const TAMANHOS: Array<{ value: TamanhoIA; label: string }> = [
+  { value: "", label: "Tamanho padrão" },
+  { value: "curto", label: "Curto" },
+  { value: "medio", label: "Médio" },
+  { value: "longo", label: "Longo" },
+];
+
+/** Refinos de 1 clique — a instrução vai como prompt junto do rascunho atual. */
+const REFINOS = [
+  {
+    label: "Mais curto",
+    instrucao:
+      "Reescreva o rascunho mais curto e direto, cortando redundâncias sem perder o essencial.",
+  },
+  {
+    label: "Mais formal",
+    instrucao:
+      "Reescreva o rascunho com tom mais formal e institucional, mantendo o conteúdo e a intenção.",
+  },
+  {
+    label: "Mais caloroso",
+    instrucao:
+      "Reescreva o rascunho com tom mais caloroso e próximo, mantendo o conteúdo e a intenção.",
+  },
+  {
+    label: "Reescrever",
+    instrucao:
+      "Reescreva o rascunho por completo com outra abordagem, mantendo o objetivo e os fatos.",
+  },
+] as const;
+
 const SELECT_CLS =
   "h-9 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/25";
+
+const TEXTAREA_IA_CLS =
+  "min-h-16 w-full resize-y rounded-lg border border-input bg-card px-3 py-2 text-sm leading-relaxed text-foreground outline-none transition-colors placeholder:text-placeholder focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/25 motion-reduce:transition-none";
+
+/** Divide o corpo em texto do usuário + assinatura (após o ÚLTIMO separador). */
+function dividirCorpo(corpo: string): { texto: string; assinatura: string | null } {
+  const idx = corpo.lastIndexOf(ASSINATURA_SEP);
+  if (idx === -1) return { texto: corpo, assinatura: null };
+  return { texto: corpo.slice(0, idx), assinatura: corpo.slice(idx + ASSINATURA_SEP.length) };
+}
+
+/** Junta texto + bloco de assinatura (sem bloco quando não há assinatura). */
+function montarCorpo(texto: string, assinatura: string | undefined): string {
+  return assinatura ? `${texto}${ASSINATURA_SEP}${assinatura}` : texto;
+}
+
+/** File → base64 puro (sem o prefixo data:) via FileReader. */
+function lerArquivoBase64(arquivo: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const resultado = reader.result;
+      if (typeof resultado !== "string") {
+        reject(new Error("Leitura do arquivo devolveu formato inesperado."));
+        return;
+      }
+      const virgula = resultado.indexOf(",");
+      resolve(virgula >= 0 ? resultado.slice(virgula + 1) : resultado);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler o arquivo."));
+    reader.readAsDataURL(arquivo);
+  });
+}
+
+interface AnexoLocal {
+  nome: string;
+  tipo?: string;
+  bytes: number;
+  base64: string;
+}
 
 /** Campo rotulado (bloco de IA / link CTA) — moldura padrão do Engine. */
 function CampoEmail({
@@ -87,11 +174,15 @@ const CAMPO_INLINE_CLS =
  * lead/deal). Renderizar SÓ quando aberto ({aberto && <CompositorEmail/>}):
  * cada abertura remonta o componente, então o estado inicial vem direto do
  * prefill (sem effect de reset — exigência do react-hooks/set-state-in-effect).
+ *
+ * Assinatura: a da conta do "De:" nasce inserida no corpo (bloco "--" —
+ * visível e editável, nada oculto); trocar o De: troca só o bloco.
  */
 export function CompositorEmail({
   prefill,
   contas,
   padraoEnvio,
+  assinaturas,
   onFechar,
   onEnviado,
 }: {
@@ -100,16 +191,24 @@ export function CompositorEmail({
   contas: string[];
   /** Conta pré-selecionada no "De:" (padrao_envio da config). */
   padraoEnvio: string;
+  /** Assinatura por conta (config `emails_assinaturas`) — opcional. */
+  assinaturas?: Record<string, string>;
   onFechar: () => void;
   onEnviado: () => void;
 }) {
-  const [de, setDe] = useState(() => {
-    if (prefill?.de && contas.includes(prefill.de)) return prefill.de;
-    return contas.includes(padraoEnvio) ? padraoEnvio : (contas[0] ?? padraoEnvio);
-  });
+  const deInicial =
+    prefill?.de && contas.includes(prefill.de)
+      ? prefill.de
+      : contas.includes(padraoEnvio)
+        ? padraoEnvio
+        : (contas[0] ?? padraoEnvio);
+
+  const [de, setDe] = useState(deInicial);
   const [para, setPara] = useState(prefill?.para ?? "");
   const [assunto, setAssunto] = useState(prefill?.assunto ?? "");
-  const [corpo, setCorpo] = useState("");
+  const [incluirAssinatura, setIncluirAssinatura] = useState(true);
+  // Corpo nasce com o bloco de assinatura da conta inicial (quando existe).
+  const [corpo, setCorpo] = useState(() => montarCorpo("", assinaturas?.[deInicial]));
   const [leadVinculado, setLeadVinculado] = useState<{ id: string; nome: string } | null>(
     prefill?.formSubmissionId
       ? { id: prefill.formSubmissionId, nome: prefill.leadNome ?? "Lead" }
@@ -119,14 +218,20 @@ export function CompositorEmail({
   const [linkTitle, setLinkTitle] = useState("");
   const [mostrarLink, setMostrarLink] = useState(false);
 
+  // Anexos (máx 5, 8MB somados — validação clara ANTES de subir)
+  const [anexos, setAnexos] = useState<AnexoLocal[]>([]);
+  const [anexando, setAnexando] = useState(false);
+  const inputArquivoRef = useRef<HTMLInputElement | null>(null);
+
   // Autocomplete de lead
   const [sugestoes, setSugestoes] = useState<LeadBusca[]>([]);
   const [buscando, setBuscando] = useState(false);
   const buscaSeq = useRef(0);
 
-  // IA
-  const [objetivo, setObjetivo] = useState("");
+  // IA — prompt livre + tom/tamanho + refinos de 1 clique
+  const [promptIa, setPromptIa] = useState("");
   const [tom, setTom] = useState<string>("");
+  const [tamanho, setTamanho] = useState<TamanhoIA>("");
   const [iaAviso, setIaAviso] = useState<string | null>(null);
   const [rascunhando, startRascunho] = useTransition();
 
@@ -204,30 +309,138 @@ export function CompositorEmail({
   const modoResposta = Boolean(prefill?.threadContexto);
   const titulo = modoResposta ? "Responder e-mail" : "Nova mensagem";
 
-  const rascunhar = (comThread: boolean) => {
+  // ── Assinatura ─────────────────────────────────────────────────────────
+  const assinaturaContaAtual = assinaturas?.[de];
+
+  /** Troca o De: substituindo SÓ o bloco de assinatura (texto acima intacto). */
+  const trocarDe = (novaConta: string) => {
+    setDe(novaConta);
+    if (!incluirAssinatura) return;
+    setCorpo((prev) => montarCorpo(dividirCorpo(prev).texto, assinaturas?.[novaConta]));
+  };
+
+  /** Liga/desliga a assinatura NESTE envio (edita o corpo — nada oculto). */
+  const alternarAssinatura = (ligar: boolean) => {
+    setIncluirAssinatura(ligar);
+    setCorpo((prev) =>
+      montarCorpo(dividirCorpo(prev).texto, ligar ? assinaturas?.[de] : undefined),
+    );
+  };
+
+  // ── IA ─────────────────────────────────────────────────────────────────
+
+  /** Aplica assunto+corpo gerados ACIMA do bloco de assinatura (sem duplicar). */
+  const aplicarRascunho = (assuntoNovo: string, corpoNovo: string) => {
+    setAssunto(assuntoNovo);
+    setCorpo(() =>
+      montarCorpo(corpoNovo, incluirAssinatura ? assinaturas?.[de] : undefined),
+    );
+  };
+
+  const promptTrim = promptIa.trim();
+  // Modo resposta gera sem instrução (a action usa a instrução padrão).
+  const podeGerar =
+    !rascunhando &&
+    (promptTrim.length >= PROMPT_IA_MIN_CHARS ||
+      (modoResposta && promptTrim.length === 0));
+
+  const tratarFalhaIA = (res: { error: string; notConfigured?: boolean }) => {
+    if (res.notConfigured) {
+      setIaAviso(res.error);
+    } else {
+      toast.error(res.error);
+    }
+  };
+
+  const gerar = () => {
     setIaAviso(null);
     startRascunho(async () => {
       const res = await rascunharEmailIA({
         formSubmissionId: leadVinculado?.id,
-        // No modo resposta o objetivo é opcional — sem ele, usa o padrão.
-        objetivo:
-          comThread && objetivo.trim().length < 5 ? OBJETIVO_RESPOSTA_PADRAO : objetivo,
+        prompt: promptTrim.length >= PROMPT_IA_MIN_CHARS ? promptTrim : undefined,
         tom: tom || undefined,
-        threadContexto: comThread ? prefill?.threadContexto : undefined,
+        tamanho: tamanho || undefined,
+        threadContexto: prefill?.threadContexto,
       });
       if (!res.success) {
-        if (res.notConfigured) {
-          setIaAviso(res.error);
-        } else {
-          toast.error(res.error);
-        }
+        tratarFalhaIA(res);
         return;
       }
-      setAssunto(res.rascunho.assunto);
-      setCorpo(res.rascunho.corpo);
+      aplicarRascunho(res.rascunho.assunto, res.rascunho.corpo);
       toast.success("Rascunho gerado — revise antes de enviar.");
     });
   };
+
+  /** Refino de 1 clique: manda o RASCUNHO ATUAL (corpo editado conta). */
+  const refinar = (instrucao: string) => {
+    const textoAtual = dividirCorpo(corpo).texto.trim();
+    if (!textoAtual) return;
+    setIaAviso(null);
+    startRascunho(async () => {
+      const res = await rascunharEmailIA({
+        formSubmissionId: leadVinculado?.id,
+        prompt: instrucao,
+        rascunhoAtual: { assunto: assunto.trim(), corpo: textoAtual },
+        threadContexto: prefill?.threadContexto,
+      });
+      if (!res.success) {
+        tratarFalhaIA(res);
+        return;
+      }
+      aplicarRascunho(res.rascunho.assunto, res.rascunho.corpo);
+      toast.success("Rascunho refinado — revise antes de enviar.");
+    });
+  };
+
+  /** Há texto próprio (fora da assinatura) — habilita os refinos. */
+  const temTextoParaRefinar = dividirCorpo(corpo).texto.trim().length > 0;
+
+  // ── Anexos ─────────────────────────────────────────────────────────────
+
+  const anexarArquivos = async (arquivos: File[]) => {
+    if (arquivos.length === 0) return;
+    if (anexos.length + arquivos.length > ANEXOS_MAX) {
+      toast.error(`Máximo de ${ANEXOS_MAX} anexos por e-mail.`);
+      return;
+    }
+    const bytesAtuais = anexos.reduce((soma, a) => soma + a.bytes, 0);
+    const bytesNovos = arquivos.reduce((soma, f) => soma + f.size, 0);
+    if (bytesAtuais + bytesNovos > ANEXOS_BYTES_MAX) {
+      toast.error(
+        `Anexos excedem o limite de 8MB somados (${formatarBytes(bytesAtuais + bytesNovos)}). Remova arquivos ou envie um link.`,
+      );
+      return;
+    }
+    setAnexando(true);
+    try {
+      const novos: AnexoLocal[] = [];
+      for (const arquivo of arquivos) {
+        const base64 = await lerArquivoBase64(arquivo);
+        novos.push({
+          nome: (arquivo.name || "arquivo").slice(0, ANEXO_NOME_MAX),
+          tipo: arquivo.type || undefined,
+          bytes: arquivo.size,
+          base64,
+        });
+      }
+      setAnexos((prev) => [...prev, ...novos]);
+    } catch (err) {
+      console.error({
+        level: "error",
+        action: "email_anexar",
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Não foi possível ler um dos arquivos. Tente novamente.");
+    } finally {
+      setAnexando(false);
+    }
+  };
+
+  const removerAnexo = (indice: number) => {
+    setAnexos((prev) => prev.filter((_, i) => i !== indice));
+  };
+
+  // ── Envio ──────────────────────────────────────────────────────────────
 
   const enviar = () => {
     startEnvio(async () => {
@@ -239,6 +452,10 @@ export function CompositorEmail({
         formSubmissionId: leadVinculado?.id,
         linkUrl: linkUrl.trim() || undefined,
         linkTitle: linkTitle.trim() || undefined,
+        anexos:
+          anexos.length > 0
+            ? anexos.map((a) => ({ nome: a.nome, tipo: a.tipo, base64: a.base64 }))
+            : undefined,
       });
       if (!res.success) {
         toast.error(res.error ?? "Falha ao enviar o e-mail.");
@@ -251,7 +468,11 @@ export function CompositorEmail({
   };
 
   const podeEnviar =
-    para.trim().length > 0 && assunto.trim().length > 0 && corpo.trim().length > 0 && !enviando;
+    para.trim().length > 0 &&
+    assunto.trim().length > 0 &&
+    corpo.trim().length > 0 &&
+    !enviando &&
+    !anexando;
 
   if (typeof document === "undefined") return null;
 
@@ -279,7 +500,7 @@ export function CompositorEmail({
         <LinhaCampo label="De">
           <select
             value={de}
-            onChange={(e) => setDe(e.target.value)}
+            onChange={(e) => trocarDe(e.target.value)}
             aria-label="Conta remetente"
             className="h-8 w-full bg-transparent text-sm text-foreground outline-none disabled:opacity-70"
             disabled={contas.length <= 1}
@@ -388,6 +609,48 @@ export function CompositorEmail({
           className="min-h-40 w-full resize-y bg-transparent py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-placeholder"
         />
 
+        {/* Toggle da assinatura — só quando a conta atual tem uma configurada */}
+        {assinaturaContaAtual && (
+          <label className="mb-3 flex w-fit cursor-pointer items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={incluirAssinatura}
+              onChange={(e) => alternarAssinatura(e.target.checked)}
+              className="size-3.5 accent-primary"
+            />
+            Incluir assinatura de {de}
+          </label>
+        )}
+
+        {/* Chips de anexos */}
+        {anexos.length > 0 && (
+          <ul aria-label="Anexos" className="flex flex-wrap gap-1.5 pb-3">
+            {anexos.map((anexo, i) => (
+              <li
+                key={`${anexo.nome}-${i}`}
+                className="flex max-w-full items-center gap-1.5 rounded-full border border-border bg-secondary py-1 pl-2.5 pr-1.5 text-xs text-foreground"
+              >
+                <Paperclip aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 truncate" title={anexo.nome}>
+                  {anexo.nome}
+                </span>
+                <span className="shrink-0 text-muted-foreground">
+                  {formatarBytes(anexo.bytes)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removerAnexo(i)}
+                  disabled={enviando}
+                  aria-label={`Remover anexo ${anexo.nome}`}
+                  className="shrink-0 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-card hover:text-foreground motion-reduce:transition-none"
+                >
+                  <X className="size-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         {/* Link CTA opcional */}
         {mostrarLink ? (
           <div className="grid gap-3 pb-3 sm:grid-cols-2">
@@ -420,30 +683,38 @@ export function CompositorEmail({
           </button>
         )}
 
-        {/* Bloco de IA */}
+        {/* Bloco de IA — prompt livre + tom/tamanho + refinos */}
         <section
-          aria-label="Rascunhar com IA"
+          aria-label="Escrever com IA"
           className="space-y-3 rounded-xl border border-border bg-secondary/50 p-3"
         >
           <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
             <Sparkles className="size-3.5 text-primary" />
-            Rascunhar com IA
+            Escrever com IA
             {leadVinculado && (
               <span className="font-normal text-muted-foreground">
                 — usa os dados de {leadVinculado.nome} e da última reunião
               </span>
             )}
           </p>
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-            <CampoEmail label="Objetivo do e-mail">
-              <Input
-                type="text"
-                value={objetivo}
-                onChange={(e) => setObjetivo(e.target.value)}
-                maxLength={500}
-                placeholder="Ex.: retomar contato após a reunião e convidar para o próximo passo"
-              />
-            </CampoEmail>
+          <CampoEmail
+            label="Descreva o e-mail que você quer"
+            ajuda={
+              modoResposta
+                ? "Sem instrução, a IA responde ao e-mail mais recente da conversa."
+                : undefined
+            }
+          >
+            <textarea
+              value={promptIa}
+              onChange={(e) => setPromptIa(e.target.value)}
+              rows={2}
+              maxLength={PROMPT_IA_MAX_CHARS}
+              placeholder="Ex.: convide a família para uma conversa na quinta às 19h e reforce que a janela de janeiro está fechando"
+              className={TEXTAREA_IA_CLS}
+            />
+          </CampoEmail>
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <CampoEmail label="Tom">
               <select
                 value={tom}
@@ -457,25 +728,40 @@ export function CompositorEmail({
                 ))}
               </select>
             </CampoEmail>
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={() => rascunhar(false)}
-              disabled={rascunhando || objetivo.trim().length < 5}
-            >
+            <CampoEmail label="Tamanho">
+              <select
+                value={tamanho}
+                onChange={(e) => setTamanho(e.target.value as TamanhoIA)}
+                className={SELECT_CLS}
+              >
+                {TAMANHOS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </CampoEmail>
+            <Button variant="secondary" size="md" onClick={gerar} disabled={!podeGerar}>
               {rascunhando ? <Loader2 className="animate-spin" /> : <Sparkles />}
-              Rascunhar
+              Gerar
             </Button>
           </div>
-          {modoResposta && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={() => rascunhar(true)} disabled={rascunhando}>
-                {rascunhando ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                Rascunhar resposta com IA
-              </Button>
-              <span className="text-[11px] text-label-tertiary">
-                Usa as últimas mensagens da conversa (objetivo é opcional).
+          {temTextoParaRefinar && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Refinar rascunho:
               </span>
+              {REFINOS.map((refino) => (
+                <Button
+                  key={refino.label}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refinar(refino.instrucao)}
+                  disabled={rascunhando}
+                >
+                  {refino.label}
+                </Button>
+              ))}
             </div>
           )}
           {iaAviso && (
@@ -487,10 +773,36 @@ export function CompositorEmail({
       </div>
 
       <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-4 py-3">
-        <Button size="md" onClick={enviar} disabled={!podeEnviar}>
-          {enviando ? <Loader2 className="animate-spin" /> : <Send />}
-          Enviar
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button size="md" onClick={enviar} disabled={!podeEnviar}>
+            {enviando ? <Loader2 className="animate-spin" /> : <Send />}
+            Enviar
+          </Button>
+          <input
+            ref={inputArquivoRef}
+            type="file"
+            multiple
+            className="hidden"
+            tabIndex={-1}
+            aria-hidden
+            onChange={(e) => {
+              // Copia a lista ANTES de resetar o input (senão o FileList esvazia).
+              const arquivos = Array.from(e.target.files ?? []);
+              e.target.value = "";
+              void anexarArquivos(arquivos);
+            }}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => inputArquivoRef.current?.click()}
+            disabled={enviando || anexando || anexos.length >= ANEXOS_MAX}
+            aria-label={`Anexar arquivos (máx ${ANEXOS_MAX}, 8MB somados)`}
+            title="Anexar arquivos"
+          >
+            {anexando ? <Loader2 className="animate-spin" /> : <Paperclip />}
+          </Button>
+        </div>
         <Button variant="ghost" size="sm" onClick={onFechar} disabled={enviando}>
           <Trash2 />
           Descartar

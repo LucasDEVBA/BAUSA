@@ -169,3 +169,11 @@ test('inbox-sync: backfill é retomável e idempotente', () => {
   const backfill = syncSrc.slice(syncSrc.indexOf('const backfillConta'), syncSrc.indexOf('const executarBackfill'));
   assert.match(backfill, /processarIds/, 'backfill reusa o processador idempotente (ignore-duplicates)');
 });
+
+// ─── Anexos (2026-08-20) ────────────────────────────────────────
+
+test('customEmail: anexos com teto duro (5 arquivos / 8MB) e filename validado', () => {
+  assert.ok(sendSrc.includes("Campo 'attachments' inválido"), 'valida array e quantidade');
+  assert.match(sendSrc, /11 \* 1024 \* 1024/, 'teto total em base64 (~8MB reais)');
+  assert.match(sendSrc, /a\.filename\.length > 120/, 'filename com tamanho máximo');
+});
