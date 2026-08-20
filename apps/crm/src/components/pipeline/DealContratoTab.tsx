@@ -31,6 +31,8 @@ import {
   getContratoByDeal,
   updateNfData,
 } from "@/lib/actions/financeiro";
+import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
+import { celebrar } from "@/lib/gamificacao-store";
 import { uploadDocumento } from "@/lib/upload";
 
 interface DealContratoTabProps {
@@ -128,6 +130,7 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
       });
       if (result.success) {
         toast.success("Contrato criado com sucesso");
+        celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.contrato_criado);
         setShowCreateForm(false);
         await fetchData();
       } else {
@@ -141,6 +144,7 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
       const result = await confirmarPagamento(parcelaId);
       if (result.success) {
         toast.success("Pagamento confirmado");
+        celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.pagamento_confirmado);
         await fetchData();
       } else {
         toast.error(result.error ?? "Erro ao confirmar pagamento");

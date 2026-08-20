@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { getUserProfile } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { Celebracoes } from "@/components/gamificacao/Celebracoes";
 import { ConfirmProvider } from "@/components/ui";
 
 export default async function DashboardLayout({
@@ -26,6 +27,8 @@ export default async function DashboardLayout({
           <ConfirmProvider>{children}</ConfirmProvider>
         </main>
       </div>
+      {/* Celebrações de gamificação (+XP, level-up, conquistas) — fila global */}
+      <Celebracoes />
       {/* Toaster global — sonner. richColors ativa verde/vermelho semântico. */}
       <Toaster
         theme="light"

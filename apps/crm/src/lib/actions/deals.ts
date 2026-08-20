@@ -10,6 +10,16 @@ import {
   type MoveDealResult,
 } from "@/lib/move-deal-result";
 import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
+import { registrarEventoGamificacao } from "@/lib/gamificacao";
+
+// Destinos que nunca pontuam XP mesmo com ordem maior: perdas e
+// estacionamentos têm ordem alta em ETAPA_ORDEM mas não são progresso.
+const ETAPAS_SEM_XP: StatusDeal[] = [
+  "perdido",
+  "cancelamento_solicitado",
+  "projeto_futuro",
+  "aguardando_timing",
+];
 
 // Probabilidade por etapa: configurável pelo CEO via chave
 // `probabilidade_por_etapa` de configuracoes_sistema (lida em
@@ -264,7 +274,14 @@ export async function moverDeal(
   }
   revalidatePath("/pipeline");
 
-  return okMove(dealId, novaEtapa);
+  // Gamificação: XP SOMENTE em avanço real (ordemNova > ordemAtual e destino
+  // que não é perda/estacionamento). Retrocesso/perdido nunca pontuam.
+  const isAvancoReal = ordemNova > ordemAtual && !ETAPAS_SEM_XP.includes(novaEtapa);
+  const gamificacao = isAvancoReal
+    ? await registrarEventoGamificacao("deal_avancado", { tipo: "deal", id: dealId })
+    : null;
+
+  return okMove(dealId, novaEtapa, gamificacao);
 }
 
 export async function customizarValorDeal(

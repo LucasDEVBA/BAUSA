@@ -40,6 +40,8 @@ import { RetrocessoModal } from "./RetrocessoModal";
 import { LossModal, type LossPayload } from "./LossModal";
 import { GanhoEscolasModal } from "./GanhoEscolasModal";
 import { moverDeal, type StructuredLossData } from "@/lib/actions/deals";
+import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
+import { celebrar } from "@/lib/gamificacao-store";
 import { reordenarEtapasPipeline } from "@/lib/actions/etapas-pipeline";
 import { EtapaColunaModal } from "./EtapaColunaModal";
 import { AprovacaoColumn } from "./AprovacaoColumn";
@@ -324,6 +326,7 @@ export function PipelineBoard({
         toast.success(`Movido para ${labelEtapa(novaEtapa)}`, {
           description: deal.athlete_name,
         });
+        celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.deal_avancado);
         router.refresh();
         // Ganho: puxa a escolha das escolas na sequência. Não bloqueia o
         // move — se o CEO fechar, monta a shortlist depois em Matching.

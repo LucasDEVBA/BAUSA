@@ -6,6 +6,9 @@
  */
 
 import type { StatusDeal } from "@/types/crm";
+// import type puro — apagado na compilação, seguro em client components
+// (o módulo @/lib/gamificacao em si é server-only).
+import type { ResultadoGamificacao } from "@/lib/gamificacao";
 
 export type MoveDealErrorCode =
   | "PERMISSION_DENIED"
@@ -33,6 +36,8 @@ export type MoveDealSuccess = {
   success: true;
   dealId: string;
   novaEtapa: StatusDeal;
+  /** XP registrado quando o movimento foi um avanço real (fail-open: pode ser null). */
+  gamificacao?: ResultadoGamificacao | null;
 };
 
 export type MoveDealFailure = {
@@ -49,9 +54,10 @@ export type MoveDealResult = MoveDealSuccess | MoveDealFailure;
 
 export function okMove(
   dealId: string,
-  novaEtapa: StatusDeal
+  novaEtapa: StatusDeal,
+  gamificacao?: ResultadoGamificacao | null
 ): MoveDealSuccess {
-  return { success: true, dealId, novaEtapa };
+  return { success: true, dealId, novaEtapa, gamificacao: gamificacao ?? null };
 }
 
 export function failMove(

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { Link2, Loader2, Send, Sparkles, X } from "lucide-react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Link2, Loader2, Send, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge, Button, Input } from "@/components/ui";
@@ -11,8 +12,6 @@ import {
   rascunharEmailIA,
   type LeadBusca,
 } from "@/lib/actions/emails";
-
-import { CampoEmail, EmailModal } from "./modal";
 
 /** Pré-preenchimento (fluxo "Responder" da caixa de entrada / aba do lead). */
 export interface CompositorPrefill {
@@ -45,8 +44,47 @@ const TONS = [
 const SELECT_CLS =
   "h-9 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/25";
 
+/** Campo rotulado (bloco de IA / link CTA) — moldura padrão do Engine. */
+function CampoEmail({
+  label,
+  ajuda,
+  children,
+  className,
+}: {
+  label: string;
+  ajuda?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={`block space-y-1.5 ${className ?? ""}`}>
+      <span className="block text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+      {ajuda && <span className="block text-[11px] text-label-tertiary">{ajuda}</span>}
+    </label>
+  );
+}
+
+/** Linha de campo estilo Gmail: rótulo curto + controle com underline sutil. */
+function LinhaCampo({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 border-b border-border py-1">
+      <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">
+        {label}
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+const CAMPO_INLINE_CLS =
+  "h-8 w-full bg-transparent px-0 text-sm text-foreground outline-none placeholder:text-placeholder";
+
 /**
- * Compositor — renderizar SÓ quando aberto ({aberto && <CompositorEmail/>}):
+ * Compositor — janela flutuante estilo Gmail, ancorada no canto inferior
+ * direito (fullscreen em mobile), via portal p/ document.body (escapa de
+ * qualquer containing block com backdrop-filter e flutua sobre os modais de
+ * lead/deal). Renderizar SÓ quando aberto ({aberto && <CompositorEmail/>}):
  * cada abertura remonta o componente, então o estado inicial vem direto do
  * prefill (sem effect de reset — exigência do react-hooks/set-state-in-effect).
  */
@@ -93,6 +131,19 @@ export function CompositorEmail({
   const [rascunhando, startRascunho] = useTransition();
 
   const [enviando, startEnvio] = useTransition();
+
+  // Esc fecha SÓ o compositor. Capture + stopPropagation: quando aberto DENTRO
+  // de outro modal (aba E-mails do detalhe do lead/deal), o listener do modal
+  // pai fecharia os dois (padrão herdado do EmailModal/MensagemDiretaComposer).
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onFechar();
+    };
+    document.addEventListener("keydown", aoTeclar, true);
+    return () => document.removeEventListener("keydown", aoTeclar, true);
+  }, [onFechar]);
 
   // Busca de lead com debounce — só quando digitando livre (sem lead vinculado).
   // Com "@" o CEO está digitando um e-mail livre — não atrapalhar. A limpeza
@@ -151,6 +202,7 @@ export function CompositorEmail({
   };
 
   const modoResposta = Boolean(prefill?.threadContexto);
+  const titulo = modoResposta ? "Responder e-mail" : "Nova mensagem";
 
   const rascunhar = (comThread: boolean) => {
     setIaAviso(null);
@@ -201,38 +253,35 @@ export function CompositorEmail({
   const podeEnviar =
     para.trim().length > 0 && assunto.trim().length > 0 && corpo.trim().length > 0 && !enviando;
 
-  return (
-    <EmailModal
-      aberto
-      titulo={modoResposta ? "Responder e-mail" : "Novo e-mail"}
-      descricao={`Enviado como ${de} — respostas caem na caixa de entrada.`}
-      onFechar={onFechar}
-      footer={
-        <>
-          <Button variant="ghost" size="sm" onClick={onFechar} disabled={enviando}>
-            Cancelar
-          </Button>
-          <Button size="sm" onClick={enviar} disabled={!podeEnviar}>
-            {enviando ? <Loader2 className="animate-spin" /> : <Send />}
-            Enviar
-          </Button>
-        </>
-      }
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-label={titulo}
+      className="fixed inset-0 z-[95] flex flex-col overflow-hidden border border-border bg-card shadow-xl sm:inset-auto sm:bottom-0 sm:right-4 sm:max-h-[min(44rem,calc(100dvh-4rem))] sm:w-[min(35rem,calc(100vw-5rem))] sm:rounded-t-2xl"
     >
-      <div className="space-y-4">
-        {/* Conta remetente (De:) — contas de emails_contas */}
-        <CampoEmail
-          label="De"
-          ajuda={
-            contas.length > 1
-              ? "A resposta do lead cai na caixa da conta escolhida."
-              : undefined
-          }
+      {/* Header escuro (tinta) — padrão da janela de compor do Gmail */}
+      <header className="flex shrink-0 items-center justify-between gap-3 bg-foreground px-4 py-2.5">
+        <h2 className="truncate text-sm font-semibold text-background">{titulo}</h2>
+        <button
+          type="button"
+          onClick={onFechar}
+          aria-label="Fechar compositor"
+          className="rounded-md p-1 text-background/70 transition-colors hover:bg-background/10 hover:text-background motion-reduce:transition-none"
         >
+          <X className="size-4" />
+        </button>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        {/* De: — contas de emails_contas */}
+        <LinhaCampo label="De">
           <select
             value={de}
             onChange={(e) => setDe(e.target.value)}
-            className={SELECT_CLS}
+            aria-label="Conta remetente"
+            className="h-8 w-full bg-transparent text-sm text-foreground outline-none disabled:opacity-70"
             disabled={contas.length <= 1}
           >
             {contas.map((conta) => (
@@ -241,42 +290,43 @@ export function CompositorEmail({
               </option>
             ))}
           </select>
-        </CampoEmail>
+        </LinhaCampo>
+        {contas.length > 1 && (
+          <p className="pt-1 text-[11px] text-label-tertiary">
+            A resposta do lead cai na caixa da conta escolhida.
+          </p>
+        )}
 
-        {/* Destinatário: lead vinculado (chip) OU busca/e-mail livre */}
-        <CampoEmail
-          label="Destinatário"
-          ajuda={
-            leadVinculado
-              ? undefined
-              : "Busque um lead pelo nome ou digite um e-mail livre."
-          }
-        >
+        {/* Para: lead vinculado (chip) OU busca/e-mail livre */}
+        <LinhaCampo label="Para">
           {leadVinculado ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-input bg-card px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 py-1">
               <Badge tone="brand">{leadVinculado.nome}</Badge>
               <span className="min-w-0 truncate text-sm text-foreground">{para}</span>
               <button
                 type="button"
                 onClick={desvincularLead}
                 aria-label={`Desvincular ${leadVinculado.nome}`}
-                className="ml-auto rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                className="ml-auto rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground motion-reduce:transition-none"
               >
                 <X className="size-3.5" />
               </button>
             </div>
           ) : (
             <div className="relative">
-              <Input
+              <input
                 type="text"
                 value={para}
                 onChange={(e) => aoDigitarPara(e.target.value)}
                 placeholder="Nome do lead ou e-mail…"
                 autoComplete="off"
+                autoFocus={!prefill?.para}
                 role="combobox"
+                aria-label="Destinatário — busque um lead pelo nome ou digite um e-mail livre"
                 aria-expanded={sugestoes.length > 0}
                 aria-controls="emails-sugestoes-leads"
                 aria-autocomplete="list"
+                className={CAMPO_INLINE_CLS}
               />
               {(sugestoes.length > 0 || buscando) && (
                 <ul
@@ -293,7 +343,7 @@ export function CompositorEmail({
                       <button
                         type="button"
                         onClick={() => escolherLead(lead)}
-                        className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition-colors hover:bg-secondary"
+                        className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition-colors hover:bg-secondary motion-reduce:transition-none"
                       >
                         <span className="text-sm font-medium text-foreground">
                           {lead.nome}
@@ -313,32 +363,34 @@ export function CompositorEmail({
               )}
             </div>
           )}
-        </CampoEmail>
+        </LinhaCampo>
 
-        <CampoEmail label="Assunto">
-          <Input
+        <LinhaCampo label="Assunto">
+          <input
             type="text"
             value={assunto}
             onChange={(e) => setAssunto(e.target.value)}
             maxLength={200}
             placeholder="Assunto do e-mail"
+            aria-label="Assunto"
+            className={CAMPO_INLINE_CLS}
           />
-        </CampoEmail>
+        </LinhaCampo>
 
-        <CampoEmail label="Mensagem">
-          <textarea
-            value={corpo}
-            onChange={(e) => setCorpo(e.target.value)}
-            rows={10}
-            maxLength={10_000}
-            placeholder="Escreva a mensagem — ou gere um rascunho com a IA abaixo."
-            className="w-full resize-y rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-placeholder focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/25"
-          />
-        </CampoEmail>
+        <textarea
+          value={corpo}
+          onChange={(e) => setCorpo(e.target.value)}
+          rows={10}
+          maxLength={10_000}
+          autoFocus={Boolean(prefill?.para)}
+          placeholder="Escreva a mensagem — ou gere um rascunho com a IA abaixo."
+          aria-label="Mensagem"
+          className="min-h-40 w-full resize-y bg-transparent py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-placeholder"
+        />
 
         {/* Link CTA opcional */}
         {mostrarLink ? (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 pb-3 sm:grid-cols-2">
             <CampoEmail label="Link (CTA) — URL">
               <Input
                 type="url"
@@ -361,7 +413,7 @@ export function CompositorEmail({
           <button
             type="button"
             onClick={() => setMostrarLink(true)}
-            className="flex items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:underline"
+            className="mb-3 flex items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:underline motion-reduce:transition-none"
           >
             <Link2 className="size-3.5" />
             Adicionar link (CTA)
@@ -433,6 +485,18 @@ export function CompositorEmail({
           )}
         </section>
       </div>
-    </EmailModal>
+
+      <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-4 py-3">
+        <Button size="md" onClick={enviar} disabled={!podeEnviar}>
+          {enviando ? <Loader2 className="animate-spin" /> : <Send />}
+          Enviar
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onFechar} disabled={enviando}>
+          <Trash2 />
+          Descartar
+        </Button>
+      </footer>
+    </div>,
+    document.body,
   );
 }
