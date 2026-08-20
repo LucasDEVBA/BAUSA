@@ -45,6 +45,8 @@ import {
 } from "@/lib/actions/reunioes";
 import { deleteFile, getFileSignedUrl, uploadFile } from "@/lib/actions/uploads";
 import { registrarContato } from "@/lib/actions/experiencia";
+import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
+import { celebrar } from "@/lib/gamificacao-store";
 import {
   Badge,
   BrandTabs,
@@ -1291,6 +1293,7 @@ function ContatoCard({
       });
       if (result.success) {
         toast.success("Contato registrado na timeline da família");
+        celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.contato_familia);
         setRegistrando(false);
         setResumo("");
         onReload();

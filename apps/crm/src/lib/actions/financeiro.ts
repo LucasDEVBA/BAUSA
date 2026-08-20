@@ -3,6 +3,28 @@
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
 import { PLANO_VALORES, ENTRADA_PADRAO } from "@/types/crm";
+import { registrarEventoGamificacao, type ResultadoGamificacao } from "@/lib/gamificacao";
+
+/**
+ * Uma ação do CEO pode disparar dois eventos de XP (ex.: confirmar a parcela
+ * de entrada também confirma o sinal). Mescla os dois resultados numa única
+ * celebração: pontos somados, estado final (nível/XP) do evento mais recente.
+ */
+function mesclarGamificacao(
+  a: ResultadoGamificacao | null,
+  b: ResultadoGamificacao | null,
+): ResultadoGamificacao | null {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    pontos: a.pontos + b.pontos,
+    xpTotal: Math.max(a.xpTotal, b.xpTotal),
+    nivel: b.nivel,
+    nivelNome: b.nivelNome,
+    subiuDeNivel: a.subiuDeNivel || b.subiuDeNivel,
+    conquistasNovas: [...a.conquistasNovas, ...b.conquistasNovas],
+  };
+}
 
 export async function criarContrato(dealId: string, dados: {
   plano: 'journey' | 'legacy' | 'start';
@@ -131,7 +153,13 @@ export async function criarContrato(dealId: string, dados: {
     }
   }
 
-  return { success: true, contratoId: contrato.id };
+  // Gamificação (fail-open — null nunca quebra a criação do contrato)
+  const gamificacao = await registrarEventoGamificacao("contrato_criado", {
+    tipo: "contrato",
+    id: contrato.id,
+  });
+
+  return { success: true, contratoId: contrato.id, gamificacao };
 }
 
 export async function confirmarPagamento(parcelaId: string, dados?: { comprovante_url?: string }) {
@@ -152,6 +180,9 @@ export async function confirmarPagamento(parcelaId: string, dados?: { comprovant
     return { success: false, error: "Parcela nao encontrada." };
   }
 
+  // Re-confirmação não pontua de novo (parcela já estava recebida).
+  const jaRecebida = (parcela as { status?: string }).status === "recebido";
+
   const { error: updateErr } = await supabase
     .from("parcelas")
     .update({
@@ -165,15 +196,25 @@ export async function confirmarPagamento(parcelaId: string, dados?: { comprovant
     return { success: false, error: updateErr.message };
   }
 
+  let gamificacao = jaRecebida
+    ? null
+    : await registrarEventoGamificacao("pagamento_confirmado", {
+        tipo: "parcela",
+        id: parcelaId,
+      });
+
   // Se é entrada, confirmar sinal pago no deal
   if (parcela.tipo === "entrada") {
-    const dealId = (parcela as any).contrato?.deal_id;
+    const dealId = (parcela as { contrato?: { deal_id?: string } }).contrato?.deal_id;
     if (dealId) {
-      await confirmarSinalPago(dealId);
+      const sinal = await confirmarSinalPago(dealId);
+      if (sinal.success) {
+        gamificacao = mesclarGamificacao(gamificacao, sinal.gamificacao ?? null);
+      }
     }
   }
 
-  return { success: true };
+  return { success: true, gamificacao };
 }
 
 export async function confirmarSinalPago(dealId: string) {
@@ -183,6 +224,15 @@ export async function confirmarSinalPago(dealId: string) {
   }
 
   const supabase = await createAuditedSupabaseClient();
+
+  // Pré-leitura para o XP: só pontua a TRANSIÇÃO (sinal_pago_at null→set) —
+  // re-confirmar o sinal não gera ponto de novo.
+  const { data: dealAntes } = await supabase
+    .from("deals")
+    .select("sinal_pago_at")
+    .eq("id", dealId)
+    .maybeSingle();
+  const sinalJaPago = Boolean((dealAntes as { sinal_pago_at?: string | null } | null)?.sinal_pago_at);
 
   // Atualizar deal
   const { error: dealErr } = await supabase
@@ -196,6 +246,10 @@ export async function confirmarSinalPago(dealId: string) {
   if (dealErr) {
     return { success: false, error: dealErr.message };
   }
+
+  const gamificacao = sinalJaPago
+    ? null
+    : await registrarEventoGamificacao("sinal_pago", { tipo: "deal", id: dealId });
 
   // Handoff: criar registro de experiência
   const { data: deal } = await supabase
@@ -302,7 +356,7 @@ export async function confirmarSinalPago(dealId: string) {
     }
   }
 
-  return { success: true };
+  return { success: true, gamificacao };
 }
 
 export async function updateNfData(dados: {

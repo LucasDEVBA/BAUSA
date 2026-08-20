@@ -28,6 +28,8 @@ import {
   reprovarLead,
   type LeadPendenteAprovacao,
 } from "@/lib/actions/leads";
+import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
+import { celebrar } from "@/lib/gamificacao-store";
 import { cn } from "@/lib/utils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -202,6 +204,7 @@ export function AprovacaoLeadsModal({
       const res = await aprovarLead(lead.id);
       if (res.success) {
         toast.success(`${lead.athlete_name} aprovado — entrou no pipeline.`);
+        celebrar(res.gamificacao, GAMIFICACAO_TIPO_LABEL.lead_aprovado);
         removerDaFila(lead.id);
       } else {
         toast.error(res.error ?? "Erro ao aprovar.");
@@ -214,6 +217,7 @@ export function AprovacaoLeadsModal({
       const res = await reprovarLead(lead.id, motivo);
       if (res.success) {
         toast.success(`${lead.athlete_name} reprovado — não receberá mensagens.`);
+        celebrar(res.gamificacao, GAMIFICACAO_TIPO_LABEL.lead_reprovado);
         removerDaFila(lead.id);
       } else {
         toast.error(res.error ?? "Erro ao reprovar.");

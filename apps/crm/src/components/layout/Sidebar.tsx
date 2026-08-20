@@ -28,6 +28,7 @@ import {
   Compass,
   FileSignature,
   GitBranch,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase-browser";
@@ -121,6 +122,13 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { href: "/relatorios", label: "Relatorios", icon: BarChart3, roles: ["ceo"] },
+      // Gamificação: TODOS os papéis (ranking é público interno — CEO × Head).
+      {
+        href: "/conquistas",
+        label: "Conquistas",
+        icon: Trophy,
+        roles: ["ceo", "head_sucesso", "comercial"],
+      },
     ],
   },
   {

@@ -24,6 +24,8 @@ import {
   registrarContato,
   escalonarCEO,
 } from "@/lib/actions/experiencia";
+import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
+import { celebrar } from "@/lib/gamificacao-store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -192,6 +194,7 @@ export function FamilyEditDrawer({
         toast.success("Contato registrado", {
           description: family.athlete_name,
         });
+        celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.contato_familia);
         setResumoContato("");
         onSaved?.();
         router.refresh();

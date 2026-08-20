@@ -12,16 +12,21 @@ import {
   YAxis,
 } from "recharts";
 import {
+  ArrowLeft,
   BarChart3,
   Inbox,
   Loader2,
   Mail,
   MailOpen,
+  Pencil,
   Plus,
   Reply,
-  Route,
+  RotateCw,
+  Search,
   Send,
+  Shuffle,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -36,6 +41,7 @@ import {
 } from "@/components/ui";
 import {
   assuntoResposta,
+  horaEstiloGmail,
   localPart,
   montarThreadContexto,
   statusChips,
@@ -46,10 +52,9 @@ import type {
   EmailMetricas,
   EmailRoteamentoRegra,
 } from "@/lib/emails-queries";
-import { formatRelativeTime } from "@/lib/utils";
+import { cn, formatDateTime, getInitials } from "@/lib/utils";
 
 import { CompositorEmail, type CompositorPrefill } from "./compositor";
-import { EmailModal } from "./modal";
 import { RoteamentoTab } from "./roteamento";
 
 export type TabId = "caixa" | "enviados" | "metricas" | "roteamento";
@@ -64,6 +69,227 @@ function diaLabel(dia: string): string {
   return `${d}/${m}`;
 }
 
+/** Cores das bolinhas de caixa no rail (convenção de série dos charts). */
+const CORES_CAIXA = [
+  "bg-chart-1",
+  "bg-chart-2",
+  "bg-chart-3",
+  "bg-chart-4",
+  "bg-chart-5",
+] as const;
+
+// ── Rail esquerdo (estilo Gmail) ─────────────────────────────────────────
+
+function RailItem({
+  icon: Icon,
+  label,
+  ativo,
+  onClick,
+  contador,
+}: {
+  icon: LucideIcon;
+  label: string;
+  ativo: boolean;
+  onClick: () => void;
+  contador?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={ativo ? "page" : undefined}
+      title={label}
+      className={cn(
+        "flex h-9 w-full items-center justify-center gap-3 rounded-full text-sm transition-colors motion-reduce:transition-none",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        "lg:justify-start lg:px-4",
+        ativo
+          ? "bg-primary/10 font-semibold text-primary"
+          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      <span className="hidden min-w-0 flex-1 truncate text-left lg:block">{label}</span>
+      {contador != null && contador > 0 && (
+        <span className="hidden shrink-0 text-xs tabular-nums lg:block">{contador}</span>
+      )}
+    </button>
+  );
+}
+
+/** Item de caixa (label estilo Gmail): bolinha colorida + parte local da conta. */
+function RailCaixa({
+  label,
+  titulo,
+  corClass,
+  ativo,
+  onClick,
+}: {
+  label: string;
+  titulo: string;
+  corClass: string;
+  ativo: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={ativo}
+      title={titulo}
+      className={cn(
+        "flex h-8 w-full items-center justify-center gap-3 rounded-full text-sm transition-colors motion-reduce:transition-none",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        "lg:justify-start lg:px-4",
+        ativo
+          ? "bg-primary/10 font-semibold text-primary"
+          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+      )}
+    >
+      <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", corClass)} />
+      <span className="hidden min-w-0 flex-1 truncate text-left lg:block">{label}</span>
+    </button>
+  );
+}
+
+// ── Linha da lista (densa, estilo Gmail) ─────────────────────────────────
+
+function LinhaEmail({
+  email,
+  mostrarCaixa,
+  aoAbrir,
+}: {
+  email: EmailMensagem;
+  mostrarCaixa: boolean;
+  aoAbrir: (email: EmailMensagem) => void;
+}) {
+  const ehEnviado = email.direcao === "enviado";
+  const remetente = ehEnviado ? `Para: ${email.paraEmail}` : email.deEmail;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => aoAbrir(email)}
+        aria-label={`Abrir conversa: ${email.assunto || "(sem assunto)"}`}
+        className={cn(
+          "group relative flex w-full items-center gap-3 px-4 py-2.5 text-left",
+          "transition-[background-color,box-shadow] motion-reduce:transition-none",
+          "hover:z-10 hover:bg-card hover:shadow-xs",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40",
+        )}
+      >
+        <span className="w-28 shrink-0 truncate text-sm font-medium text-foreground sm:w-40 lg:w-44">
+          {remetente}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+          {email.assunto || "(sem assunto)"}
+          {email.snippet && (
+            <span className="text-muted-foreground"> — {email.snippet}</span>
+          )}
+        </span>
+        <span className="hidden shrink-0 items-center gap-1 sm:flex">
+          {email.leadNome && (
+            <Badge tone="brand" size="sm">
+              {email.leadNome}
+            </Badge>
+          )}
+          {mostrarCaixa && email.caixaEmail && (
+            <Badge tone="neutral" size="sm">
+              {localPart(email.caixaEmail)}
+            </Badge>
+          )}
+          {ehEnviado &&
+            statusChips(email).map((chip) => (
+              <Badge key={chip.label} tone={chip.tone} size="sm">
+                {chip.label}
+              </Badge>
+            ))}
+        </span>
+        <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+          {horaEstiloGmail(email.mensagemEm)}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+// ── Mensagem da conversa (card colapsável, estilo Gmail) ─────────────────
+
+function MensagemThread({
+  msg,
+  nossa,
+  expandida,
+  aoAlternar,
+  rodape,
+}: {
+  msg: EmailMensagem;
+  nossa: boolean;
+  expandida: boolean;
+  aoAlternar: () => void;
+  /** Só a última mensagem recebe o rodapé (botão Responder). */
+  rodape?: React.ReactNode;
+}) {
+  const nome = nossa ? "Bolsa Atleta USA" : msg.deEmail;
+  return (
+    <li className="rounded-xl border border-border bg-card shadow-xs">
+      <button
+        type="button"
+        onClick={aoAlternar}
+        aria-expanded={expandida}
+        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40 motion-reduce:transition-none"
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+            nossa ? "bg-gradient-brand text-white" : "bg-secondary text-foreground",
+          )}
+        >
+          {getInitials(nome)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+              {nome}
+            </span>
+            {expandida &&
+              msg.direcao === "enviado" &&
+              statusChips(msg).map((chip) => (
+                <Badge key={chip.label} tone={chip.tone} size="sm">
+                  {chip.label}
+                </Badge>
+              ))}
+            {expandida && msg.direcao === "enviado" && msg.provider && (
+              <Badge tone="neutral" size="sm">
+                {msg.provider}
+              </Badge>
+            )}
+            <span
+              className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground"
+              title={formatDateTime(msg.mensagemEm)}
+            >
+              {horaEstiloGmail(msg.mensagemEm)}
+            </span>
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {expandida ? `para ${msg.paraEmail}` : (msg.snippet ?? msg.corpoText ?? "")}
+          </span>
+        </span>
+      </button>
+      {expandida && (
+        <div className="px-4 pb-4 lg:pl-[3.75rem]">
+          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+            {msg.corpoText ?? msg.snippet ?? "(sem conteúdo)"}
+          </p>
+          {rodape}
+        </div>
+      )}
+    </li>
+  );
+}
+
+// ── Tela ─────────────────────────────────────────────────────────────────
+
 export function EmailsClient({
   recebidos,
   enviados,
@@ -77,7 +303,7 @@ export function EmailsClient({
   recebidos: EmailMensagem[];
   enviados: EmailMensagem[];
   metricas: EmailMetricas;
-  /** Contas sincronizadas (config `emails_contas`) — pílulas + De: do compositor. */
+  /** Contas sincronizadas (config `emails_contas`) — rail + De: do compositor. */
   contas: string[];
   padraoEnvio: string;
   /** Filtro de caixa aplicado server-side (querystring); null = Todas. */
@@ -88,36 +314,67 @@ export function EmailsClient({
   const router = useRouter();
   const [tab, setTab] = useState<TabId>(tabInicial);
 
-  // Compositor
+  // Busca client-side sobre a lista carregada (remetente/assunto/snippet).
+  const [busca, setBusca] = useState("");
+
+  // Compositor (janela flutuante estilo Gmail)
   const [compositorAberto, setCompositorAberto] = useState(false);
   const [prefill, setPrefill] = useState<CompositorPrefill | null>(null);
 
-  // Painel de conversa (thread)
+  // Conversa (substitui a lista na área principal)
   const [threadAberta, setThreadAberta] = useState<EmailMensagem | null>(null);
   const [threadMensagens, setThreadMensagens] = useState<EmailMensagem[]>([]);
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
   const [carregandoThread, startThread] = useTransition();
+
+  // Refresh (botão sincronizar) — pendente enquanto o server re-renderiza.
+  const [atualizando, startAtualizar] = useTransition();
 
   const novoEmail = () => {
     setPrefill(null);
     setCompositorAberto(true);
   };
 
+  const voltarParaLista = () => {
+    setThreadAberta(null);
+    setThreadMensagens([]);
+  };
+
   const abrirThread = (email: EmailMensagem) => {
     setThreadAberta(email);
     if (!email.gmailThreadId) {
       setThreadMensagens([email]);
+      setExpandidas(new Set([email.id]));
       return;
     }
     setThreadMensagens([]);
+    setExpandidas(new Set());
     const threadId = email.gmailThreadId;
     startThread(async () => {
       const res = await carregarThreadEmail(threadId);
       if (!res.success) {
         toast.error(res.error);
         setThreadMensagens([email]);
+        setExpandidas(new Set([email.id]));
         return;
       }
-      setThreadMensagens(res.mensagens.length > 0 ? res.mensagens : [email]);
+      const msgs = res.mensagens.length > 0 ? res.mensagens : [email];
+      setThreadMensagens(msgs);
+      // Padrão Gmail: só a última mensagem nasce expandida.
+      const ultima = msgs[msgs.length - 1];
+      setExpandidas(new Set(ultima ? [ultima.id] : []));
+    });
+  };
+
+  const alternarMensagem = (id: string) => {
+    setExpandidas((prev) => {
+      const nova = new Set(prev);
+      if (nova.has(id)) {
+        nova.delete(id);
+      } else {
+        nova.add(id);
+      }
+      return nova;
     });
   };
 
@@ -135,12 +392,18 @@ export function EmailsClient({
       // Responder pela caixa em que a conversa está (se sincronizada).
       de: email.caixaEmail?.toLowerCase() ?? undefined,
     });
-    setThreadAberta(null);
     setCompositorAberto(true);
+  };
+
+  /** Troca a seção no rail — client-side (mesma tela), fecha a conversa. */
+  const mudarTab = (nova: TabId) => {
+    setTab(nova);
+    voltarParaLista();
   };
 
   /** Troca o filtro de caixa — server-side via querystring (mantém a aba). */
   const mudarCaixa = (caixa: string | null) => {
+    voltarParaLista();
     const params = new URLSearchParams();
     if (tab !== "caixa") params.set("tab", tab);
     if (caixa) params.set("caixa", caixa);
@@ -148,416 +411,428 @@ export function EmailsClient({
     router.replace(qs ? `/emails?${qs}` : "/emails");
   };
 
-  const tabs = [
-    { id: "caixa", label: `Caixa de entrada (${recebidos.length})`, icon: Inbox },
-    { id: "enviados", label: `Enviados (${enviados.length})`, icon: Send },
-    { id: "metricas", label: "Métricas", icon: BarChart3 },
-    { id: "roteamento", label: "Roteamento", icon: Route },
-  ];
+  const atualizar = () => {
+    startAtualizar(() => {
+      router.refresh();
+    });
+  };
 
-  const mostrarPillsCaixa = contas.length > 1 && tab !== "roteamento";
+  const q = busca.trim().toLowerCase();
+  const buscaAtiva = q.length > 0;
+  const buscaDesabilitada = tab === "metricas" || tab === "roteamento";
 
-  /** Mini-badge da caixa numa linha da lista (só quando o filtro = Todas). */
-  const badgeCaixa = (email: EmailMensagem) =>
-    caixaAtiva === null && contas.length > 1 && email.caixaEmail ? (
-      <Badge tone="neutral" size="sm">
-        {localPart(email.caixaEmail)}
-      </Badge>
-    ) : null;
+  const listaAtual = tab === "enviados" ? enviados : recebidos;
+  const listaFiltrada = buscaAtiva
+    ? listaAtual.filter((e) =>
+        [e.deEmail, e.paraEmail, e.assunto, e.snippet ?? "", e.leadNome ?? ""].some((v) =>
+          v.toLowerCase().includes(q),
+        ),
+      )
+    : listaAtual;
+
+  /** Badge da caixa nas linhas — só quando o filtro = Todas (multi-conta). */
+  const mostrarCaixaNaLinha = caixaAtiva === null && contas.length > 1;
+  const emConversa = threadAberta !== null && (tab === "caixa" || tab === "enviados");
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        eyebrow="Comercial"
-        title="E-mails"
-        description={
-          contas.length > 1
-            ? "Caixas sincronizadas, envios do compositor, métricas do Resend e roteamento de alias."
-            : "Caixa de entrada da contato@, envios do compositor e métricas do Resend."
-        }
-        actions={
-          <Button size="sm" onClick={novoEmail}>
-            <Plus />
-            Novo e-mail
-          </Button>
-        }
-      />
-
-      {/* Abas client-side (mesma tela, sem sub-rotas) */}
-      <div
-        role="tablist"
-        aria-label="Seções do módulo de e-mail"
-        className="inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border border-[color:var(--glass-border)] bg-[color:var(--glass-bg)] p-1 shadow-sm backdrop-blur-xl [-webkit-backdrop-filter:blur(20px)] [scrollbar-width:none]"
-      >
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const active = t.id === tab;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(t.id as TabId)}
-              className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all ${
-                active
-                  ? "bg-card font-semibold text-bau-blue shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {t.label}
-            </button>
-          );
-        })}
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      {/* Barra superior: identidade + busca estilo Gmail + sincronizar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PageHeader eyebrow="Comercial" title="E-mails" dense className="shrink-0" />
+        <div className="relative min-w-0 flex-1 basis-56 md:max-w-xl">
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            disabled={buscaDesabilitada}
+            placeholder={
+              buscaDesabilitada
+                ? "Busca disponível na Caixa de entrada e Enviados"
+                : "Buscar nos e-mails carregados"
+            }
+            aria-label="Buscar nos e-mails carregados (remetente, assunto ou trecho)"
+            className={cn(
+              "h-10 w-full rounded-full border border-transparent bg-secondary pl-10 pr-4 text-sm text-foreground",
+              "outline-none transition-colors placeholder:text-placeholder motion-reduce:transition-none",
+              "focus-visible:border-primary/40 focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring/25",
+              "disabled:cursor-not-allowed disabled:opacity-60",
+            )}
+          />
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={atualizar}
+          disabled={atualizando}
+          aria-label="Sincronizar — recarregar e-mails e métricas"
+          title="Sincronizar"
+        >
+          <RotateCw
+            className={atualizando ? "animate-spin motion-reduce:animate-none" : undefined}
+          />
+        </Button>
       </div>
 
-      {/* Filtro por caixa (multi-conta) — aplicado server-side via querystring */}
-      {mostrarPillsCaixa && (
-        <div
-          role="group"
-          aria-label="Filtrar por caixa"
-          className="flex flex-wrap items-center gap-1.5"
+      <div className="flex min-h-0 flex-1 gap-3">
+        {/* Rail esquerdo — colapsa para ícones abaixo de lg */}
+        <aside
+          aria-label="Navegação do módulo de e-mail"
+          className="flex w-14 shrink-0 flex-col gap-1 lg:w-56"
         >
-          {[null, ...contas].map((conta) => {
-            const active = caixaAtiva === conta;
-            return (
-              <button
-                key={conta ?? "todas"}
-                type="button"
-                aria-pressed={active}
-                onClick={() => mudarCaixa(conta)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  active
-                    ? "border-primary/30 bg-primary/10 text-primary"
-                    : "border-border bg-card text-muted-foreground hover:text-foreground"
-                }`}
-                title={conta ?? "Todas as caixas"}
-              >
-                {conta ? localPart(conta) : "Todas"}
-              </button>
-            );
-          })}
-        </div>
-      )}
+          <Button
+            size="lg"
+            onClick={novoEmail}
+            aria-label="Escrever novo e-mail"
+            title="Escrever"
+            className="mb-2 h-11 w-11 self-center rounded-full px-0 shadow-md lg:w-auto lg:self-start lg:px-5"
+          >
+            <Pencil />
+            <span className="hidden lg:inline">Escrever</span>
+          </Button>
 
-      {tab === "caixa" && (
-        <Card padding="none">
-          {recebidos.length === 0 ? (
-            <EmptyState
+          <nav aria-label="Seções" className="flex flex-col gap-0.5">
+            <RailItem
               icon={Inbox}
-              title="Caixa de entrada vazia"
-              description="As respostas e mensagens recebidas na contato@ aparecem aqui assim que o sync do Gmail roda."
+              label="Caixa de entrada"
+              ativo={tab === "caixa"}
+              contador={recebidos.length}
+              onClick={() => mudarTab("caixa")}
             />
-          ) : (
-            <ul className="divide-y divide-border">
-              {recebidos.map((email) => (
-                <li key={email.id}>
-                  <button
-                    type="button"
-                    onClick={() => abrirThread(email)}
-                    className="flex w-full flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                  >
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="min-w-0 truncate text-sm font-semibold text-foreground">
-                        {email.deEmail}
-                      </span>
-                      {email.leadNome && <Badge tone="brand">{email.leadNome}</Badge>}
-                      {badgeCaixa(email)}
-                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                        {formatRelativeTime(email.mensagemEm)}
-                      </span>
-                    </span>
-                    <span className="truncate text-sm text-foreground">
-                      {email.assunto || "(sem assunto)"}
-                    </span>
-                    {email.snippet && (
-                      <span className="truncate text-xs text-muted-foreground">
-                        {email.snippet}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      )}
-
-      {tab === "enviados" && (
-        <Card padding="none">
-          {enviados.length === 0 ? (
-            <EmptyState
+            <RailItem
               icon={Send}
-              title="Nenhum e-mail enviado ainda"
-              description="Use o botão “Novo e-mail” para enviar o primeiro — ele fica registrado aqui com o status de entrega."
-              action={
-                <Button size="sm" onClick={novoEmail}>
-                  <Plus />
-                  Novo e-mail
-                </Button>
-              }
+              label="Enviados"
+              ativo={tab === "enviados"}
+              onClick={() => mudarTab("enviados")}
             />
-          ) : (
-            <ul className="divide-y divide-border">
-              {enviados.map((email) => (
-                <li key={email.id}>
-                  <button
-                    type="button"
-                    onClick={() => abrirThread(email)}
-                    className="flex w-full flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                  >
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="min-w-0 truncate text-sm font-semibold text-foreground">
-                        {email.paraEmail}
-                      </span>
-                      {email.leadNome && <Badge tone="brand">{email.leadNome}</Badge>}
-                      {badgeCaixa(email)}
-                      {statusChips(email).map((chip) => (
-                        <Badge key={chip.label} tone={chip.tone}>
-                          {chip.label}
-                        </Badge>
-                      ))}
-                      {email.provider && (
-                        <Badge tone="neutral" size="sm">
-                          {email.provider}
-                        </Badge>
-                      )}
-                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                        {formatRelativeTime(email.mensagemEm)}
-                      </span>
-                    </span>
-                    <span className="truncate text-sm text-foreground">
-                      {email.assunto || "(sem assunto)"}
-                    </span>
-                    {email.snippet && (
-                      <span className="truncate text-xs text-muted-foreground">
-                        {email.snippet}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      )}
-
-      {tab === "metricas" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatCard
-              label={`Enviados (${metricas.dias}d)`}
-              value={metricas.enviados}
-              icon={Send}
-              accent="brand"
-              context={`${metricas.enviadosResend} via Resend`}
-            />
-            <StatCard
-              label="Entrega"
-              value={pct(metricas.taxaEntrega)}
-              icon={Mail}
-              accent="blue"
-              context={`${metricas.entregues} entregues`}
-            />
-            <StatCard
-              label="Abertura"
-              value={pct(metricas.taxaAbertura)}
-              icon={MailOpen}
-              accent="green"
-              context={`${metricas.abertos} abertos`}
-            />
-            <StatCard
-              label="Clique"
-              value={pct(metricas.taxaClique)}
+            <RailItem
               icon={BarChart3}
-              accent="purple"
-              context={`${metricas.clicados} cliques`}
+              label="Métricas"
+              ativo={tab === "metricas"}
+              onClick={() => mudarTab("metricas")}
             />
-            <StatCard
-              label="Bounces"
-              value={metricas.bounces}
-              icon={Inbox}
-              accent="red"
-              context={
-                metricas.reclamados > 0 ? `${metricas.reclamados} reclamações` : undefined
-              }
+            <RailItem
+              icon={Shuffle}
+              label="Roteamento"
+              ativo={tab === "roteamento"}
+              onClick={() => mudarTab("roteamento")}
             />
-          </div>
+          </nav>
 
-          {metricas.enviados === 0 ? (
-            <Card>
-              <EmptyState
-                icon={BarChart3}
-                title="Sem métricas ainda"
-                description="As métricas aparecem conforme os e-mails são enviados e os eventos do Resend chegam."
+          {/* Caixas (multi-conta) — como labels do Gmail; filtro server-side */}
+          {contas.length > 1 && (
+            <div
+              role="group"
+              aria-label="Filtrar por caixa"
+              className="mt-4 flex flex-col gap-0.5"
+            >
+              <p className="hidden px-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground lg:block">
+                Caixas
+              </p>
+              <RailCaixa
+                label="Todas"
+                titulo="Todas as caixas"
+                corClass="bg-label-quaternary"
+                ativo={caixaAtiva === null}
+                onClick={() => mudarCaixa(null)}
               />
-            </Card>
-          ) : (
-            <>
-              <ChartCard
-                title="Envios por dia"
-                subtitle={`Últimos ${metricas.dias} dias — aberturas atribuídas ao dia do envio${
-                  caixaAtiva ? ` — caixa ${localPart(caixaAtiva)}` : ""
-                }`}
-              >
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={metricas.serie}>
-                    <defs>
-                      <linearGradient id="emailsEnviados" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
-                        <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="emailsAbertos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                    <XAxis
-                      dataKey="dia"
-                      tickFormatter={diaLabel}
-                      tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
-                      minTickGap={24}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
-                    />
-                    <Tooltip
-                      content={
-                        <ChartTooltip
-                          labelFormatter={(l) => (typeof l === "string" ? diaLabel(l) : l)}
-                        />
-                      }
-                      cursor={{ stroke: "var(--border)" }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="enviados"
-                      name="Enviados"
-                      stroke="var(--chart-1)"
-                      strokeWidth={2}
-                      fill="url(#emailsEnviados)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="abertos"
-                      name="Abertos"
-                      stroke="var(--chart-2)"
-                      strokeWidth={2}
-                      fill="url(#emailsAbertos)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartCard>
-
-              <Card>
-                <h3 className="mb-3 text-sm font-semibold text-foreground">
-                  Leads mais engajados
-                </h3>
-                {metricas.topLeads.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Nenhuma interação registrada ainda — aberturas, cliques e respostas de
-                    leads vinculados aparecem aqui.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-border">
-                    {metricas.topLeads.map((lead) => (
-                      <li
-                        key={lead.formSubmissionId}
-                        className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5"
-                      >
-                        <span className="min-w-0 truncate text-sm font-medium text-foreground">
-                          {lead.leadNome}
-                        </span>
-                        <span className="ml-auto flex flex-wrap items-center gap-1.5">
-                          {lead.aberturas > 0 && (
-                            <Badge tone="green" size="sm">
-                              {lead.aberturas} abertura{lead.aberturas > 1 ? "s" : ""}
-                            </Badge>
-                          )}
-                          {lead.cliques > 0 && (
-                            <Badge tone="purple" size="sm">
-                              {lead.cliques} clique{lead.cliques > 1 ? "s" : ""}
-                            </Badge>
-                          )}
-                          {lead.respostas > 0 && (
-                            <Badge tone="brand" size="sm">
-                              {lead.respostas} resposta{lead.respostas > 1 ? "s" : ""}
-                            </Badge>
-                          )}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            </>
+              {contas.map((conta, i) => (
+                <RailCaixa
+                  key={conta}
+                  label={localPart(conta)}
+                  titulo={conta}
+                  corClass={CORES_CAIXA[i % CORES_CAIXA.length]}
+                  ativo={caixaAtiva === conta}
+                  onClick={() => mudarCaixa(conta)}
+                />
+              ))}
+            </div>
           )}
-        </div>
-      )}
+        </aside>
 
-      {tab === "roteamento" && <RoteamentoTab contas={contas} regras={roteamento} />}
-
-      {/* Painel da conversa */}
-      <EmailModal
-        aberto={threadAberta !== null}
-        titulo={threadAberta?.assunto || "(sem assunto)"}
-        descricao={
-          threadAberta?.leadNome ? `Conversa com ${threadAberta.leadNome}` : undefined
-        }
-        onFechar={() => setThreadAberta(null)}
-        footer={
-          threadAberta ? (
-            <Button size="sm" onClick={() => responder(threadAberta)}>
-              <Reply />
-              Responder
-            </Button>
-          ) : undefined
-        }
-      >
-        {carregandoThread && threadMensagens.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Carregando conversa…
-          </div>
-        ) : (
-          <ul className="space-y-3">
-            {threadMensagens.map((msg) => {
-              const nossa =
-                msg.direcao === "enviado" || contas.includes(msg.deEmail.toLowerCase());
-              return (
-                <li
-                  key={msg.id}
-                  className={`rounded-xl border p-3 ${
-                    nossa
-                      ? "border-primary/20 bg-primary/5"
-                      : "border-border bg-secondary/50"
-                  }`}
+        {/* Área principal */}
+        <section
+          aria-label="Conteúdo do módulo de e-mail"
+          className="flex min-h-0 min-w-0 flex-1 flex-col"
+        >
+          {emConversa && threadAberta ? (
+            /* Vista de conversa (substitui a lista) */
+            <Card padding="none" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={voltarParaLista}
+                  aria-label="Voltar para a lista"
                 >
-                  <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-xs font-semibold text-foreground">
-                      {nossa ? "Bolsa Atleta USA" : msg.deEmail}
-                    </span>
-                    <Badge tone={nossa ? "brand" : "neutral"} size="sm">
-                      {nossa ? "enviado" : "recebido"}
-                    </Badge>
-                    <span className="ml-auto text-[11px] text-muted-foreground">
-                      {formatRelativeTime(msg.mensagemEm)}
-                    </span>
+                  <ArrowLeft />
+                </Button>
+                <h2 className="min-w-0 truncate text-base font-semibold text-foreground">
+                  {threadAberta.assunto || "(sem assunto)"}
+                </h2>
+                {threadAberta.leadNome && (
+                  <Badge tone="brand">{threadAberta.leadNome}</Badge>
+                )}
+                {contas.length > 1 && threadAberta.caixaEmail && (
+                  <Badge tone="neutral" size="sm">
+                    {localPart(threadAberta.caixaEmail)}
+                  </Badge>
+                )}
+              </header>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                {carregandoThread && threadMensagens.length === 0 ? (
+                  <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
+                    Carregando conversa…
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-                    {msg.corpoText ?? msg.snippet ?? "(sem conteúdo)"}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </EmailModal>
+                ) : (
+                  <ol className="space-y-2">
+                    {threadMensagens.map((msg, i) => {
+                      const nossa =
+                        msg.direcao === "enviado" ||
+                        contas.includes(msg.deEmail.toLowerCase());
+                      const ehUltima = i === threadMensagens.length - 1;
+                      return (
+                        <MensagemThread
+                          key={msg.id}
+                          msg={msg}
+                          nossa={nossa}
+                          expandida={expandidas.has(msg.id)}
+                          aoAlternar={() => alternarMensagem(msg.id)}
+                          rodape={
+                            ehUltima ? (
+                              <div className="mt-3">
+                                <Button size="sm" onClick={() => responder(threadAberta)}>
+                                  <Reply />
+                                  Responder
+                                </Button>
+                              </div>
+                            ) : undefined
+                          }
+                        />
+                      );
+                    })}
+                  </ol>
+                )}
+              </div>
+            </Card>
+          ) : tab === "caixa" || tab === "enviados" ? (
+            /* Lista estilo Gmail */
+            <Card padding="none" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {buscaAtiva && (
+                <p
+                  role="status"
+                  className="shrink-0 border-b border-border px-4 py-2 text-xs text-muted-foreground"
+                >
+                  Filtrando {listaFiltrada.length} de {listaAtual.length} carregados
+                </p>
+              )}
+              {listaFiltrada.length === 0 ? (
+                buscaAtiva ? (
+                  <EmptyState
+                    icon={Search}
+                    title="Nada encontrado"
+                    description={`Nenhum e-mail carregado corresponde a “${busca.trim()}”.`}
+                  />
+                ) : tab === "caixa" ? (
+                  <EmptyState
+                    icon={Inbox}
+                    title="Caixa de entrada vazia"
+                    description="As respostas e mensagens recebidas aparecem aqui assim que o sync do Gmail roda."
+                  />
+                ) : (
+                  <EmptyState
+                    icon={Send}
+                    title="Nenhum e-mail enviado ainda"
+                    description="Use o botão “Escrever” para enviar o primeiro — ele fica registrado aqui com o status de entrega."
+                    action={
+                      <Button size="sm" onClick={novoEmail}>
+                        <Plus />
+                        Novo e-mail
+                      </Button>
+                    }
+                  />
+                )
+              ) : (
+                <ul role="list" className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
+                  {listaFiltrada.map((email) => (
+                    <LinhaEmail
+                      key={email.id}
+                      email={email}
+                      mostrarCaixa={mostrarCaixaNaLinha}
+                      aoAbrir={abrirThread}
+                    />
+                  ))}
+                </ul>
+              )}
+            </Card>
+          ) : tab === "metricas" ? (
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-1">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <StatCard
+                  label={`Enviados (${metricas.dias}d)`}
+                  value={metricas.enviados}
+                  icon={Send}
+                  accent="brand"
+                  context={`${metricas.enviadosResend} via Resend`}
+                />
+                <StatCard
+                  label="Entrega"
+                  value={pct(metricas.taxaEntrega)}
+                  icon={Mail}
+                  accent="blue"
+                  context={`${metricas.entregues} entregues`}
+                />
+                <StatCard
+                  label="Abertura"
+                  value={pct(metricas.taxaAbertura)}
+                  icon={MailOpen}
+                  accent="green"
+                  context={`${metricas.abertos} abertos`}
+                />
+                <StatCard
+                  label="Clique"
+                  value={pct(metricas.taxaClique)}
+                  icon={BarChart3}
+                  accent="purple"
+                  context={`${metricas.clicados} cliques`}
+                />
+                <StatCard
+                  label="Bounces"
+                  value={metricas.bounces}
+                  icon={Inbox}
+                  accent="red"
+                  context={
+                    metricas.reclamados > 0
+                      ? `${metricas.reclamados} reclamações`
+                      : undefined
+                  }
+                />
+              </div>
 
-      {/* Compositor — montado só quando aberto (remonta zerado a cada abertura) */}
+              {metricas.enviados === 0 ? (
+                <Card>
+                  <EmptyState
+                    icon={BarChart3}
+                    title="Sem métricas ainda"
+                    description="As métricas aparecem conforme os e-mails são enviados e os eventos do Resend chegam."
+                  />
+                </Card>
+              ) : (
+                <>
+                  <ChartCard
+                    title="Envios por dia"
+                    subtitle={`Últimos ${metricas.dias} dias — aberturas atribuídas ao dia do envio${
+                      caixaAtiva ? ` — caixa ${localPart(caixaAtiva)}` : ""
+                    }`}
+                  >
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={metricas.serie}>
+                        <defs>
+                          <linearGradient id="emailsEnviados" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="emailsAbertos" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.3} />
+                            <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                        <XAxis
+                          dataKey="dia"
+                          tickFormatter={diaLabel}
+                          tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                          minTickGap={24}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                        />
+                        <Tooltip
+                          content={
+                            <ChartTooltip
+                              labelFormatter={(l) => (typeof l === "string" ? diaLabel(l) : l)}
+                            />
+                          }
+                          cursor={{ stroke: "var(--border)" }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="enviados"
+                          name="Enviados"
+                          stroke="var(--chart-1)"
+                          strokeWidth={2}
+                          fill="url(#emailsEnviados)"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="abertos"
+                          name="Abertos"
+                          stroke="var(--chart-2)"
+                          strokeWidth={2}
+                          fill="url(#emailsAbertos)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+
+                  <Card>
+                    <h3 className="mb-3 text-sm font-semibold text-foreground">
+                      Leads mais engajados
+                    </h3>
+                    {metricas.topLeads.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Nenhuma interação registrada ainda — aberturas, cliques e respostas de
+                        leads vinculados aparecem aqui.
+                      </p>
+                    ) : (
+                      <ul className="divide-y divide-border">
+                        {metricas.topLeads.map((lead) => (
+                          <li
+                            key={lead.formSubmissionId}
+                            className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5"
+                          >
+                            <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                              {lead.leadNome}
+                            </span>
+                            <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                              {lead.aberturas > 0 && (
+                                <Badge tone="green" size="sm">
+                                  {lead.aberturas} abertura{lead.aberturas > 1 ? "s" : ""}
+                                </Badge>
+                              )}
+                              {lead.cliques > 0 && (
+                                <Badge tone="purple" size="sm">
+                                  {lead.cliques} clique{lead.cliques > 1 ? "s" : ""}
+                                </Badge>
+                              )}
+                              {lead.respostas > 0 && (
+                                <Badge tone="brand" size="sm">
+                                  {lead.respostas} resposta{lead.respostas > 1 ? "s" : ""}
+                                </Badge>
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </Card>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto pb-1">
+              <RoteamentoTab contas={contas} regras={roteamento} />
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Compositor flutuante — montado só quando aberto (remonta zerado) */}
       {compositorAberto && (
         <CompositorEmail
           prefill={prefill}

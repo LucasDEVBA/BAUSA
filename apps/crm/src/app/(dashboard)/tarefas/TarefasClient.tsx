@@ -26,6 +26,8 @@ import { PageHeader, Card, Button, Badge, Input } from "@/components/ui";
 import { criarTarefa } from "@/lib/actions/automacoes";
 import { atualizarTarefa } from "@/lib/actions/tarefas";
 import { moverTarefaQuadro, atribuirSprintTarefa } from "@/lib/actions/tarefas-kanban";
+import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
+import { celebrar } from "@/lib/gamificacao-store";
 import { cn } from "@/lib/utils";
 import type { Tarefa, Sprint, PrioridadeTarefa, QuadroColuna, StatusTarefa } from "@/types/crm";
 import { TarefaCard } from "@/components/tarefas/TarefaCard";
@@ -262,6 +264,7 @@ export function TarefasClient({
       const result = await moverTarefaQuadro(tarefaId, novaColuna);
       if (result.success) {
         toast.success(`Movida para ${COLUNAS_CONFIG.find((c) => c.key === novaColuna)?.label}`);
+        celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.tarefa_concluida);
       } else {
         setTarefas((prev) => prev.map((t) => (t.id === tarefaId ? snapshot : t)));
         toast.error(result.error ?? "Erro ao mover tarefa");

@@ -2,6 +2,7 @@
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { registrarEventoGamificacao } from "@/lib/gamificacao";
 import { notificarAtribuicaoTarefa } from "@/lib/notificacoes";
 
 export async function criarTarefa(dados: {
@@ -59,6 +60,14 @@ export async function criarTarefa(dados: {
 export async function marcarTarefaConcluida(tarefaId: string) {
   const supabase = await createAuditedSupabaseClient();
 
+  // Pré-leitura para o XP: concluir de novo uma tarefa já concluída não pontua.
+  const { data: antes } = await supabase
+    .from("tarefas")
+    .select("status")
+    .eq("id", tarefaId)
+    .maybeSingle();
+  const jaConcluida = (antes as { status?: string } | null)?.status === "concluida";
+
   const { error } = await supabase
     .from("tarefas")
     .update({
@@ -68,7 +77,12 @@ export async function marcarTarefaConcluida(tarefaId: string) {
     .eq("id", tarefaId);
 
   if (error) return { success: false, error: error.message };
-  return { success: true };
+
+  const gamificacao = jaConcluida
+    ? null
+    : await registrarEventoGamificacao("tarefa_concluida", { tipo: "tarefa", id: tarefaId });
+
+  return { success: true, gamificacao };
 }
 
 export async function getNotificacoesNaoLidas() {

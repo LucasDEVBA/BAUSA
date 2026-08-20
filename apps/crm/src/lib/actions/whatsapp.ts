@@ -2,6 +2,7 @@
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { registrarEventoGamificacao } from "@/lib/gamificacao";
 
 export async function enviarWhatsAppManual(params: {
   destinatario: string;
@@ -48,7 +49,13 @@ export async function enviarWhatsAppManual(params: {
       });
     }
 
-    return { success: true };
+    // Gamificação (fail-open — a mensagem já saiu; null nunca vira erro)
+    const gamificacao = await registrarEventoGamificacao(
+      "whatsapp_enviado",
+      params.dealId ? { tipo: "deal", id: params.dealId } : undefined,
+    );
+
+    return { success: true, gamificacao };
   } catch (err) {
     return { success: false, error: "Erro ao enviar WhatsApp." };
   }
