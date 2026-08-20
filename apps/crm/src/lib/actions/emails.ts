@@ -772,7 +772,7 @@ export async function salvarRoteamentoEmails(
   // Toda caixa de destino precisa ser uma conta sincronizada.
   const sessao = await createServerSupabaseClient();
   const contasCfg = await fetchEmailsContasConfig(sessao);
-  const foraDaLista = parsed.data.find((r) => !contasCfg.contas.includes(r.caixa));
+  const foraDaLista = parsed.data.find((r) => !contasCfg.caixas.includes(r.caixa));
   if (foraDaLista) {
     return {
       success: false,

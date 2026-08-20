@@ -40,9 +40,9 @@ export default async function EmailsPage({
     fetchEmailsContasConfig(supabase),
   ]);
 
-  // Filtro só vale se a caixa é uma conta sincronizada (querystring é input).
+  // Filtro só vale se a caixa é uma caixa sincronizada (querystring é input).
   const caixa =
-    caixaParam && contasCfg.contas.includes(caixaParam.toLowerCase())
+    caixaParam && contasCfg.caixas.includes(caixaParam.toLowerCase())
       ? caixaParam.toLowerCase()
       : undefined;
   const tabInicial = TABS_VALIDAS.includes(tabParam as TabId)
@@ -66,6 +66,7 @@ export default async function EmailsPage({
       contagens={contagens}
       metricas={metricas}
       contas={contasCfg.contas}
+      caixas={contasCfg.caixas}
       padraoEnvio={contasCfg.padraoEnvio}
       caixaAtiva={caixa ?? null}
       roteamento={roteamento}
