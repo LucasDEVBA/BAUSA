@@ -268,34 +268,155 @@ export async function fetchEmailsRoteamento(
   }
 }
 
-/** Lista de e-mails (por direção e caixa, mais recentes primeiro), com nome do lead. */
+// ── Paginação por cursor (keyset) ────────────────────────────────────────
+// A tabela guarda o histórico COMPLETO das caixas (dezenas de milhares de
+// linhas) — nunca carregar tudo. Ordem estável: mensagem_em desc, id desc;
+// o cursor aponta o último item da página anterior e o filtro composto
+// (lt OU eq+id.lt) não pula nem duplica itens em timestamps empatados.
+
+export const EMAILS_PAGINA_PADRAO = 50;
+const EMAILS_PAGINA_MAX = 100;
+
+/** Mínimo de caracteres p/ a busca server-side valer (abaixo = lista normal). */
+export const BUSCA_EMAILS_MIN_CHARS = 2;
+
+export interface EmailsCursor {
+  /** mensagem_em (ISO, como veio do PostgREST) do último item carregado. */
+  mensagemEm: string;
+  /** id do último item — desempate p/ timestamps iguais. */
+  id: string;
+}
+
+export interface EmailsPagina {
+  itens: EmailMensagem[];
+  /** Cursor da próxima página; null = acabou. */
+  proximoCursor: EmailsCursor | null;
+}
+
+export interface FetchEmailsParams {
+  direcao?: EmailDirecao;
+  caixa?: string;
+  cursor?: EmailsCursor;
+  /** Tamanho da página (default 50, teto 100). */
+  limite?: number;
+  /** Busca server-side (assunto/de/para/snippet) — ignorada com <2 chars. */
+  busca?: string;
+}
+
+/**
+ * Sanitiza o termo p/ dentro do `or(...ilike...)`: curingas do LIKE (\ % _)
+ * são escapados (padrão escapeLike do buscarLeadsEmail); `,` `(` `)` `"` são
+ * ESTRUTURAIS na gramática do or() do PostgREST (não há escape no nível do
+ * parser) — viram espaço.
+ */
+function sanitizeTermoBusca(termo: string): string {
+  return termo
+    .replace(/[,()"]/g, " ")
+    .replace(/[\\%_]/g, (c) => `\\${c}`)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Página de e-mails (por direção/caixa, mais recentes primeiro) com nome do
+ * lead. Busca `limite + 1` linhas p/ saber se há próxima página sem roundtrip
+ * extra. Valores do cursor DEVEM ser validados pelo caller (Zod na server
+ * action) — é o que os mantém seguros dentro do or() do PostgREST.
+ */
 export async function fetchEmails(
   supabase: SupabaseServer,
-  direcao?: EmailDirecao,
-  caixa?: string,
-  limite = 100,
-): Promise<EmailMensagem[]> {
+  params: FetchEmailsParams = {},
+): Promise<EmailsPagina> {
+  const { direcao, caixa, cursor, busca } = params;
+  const limite = Math.min(Math.max(params.limite ?? EMAILS_PAGINA_PADRAO, 1), EMAILS_PAGINA_MAX);
+
   let query = supabase
     .from("emails_mensagens")
     .select(EMAIL_COLS)
     .is("deleted_at", null)
     .order("mensagem_em", { ascending: false })
-    .limit(limite);
+    .order("id", { ascending: false })
+    .limit(limite + 1);
   if (direcao) query = query.eq("direcao", direcao);
   if (caixa) query = query.eq("caixa_email", caixa);
+  if (cursor) {
+    // Keyset estável — estritamente "depois" do último item já carregado.
+    query = query.or(
+      `mensagem_em.lt.${cursor.mensagemEm},and(mensagem_em.eq.${cursor.mensagemEm},id.lt.${cursor.id})`,
+    );
+  }
+
+  const buscaTrim = busca?.trim() ?? "";
+  if (buscaTrim.length >= BUSCA_EMAILS_MIN_CHARS) {
+    const termo = sanitizeTermoBusca(buscaTrim);
+    if (termo) {
+      const like = `%${termo}%`;
+      // .or() adicional é ANDado com o do cursor (params separados no PostgREST).
+      query = query.or(
+        `assunto.ilike.${like},de_email.ilike.${like},para_email.ilike.${like},snippet.ilike.${like}`,
+      );
+    }
+  }
 
   const { data, error } = await query;
   if (error) {
     console.error({ level: "error", action: "emails_fetch", direcao, error: error.message });
-    return [];
+    return { itens: [], proximoCursor: null };
   }
 
   const rows = (data ?? []) as unknown as EmailRow[];
+  const temMais = rows.length > limite;
+  const pagina = temMais ? rows.slice(0, limite) : rows;
+
   const nomes = await fetchNomesLeads(
     supabase,
-    rows.map((r) => r.form_submission_id).filter((v): v is string => Boolean(v)),
+    pagina.map((r) => r.form_submission_id).filter((v): v is string => Boolean(v)),
   );
-  return rows.map((r) => mapRow(r, nomes));
+  const ultimo = pagina[pagina.length - 1];
+  return {
+    itens: pagina.map((r) => mapRow(r, nomes)),
+    proximoCursor:
+      temMais && ultimo ? { mensagemEm: ultimo.mensagem_em, id: ultimo.id } : null,
+  };
+}
+
+export interface EmailsContagens {
+  recebidos: number;
+  enviados: number;
+}
+
+/**
+ * Contagem exata por direção (respeitando o filtro de caixa) — `head: true`
+ * não transfere linha nenhuma, só o count. Alimenta os contadores do rail
+ * (número real da caixa, não "carregados"). Fail-open: erro → 0.
+ */
+export async function fetchEmailsContagens(
+  supabase: SupabaseServer,
+  caixa?: string,
+): Promise<EmailsContagens> {
+  const contar = async (direcao: EmailDirecao): Promise<number> => {
+    let query = supabase
+      .from("emails_mensagens")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .eq("direcao", direcao);
+    if (caixa) query = query.eq("caixa_email", caixa);
+
+    const { count, error } = await query;
+    if (error) {
+      console.error({
+        level: "error",
+        action: "emails_contagem",
+        direcao,
+        error: error.message,
+      });
+      return 0;
+    }
+    return count ?? 0;
+  };
+
+  const [recebidos, enviados] = await Promise.all([contar("recebido"), contar("enviado")]);
+  return { recebidos, enviados };
 }
 
 /** Conversa completa de um thread do Gmail (ordem cronológica). */

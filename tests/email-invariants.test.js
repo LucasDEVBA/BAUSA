@@ -150,3 +150,22 @@ test("customEmail: 'from' restrito a @bolsaatletausa.com (anti-spoofing)", () =>
     'remetente arbitrário assinado pela nossa chave do Resend seria spoofing',
   );
 });
+
+// ─── Descoberta automática + backfill (2026-08-20) ──────────────
+
+test('inbox-sync: descoberta de contas é fail-open e NUNCA remove conta manual', () => {
+  assert.match(syncSrc, /directory_indisponivel/, 'erro do Directory vira log + null');
+  assert.match(
+    syncSrc,
+    /new Set\(\[\.\.\.contas, \.\.\.descobertas\]\)/,
+    'união: a lista manual sempre entra — remover conta é gesto explícito na config',
+  );
+  assert.match(syncSrc, /admin\.directory\.user\.readonly/, 'scope readonly do Directory');
+});
+
+test('inbox-sync: backfill é retomável e idempotente', () => {
+  assert.match(syncSrc, /page_token/, 'progresso persiste por pageToken (retomável)');
+  assert.match(syncSrc, /BACKFILL_TETO_POR_RUN/, 'teto por invocação (cabe no timeout)');
+  const backfill = syncSrc.slice(syncSrc.indexOf('const backfillConta'), syncSrc.indexOf('const executarBackfill'));
+  assert.match(backfill, /processarIds/, 'backfill reusa o processador idempotente (ignore-duplicates)');
+});

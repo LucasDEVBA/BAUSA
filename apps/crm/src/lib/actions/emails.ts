@@ -9,11 +9,13 @@ import {
   GeminiNotConfiguredError,
 } from "@/lib/gemini";
 import {
+  fetchEmails,
   fetchEmailsContasConfig,
   fetchEmailsLead,
   fetchThread,
   type EmailMensagem,
   type EmailRoteamentoRegra,
+  type EmailsCursor,
 } from "@/lib/emails-queries";
 import { registrarEventoGamificacao, type ResultadoGamificacao } from "@/lib/gamificacao";
 import { createAdminClient, hasServiceKey } from "@/lib/supabase-admin";
@@ -628,6 +630,54 @@ export async function carregarThreadEmail(
   const supabase = await createServerSupabaseClient();
   const mensagens = await fetchThread(supabase, idParsed.data);
   return { success: true, mensagens };
+}
+
+// ── Paginação da tela /emails (scroll infinito + busca server-side) ──────
+
+const paginarCursorSchema = z.object({
+  /** mensagem_em do último item carregado (ISO; `local` cobre coluna sem tz). */
+  mensagemEm: z.iso.datetime({ offset: true, local: true }),
+  id: z.uuid(),
+});
+
+const paginarSchema = z.object({
+  direcao: z.enum(["enviado", "recebido"]).optional(),
+  caixa: emailBausa.optional(),
+  cursor: paginarCursorSchema.optional(),
+  limite: z.number().int().min(1).max(100).optional(),
+  busca: z.string().trim().max(120, "Busca muito longa.").optional(),
+});
+
+export type PaginarEmailsInput = z.input<typeof paginarSchema>;
+
+export type PaginarEmailsResult =
+  | { success: true; itens: EmailMensagem[]; proximoCursor: EmailsCursor | null }
+  | { success: false; error: string };
+
+/**
+ * Próxima página da lista de e-mails (scroll infinito) e/ou busca server-side
+ * — wrapper CEO-only da query paginada (fetchEmails). A validação Zod do
+ * cursor (ISO + uuid) é o que garante valores seguros dentro do or() do
+ * PostgREST; o termo de busca é sanitizado na própria query.
+ */
+export async function paginarEmails(
+  input: PaginarEmailsInput,
+): Promise<PaginarEmailsResult> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas o CEO pode ver os e-mails." };
+  }
+
+  const parsed = paginarSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Parâmetros inválidos.",
+    };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { itens, proximoCursor } = await fetchEmails(supabase, parsed.data);
+  return { success: true, itens, proximoCursor };
 }
 
 // ── Aba E-mails no detalhe do lead/deal ──────────────────────────────────
