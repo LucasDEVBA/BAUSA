@@ -10,11 +10,17 @@ import { cn } from "@/lib/utils";
 /**
  * Celebrações globais de gamificação — montado uma vez no layout do dashboard.
  *
- * Três camadas independentes, alimentadas pela fila do store:
+ * Quatro camadas independentes, alimentadas pela fila do store:
  *  - Toast de +XP (pílula flutuante, base da tela, micro-animação de subida)
  *  - Overlay de level-up (nome do nível com spring + brilho radial + confetti
  *    leve em CSS/framer — auto-fecha em ~4s, clique ou Esc)
- *  - Card de conquista (selo girando em flip 3D + nome + descrição)
+ *  - Card de conquista NORMAL (selo girando em flip 3D + nome + descrição)
+ *  - Overlay de conquista ÉPICA (tier "epica"): celebração completa — fundo
+ *    escurecido, brilho radial da marca, selo com spring, nome em gradiente,
+ *    chuva densa de partículas + shockwave. Auto-fecha em ~5s, clique ou Esc.
+ *
+ * Fila de overlays: level-up tem prioridade — se os dois colidirem, level-up
+ * mostra primeiro e a épica entra em seguida (nunca simultâneos).
  *
  * A11y: containers com role="status"/aria-live (não roubam foco);
  * prefers-reduced-motion troca springs/partículas por fades simples.
@@ -23,6 +29,9 @@ import { cn } from "@/lib/utils";
 const VIDA_XP_MS = 3000;
 const VIDA_LEVELUP_MS = 4200;
 const VIDA_CONQUISTA_MS = 6200;
+const VIDA_EPICA_MS = 5000;
+/** Folga entre o fim de uma camada e a limpeza da fila. */
+const MARGEM_MS = 400;
 
 const CONFETTI_CORES = [
   "var(--bau-blue)",
@@ -270,6 +279,175 @@ function ConquistaToast({
   );
 }
 
+// ─── Overlay de conquista ÉPICA ──────────────────────────────────────────
+
+interface ConquistaNova {
+  key: string;
+  id: string;
+  nome: string;
+  descricao: string;
+  selo: string;
+  tier: "normal" | "epica";
+}
+
+function EpicaOverlay({
+  conquista,
+  reduzido,
+  onFechar,
+}: {
+  conquista: ConquistaNova;
+  reduzido: boolean;
+  onFechar: () => void;
+}) {
+  // Chuva mais densa que o level-up (~60 partículas) — segue CSS/framer puro.
+  const particulas = useMemo(() => (reduzido ? [] : gerarParticulas(60)), [reduzido]);
+
+  useEffect(() => {
+    const t = setTimeout(onFechar, VIDA_EPICA_MS);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onFechar();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onFechar]);
+
+  return (
+    <motion.div
+      role="status"
+      aria-live="assertive"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: reduzido ? 0.15 : 0.25 }}
+      onClick={onFechar}
+      className="fixed inset-0 z-[101] flex items-center justify-center bg-background/70 backdrop-blur-md"
+    >
+      {/* Brilho radial nas cores da marca — maior que o de level-up */}
+      {!reduzido && (
+        <>
+          <motion.span
+            aria-hidden
+            initial={{ scale: 0.35, opacity: 0 }}
+            animate={{ scale: 1.2, opacity: 1 }}
+            transition={{ duration: 0.9, ease: "easeOut" }}
+            className="pointer-events-none absolute size-[34rem] rounded-full bg-primary/25 blur-3xl"
+          />
+          <motion.span
+            aria-hidden
+            initial={{ scale: 0.3, opacity: 0 }}
+            animate={{ scale: 1.05, opacity: 1 }}
+            transition={{ duration: 1.1, ease: "easeOut", delay: 0.1 }}
+            className="pointer-events-none absolute size-96 -translate-x-28 rounded-full bg-bau-burgundy/20 blur-3xl"
+          />
+        </>
+      )}
+
+      {/* Shockwave: anéis expandindo a partir do selo */}
+      {!reduzido && (
+        <>
+          <motion.span
+            aria-hidden
+            initial={{ scale: 0.35, opacity: 0.8 }}
+            animate={{ scale: 3.2, opacity: 0 }}
+            transition={{ duration: 1.2, ease: "easeOut", delay: 0.25 }}
+            className="pointer-events-none absolute size-40 rounded-full border-2 border-primary/50"
+          />
+          <motion.span
+            aria-hidden
+            initial={{ scale: 0.35, opacity: 0.6 }}
+            animate={{ scale: 4, opacity: 0 }}
+            transition={{ duration: 1.5, ease: "easeOut", delay: 0.45 }}
+            className="pointer-events-none absolute size-40 rounded-full border border-bau-burgundy/40"
+          />
+        </>
+      )}
+
+      {/* Partículas (CSS/framer — sem lib nova) */}
+      {particulas.map((p, i) => (
+        <motion.span
+          key={i}
+          aria-hidden
+          initial={{ x: 0, y: 0, opacity: 1, scale: 0, rotate: 0 }}
+          animate={{
+            x: p.x,
+            y: [0, p.y, p.y + p.queda],
+            opacity: [1, 1, 0],
+            scale: [0, 1, 0.85],
+            rotate: p.rotacao,
+          }}
+          transition={{ duration: 1.9, delay: p.atraso, ease: "easeOut" }}
+          className={cn("pointer-events-none absolute", p.redonda ? "rounded-full" : "rounded-[2px]")}
+          style={{ width: p.tamanho, height: p.tamanho, backgroundColor: p.cor }}
+        />
+      ))}
+
+      <div className="relative flex flex-col items-center px-6 text-center">
+        {/* Selo grande com anel gradiente da marca */}
+        <motion.span
+          initial={reduzido ? { opacity: 0 } : { opacity: 0, scale: 0.3, rotate: -14, y: 16 }}
+          animate={reduzido ? { opacity: 1 } : { opacity: 1, scale: 1, rotate: 0, y: 0 }}
+          transition={
+            reduzido ? { duration: 0.15 } : { type: "spring", stiffness: 260, damping: 16 }
+          }
+          className="mb-5 flex rounded-full bg-gradient-brand p-[4px] shadow-2xl"
+        >
+          <span
+            aria-hidden
+            className="flex size-24 items-center justify-center rounded-full bg-popover text-5xl"
+          >
+            {conquista.selo}
+          </span>
+        </motion.span>
+
+        <motion.p
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduzido ? 0.15 : 0.3, delay: reduzido ? 0 : 0.15 }}
+          className="text-eyebrow text-primary"
+        >
+          Conquista épica desbloqueada
+        </motion.p>
+
+        <motion.h2
+          initial={reduzido ? { opacity: 0 } : { opacity: 0, scale: 0.6, y: 20 }}
+          animate={reduzido ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+          transition={
+            reduzido
+              ? { duration: 0.15 }
+              : { type: "spring", stiffness: 260, damping: 18, delay: 0.2 }
+          }
+          className="mt-1 bg-gradient-brand bg-clip-text text-4xl font-black tracking-tight text-transparent sm:text-6xl"
+        >
+          {conquista.nome}
+        </motion.h2>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: reduzido ? 0.15 : 0.3, delay: reduzido ? 0 : 0.4 }}
+          className="mt-3 max-w-sm text-sm text-muted-foreground"
+        >
+          {conquista.descricao}
+        </motion.p>
+
+        <motion.button
+          type="button"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: reduzido ? 0.15 : 0.3, delay: reduzido ? 0 : 0.6 }}
+          onClick={onFechar}
+          className="mt-6 rounded-full border border-border bg-popover px-4 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Continuar
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Orquestrador ────────────────────────────────────────────────────────
 
 export function Celebracoes() {
@@ -277,18 +455,28 @@ export function Celebracoes() {
   const concluir = useGamificacaoStore((s) => s.concluir);
   const reduzido = useReducedMotion() ?? false;
   const [overlaysFechados, setOverlaysFechados] = useState<ReadonlySet<number>>(new Set());
+  const [epicasFechadas, setEpicasFechadas] = useState<ReadonlySet<string>>(new Set());
   const agendados = useRef(new Set<number>());
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // Cada entrada da fila vive até a camada mais longa que ela dispara.
+  // Épicas mostram DEPOIS do level-up (fila sequencial), então a vida soma
+  // as duas janelas quando ambos existem.
   useEffect(() => {
     for (const c of fila) {
       if (agendados.current.has(c.id)) continue;
       agendados.current.add(c.id);
+      const nEpicas = c.resultado.conquistasNovas.filter((cq) => cq.tier === "epica").length;
+      const temNormal = c.resultado.conquistasNovas.some((cq) => cq.tier === "normal");
       const vida = Math.max(
-        VIDA_XP_MS + 400,
-        c.resultado.subiuDeNivel ? VIDA_LEVELUP_MS + 400 : 0,
-        c.resultado.conquistasNovas.length > 0 ? VIDA_CONQUISTA_MS : 0,
+        VIDA_XP_MS + MARGEM_MS,
+        c.resultado.subiuDeNivel ? VIDA_LEVELUP_MS + MARGEM_MS : 0,
+        temNormal ? VIDA_CONQUISTA_MS : 0,
+        nEpicas > 0
+          ? (c.resultado.subiuDeNivel ? VIDA_LEVELUP_MS : 0) +
+            nEpicas * (VIDA_EPICA_MS + MARGEM_MS) +
+            MARGEM_MS
+          : 0,
       );
       timers.current.push(setTimeout(() => concluir(c.id), vida));
     }
@@ -303,9 +491,14 @@ export function Celebracoes() {
     [...fila].reverse().find((c) => c.resultado.subiuDeNivel && !overlaysFechados.has(c.id)) ??
     null;
 
-  const conquistas = fila.flatMap((c) =>
+  const todasConquistas: ConquistaNova[] = fila.flatMap((c) =>
     c.resultado.conquistasNovas.map((cq) => ({ key: `${c.id}-${cq.id}`, ...cq })),
   );
+  // Normais → card-toast; épicas → overlay completo (uma por vez, em fila).
+  const conquistas = todasConquistas.filter((cq) => cq.tier === "normal");
+  const epicaAtual = levelUp
+    ? null // level-up primeiro; a épica entra quando ele fechar
+    : (todasConquistas.find((cq) => cq.tier === "epica" && !epicasFechadas.has(cq.key)) ?? null);
 
   return (
     <>
@@ -344,6 +537,24 @@ export function Celebracoes() {
               setOverlaysFechados((prev) => {
                 const next = new Set(prev);
                 next.add(levelUp.id);
+                return next;
+              })
+            }
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Overlay de conquista ÉPICA — só quando não há level-up na frente */}
+      <AnimatePresence>
+        {epicaAtual && (
+          <EpicaOverlay
+            key={epicaAtual.key}
+            conquista={epicaAtual}
+            reduzido={reduzido}
+            onFechar={() =>
+              setEpicasFechadas((prev) => {
+                const next = new Set(prev);
+                next.add(epicaAtual.key);
                 return next;
               })
             }

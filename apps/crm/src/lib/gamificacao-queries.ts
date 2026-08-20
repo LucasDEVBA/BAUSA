@@ -64,6 +64,9 @@ export interface ConquistaView {
   nome: string;
   descricao: string;
   selo: string;
+  /** epica = marco grande (galeria destaca com anel animado). Vem do catálogo
+   *  server-only — replicado aqui porque o client não pode importá-lo. */
+  tier: "normal" | "epica";
   desbloqueada: boolean;
   desbloqueadaEm: string | null;
   /** Progresso contável rumo ao critério (null quando não se aplica). */
@@ -95,6 +98,8 @@ export interface RankingUsuario {
   userId: string;
   nome: string;
   papel: PapelUsuario;
+  /** Foto do bucket público `avatars` (null = cai na inicial). */
+  avatarUrl: string | null;
   xpTotal: number;
   nivel: number;
   nivelNome: string;
@@ -180,6 +185,7 @@ function montarConquistas(
       nome: c.nome,
       descricao: c.descricao,
       selo: c.selo,
+      tier: c.tier,
       desbloqueada: desbloqueadaEm !== null,
       desbloqueadaEm,
       progressoAtual: desbloqueadaEm ? progressoMeta : Math.min(progressoAtual, progressoMeta),
@@ -284,7 +290,7 @@ export async function fetchRanking(client: SupabaseServer): Promise<RankingUsuar
     : client;
 
   const [perfisRes, eventosRes, conquistasRes] = await Promise.all([
-    perfisClient.from("user_profiles").select("id, nome, papel").eq("ativo", true),
+    perfisClient.from("user_profiles").select("id, nome, papel, avatar_url").eq("ativo", true),
     client.from("gamificacao_eventos").select("user_id, pontos"),
     client.from("gamificacao_conquistas").select("user_id"),
   ]);
@@ -325,6 +331,7 @@ export async function fetchRanking(client: SupabaseServer): Promise<RankingUsuar
     id: string;
     nome: string | null;
     papel: PapelUsuario;
+    avatar_url: string | null;
   }>;
 
   return perfis
@@ -335,6 +342,7 @@ export async function fetchRanking(client: SupabaseServer): Promise<RankingUsuar
         userId: p.id,
         nome: p.nome?.trim() || "Sem nome",
         papel: p.papel,
+        avatarUrl: p.avatar_url,
         xpTotal,
         nivel: info.nivel,
         nivelNome: info.nome,

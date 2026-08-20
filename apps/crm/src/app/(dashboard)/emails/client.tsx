@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Area,
@@ -46,11 +46,15 @@ import {
   montarThreadContexto,
   statusChips,
 } from "@/components/emails/email-status";
-import { carregarThreadEmail } from "@/lib/actions/emails";
+import { carregarThreadEmail, paginarEmails } from "@/lib/actions/emails";
+import { BUSCA_EMAILS_MIN_CHARS } from "@/lib/emails-queries";
 import type {
+  EmailDirecao,
   EmailMensagem,
   EmailMetricas,
   EmailRoteamentoRegra,
+  EmailsContagens,
+  EmailsCursor,
 } from "@/lib/emails-queries";
 import { cn, formatDateTime, getInitials } from "@/lib/utils";
 
@@ -58,6 +62,27 @@ import { CompositorEmail, type CompositorPrefill } from "./compositor";
 import { RoteamentoTab } from "./roteamento";
 
 export type TabId = "caixa" | "enviados" | "metricas" | "roteamento";
+
+/** Debounce da busca server-side (guard de sequência contra resposta velha). */
+const BUSCA_SERVER_DEBOUNCE_MS = 350;
+
+/** Página carregada de uma lista (caixa/enviados/busca) + cursor da próxima. */
+interface ListaPaginada {
+  itens: EmailMensagem[];
+  /** null = fim da lista. */
+  cursor: EmailsCursor | null;
+}
+
+/** Acrescenta a página nova sem duplicar ids (defensivo — o keyset já evita). */
+function appendSemDuplicar(
+  atual: EmailMensagem[],
+  novos: EmailMensagem[],
+): EmailMensagem[] {
+  if (novos.length === 0) return atual;
+  const vistos = new Set(atual.map((e) => e.id));
+  const extras = novos.filter((e) => !vistos.has(e.id));
+  return extras.length > 0 ? [...atual, ...extras] : atual;
+}
 
 function pct(v: number | null): string {
   return v == null ? "—" : `${(v * 100).toFixed(0)}%`;
@@ -292,7 +317,10 @@ function MensagemThread({
 
 export function EmailsClient({
   recebidos,
+  cursorRecebidos,
   enviados,
+  cursorEnviados,
+  contagens,
   metricas,
   contas,
   padraoEnvio,
@@ -300,8 +328,13 @@ export function EmailsClient({
   roteamento,
   tabInicial = "caixa",
 }: {
+  /** 1ª página (server) — as seguintes chegam via paginarEmails no scroll. */
   recebidos: EmailMensagem[];
+  cursorRecebidos: EmailsCursor | null;
   enviados: EmailMensagem[];
+  cursorEnviados: EmailsCursor | null;
+  /** Contagem exata por direção (respeitando o filtro de caixa) — rail. */
+  contagens: EmailsContagens;
   metricas: EmailMetricas;
   /** Contas sincronizadas (config `emails_contas`) — rail + De: do compositor. */
   contas: string[];
@@ -314,8 +347,33 @@ export function EmailsClient({
   const router = useRouter();
   const [tab, setTab] = useState<TabId>(tabInicial);
 
-  // Busca client-side sobre a lista carregada (remetente/assunto/snippet).
+  // Listas paginadas por direção — semeadas com a 1ª página vinda do server.
+  const [listaRecebidos, setListaRecebidos] = useState<ListaPaginada>({
+    itens: recebidos,
+    cursor: cursorRecebidos,
+  });
+  const [listaEnviados, setListaEnviados] = useState<ListaPaginada>({
+    itens: enviados,
+    cursor: cursorEnviados,
+  });
+
+  // Server re-render (troca de caixa, Sincronizar, revalidatePath) entrega
+  // props novas — re-seeda a paginação. Padrão oficial de "ajustar estado
+  // durante o render" (setState guardado pela comparação com o snapshot
+  // anterior, sem effect); appends em voo sobre o seed antigo morrem no CAS
+  // de cursor do carregarMais.
+  const [seedRecebidos, setSeedRecebidos] = useState(recebidos);
+  if (seedRecebidos !== recebidos) {
+    setSeedRecebidos(recebidos);
+    setListaRecebidos({ itens: recebidos, cursor: cursorRecebidos });
+    setListaEnviados({ itens: enviados, cursor: cursorEnviados });
+  }
+
+  // Busca SERVER-SIDE (assunto/de/para/snippet) — debounce + guard de sequência.
   const [busca, setBusca] = useState("");
+  const [resultadoBusca, setResultadoBusca] = useState<ListaPaginada | null>(null);
+  const [buscandoServer, setBuscandoServer] = useState(false);
+  const buscaSeq = useRef(0);
 
   // Compositor (janela flutuante estilo Gmail)
   const [compositorAberto, setCompositorAberto] = useState(false);
@@ -329,6 +387,12 @@ export function EmailsClient({
 
   // Refresh (botão sincronizar) — pendente enquanto o server re-renderiza.
   const [atualizando, startAtualizar] = useTransition();
+
+  // Scroll infinito — sentinela IntersectionObserver no fim da lista.
+  const [carregandoMais, startCarregarMais] = useTransition();
+  const listaScrollRef = useRef<HTMLUListElement | null>(null);
+  const sentinelaRef = useRef<HTMLLIElement | null>(null);
+  const carregarMaisRef = useRef<(() => void) | null>(null);
 
   const novoEmail = () => {
     setPrefill(null);
@@ -395,15 +459,25 @@ export function EmailsClient({
     setCompositorAberto(true);
   };
 
+  /** Zera o resultado da busca (troca de aba/caixa) — o effect refaz sozinho. */
+  const zerarBusca = () => {
+    if (busca.trim().length >= BUSCA_EMAILS_MIN_CHARS) {
+      buscaSeq.current += 1; // invalida resposta em voo
+      setResultadoBusca(null);
+    }
+  };
+
   /** Troca a seção no rail — client-side (mesma tela), fecha a conversa. */
   const mudarTab = (nova: TabId) => {
     setTab(nova);
     voltarParaLista();
+    zerarBusca();
   };
 
   /** Troca o filtro de caixa — server-side via querystring (mantém a aba). */
   const mudarCaixa = (caixa: string | null) => {
     voltarParaLista();
+    zerarBusca();
     const params = new URLSearchParams();
     if (tab !== "caixa") params.set("tab", tab);
     if (caixa) params.set("caixa", caixa);
@@ -417,22 +491,126 @@ export function EmailsClient({
     });
   };
 
-  const q = busca.trim().toLowerCase();
-  const buscaAtiva = q.length > 0;
-  const buscaDesabilitada = tab === "metricas" || tab === "roteamento";
+  /** Abaixo do mínimo volta à lista normal — limpeza no handler, não no effect. */
+  const aoDigitarBusca = (valor: string) => {
+    setBusca(valor);
+    if (valor.trim().length < BUSCA_EMAILS_MIN_CHARS) {
+      buscaSeq.current += 1; // invalida busca em voo
+      setResultadoBusca(null);
+      setBuscandoServer(false);
+    }
+  };
 
-  const listaAtual = tab === "enviados" ? enviados : recebidos;
-  const listaFiltrada = buscaAtiva
-    ? listaAtual.filter((e) =>
-        [e.deEmail, e.paraEmail, e.assunto, e.snippet ?? "", e.leadNome ?? ""].some((v) =>
-          v.toLowerCase().includes(q),
-        ),
-      )
-    : listaAtual;
+  const buscaDesabilitada = tab === "metricas" || tab === "roteamento";
+  const termoBusca = busca.trim();
+  const buscaServerAtiva =
+    !buscaDesabilitada && termoBusca.length >= BUSCA_EMAILS_MIN_CHARS;
+  /** Aguardando a PRIMEIRA resposta da busca (nada a exibir ainda). */
+  const aguardandoBusca = buscaServerAtiva && resultadoBusca === null;
+
+  const listaBase = tab === "enviados" ? listaEnviados : listaRecebidos;
+  const itensVisiveis = buscaServerAtiva ? (resultadoBusca?.itens ?? []) : listaBase.itens;
+  const cursorAtual = buscaServerAtiva ? (resultadoBusca?.cursor ?? null) : listaBase.cursor;
 
   /** Badge da caixa nas linhas — só quando o filtro = Todas (multi-conta). */
   const mostrarCaixaNaLinha = caixaAtiva === null && contas.length > 1;
   const emConversa = threadAberta !== null && (tab === "caixa" || tab === "enviados");
+
+  /** Próxima página (lista normal OU resultados da busca), com CAS de cursor. */
+  const carregarMais = () => {
+    if (carregandoMais) return;
+    const cursor = cursorAtual;
+    if (!cursor) return;
+    const emBusca = buscaServerAtiva;
+    const aba = tab;
+    const direcao: EmailDirecao = aba === "enviados" ? "enviado" : "recebido";
+    startCarregarMais(async () => {
+      const res = await paginarEmails({
+        direcao,
+        caixa: caixaAtiva ?? undefined,
+        cursor,
+        busca: emBusca ? termoBusca : undefined,
+      });
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      // CAS: só acrescenta se a lista ainda aponta p/ o cursor usado — re-seed
+      // do server ou troca de termo no meio do voo descartam o append.
+      const aplicar = (prev: ListaPaginada): ListaPaginada =>
+        prev.cursor?.id === cursor.id
+          ? {
+              itens: appendSemDuplicar(prev.itens, res.itens),
+              cursor: res.proximoCursor,
+            }
+          : prev;
+      if (emBusca) {
+        setResultadoBusca((prev) => (prev ? aplicar(prev) : prev));
+      } else if (aba === "enviados") {
+        setListaEnviados(aplicar);
+      } else {
+        setListaRecebidos(aplicar);
+      }
+    });
+  };
+
+  // Referência sempre fresca p/ o IntersectionObserver (closure nunca velha).
+  useEffect(() => {
+    carregarMaisRef.current = carregarMais;
+  });
+
+  // Busca server-side: debounce + guard de sequência (padrão do compositor —
+  // resposta velha nunca sobrescreve a mais recente). Deps de aba/caixa
+  // refazem a busca quando o contexto muda.
+  useEffect(() => {
+    if (buscaDesabilitada) return;
+    const termo = busca.trim();
+    if (termo.length < BUSCA_EMAILS_MIN_CHARS) return;
+    const direcao: EmailDirecao = tab === "enviados" ? "enviado" : "recebido";
+    const seq = ++buscaSeq.current;
+    const timer = setTimeout(() => {
+      setBuscandoServer(true);
+      void paginarEmails({ direcao, caixa: caixaAtiva ?? undefined, busca: termo })
+        .then((res) => {
+          if (seq !== buscaSeq.current) return; // resposta velha — descarta
+          if (!res.success) {
+            toast.error(res.error);
+            setResultadoBusca({ itens: [], cursor: null });
+            return;
+          }
+          setResultadoBusca({ itens: res.itens, cursor: res.proximoCursor });
+        })
+        .catch(() => {
+          if (seq === buscaSeq.current) setResultadoBusca({ itens: [], cursor: null });
+        })
+        .finally(() => {
+          if (seq === buscaSeq.current) setBuscandoServer(false);
+        });
+    }, BUSCA_SERVER_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [busca, tab, caixaAtiva, buscaDesabilitada]);
+
+  // Sentinela do scroll infinito. Recriar o observer a cada mudança de
+  // contexto/tamanho re-dispara o callback inicial do observe(): se a
+  // sentinela continuar visível, carrega a próxima página (auto-preenche
+  // telas altas até ela sair da viewport).
+  const haMais = cursorAtual !== null;
+  const totalVisivel = itensVisiveis.length;
+  useEffect(() => {
+    if (!haMais || emConversa || aguardandoBusca) return;
+    const raiz = listaScrollRef.current;
+    const alvo = sentinelaRef.current;
+    if (!raiz || !alvo) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) carregarMaisRef.current?.();
+      },
+      // Raiz = a própria lista rolável; a margem pré-carrega antes do fim.
+      { root: raiz, rootMargin: "200px 0px" },
+    );
+    io.observe(alvo);
+    return () => io.disconnect();
+  }, [haMais, emConversa, aguardandoBusca, tab, buscaServerAtiva, totalVisivel]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -447,14 +625,14 @@ export function EmailsClient({
           <input
             type="search"
             value={busca}
-            onChange={(e) => setBusca(e.target.value)}
+            onChange={(e) => aoDigitarBusca(e.target.value)}
             disabled={buscaDesabilitada}
             placeholder={
               buscaDesabilitada
                 ? "Busca disponível na Caixa de entrada e Enviados"
-                : "Buscar nos e-mails carregados"
+                : "Buscar e-mails (assunto, remetente ou trecho)"
             }
-            aria-label="Buscar nos e-mails carregados (remetente, assunto ou trecho)"
+            aria-label="Buscar e-mails — assunto, remetente, destinatário ou trecho (mínimo 2 caracteres)"
             className={cn(
               "h-10 w-full rounded-full border border-transparent bg-secondary pl-10 pr-4 text-sm text-foreground",
               "outline-none transition-colors placeholder:text-placeholder motion-reduce:transition-none",
@@ -499,13 +677,14 @@ export function EmailsClient({
               icon={Inbox}
               label="Caixa de entrada"
               ativo={tab === "caixa"}
-              contador={recebidos.length}
+              contador={contagens.recebidos}
               onClick={() => mudarTab("caixa")}
             />
             <RailItem
               icon={Send}
               label="Enviados"
               ativo={tab === "enviados"}
+              contador={contagens.enviados}
               onClick={() => mudarTab("enviados")}
             />
             <RailItem
@@ -620,22 +799,35 @@ export function EmailsClient({
               </div>
             </Card>
           ) : tab === "caixa" || tab === "enviados" ? (
-            /* Lista estilo Gmail */
+            /* Lista estilo Gmail (paginada por cursor; busca server-side) */
             <Card padding="none" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              {buscaAtiva && (
+              {buscaServerAtiva && (
                 <p
                   role="status"
-                  className="shrink-0 border-b border-border px-4 py-2 text-xs text-muted-foreground"
+                  className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground"
                 >
-                  Filtrando {listaFiltrada.length} de {listaAtual.length} carregados
+                  {buscandoServer && (
+                    <Loader2
+                      aria-hidden
+                      className="size-3 shrink-0 animate-spin motion-reduce:animate-none"
+                    />
+                  )}
+                  {aguardandoBusca
+                    ? "Buscando…"
+                    : `${itensVisiveis.length} resultado${itensVisiveis.length === 1 ? "" : "s"} carregado${itensVisiveis.length === 1 ? "" : "s"}${cursorAtual ? " — role para carregar mais" : ""}`}
                 </p>
               )}
-              {listaFiltrada.length === 0 ? (
-                buscaAtiva ? (
+              {aguardandoBusca ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
+                  Buscando e-mails…
+                </div>
+              ) : itensVisiveis.length === 0 ? (
+                buscaServerAtiva ? (
                   <EmptyState
                     icon={Search}
                     title="Nada encontrado"
-                    description={`Nenhum e-mail carregado corresponde a “${busca.trim()}”.`}
+                    description={`Nenhum e-mail corresponde a “${termoBusca}”.`}
                   />
                 ) : tab === "caixa" ? (
                   <EmptyState
@@ -657,8 +849,12 @@ export function EmailsClient({
                   />
                 )
               ) : (
-                <ul role="list" className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
-                  {listaFiltrada.map((email) => (
+                <ul
+                  ref={listaScrollRef}
+                  role="list"
+                  className="min-h-0 flex-1 divide-y divide-border overflow-y-auto"
+                >
+                  {itensVisiveis.map((email) => (
                     <LinhaEmail
                       key={email.id}
                       email={email}
@@ -666,6 +862,19 @@ export function EmailsClient({
                       aoAbrir={abrirThread}
                     />
                   ))}
+                  {cursorAtual && (
+                    /* Sentinela do infinite scroll — o IO carrega a próxima página */
+                    <li
+                      ref={sentinelaRef}
+                      className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground"
+                    >
+                      <Loader2
+                        aria-hidden
+                        className="size-3.5 animate-spin motion-reduce:animate-none"
+                      />
+                      Carregando mais…
+                    </li>
+                  )}
                 </ul>
               )}
             </Card>
