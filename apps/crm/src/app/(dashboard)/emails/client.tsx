@@ -323,6 +323,7 @@ export function EmailsClient({
   contagens,
   metricas,
   contas,
+  caixas,
   padraoEnvio,
   caixaAtiva,
   roteamento,
@@ -336,8 +337,10 @@ export function EmailsClient({
   /** Contagem exata por direção (respeitando o filtro de caixa) — rail. */
   contagens: EmailsContagens;
   metricas: EmailMetricas;
-  /** Contas sincronizadas (config `emails_contas`) — rail + De: do compositor. */
+  /** Lista MANUAL (config) — whitelist do De: do compositor. */
   contas: string[];
+  /** TODAS as caixas visíveis (manuais ∪ descobertas pelo sync) — rail/filtros. */
+  caixas: string[];
   padraoEnvio: string;
   /** Filtro de caixa aplicado server-side (querystring); null = Todas. */
   caixaAtiva: string | null;
@@ -513,7 +516,7 @@ export function EmailsClient({
   const cursorAtual = buscaServerAtiva ? (resultadoBusca?.cursor ?? null) : listaBase.cursor;
 
   /** Badge da caixa nas linhas — só quando o filtro = Todas (multi-conta). */
-  const mostrarCaixaNaLinha = caixaAtiva === null && contas.length > 1;
+  const mostrarCaixaNaLinha = caixaAtiva === null && caixas.length > 1;
   const emConversa = threadAberta !== null && (tab === "caixa" || tab === "enviados");
 
   /** Próxima página (lista normal OU resultados da busca), com CAS de cursor. */
@@ -702,7 +705,7 @@ export function EmailsClient({
           </nav>
 
           {/* Caixas (multi-conta) — como labels do Gmail; filtro server-side */}
-          {contas.length > 1 && (
+          {caixas.length > 1 && (
             <div
               role="group"
               aria-label="Filtrar por caixa"
@@ -718,7 +721,7 @@ export function EmailsClient({
                 ativo={caixaAtiva === null}
                 onClick={() => mudarCaixa(null)}
               />
-              {contas.map((conta, i) => (
+              {caixas.map((conta, i) => (
                 <RailCaixa
                   key={conta}
                   label={localPart(conta)}
@@ -755,7 +758,7 @@ export function EmailsClient({
                 {threadAberta.leadNome && (
                   <Badge tone="brand">{threadAberta.leadNome}</Badge>
                 )}
-                {contas.length > 1 && threadAberta.caixaEmail && (
+                {caixas.length > 1 && threadAberta.caixaEmail && (
                   <Badge tone="neutral" size="sm">
                     {localPart(threadAberta.caixaEmail)}
                   </Badge>
@@ -772,7 +775,7 @@ export function EmailsClient({
                     {threadMensagens.map((msg, i) => {
                       const nossa =
                         msg.direcao === "enviado" ||
-                        contas.includes(msg.deEmail.toLowerCase());
+                        caixas.includes(msg.deEmail.toLowerCase());
                       const ehUltima = i === threadMensagens.length - 1;
                       return (
                         <MensagemThread
@@ -1035,7 +1038,7 @@ export function EmailsClient({
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto pb-1">
-              <RoteamentoTab contas={contas} regras={roteamento} />
+              <RoteamentoTab contas={caixas} regras={roteamento} />
             </div>
           )}
         </section>

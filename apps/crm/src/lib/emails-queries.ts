@@ -22,8 +22,10 @@ export type EmailDirecao = "enviado" | "recebido";
 export const CAIXA_EMAIL_PADRAO = "contato@bolsaatletausa.com";
 
 export interface EmailsContasConfig {
-  /** Contas sincronizadas (caixas visíveis no Engine). */
+  /** Lista MANUAL (config emails_contas) — whitelist do "De:" do compositor. */
   contas: string[];
+  /** TODAS as caixas visíveis: manuais ∪ sincronizadas (descoberta automática). */
+  caixas: string[];
   /** Conta usada como "De:" por padrão no compositor. */
   padraoEnvio: string;
 }
@@ -189,31 +191,53 @@ export async function fetchEmailsContasConfig(
 ): Promise<EmailsContasConfig> {
   const fallback: EmailsContasConfig = {
     contas: [CAIXA_EMAIL_PADRAO],
+    caixas: [CAIXA_EMAIL_PADRAO],
     padraoEnvio: CAIXA_EMAIL_PADRAO,
   };
   try {
+    // Duas fontes numa consulta: emails_contas (lista MANUAL — whitelist de
+    // envio) e email_inbox_state (o sync grava ali TODA caixa sincronizada,
+    // inclusive as descobertas via Directory). A visualização (`caixas`)
+    // é a união — caixa descoberta aparece na tela sem depender da config.
     const { data, error } = await supabase
       .from("configuracoes_sistema")
-      .select("valor")
-      .eq("chave", "emails_contas")
-      .maybeSingle();
+      .select("chave, valor")
+      .in("chave", ["emails_contas", "email_inbox_state"]);
 
     if (error) {
       console.error({ level: "error", action: "emails_contas_config", error: error.message });
       return fallback;
     }
 
-    const valor = data?.valor as { contas?: unknown; padrao_envio?: unknown } | null;
-    const contas = Array.isArray(valor?.contas)
-      ? valor.contas.filter(isEmailBausa).map((c) => c.trim().toLowerCase())
-      : [];
+    let contas: string[] = [];
+    let padraoRaw: string | null = null;
+    const sincronizadas: string[] = [];
+    for (const row of data ?? []) {
+      const valor = row.valor as Record<string, unknown> | null;
+      if (row.chave === "emails_contas") {
+        const lista = valor?.contas;
+        contas = Array.isArray(lista)
+          ? lista.filter(isEmailBausa).map((c) => c.trim().toLowerCase())
+          : [];
+        padraoRaw = isEmailBausa(valor?.padrao_envio)
+          ? valor.padrao_envio.trim().toLowerCase()
+          : null;
+      }
+      if (row.chave === "email_inbox_state") {
+        const porConta = valor?.contas;
+        if (porConta && typeof porConta === "object") {
+          for (const caixa of Object.keys(porConta)) {
+            if (isEmailBausa(caixa)) sincronizadas.push(caixa.trim().toLowerCase());
+          }
+        }
+      }
+    }
     if (contas.length === 0) return fallback;
 
-    const padraoRaw = isEmailBausa(valor?.padrao_envio)
-      ? valor.padrao_envio.trim().toLowerCase()
-      : null;
+    const caixas = [...new Set([...contas, ...sincronizadas.sort()])];
     return {
       contas,
+      caixas,
       padraoEnvio: padraoRaw && contas.includes(padraoRaw) ? padraoRaw : contas[0],
     };
   } catch (err) {
