@@ -359,6 +359,8 @@ export interface Escola {
   tipo: 'boarding' | 'day' | 'mista';
   status: 'ativa' | 'inativa' | 'em_analise';
   website: string | null;
+  link_inscricao: string | null;
+  link_plano_saude: string | null;
   notas_internas: string | null;
   budget_minimo_usd: number | null;
   budget_forte_usd: number | null;

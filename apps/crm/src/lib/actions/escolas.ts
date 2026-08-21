@@ -33,6 +33,8 @@ export async function criarEscola(dados: Partial<Escola>) {
       tipo: dados.tipo || "boarding",
       status: dados.status || "ativa",
       website: dados.website,
+      link_inscricao: dados.link_inscricao,
+      link_plano_saude: dados.link_plano_saude,
       notas_internas: dados.notas_internas,
       budget_minimo_usd: dados.budget_minimo_usd,
       budget_forte_usd: dados.budget_forte_usd,

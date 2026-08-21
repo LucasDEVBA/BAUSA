@@ -220,6 +220,38 @@ export function SchoolCard({ school, onSelect, now }: SchoolCardProps) {
         </div>
       )}
 
+      {/* Links operacionais (botões — não propagam o clique do card) */}
+      {(school.link_inscricao || school.link_plano_saude) && (
+        <div className="mb-4 flex gap-2">
+          {school.link_inscricao && (
+            <a
+              href={school.link_inscricao}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[11px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Inscrição
+            </a>
+          )}
+          {school.link_plano_saude && (
+            <a
+              href={school.link_plano_saude}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Plano de saúde
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Coach info */}
       {school.coach_name && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
