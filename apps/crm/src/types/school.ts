@@ -46,6 +46,10 @@ export interface School {
   // Notas internas
   notes?: string;
 
+  // Links operacionais (botões na UI)
+  link_inscricao?: string | null;
+  link_plano_saude?: string | null;
+
   // GPA
   gpa_minimo?: number | null;
 

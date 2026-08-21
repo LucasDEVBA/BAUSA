@@ -32,6 +32,8 @@ const schema = z.object({
   tipo: z.enum(["boarding", "day", "mista"]),
   status: z.enum(["ativa", "inativa", "em_analise"]),
   website: z.string().trim().optional(),
+  link_inscricao: z.string().trim().optional(),
+  link_plano_saude: z.string().trim().optional(),
   budget_minimo_usd: z.number().min(0, "≥ 0").nullable().optional(),
   budget_forte_usd: z.number().min(0, "≥ 0").nullable().optional(),
   agressividade_bolsa: z.enum(["alta", "media", "baixa", "rara"]),
@@ -66,6 +68,8 @@ const DEFAULT_VALUES: FormValues = {
   tipo: "boarding",
   status: "ativa",
   website: "",
+  link_inscricao: "",
+  link_plano_saude: "",
   budget_minimo_usd: null,
   budget_forte_usd: null,
   agressividade_bolsa: "media",
@@ -189,6 +193,8 @@ export function SchoolFormSheet({ open, onClose }: SchoolFormSheetProps) {
         tipo: values.tipo,
         status: values.status,
         website: values.website?.trim() || null,
+        link_inscricao: values.link_inscricao?.trim() || null,
+        link_plano_saude: values.link_plano_saude?.trim() || null,
         budget_minimo_usd: values.budget_minimo_usd ?? null,
         budget_forte_usd: values.budget_forte_usd ?? null,
         agressividade_bolsa: values.agressividade_bolsa,
@@ -288,6 +294,26 @@ export function SchoolFormSheet({ open, onClose }: SchoolFormSheetProps) {
                   placeholder="https://escola.edu"
                   inputMode="url"
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Link de Inscrição</label>
+                  <input
+                    {...register("link_inscricao")}
+                    className={inputClass}
+                    placeholder="https://portal.escola.edu/apply"
+                    inputMode="url"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Link do Plano de Saúde</label>
+                  <input
+                    {...register("link_plano_saude")}
+                    className={inputClass}
+                    placeholder="https://seguradora.com/enroll"
+                    inputMode="url"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
