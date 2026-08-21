@@ -66,6 +66,8 @@ function mapSupabaseToSchool(row: Record<string, unknown>): School {
     coach_email: (row.admissions_officer_email as string) ?? undefined,
     coach_phone: (row.admissions_officer_telefone as string) ?? undefined,
     notes: (row.notas_internas as string) ?? undefined,
+    link_inscricao: (row.link_inscricao as string) ?? null,
+    link_plano_saude: (row.link_plano_saude as string) ?? null,
     gpa_minimo: row.gpa_minimo != null ? Number(row.gpa_minimo) : null,
     temperatura_relacionamento: (row.temperatura_relacionamento as string) ?? "neutro",
     ultimo_contato_at: (row.ultimo_contato_at as string) ?? null,

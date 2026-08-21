@@ -15,6 +15,7 @@ import {
   Loader2,
   Save,
   Pencil,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { registrarContatoEscola, atualizarEscola } from "@/lib/actions/escolas";
@@ -120,6 +121,8 @@ export function SchoolDetailSheet({
     admissions_officer_telefone: school.coach_phone ?? "",
     regra_pratica: school.practical_rule ?? "",
     notas_internas: school.notes ?? "",
+    link_inscricao: school.link_inscricao ?? "",
+    link_plano_saude: school.link_plano_saude ?? "",
     gpa_minimo: school.gpa_minimo ?? 0,
     rolling_admission: school.rolling_admission ?? false,
     serie_maxima: school.serie_maxima ?? "",
@@ -168,6 +171,8 @@ export function SchoolDetailSheet({
         admissions_officer_telefone: editData.admissions_officer_telefone || null,
         regra_pratica: editData.regra_pratica || null,
         notas_internas: editData.notas_internas || null,
+        link_inscricao: editData.link_inscricao.trim() || null,
+        link_plano_saude: editData.link_plano_saude.trim() || null,
         gpa_minimo: editData.gpa_minimo || null,
         rolling_admission: editData.rolling_admission,
         serie_maxima: editData.serie_maxima || null,
@@ -336,6 +341,65 @@ export function SchoolDetailSheet({
                       </div>
                     )}
                   </div>
+                )}
+              </div>
+
+              {/* Links operacionais */}
+              <div className="rounded-lg p-4 space-y-4 border border-border/70 bg-card/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">
+                  Links da Escola
+                </p>
+
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className={labelClass}>Link de Inscrição (application)</label>
+                      <input
+                        value={editData.link_inscricao}
+                        onChange={(e) => setEditData((p) => ({ ...p, link_inscricao: e.target.value }))}
+                        className={inputClass}
+                        placeholder="https://portal.escola.edu/apply"
+                        inputMode="url"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Link do Plano de Saúde</label>
+                      <input
+                        value={editData.link_plano_saude}
+                        onChange={(e) => setEditData((p) => ({ ...p, link_plano_saude: e.target.value }))}
+                        className={inputClass}
+                        placeholder="https://seguradora.com/enroll"
+                        inputMode="url"
+                      />
+                    </div>
+                  </div>
+                ) : school.link_inscricao || school.link_plano_saude ? (
+                  <div className="flex flex-wrap gap-2">
+                    {school.link_inscricao && (
+                      <a
+                        href={school.link_inscricao}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Abrir Inscrição
+                      </a>
+                    )}
+                    {school.link_plano_saude && (
+                      <a
+                        href={school.link_plano_saude}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Plano de Saúde
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-label-tertiary">Nenhum link cadastrado. Clique em Editar para adicionar.</p>
                 )}
               </div>
 
