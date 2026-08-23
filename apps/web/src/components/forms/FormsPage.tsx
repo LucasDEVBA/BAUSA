@@ -18,6 +18,8 @@ import { Link } from "@/i18n/navigation";
 import { toast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import LanguageSelector from "@/components/LanguageSelector";
+import { isValidPhoneNumber } from "react-phone-number-input";
+
 import FormPhoneInput from "@/components/ui/phone-input";
 import { CountrySelect } from "@/components/ui/country-select";
 import { captureUTMs, getStoredUTMs } from "@/lib/tracking/utm";
@@ -39,7 +41,13 @@ const formSchema = z.object({
   // Stage 1
   athleteName: z.string().min(1, "Nome é obrigatório"),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
-  whatsapp: z.string().min(1, "WhatsApp é obrigatório"),
+  whatsapp: z
+    .string()
+    .min(1, "WhatsApp é obrigatório")
+    // Bloqueia E.164 quebrado na ORIGEM (ex.: "+28999711222" = DDD sem o 55,
+    // que ia para um DDI inexistente — incidente Gustavo Telles 2026-08-23).
+    // isValidPhoneNumber usa os metadados do libphonenumber: DDI real + tamanho.
+    .refine(isValidPhoneNumber, "Número inválido — confira o DDD e o país da bandeira"),
   schoolYear: z.string().min(1, "Série é obrigatória"),
   currentSchool: z.string().min(1, "Escola é obrigatória"),
   cityState: z.string().min(1, "Cidade/Estado é obrigatório"),
@@ -60,7 +68,10 @@ const formSchema = z.object({
   familyDecision: z.string().min(1, "Selecione uma opção"),
   guardianName: z.string().min(1, "Nome é obrigatório"),
   guardianProfession: z.string().min(1, "Profissão é obrigatória"),
-  guardianWhatsapp: z.string().min(1, "Telefone é obrigatório"),
+  guardianWhatsapp: z
+    .string()
+    .min(1, "Telefone é obrigatório")
+    .refine(isValidPhoneNumber, "Número inválido — confira o DDD e o país da bandeira"),
   guardianEmail: z.string().email("E-mail inválido").min(1, "E-mail é obrigatório"),
   // Address — campos condicionais por país (validados via superRefine)
   country: z.string().min(1, "País é obrigatório"),

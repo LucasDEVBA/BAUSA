@@ -92,6 +92,53 @@ const formatPhone = (phone) => {
   return cleaned;
 };
 
+// ─── Cura de DDI ausente (incidente Gustavo Telles, 2026-08-23) ─────────
+// O formulário deixava passar E.164 quebrado: "+28999711222" é o DDD 28
+// com o "+" colado e SEM o 55 — o formatPhone confiava no "+" ("E.164 =
+// DDI correto") e o envio ia para um DDI inexistente, ou pior, para um
+// DDI REAL de outro país (+49 Alemanha, +27 África do Sul, +51 Peru…).
+// Resultado: o responsável nunca recebia o link de agendamento enquanto o
+// atleta (número válido) recebia todos os follow-ups.
+//
+// A cura só se aplica ao padrão INEQUÍVOCO de número BR e SOMENTE quando o
+// lead declarou país BR no formulário — um celular peruano real (+51 9…)
+// tem a mesma forma de "DDD 51 + 9…", e o país declarado é o desempate.
+// Um +55 VÁLIDO tem 12–13 dígitos, então os comprimentos 10/11 nunca
+// colidem com número BR correto. Guard: tests/telefone-heal-invariants.test.js
+const DDD_VALIDOS = new Set([
+  '11', '12', '13', '14', '15', '16', '17', '18', '19',
+  '21', '22', '24', '27', '28',
+  '31', '32', '33', '34', '35', '37', '38',
+  '41', '42', '43', '44', '45', '46', '47', '48', '49',
+  '51', '53', '54', '55',
+  '61', '62', '63', '64', '65', '66', '67', '68', '69',
+  '71', '73', '74', '75', '77', '79',
+  '81', '82', '83', '84', '85', '86', '87', '88', '89',
+  '91', '92', '93', '94', '95', '96', '97', '98', '99',
+]);
+
+const healBrDdiAusente = (phone, addressCountry) => {
+  if (!phone || typeof phone !== 'string') return phone;
+  const original = phone.trim();
+  // Sem "+" é o caminho legado — o formatPhone já adiciona o 55 com segurança.
+  if (!original.startsWith('+')) return phone;
+  // Lead internacional: o DDI declarado é dele — nunca reescrever.
+  if (((addressCountry || 'BR').toUpperCase()) !== 'BR') return phone;
+
+  const digits = original.replace(/\D/g, '');
+  const dddValido = DDD_VALIDOS.has(digits.slice(0, 2));
+  const celular11 = digits.length === 11 && digits[2] === '9'; // DDD + 9XXXXXXXX
+  const fixoOuAntigo10 = digits.length === 10;                 // DDD + XXXXXXXX
+  if (dddValido && (celular11 || fixoOuAntigo10)) {
+    log('WARN', 'phone_healed_ddi_ausente', {
+      tail: digits.slice(-4),
+      digitos: digits.length,
+    });
+    return `+55${digits}`;
+  }
+  return phone;
+};
+
 // ─── Enviar mensagem de texto via Z-API (/send-text) ──────────
 const sendMessage = async (phone, message) => {
   const formattedPhone = formatPhone(phone);
@@ -647,6 +694,12 @@ functions.http('sendWhatsApp', async (req, res) => {
     const payload = req.body;
     const data = payload.record || payload;
     const messageType = payload.messageType || 'initial';
+    // Cura DDI ausente ANTES de qualquer uso dos números (samePhone,
+    // templates e envio) — ver comentário do healBrDdiAusente.
+    if (data) {
+      data.athlete_whatsapp = healBrDdiAusente(data.athlete_whatsapp, data.address_country);
+      data.guardian_whatsapp = healBrDdiAusente(data.guardian_whatsapp, data.address_country);
+    }
     // Short link por lead (fail-open; os builders leem via buildScheduleUrl)
     data.schedule_url = await resolveScheduleUrl(data);
 
