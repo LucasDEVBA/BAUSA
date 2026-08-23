@@ -376,6 +376,73 @@ const tailsDe = (phone) => {
  * marca *_sent_at sem espelho no telefone do lead = a Z-API aceitou (200)
  * e não entregou — a assinatura exata do incidente fundador.
  */
+// ─── Telefones inválidos (DDI ausente) — incidente Gustavo Telles ────────
+// "+28999711222" é o DDD 28 com o "+" colado e SEM o 55: o envio ia para um
+// DDI inexistente (ou real de outro país) e o responsável nunca recebia o
+// link de agendamento. Espelho da regra healBrDdiAusente (send-whatsapp) e
+// do analisarTelefone (Engine). Guard: tests/telefone-heal-invariants.test.js
+const DDD_VALIDOS = new Set([
+  '11', '12', '13', '14', '15', '16', '17', '18', '19',
+  '21', '22', '24', '27', '28',
+  '31', '32', '33', '34', '35', '37', '38',
+  '41', '42', '43', '44', '45', '46', '47', '48', '49',
+  '51', '53', '54', '55',
+  '61', '62', '63', '64', '65', '66', '67', '68', '69',
+  '71', '73', '74', '75', '77', '79',
+  '81', '82', '83', '84', '85', '86', '87', '88', '89',
+  '91', '92', '93', '94', '95', '96', '97', '98', '99',
+]);
+
+const telefoneProblema = (phone, addressCountry) => {
+  if (typeof phone !== 'string' || phone.trim().length === 0) return null;
+  const original = phone.trim();
+  const digits = original.replace(/\D/g, '');
+  if (!original.startsWith('+')) return digits.length < 8 ? 'invalido' : null;
+  const paisBr = ((addressCountry || 'BR').toUpperCase()) === 'BR';
+  const dddValido = DDD_VALIDOS.has(digits.slice(0, 2));
+  const celular11 = digits.length === 11 && digits[2] === '9';
+  const fixoOuAntigo10 = digits.length === 10;
+  if (paisBr && dddValido && (celular11 || fixoOuAntigo10)) return 'ddi_ausente_br';
+  if (digits.length < 8) return 'invalido';
+  return null;
+};
+
+const TELEFONE_JANELA_DIAS = 90;
+
+const checkTelefonesInvalidos = async () => {
+  const desde = encodeURIComponent(isoAtras(TELEFONE_JANELA_DIAS * 24));
+  const r = await httpRequest(
+    `${SUPABASE_URL}/rest/v1/form_submissions` +
+      `?select=athlete_name,athlete_whatsapp,guardian_whatsapp,address_country,whatsapp_sent_at,aprovacao_status` +
+      `&qualification_classification=in.(QUENTE,MORNO)&deleted_at=is.null` +
+      `&submitted_at=gt.${desde}&order=submitted_at.desc&limit=1000`,
+    { method: 'GET', headers: supaHeaders() },
+  );
+  if (r.statusCode >= 400) throw new Error(`telefones HTTP ${r.statusCode}`);
+
+  const quebrados = [];
+  let preOutreach = 0;
+  for (const row of JSON.parse(r.body || '[]')) {
+    for (const [papel, fone] of [['atleta', row.athlete_whatsapp], ['responsável', row.guardian_whatsapp]]) {
+      if (!telefoneProblema(fone, row.address_country)) continue;
+      quebrados.push(`${row.athlete_name} (${papel})`);
+      if (!row.whatsapp_sent_at &&
+          (row.aprovacao_status === 'pendente' || row.aprovacao_status === 'aprovado')) {
+        preOutreach += 1;
+      }
+    }
+  }
+  return {
+    ok: quebrados.length === 0,
+    valor: quebrados.length,
+    detalhe: quebrados.length === 0
+      ? `Nenhum telefone quebrado nos QUENTE/MORNO dos últimos ${TELEFONE_JANELA_DIAS} dias`
+      : `${quebrados.length} telefone(s) com DDI ausente/quebrado em leads QUENTE/MORNO` +
+        (preOutreach > 0 ? ` — ${preOutreach} ANTES do outreach (corrigir agora)` : '') +
+        `: ${quebrados.slice(0, 5).join(', ')}`,
+  };
+};
+
 const checkEnviosSemEspelho = async () => {
   const desde = isoAtras(ESPELHO_JANELA_HORAS);
   const selects = `id,athlete_name,athlete_whatsapp,guardian_whatsapp,${COLUNAS_ENVIO.join(',')}`;
@@ -387,12 +454,19 @@ const checkEnviosSemEspelho = async () => {
       { method: 'GET', headers: supaHeaders() },
     ),
   ));
+  // Correlação POR DESTINATÁRIO (incidente Gustavo Telles, 2026-08-23): unir
+  // os tails deixava o espelho do atleta mascarar a falha do responsável.
   const marcas = [];
   marcasRes.forEach((r, i) => {
     if (r.statusCode >= 400) throw new Error(`espelho marcas HTTP ${r.statusCode}`);
     for (const row of JSON.parse(r.body || '[]')) {
-      const tails = [...tailsDe(row.athlete_whatsapp), ...tailsDe(row.guardian_whatsapp)];
-      marcas.push({ nome: row.athlete_name, quandoMs: Date.parse(row[COLUNAS_ENVIO[i]]), tails });
+      const destinatarios = [];
+      const tailsAtleta = tailsDe(row.athlete_whatsapp);
+      const tailsResp = tailsDe(row.guardian_whatsapp);
+      if (tailsAtleta.length > 0) destinatarios.push({ papel: 'atleta', tails: tailsAtleta });
+      if (tailsResp.length > 0) destinatarios.push({ papel: 'responsável', tails: tailsResp });
+      if (destinatarios.length === 0) continue;
+      marcas.push({ nome: row.athlete_name, quandoMs: Date.parse(row[COLUNAS_ENVIO[i]]), destinatarios });
     }
   });
   if (marcas.length === 0) {
@@ -414,11 +488,13 @@ const checkEnviosSemEspelho = async () => {
   const nomes = [];
   for (const m of marcas) {
     if (m.quandoMs > limiteIdade) continue; // webhook pode só estar atrasado
-    const tem = espelho.some((e) =>
-      e.tails.some((t) => m.tails.includes(t)) &&
-      e.ms >= m.quandoMs - ESPELHO_MARGEM_MIN * 60000 &&
-      e.ms <= m.quandoMs + ESPELHO_POS_MIN * 60000);
-    if (!tem) nomes.push(m.nome);
+    const faltando = m.destinatarios
+      .filter((d) => !espelho.some((e) =>
+        e.tails.some((t) => d.tails.includes(t)) &&
+        e.ms >= m.quandoMs - ESPELHO_MARGEM_MIN * 60000 &&
+        e.ms <= m.quandoMs + ESPELHO_POS_MIN * 60000))
+      .map((d) => d.papel);
+    if (faltando.length > 0) nomes.push(`${m.nome} (${faltando.join(' e ')})`);
   }
   return {
     ok: nomes.length === 0,
@@ -693,6 +769,8 @@ const runChecks = async () => {
     // ── Anti-incidente (Z-API caída com envios fantasma) ─────
     checkSeguro('zapi_conexao', checkZapiConexao),
     checkSeguro('envios_sem_espelho', checkEnviosSemEspelho),
+    // Mesma família: telefone quebrado = destinatário que nunca recebe nada.
+    checkSeguro('telefone_invalido', checkTelefonesInvalidos),
     // Mesma classe do zapi_conexao: credencial de canal que morre em silêncio.
     checkSeguro('instagram_token', checkInstagramToken),
 
