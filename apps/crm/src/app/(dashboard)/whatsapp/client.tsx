@@ -197,9 +197,11 @@ function ChatListItem({
   onTogglePin,
   onToggleArchive,
 }: ChatListItemProps) {
-  // De-para: contato salvo no aparelho → nome do lead no CRM → telefone.
+  // De-para: nome do CRM PRIMEIRO (atleta, ou "<resp> - Resp - <atleta>" —
+  // padrão do CEO 2026-08-23) → contato do aparelho → telefone. O CRM é a
+  // fonte canônica: o pushName/agenda só vale p/ número que não conhecemos.
   const displayName =
-    chat.name ?? contact?.name ?? chat.leadName ?? formatPhoneDisplay(chat.phone);
+    chat.leadName ?? chat.name ?? contact?.name ?? formatPhoneDisplay(chat.phone);
 
   return (
     <div className="group relative">
@@ -1796,10 +1798,12 @@ export function WhatsAppEspelhoClient({
 
   const selectedContact = selectedPhone ? (contacts[selectedPhone] ?? null) : null;
 
+  // Mesma precedência da lista: nome do CRM primeiro (inclui o padrão
+  // "<resp> - Resp - <atleta>"), aparelho como fallback.
   const selectedDisplayName =
+    selectedChat?.leadName ??
     selectedChat?.name ??
     selectedContact?.name ??
-    selectedChat?.leadName ??
     (selectedPhone ? formatPhoneDisplay(selectedPhone) : "");
 
   // Nome exibido acessível ao handler do chatbot (fora do render).
