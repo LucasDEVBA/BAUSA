@@ -40,9 +40,25 @@ export function phoneKey(input: string | null | undefined): string {
 }
 
 /**
- * Monta o mapa sufixo→nome priorizando o NOME DO ATLETA (o "lead"): tanto o
- * número do próprio atleta quanto o do responsável vinculado resolvem para o
- * nome do atleta; responsáveis sem atleta vinculado caem no próprio nome.
+ * Padrão de exibição do contato do RESPONSÁVEL (pedido do CEO, 2026-08-23):
+ * "Débora Gama Telles - Resp - Gustavo Telles Bastos". Sem o nome do
+ * responsável no cadastro, degrada para "Resp - <atleta>" — o vínculo com o
+ * atleta é a informação que importa.
+ */
+export function nomeContatoResponsavel(
+  respNome: string | null | undefined,
+  atletaNome: string,
+): string {
+  const nome = respNome?.trim();
+  return nome ? `${nome} - Resp - ${atletaNome}` : `Resp - ${atletaNome}`;
+}
+
+/**
+ * Monta o mapa sufixo→nome: o número do ATLETA resolve para o nome do atleta;
+ * o número do RESPONSÁVEL vinculado resolve para o padrão
+ * "<responsável> - Resp - <atleta>" (nomeContatoResponsavel). Responsáveis sem
+ * atleta vinculado caem no próprio nome. Família com o MESMO número para os
+ * dois fica só com o nome do atleta (rotular "X - Resp - X" seria ruído).
  */
 export function construirMapaNomes(
   atletas: AtletaLookupRow[],
@@ -58,8 +74,8 @@ export function construirMapaNomes(
     if (suf && nome && !mapa.has(suf)) mapa.set(suf, nome);
   }
 
-  // 2. Atletas (prioridade): número do atleta E do responsável vinculado
-  //    resolvem para o nome do atleta.
+  // 2. Atletas (prioridade): número do atleta = nome do atleta; número do
+  //    responsável vinculado = padrão "<resp> - Resp - <atleta>".
   for (const a of atletas) {
     const nome = a.nome_completo?.trim();
     if (!nome) continue;
@@ -67,7 +83,9 @@ export function construirMapaNomes(
     if (sufAtleta) mapa.set(sufAtleta, nome);
     const resp = a.responsavel_id ? respById.get(a.responsavel_id) : null;
     const sufResp = phoneKey(resp?.whatsapp);
-    if (sufResp) mapa.set(sufResp, nome);
+    if (sufResp && sufResp !== sufAtleta) {
+      mapa.set(sufResp, nomeContatoResponsavel(resp?.nome, nome));
+    }
   }
 
   return mapa;

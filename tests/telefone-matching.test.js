@@ -103,3 +103,49 @@ test("formatPhone: curto demais ou longo demais é rejeitado", () => {
   assert.strictEqual(formatPhone("+1234567890123456"), null); // 16 > E.164
   assert.strictEqual(formatPhone(""), null);
 });
+
+// ─── Padrão de nome do contato do RESPONSÁVEL (pedido do CEO, 2026-08-23) ──
+// "Débora Gama Telles - Resp - Gustavo Telles Bastos": toda conversa casada
+// pelo número do responsável exibe o vínculo com o atleta — nos DOIS motores
+// de nome (lookup do espelho /whatsapp e estados de conversa).
+
+const lookupSrc = fs.readFileSync(
+  path.join(__dirname, "..", "apps", "crm", "src", "lib", "whatsapp-lead-lookup.ts"),
+  "utf8",
+);
+const conversasSrc = fs.readFileSync(
+  path.join(__dirname, "..", "apps", "crm", "src", "lib", "conversas-queries.ts"),
+  "utf8",
+);
+
+test("contato do responsável segue o padrão '<resp> - Resp - <atleta>'", () => {
+  // O template exato do padrão vive no helper único:
+  assert.ok(
+    lookupSrc.includes("`${nome} - Resp - ${atletaNome}`"),
+    "template do padrão sumiu de nomeContatoResponsavel",
+  );
+  // Fallback quando o cadastro não tem o nome do responsável:
+  assert.ok(
+    lookupSrc.includes("`Resp - ${atletaNome}`"),
+    "fallback sem nome do responsável sumiu",
+  );
+  // Lookup do espelho usa o helper para o número do responsável vinculado:
+  assert.match(
+    lookupSrc,
+    /sufResp !== sufAtleta[\s\S]{0,120}nomeContatoResponsavel\(resp\?\.nome, nome\)/,
+    "construirMapaNomes não aplica o padrão (ou perdeu o guard de mesmo número)",
+  );
+});
+
+test("estados de conversa nomeiam o tail do responsável com o padrão", () => {
+  assert.match(
+    conversasSrc,
+    /nomeContatoResponsavel\(l\.guardian_name, l\.athlete_name\)/,
+    "fetchEstadosConversa voltou a usar só o nome do atleta para o responsável",
+  );
+  assert.match(
+    conversasSrc,
+    /tResp !== tAtleta/,
+    "guard de família com mesmo número sumiu dos estados de conversa",
+  );
+});
