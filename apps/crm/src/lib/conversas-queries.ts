@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { nomeContatoResponsavel } from "@/lib/whatsapp-lead-lookup";
 
 // ════════════════════════════════════════════════════════════════════════
 // Métricas de conversas (WhatsApp) + timings do funil comercial.
@@ -637,7 +638,10 @@ export async function fetchEstadosConversa(period: ConversaPeriod): Promise<Esta
     (r) => !CEO_TAIL || !r.phone.replace(/\D/g, "").endsWith(CEO_TAIL),
   );
 
-  // Índice de leads por tail-10 dos DOIS telefones (atleta e responsável).
+  // Índice de leads por tail-10 dos DOIS telefones. O nome depende de QUAL
+  // número casou: atleta = nome do atleta; responsável = padrão
+  // "<responsável> - Resp - <atleta>" (nomeContatoResponsavel — pedido do
+  // CEO 2026-08-23). Mesmo número p/ os dois = só o nome do atleta.
   type LeadInfo = { nome: string; classificacao: string | null; agendou: boolean };
   const leadPorTail = new Map<string, LeadInfo>();
   for (const l of (leadsRes.data ?? []) as Array<{
@@ -648,14 +652,20 @@ export async function fetchEstadosConversa(period: ConversaPeriod): Promise<Esta
     qualification_classification: string | null;
     meeting_scheduled: boolean | null;
   }>) {
-    const info: LeadInfo = {
-      nome: l.athlete_name,
+    const base = {
       classificacao: l.qualification_classification,
       agendou: l.meeting_scheduled === true,
     };
-    for (const f of [l.athlete_whatsapp, l.guardian_whatsapp]) {
-      const t = f ? tail10(f) : "";
-      if (t.length >= 8 && !leadPorTail.has(t)) leadPorTail.set(t, info);
+    const tAtleta = l.athlete_whatsapp ? tail10(l.athlete_whatsapp) : "";
+    const tResp = l.guardian_whatsapp ? tail10(l.guardian_whatsapp) : "";
+    if (tAtleta.length >= 8 && !leadPorTail.has(tAtleta)) {
+      leadPorTail.set(tAtleta, { ...base, nome: l.athlete_name });
+    }
+    if (tResp.length >= 8 && tResp !== tAtleta && !leadPorTail.has(tResp)) {
+      leadPorTail.set(tResp, {
+        ...base,
+        nome: nomeContatoResponsavel(l.guardian_name, l.athlete_name),
+      });
     }
   }
 
