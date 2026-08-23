@@ -149,3 +149,23 @@ test("estados de conversa nomeiam o tail do responsável com o padrão", () => {
     "guard de família com mesmo número sumiu dos estados de conversa",
   );
 });
+
+test("precedência de nome: CRM (leadName) vence o nome do aparelho/Z-API", () => {
+  // Causa do "ainda não aparece em PRD" (2026-08-24): o pushName/agenda do
+  // aparelho vinha ANTES do leadName — o padrão "<resp> - Resp - <atleta>"
+  // nunca era exibido porque o WhatsApp quase sempre manda um nome.
+  const clientSrc = fs.readFileSync(
+    path.join(__dirname, "..", "apps", "crm", "src", "app", "(dashboard)", "whatsapp", "client.tsx"),
+    "utf8",
+  );
+  assert.match(
+    clientSrc,
+    /chat\.leadName \?\? chat\.name \?\? contact\?\.name/,
+    "lista de conversas: leadName deixou de vir primeiro",
+  );
+  assert.match(
+    clientSrc,
+    /selectedChat\?\.leadName \?\?\s*selectedChat\?\.name/,
+    "cabeçalho da conversa: leadName deixou de vir primeiro",
+  );
+});
