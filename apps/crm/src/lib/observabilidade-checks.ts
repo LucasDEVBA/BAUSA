@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "./supabase-server";
+import { analisarTelefone } from "./telefone-analise";
 import { getZapiConfig, zapiRequest } from "./zapi-server";
 import { GeminiNotConfiguredError, gerarConteudoGemini } from "./gemini";
 
@@ -324,12 +325,20 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
     ),
   );
 
+  // Correlação POR DESTINATÁRIO (incidente Gustavo Telles, 2026-08-23): a
+  // versão antiga unia os tails de atleta+responsável e considerava a marca
+  // espelhada se QUALQUER um tinha espelho — o espelho do atleta mascarava a
+  // falha do responsável, que ficou semanas sem receber o link de agendamento.
+  interface DestinatarioMarca {
+    papel: "atleta" | "responsável";
+    tails: string[];
+  }
   interface Marca {
     nome: string;
     label: string;
     quandoMs: number;
     quandoIso: string;
-    tails: string[];
+    destinatarios: DestinatarioMarca[];
   }
   const marcas: Marca[] = [];
   resultados.forEach((res, i) => {
@@ -341,8 +350,19 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
     for (const raw of res.data ?? []) {
       const row = raw as Record<string, unknown>;
       const quandoIso = row[col] as string;
-      const tails = [...tailsDe(row.athlete_whatsapp), ...tailsDe(row.guardian_whatsapp)];
-      marcas.push({ nome: String(row.athlete_name), label, quandoMs: new Date(quandoIso).getTime(), quandoIso, tails });
+      const destinatarios: DestinatarioMarca[] = [];
+      const tailsAtleta = tailsDe(row.athlete_whatsapp);
+      const tailsResp = tailsDe(row.guardian_whatsapp);
+      if (tailsAtleta.length > 0) destinatarios.push({ papel: "atleta", tails: tailsAtleta });
+      if (tailsResp.length > 0) destinatarios.push({ papel: "responsável", tails: tailsResp });
+      if (destinatarios.length === 0) continue; // sem telefone rastreável
+      marcas.push({
+        nome: String(row.athlete_name),
+        label,
+        quandoMs: new Date(quandoIso).getTime(),
+        quandoIso,
+        destinatarios,
+      });
     }
   });
 
@@ -380,7 +400,7 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
     erros.push("Janela de espelho truncada em 1000 mensagens — resultado pode subnotificar.");
   }
 
-  // 3. Correlação marca ↔ espelho.
+  // 3. Correlação marca ↔ espelho — CADA destinatário precisa do seu espelho.
   const limiteIdadeMs = Date.now() - ESPELHO_IDADE_MIN_MIN * 60_000;
   const suspeitos: string[] = [];
   for (const m of marcas) {
@@ -389,11 +409,18 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
     if (online !== false && m.quandoMs > limiteIdadeMs) continue;
     const antes = m.quandoMs - ESPELHO_MARGEM_MIN * 60_000;
     const depois = m.quandoMs + ESPELHO_JANELA_POS_MIN * 60_000;
-    const temEspelho = espelho.some(
-      (e) => e.ms >= antes && e.ms <= depois && e.tails.some((t) => m.tails.includes(t)),
-    );
-    if (!temEspelho) {
-      suspeitos.push(`${m.nome} — ${m.label} marcado ${fmtQuando(m.quandoIso)} sem espelho de envio`);
+    const semEspelho = m.destinatarios
+      .filter(
+        (d) =>
+          !espelho.some(
+            (e) => e.ms >= antes && e.ms <= depois && e.tails.some((t) => d.tails.includes(t)),
+          ),
+      )
+      .map((d) => d.papel);
+    if (semEspelho.length > 0) {
+      suspeitos.push(
+        `${m.nome} — ${m.label} marcado ${fmtQuando(m.quandoIso)} sem espelho para ${semEspelho.join(" e ")}`,
+      );
     }
   }
 
@@ -415,6 +442,97 @@ async function checkEnviosSemEspelho(supabase: Supabase, online: boolean | null)
         ? "Verificação parcial — houve falha de consulta."
         : `Todos os ${marcas.length} envios das últimas ${ESPELHO_JANELA_MARCAS_HORAS}h têm espelho de entrega.`,
     detalhes: erros,
+  };
+}
+
+// ─── Telefones inválidos (DDI ausente) ───────────────────────────────────────
+
+const TELEFONE_JANELA_DIAS = 90;
+
+/**
+ * O check que teria pego o incidente Gustavo Telles NA ENTRADA: lead com
+ * telefone E.164 quebrado ("+28…" = DDD sem o 55) nunca recebe mensagem no
+ * número afetado — o responsável fica sem o link de agendamento enquanto o
+ * atleta recebe os follow-ups. A CF send-whatsapp agora CURA o padrão no
+ * envio (healBrDdiAusente), mas o cadastro errado continua sendo um risco
+ * (Sheets, exports, contato manual) — este check aponta lead a lead, com o
+ * número corrigido sugerido. Crítico enquanto o outreach ainda não saiu
+ * (dá tempo de corrigir antes); atenção quando o envio já foi marcado.
+ */
+async function checkTelefonesInvalidos(supabase: Supabase): Promise<CheckResult> {
+  const id = "telefone_invalido";
+  const titulo = "Telefones inválidos (DDI ausente)";
+  const desde = new Date(Date.now() - TELEFONE_JANELA_DIAS * 86_400_000).toISOString();
+
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select(
+      "id, athlete_name, athlete_whatsapp, guardian_whatsapp, address_country, whatsapp_sent_at, aprovacao_status",
+    )
+    .is("deleted_at", null)
+    .in("qualification_classification", ["QUENTE", "MORNO"])
+    .gte("submitted_at", desde)
+    .order("submitted_at", { ascending: false })
+    .limit(1000);
+
+  if (error) {
+    return {
+      id,
+      titulo,
+      status: "atencao",
+      resumo: `Falha ao consultar leads: ${error.message}`,
+      detalhes: [],
+    };
+  }
+
+  const detalhes: string[] = [];
+  let criticos = 0;
+  for (const raw of data ?? []) {
+    const row = raw as Record<string, unknown>;
+    const pais = typeof row.address_country === "string" ? row.address_country : null;
+    const fones: Array<{ papel: string; valor: unknown }> = [
+      { papel: "atleta", valor: row.athlete_whatsapp },
+      { papel: "responsável", valor: row.guardian_whatsapp },
+    ];
+    for (const { papel, valor } of fones) {
+      const problema = analisarTelefone(valor, pais);
+      if (!problema) continue;
+      // Ainda sem outreach + na fila (pendente/aprovado) = dá tempo de corrigir.
+      const preOutreach =
+        !row.whatsapp_sent_at &&
+        (row.aprovacao_status === "pendente" || row.aprovacao_status === "aprovado");
+      if (preOutreach) criticos += 1;
+      const motivo =
+        problema.tipo === "ddi_ausente_br"
+          ? `DDI ausente; corrigir para ${problema.sugerido}`
+          : "número curto/quebrado";
+      detalhes.push(
+        `${String(row.athlete_name)} — ${papel} ${String(valor)} (${motivo})` +
+          (row.whatsapp_sent_at
+            ? " — envio já marcado: este destinatário pode ter ficado sem mensagens"
+            : " — outreach ainda pendente: corrigir ANTES do disparo"),
+      );
+    }
+  }
+
+  if (detalhes.length === 0) {
+    return {
+      id,
+      titulo,
+      status: "ok",
+      resumo: `Nenhum telefone quebrado entre os QUENTE/MORNO dos últimos ${TELEFONE_JANELA_DIAS} dias.`,
+      detalhes: [],
+    };
+  }
+  return {
+    id,
+    titulo,
+    status: criticos > 0 ? "critico" : "atencao",
+    resumo:
+      `${detalhes.length} telefone(s) quebrado(s) em leads QUENTE/MORNO (${TELEFONE_JANELA_DIAS}d)` +
+      (criticos > 0 ? ` — ${criticos} com outreach ainda pendente (corrigir agora)` : "") +
+      ". A CF cura o padrão no envio, mas o cadastro deve ser corrigido.",
+    detalhes: detalhes.slice(0, 20),
   };
 }
 
@@ -738,9 +856,10 @@ export async function runChecksFilas(): Promise<ObservabilidadeFilas> {
 
   const zapi = await checkZapiConexao();
 
-  const [fila, espelho, timing, presas, runs, marcados24hRes, espelhadas24hRes] = await Promise.all([
+  const [fila, espelho, telefones, timing, presas, runs, marcados24hRes, espelhadas24hRes] = await Promise.all([
     checkZapiFilaInterna(zapi.online),
     seguro("envios_sem_espelho", "Envios sem espelho de entrega", () => checkEnviosSemEspelho(supabase, zapi.online)),
+    seguro("telefone_invalido", "Telefones inválidos (DDI ausente)", () => checkTelefonesInvalidos(supabase)),
     seguro("timing_etapas", "Timing entre etapas (janela 30d)", () => checkTimingEtapas(supabase)),
     seguro("filas_presas", "Filas presas (além do prazo + folga)", () => checkFilasPresas(supabase)),
     seguro("runs_sistema", "Execuções de sistema (últimas 24h)", () => checkRunsSistema(supabase)),
@@ -758,7 +877,7 @@ export async function runChecksFilas(): Promise<ObservabilidadeFilas> {
       .gte("created_at", d1),
   ]);
 
-  const checks = [zapi.check, fila.check, espelho, presas, timing, runs];
+  const checks = [zapi.check, fila.check, espelho, telefones, presas, timing, runs];
 
   return {
     verificadoEm: new Date().toISOString(),
