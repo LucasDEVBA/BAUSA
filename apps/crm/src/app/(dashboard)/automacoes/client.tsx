@@ -504,6 +504,7 @@ const TEMPLATE_VARIAVEIS: Record<MensagemTemplate, string[]> = {
   early_potential: ["{atleta_nome}", "{responsavel_nome}", "{proximo_ano}"],
   late_timing: ["{atleta_nome}", "{responsavel_nome}"],
   scheduled_return: ["{atleta_nome}", "{responsavel_nome}", "{agenda_url}"],
+  reactivation: ["{atleta_nome}", "{responsavel_nome}", "{agenda_url}"],
 };
 
 /** Variáveis do par meeting_confirmed — espelham buildMeetingVars de
@@ -526,6 +527,7 @@ const TEMPLATE_TITULO: Record<MensagemTemplate, string> = {
   early_potential: "Timing cedo (early_potential)",
   late_timing: "Timing tarde (late_timing)",
   scheduled_return: "Retomada agendada (scheduled_return)",
+  reactivation: "Reativação (lead re-aprovado com histórico)",
 };
 
 /** Card de automação nativa. `intervaloChave`/`templates`/`editaReuniao`/
@@ -575,7 +577,7 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
       "Atleta e responsável recebem textos próprios — o responsável recebe o link de agendamento. O envio é único por lead.",
     ],
     intervaloChave: "whatsapp_inicial_horas",
-    templates: ["initial"],
+    templates: ["initial", "reactivation"],
     toggles: [{
       chave: "whatsapp_inicial",
       label: "Envio do WhatsApp inicial",
@@ -906,6 +908,15 @@ function SistemaAutomacoesSection({
           ...(payload.textos ?? {}),
           ...(payload.reuniao ? { meeting_confirmed: payload.reuniao } : {}),
         };
+        // Template OPCIONAL deixado em branco não entra no payload — em
+        // branco = builder hardcoded da CF (min de caracteres não se aplica).
+        if (
+          completo.reactivation &&
+          !completo.reactivation.atleta.trim() &&
+          !completo.reactivation.responsavel.trim()
+        ) {
+          delete completo.reactivation;
+        }
         const result = await atualizarMensagensScheduler(completo);
         if (!result.success) {
           toast.error(result.error ?? "Erro ao salvar mensagens");
@@ -1333,7 +1344,12 @@ function SistemaModal({
   const [textos, setTextos] = useState<Partial<Record<MensagemTemplate, MensagemPar>>>(() => {
     const inicial: Partial<Record<MensagemTemplate, MensagemPar>> = {};
     if (mensagens) {
-      for (const t of card.templates ?? []) inicial[t] = { ...mensagens[t] };
+      for (const t of card.templates ?? []) {
+        // Template opcional (reactivation) pode não existir em config antiga:
+        // começa vazio — vazio = builder hardcoded da CF (padrão dos defaults).
+        const par = mensagens[t];
+        inicial[t] = par ? { ...par } : { atleta: "", responsavel: "" };
+      }
     }
     return inicial;
   });

@@ -526,6 +526,35 @@ export async function aprovarLead(formSubmissionId: string) {
     };
   }
 
+  // ─── Reativação (ordem do CEO, 2026-08-24) ─────────────────────────────
+  // Lead re-aprovado que JÁ recebeu o outreach num ciclo anterior: a
+  // aprovação RE-ARMA o ciclo — a 1ª mensagem do novo ciclo é a de
+  // REABERTURA ('reactivation', enviada pelo whatsapp-scheduler no próximo
+  // tick com o CAS/anti-ban/gate de sempre) e, depois dela, o lead cai no
+  // MESMO follow-up (FU1 48h / FU2 7d). meeting_scheduled volta a false
+  // (flag de reunião morta do ciclo antigo não blinda os follow-ups novos;
+  // se agendarem de novo, o calendar-webhook re-seta). Best-effort: falha
+  // aqui não desfaz a aprovação — o CEO vê o lead aprovado e o monitor de
+  // filas acusa se o outreach não sair.
+  let reativacao = false;
+  if (fsRow.whatsapp_sent_at) {
+    const { error: reativErr } = await supabase
+      .from("form_submissions")
+      .update({
+        reativacao_em: new Date().toISOString(),
+        whatsapp_sent_at: null,
+        followup_1_sent_at: null,
+        followup_2_sent_at: null,
+        meeting_scheduled: false,
+      })
+      .eq("id", formSubmissionId);
+    if (reativErr) {
+      console.error("[aprovarLead] re-arme de reativação falhou", reativErr.message);
+    } else {
+      reativacao = true;
+    }
+  }
+
   // Gamificação (fail-open — null nunca quebra a aprovação)
   const gamificacao = await registrarEventoGamificacao(
     "lead_aprovado",
@@ -535,7 +564,7 @@ export async function aprovarLead(formSubmissionId: string) {
   revalidatePath("/leads");
   revalidatePath("/pipeline");
   revalidatePath("/war-room");
-  return { success: true, atletaId: promocao.atletaId, dealId: promocao.dealId, gamificacao };
+  return { success: true, atletaId: promocao.atletaId, dealId: promocao.dealId, gamificacao, reativacao };
 }
 
 export async function reprovarLead(formSubmissionId: string, motivo?: string) {
