@@ -92,6 +92,7 @@ const acaoSchema = z.discriminatedUnion("tipo", [
         "early_potential",
         "late_timing",
         "scheduled_return",
+        "reactivation",
       ]),
     }),
   }),
@@ -617,7 +618,7 @@ const PLACEHOLDERS_MEETING = new Set([
   "data_reuniao",
   "hora_reuniao",
 ]);
-const TEMPLATES_COM_AGENDA = ["initial", "followup_1", "followup_2", "scheduled_return"];
+const TEMPLATES_COM_AGENDA = ["initial", "followup_1", "followup_2", "scheduled_return", "reactivation"];
 
 const mensagensSchema = z
   .object({
@@ -627,6 +628,9 @@ const mensagensSchema = z
     early_potential: mensagemParSchema,
     late_timing: mensagemParSchema,
     scheduled_return: mensagemParSchema,
+    // Opcional (2026-08-24): template de REATIVAÇÃO — configs antigas sem a
+    // chave continuam salvando (a CF tem o builder hardcoded como fallback).
+    reactivation: mensagemParSchema.optional(),
     // Opcional: ambientes sem a migration meeting_confirmed continuam
     // salvando os demais templates (o calendar-webhook tem fallback próprio).
     meeting_confirmed: mensagemParReuniaoSchema.optional(),

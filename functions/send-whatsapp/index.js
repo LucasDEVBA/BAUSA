@@ -340,6 +340,46 @@ const CALENDAR_LINK_DESCRIPTION = 'Agende sua Reunião Estratégica com Leandro 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ─── Montar mensagens personalizadas ───────────────────────────
+// ─── Templates de REATIVAÇÃO (2026-08-24) ──────────────────────
+// Lead antigo que JÁ recebeu o outreach e não agendou, re-aprovado pelo CEO:
+// a primeira mensagem do novo ciclo NÃO pode repetir o 'initial' — anuncia a
+// REABERTURA de uma possibilidade (tom de exclusividade/escassez do funil).
+// Depois dela, o lead cai no MESMO follow-up de sempre (FU1 48h / FU2 7d).
+const buildReactivationAthleteMessage = (data) => {
+  const name = sanitize(data.athlete_name) || 'Atleta';
+
+  return `*${name}*, temos uma novidade importante. 🇺🇸
+
+Aqui é da *Bolsa Atleta USA*.
+
+No fechamento do ciclo atual de seleção, o nosso comitê reavaliou perfis que ficaram pelo caminho — e o seu voltou à mesa.
+
+✅ *Decidimos reabrir uma possibilidade para o seu projeto.*
+
+Isso acontece com um número muito restrito de atletas, e o seu perfil foi um dos selecionados para essa retomada.
+
+Já enviamos os detalhes e o link para o seu responsável. Fala com ele(a) ainda hoje — a janela desta reabertura é curta. 🚀`;
+};
+
+const buildReactivationGuardianMessage = (data) => {
+  const guardianName = sanitize(data.guardian_name) || 'Responsável';
+  const athleteName = sanitize(data.athlete_name) || 'seu(sua) filho(a)';
+
+  return `Olá, *${guardianName}*.
+
+Aqui é da *Bolsa Atleta USA*.
+
+No fechamento do ciclo atual de seleção, nosso comitê reavaliou alguns perfis — e uma decisão interna nos trouxe de volta ao de *${athleteName}*.
+
+✅ *Decidimos reabrir uma possibilidade de posicionamento para ${athleteName}* nas instituições parceiras de excelência nos Estados Unidos, dentro do modelo da *Educação Esportiva Inteligente®*.
+
+Essas reaberturas são raras: acontecem para um número muito restrito de famílias, quando identificamos que o potencial mapeado na primeira análise permanece — e que ainda existe janela para estruturar o projeto com segurança.
+
+O próximo passo é retomar exatamente de onde paramos: a *Reunião Estratégica Individual* com *Leandro Ribeiro*, fundador da Bolsa Atleta USA.
+
+A vaga desta reabertura está temporariamente reservada para vocês. Garanta o horário no link abaixo. 👇`;
+};
+
 const buildAthleteMessage = (data) => {
   const name = sanitize(data.athlete_name) || 'Atleta';
 
@@ -800,6 +840,7 @@ functions.http('sendWhatsApp', async (req, res) => {
       messageType === 'early_potential' ? buildEarlyPotentialAthleteMessage(data) :
       messageType === 'late_timing' ? buildLateTimingAthleteMessage(data) :
       messageType === 'scheduled_return' ? buildScheduledReturnAthleteMessage(data) :
+      messageType === 'reactivation' ? buildReactivationAthleteMessage(data) :
       buildAthleteMessage(data));
 
     const guardianMsg = guardianCustom || (
@@ -808,6 +849,7 @@ functions.http('sendWhatsApp', async (req, res) => {
       messageType === 'early_potential' ? buildEarlyPotentialGuardianMessage(data) :
       messageType === 'late_timing' ? buildLateTimingGuardianMessage(data) :
       messageType === 'scheduled_return' ? buildScheduledReturnGuardianMessage(data) :
+      messageType === 'reactivation' ? buildReactivationGuardianMessage(data) :
       buildGuardianMessage(data));
 
     const results = [];
