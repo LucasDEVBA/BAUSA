@@ -291,7 +291,15 @@ const timingToMessageType = (timingStatus) => {
 
 // ─── Enviar WhatsApp via send-whatsapp function ────────────────
 const triggerWhatsApp = async (lead) => {
-  const messageType = timingToMessageType(lead.timing_status);
+  // Reativação (2026-08-24): lead re-aprovado COM histórico teve o ciclo
+  // re-armado pelo aprovarLead (whatsapp_sent_at NULL + reativacao_em=NOW).
+  // O Bucket A o pega normalmente (mesma máquina/CAS/anti-ban/gate humano),
+  // mas a 1ª mensagem do novo ciclo é a de REABERTURA — nunca o 'initial'
+  // repetido. Vale para qualquer timing (a reabertura é a mensagem certa
+  // p/ quem já recebeu outreach antes). Depois dela, FU1/FU2 normais.
+  const messageType = lead.reativacao_em
+    ? 'reactivation'
+    : timingToMessageType(lead.timing_status);
   const payload = JSON.stringify({
     record: { ...lead },
     messageType,
@@ -480,7 +488,10 @@ functions.http('processPendingWhatsApp', async (req, res) => {
         // 2b-bis. Para timing alternativo (muito_cedo / tarde_demais),
         // dispara também o email correspondente. Para 'ideal' o email
         // de boas-vindas já foi enviado no fluxo de INSERT do form.
-        const isAlternativeTiming = lead.timing_status === 'muito_cedo' || lead.timing_status === 'tarde_demais';
+        // Reativação NUNCA dispara o e-mail de timing: o lead já recebeu a
+        // comunicação do seu timing no 1º ciclo — repetir seria contraditório.
+        const isAlternativeTiming = !lead.reativacao_em &&
+          (lead.timing_status === 'muito_cedo' || lead.timing_status === 'tarde_demais');
         if (isAlternativeTiming) {
           try {
             const emailResult = await triggerEmail(lead);

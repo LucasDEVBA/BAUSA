@@ -123,6 +123,7 @@ export default function NovoLeadPage() {
     // Responsável
     guardian_name: "",
     guardian_profession: "",
+    guardian_profession_2: "",
     guardian_phone: "",
     guardian_email: "",
     // Origem / Indicação
@@ -171,6 +172,7 @@ export default function NovoLeadPage() {
         english_level: form.english_level || null,
         guardian_name: form.guardian_name || null,
         guardian_profession: form.guardian_profession || null,
+        guardian_profession_2: form.guardian_profession_2 || null,
         guardian_email: form.guardian_email || null,
         investment_range: form.investment_range || null,
         club_history: form.club_history || null,
@@ -225,7 +227,7 @@ export default function NovoLeadPage() {
                 current_school: "", school_city_state: "", education_model: "", academic_performance: "", english_level: "",
                 position: "", club_history: "", achievements: "",
                 start_timing: "", project_direction: "", athlete_commitment: "", family_decision: "", investment_range: "",
-                guardian_name: "", guardian_profession: "", guardian_phone: "", guardian_email: "",
+                guardian_name: "", guardian_profession: "", guardian_profession_2: "", guardian_phone: "", guardian_email: "",
                 origem: "", indicador_nome: "", indicador_tipo: "",
                 address_cep: "", address_city: "", address_state: "", address_street: "",
               }); }}
@@ -483,6 +485,9 @@ export default function NovoLeadPage() {
                 </div>
                 <Field label="Profissão" required>
                   <input className={inputClass} placeholder="Ex: Empresário, Médico..." value={form.guardian_profession} onChange={(e) => update("guardian_profession", e.target.value)} />
+                </Field>
+                <Field label="Profissão do 2º responsável (opcional)">
+                  <input className={inputClass} placeholder="Renda familiar é somada no classificador" value={form.guardian_profession_2} onChange={(e) => update("guardian_profession_2", e.target.value)} />
                 </Field>
                 <Field label="Telefone / WhatsApp" required>
                   <input className={inputClass} placeholder="(11) 99999-9999" value={form.guardian_phone} onChange={(e) => update("guardian_phone", e.target.value)} />
