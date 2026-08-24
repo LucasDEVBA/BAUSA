@@ -15,7 +15,10 @@ import {
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, MessageCircle, Check, Calendar, Send, Clock, AlertTriangle, X, Users, EyeOff, Trash2 } from "lucide-react";
 import { type Lead, type LeadClassification } from "@/types/lead";
 import { excluirLead } from "@/lib/actions/leads-excluir";
+// Type-only (statement inteiro é elidido no build): a lib é server-side.
+import type { PrioridadeLead } from "@/lib/prioridade-engajamento";
 import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
+import { Badge } from "@/components/ui";
 import { LeadStatusBadge } from "./LeadStatusBadge";
 import { LeadOrDealSheet } from "./LeadOrDealSheet";
 import { formatRelativeTime, formatInvestmentRange, formatPhone } from "@/lib/utils";
@@ -24,6 +27,9 @@ import { toast } from "sonner";
 
 interface LeadsTableProps {
   leads: Lead[];
+  /** Prioridade P1/P2 por engajamento, keyed por form_submission_id — só
+   *  leads aprovados QUENTE/MORNO têm entrada; sem entrada = sem badge. */
+  prioridades?: Record<string, PrioridadeLead>;
 }
 
 const CLASSIFICATION_FILTERS: Array<{ label: string; value: LeadClassification | "ALL" }> = [
@@ -31,6 +37,9 @@ const CLASSIFICATION_FILTERS: Array<{ label: string; value: LeadClassification |
   { label: "Quente", value: "QUENTE" },
   { label: "Morno", value: "MORNO" },
   { label: "Frio", value: "FRIO" },
+  // Estados v2 (dado sujo / campos ausentes) — fora do funil, mas filtráveis
+  { label: "Inválido", value: "INVALIDO" },
+  { label: "Incompleto", value: "INCOMPLETO" },
 ];
 
 function SortIcon({ isSorted }: { isSorted: false | "asc" | "desc" }) {
@@ -39,7 +48,7 @@ function SortIcon({ isSorted }: { isSorted: false | "asc" | "desc" }) {
   return <ArrowUpDown className="h-3 w-3 opacity-40" />;
 }
 
-export function LeadsTable({ leads }: LeadsTableProps) {
+export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
   const searchParams = useSearchParams();
   const atletaParam = searchParams.get("atleta");
   const qParam = searchParams.get("q") ?? "";
@@ -186,6 +195,26 @@ export function LeadsTable({ leads }: LeadsTableProps) {
           />
         ),
         size: 110,
+      },
+      {
+        id: "prioridade",
+        header: "Prioridade",
+        accessorFn: (row) => prioridades?.[row.id]?.nivel ?? "",
+        cell: ({ row }) => {
+          const p = prioridades?.[row.original.id];
+          // Sem entrada (não aprovado / FRIO / falha de leitura) = sem badge.
+          if (!p) return <span className="text-xs text-label-tertiary">—</span>;
+          const title =
+            p.motivos.length > 0
+              ? `${p.motivos.join(" · ")} · ${p.pontos} pts`
+              : `Sem sinais de engajamento ainda · ${p.pontos} pts`;
+          return (
+            <Badge size="sm" tone={p.nivel === "P1" ? "red" : "orange"} title={title}>
+              {p.nivel}
+            </Badge>
+          );
+        },
+        size: 90,
       },
       {
         accessorKey: "investment_range",
@@ -371,7 +400,8 @@ export function LeadsTable({ leads }: LeadsTableProps) {
         size: 44,
       },
     ],
-    []
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- estados de popover/duplicata já eram lidos via closure (comportamento herdado); prioridades entra como dep real.
+    [prioridades]
   );
 
   const table = useReactTable({

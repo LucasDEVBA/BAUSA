@@ -76,6 +76,16 @@ export interface Deal {
   motivo_gemini?: string;
   confianca_gemini?: string;
   qualificado_gemini_at?: string;
+  // Classificador v2 (form_submissions, migration 20260825120000) — ausentes
+  // em leads pré-v2; a exibição degrada
+  score_financeiro?: number | null;
+  tier_profissao?: string | null;
+  sinais_reforco?: string[] | null;
+  sinais_alerta?: string[] | null;
+  /** Potencial ESPORTIVO (ALTA/MEDIA/PADRAO) — eixo independente do score
+   *  financeiro e distinto de `prioridade_engajamento` (P1/P2). */
+  prioridade_estrategica?: string | null;
+  acao_recomendada?: string | null;
   // Lead Score
   lead_score?: number;
   // Reuniao
@@ -123,6 +133,10 @@ export interface Deal {
   /** Timing do lead (form_submissions) — badge no card desde 2026-08-11,
    *  quando a coluna aguardando_timing saiu do board. */
   timing_status?: DealTimingStatus | string;
+  /** Prioridade interna P1/P2 por ENGAJAMENTO (camada de exibição, calculada
+   *  na page via lib/prioridade-engajamento — não substitui a classe Gemini).
+   *  União inline p/ não acoplar a camada de types à lib server-side. */
+  prioridade_engajamento?: { nivel: "P1" | "P2"; pontos: number; motivos: string[] } | null;
 }
 
 export interface DealStageConfig {

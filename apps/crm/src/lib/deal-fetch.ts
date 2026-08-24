@@ -1,3 +1,4 @@
+import { parseSinaisV2 } from "@/lib/classificador-v2";
 import { createBrowserClient } from "@/lib/supabase-browser";
 import { type Deal, type DealStage } from "@/types/deal";
 import { type LeadClassification } from "@/types/lead";
@@ -55,7 +56,9 @@ export async function fetchDeal(dealId: string): Promise<Deal | null> {
           submitted_at, whatsapp_sent_at, followup_1_sent_at,
           followup_2_sent_at, meeting_scheduled, meeting_scheduled_at,
           qualification_reason, qualification_confidence, qualified_at,
-          guardian_name, guardian_profession, guardian_email
+          guardian_name, guardian_profession, guardian_email,
+          score_financeiro, tier_profissao, sinais_reforco, sinais_alerta,
+          prioridade_estrategica, acao_recomendada
         )
       )
     `)
@@ -98,6 +101,13 @@ export async function fetchDeal(dealId: string): Promise<Deal | null> {
     motivo_gemini: (atleta?.motivo_gemini as string) ?? undefined,
     confianca_gemini: (atleta?.confianca_gemini as string) ?? undefined,
     qualificado_gemini_at: (atleta?.qualificado_gemini_at as string) ?? undefined,
+    // Classificador v2 (form_submissions) — NULL em leads pré-v2
+    score_financeiro: typeof fs?.score_financeiro === "number" ? fs.score_financeiro : null,
+    tier_profissao: (fs?.tier_profissao as string) ?? null,
+    sinais_reforco: parseSinaisV2(fs?.sinais_reforco),
+    sinais_alerta: parseSinaisV2(fs?.sinais_alerta),
+    prioridade_estrategica: (fs?.prioridade_estrategica as string) ?? null,
+    acao_recomendada: (fs?.acao_recomendada as string) ?? null,
     // Lead Score
     lead_score: (atleta?.lead_score as number) ?? undefined,
     // Reuniao

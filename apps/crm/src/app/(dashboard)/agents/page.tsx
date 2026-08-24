@@ -104,10 +104,12 @@ export default async function AgentsPage() {
   const docPrompt = lerPromptSistema(configs, "doc_classificacao_prompt");
 
   // Prompts com editor especializado (mora em /automacoes) — só sinalizamos se há override.
-  const qualificacaoRaw = (configs.qualificacao_prompt ?? {}) as Record<string, unknown>;
-  const qualificacaoCustom = Object.values(qualificacaoRaw).some(
-    (v) => typeof v === "string" && v.trim().length > 0,
-  );
+  // Classificador v2 (qualificacao_v2): custom = system_prompt não-vazio
+  // (as variáveis numéricas são calibração, não override de prompt).
+  const qualificacaoRaw = (configs.qualificacao_v2 ?? {}) as { system_prompt?: unknown };
+  const qualificacaoCustom =
+    typeof qualificacaoRaw.system_prompt === "string" &&
+    qualificacaoRaw.system_prompt.trim().length > 0;
   const npsRaw = (configs.nps_mensagem ?? {}) as { texto?: string };
   const npsCustom = typeof npsRaw.texto === "string" && npsRaw.texto.trim().length > 0;
 

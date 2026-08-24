@@ -1,4 +1,7 @@
-export type LeadClassification = "QUENTE" | "MORNO" | "FRIO";
+/** Estados do classificador: QUENTE/MORNO/FRIO (v1+v2) + os estados v2
+ *  INVALIDO (dado sujo/injeção) e INCOMPLETO (profissão/faixa ausentes) —
+ *  esses dois nunca entram em pipeline/outreach. */
+export type LeadClassification = "QUENTE" | "MORNO" | "FRIO" | "INVALIDO" | "INCOMPLETO";
 
 export interface Lead {
   id: string;
@@ -62,6 +65,17 @@ export interface Lead {
   qualification_reason: string | null;
   qualification_confidence: string | null;
   qualified_at: string | null;
+
+  // Classificador v2 (migration 20260825120000) — NULL em leads pré-v2;
+  // toda exibição degrada graciosamente
+  score_financeiro?: number | null;
+  tier_profissao?: string | null;
+  sinais_reforco?: string[] | null;
+  sinais_alerta?: string[] | null;
+  /** Potencial ESPORTIVO (ALTA/MEDIA/PADRAO) — eixo independente do score
+   *  financeiro e distinto da prioridade P1/P2 por engajamento. */
+  prioridade_estrategica?: string | null;
+  acao_recomendada?: string | null;
 
   // Comunicação e Follow-ups
   whatsapp_sent_at: string | null;

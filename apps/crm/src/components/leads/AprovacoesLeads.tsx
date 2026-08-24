@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 
 import { Badge, Button, EmptyState, Skeleton } from "@/components/ui";
+import { ClassificadorV2Resumo } from "@/components/leads/ClassificadorV2Resumo";
 import {
   aprovarLead,
   contarLeadsPendentesAprovacao,
@@ -297,14 +298,22 @@ export function AprovacaoLeadsModal({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="truncate text-sm font-medium text-foreground">{l.athlete_name}</p>
-                        <Badge tone={classeTone(l.qualification_classification)} size="sm">
-                          {l.qualification_classification === "QUENTE" ? (
-                            <Flame className="size-2.5" />
-                          ) : (
-                            <Thermometer className="size-2.5" />
+                        <span className="flex shrink-0 items-center gap-1">
+                          {/* Score do Classificador v2 — a fila ordena por ele (nulls last) */}
+                          {l.score_financeiro != null && (
+                            <Badge tone="neutral" size="sm" className="tabular-nums">
+                              {l.score_financeiro}
+                            </Badge>
                           )}
-                          {l.qualification_classification ?? "—"}
-                        </Badge>
+                          <Badge tone={classeTone(l.qualification_classification)} size="sm">
+                            {l.qualification_classification === "QUENTE" ? (
+                              <Flame className="size-2.5" />
+                            ) : (
+                              <Thermometer className="size-2.5" />
+                            )}
+                            {l.qualification_classification ?? "—"}
+                          </Badge>
+                        </span>
                       </div>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {l.position ?? "—"} · {l.city_state ?? "—"}
@@ -376,6 +385,8 @@ export function AprovacaoLeadsModal({
                         <p className="mt-1.5 text-sm leading-relaxed text-foreground">
                           {selecionado.qualification_reason ?? "Sem justificativa registrada."}
                         </p>
+                        {/* Classificador v2 — some sozinho em leads pré-v2 (campos NULL) */}
+                        <ClassificadorV2Resumo dados={selecionado} />
                         <p className="mt-1.5 text-[11px] text-label-tertiary">
                           Qualificado em {fmtData(selecionado.qualified_at)}
                         </p>

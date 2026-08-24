@@ -158,6 +158,18 @@ export const pt = {
       profession: { label: "Profissão", placeholder: "Profissão" },
       phone: { label: "Telefone / WhatsApp" },
       email: { label: "E-mail", placeholder: "email@exemplo.com" },
+      profession2: { label: "Profissão do segundo responsável", placeholder: "Profissão" },
+      travel: { label: "O atleta já viajou para o exterior?", yes: "Sim", no: "Não" },
+      source: {
+        label: "Como você conheceu a Bolsa Atleta USA?",
+        placeholder: "Selecione uma opção",
+        referral: "Indicação de amigo/família",
+        instagram: "Instagram",
+        google: "Google",
+        ad: "Anúncio online",
+        youtube: "YouTube",
+        other: "Outro",
+      },
     },
 
     step13: {

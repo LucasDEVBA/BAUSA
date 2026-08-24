@@ -8,7 +8,7 @@ import type {
   SistemaAtivas,
   SistemaEmailConfig,
 } from "@/lib/actions/automacoes-builder";
-import type { QualificacaoPromptCfg } from "@/lib/automacoes/qualificacao-prompt-defaults";
+import type { QualificacaoV2Cfg } from "@/lib/automacoes/qualificacao-v2-defaults";
 import type {
   Automacao,
   AutomacaoComStats,
@@ -95,7 +95,7 @@ export default async function AutomacoesPage() {
     { data: mensagensRow },
     { data: ativasRow },
     { data: emailCfgRow },
-    { data: promptCfgRow },
+    { data: qualifV2Row },
     { data: insightsCfgRow },
     { data: transcricaoCfgRow },
     { data: cacCfgRow },
@@ -124,7 +124,7 @@ export default async function AutomacoesPage() {
     supabase
       .from("configuracoes_sistema")
       .select("valor")
-      .eq("chave", "qualificacao_prompt")
+      .eq("chave", "qualificacao_v2")
       .maybeSingle(),
     supabase
       .from("configuracoes_sistema")
@@ -160,7 +160,7 @@ export default async function AutomacoesPage() {
   // desabilitada no client (as CFs seguem fail-open com os defaults).
   const ativas = (ativasRow?.valor as SistemaAtivas | undefined) ?? null;
   const emailCfg = (emailCfgRow?.valor as SistemaEmailConfig | undefined) ?? null;
-  const promptCfg = (promptCfgRow?.valor as QualificacaoPromptCfg | undefined) ?? null;
+  const qualifV2Cfg = (qualifV2Row?.valor as QualificacaoV2Cfg | undefined) ?? null;
   const insightsCfg = (insightsCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
   const transcricaoCfg = (transcricaoCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
   const cacCfg = (cacCfgRow?.valor as { instrucoes?: string } | undefined) ?? null;
@@ -196,7 +196,7 @@ export default async function AutomacoesPage() {
       mensagens={mensagens}
       ativas={ativas}
       emailCfg={emailCfg}
-      promptCfg={promptCfg}
+      qualifV2Cfg={qualifV2Cfg}
       insightsCfg={insightsCfg}
       transcricaoCfg={transcricaoCfg}
       cacCfg={cacCfg}
