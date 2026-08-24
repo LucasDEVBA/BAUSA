@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
+import { QUALIFICACAO_V2_PROMPT_MAX } from "@/lib/automacoes/qualificacao-v2-defaults";
 import { ETAPA_LABELS } from "@/types/crm";
 
 // ─── Schemas (espelham src/types/automacao.ts) ──────────────────────────────
@@ -807,7 +808,7 @@ export async function atualizarEmailConfig(input: {
 // Texto do WhatsApp da pesquisa NPS aos 6 meses (CF experiencia-scheduler).
 // Vazio/ausente → default do código (NPS_MENSAGEM_DEFAULT). Placeholders
 // suportados pela CF: {{responsavel}} e {{atleta}} — desconhecido chegaria
-// LITERAL na mensagem (mesma classe de guard do qualificacao_prompt).
+// LITERAL na mensagem (mesma classe de guard do scheduler_mensagens).
 const NPS_PLACEHOLDERS_VALIDOS = ["{{responsavel}}", "{{atleta}}"];
 const npsMensagemSchema = z.object({
   texto: z
@@ -866,100 +867,57 @@ export async function atualizarNpsMensagem(input: { texto?: string }): Promise<A
   }
 }
 
-// Seções editáveis do prompt Gemini de qualificação. Seção ausente/vazia →
-// a CF usa o default do código (fail-open). Limite folgado por seção; o
-// contrato de saída JSON permanece fixo na CF (não é editável).
-const PROMPT_SECAO_MAX = 4000;
-// Único placeholder válido nas seções (substituído pela CF na montagem).
-const PROMPT_PLACEHOLDER_VALIDO = "{criterio_endereco}";
-const promptCfgSchema = z
+// Classificador v2 (chave qualificacao_v2): as variáveis de NEGÓCIO vivem na
+// config — afrouxar/apertar o funil sem tocar em código. O prompt em si é
+// versionado na CF (PROMPT_V2_VERSION); `system_prompt` não-vazio sobrescreve
+// o texto inteiro (uso avançado — os {{PLACEHOLDERS}} seguem substituídos).
+// Substitui o editor de seções do v1 (config qualificacao_prompt, MORTA —
+// a CF não a lê mais).
+const qualificacaoV2Schema = z
   .object({
-    persona: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
-    criterio_quente: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
-    criterio_morno: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
-    morno_endereco_br: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
-    morno_endereco_internacional: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
-    criterio_frio: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
-    regra_renda_variavel: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
-    regras_importantes: z.string().trim().max(PROMPT_SECAO_MAX).optional(),
+    cotacao_usd: z
+      .number({ message: "Cotação USD inválida" })
+      .positive("Cotação USD deve ser maior que zero"),
+    renda_minima_mensal: z
+      .number({ message: "Renda de referência inválida" })
+      .positive("Renda de referência deve ser maior que zero"),
+    corte_ibge: z
+      .number({ message: "Corte IBGE inválido" })
+      .positive("Corte IBGE deve ser maior que zero")
+      .nullable(),
+    corte_quente: z.number().int().min(1).max(100),
+    corte_frio: z.number().int().min(1).max(100),
+    system_prompt: z
+      .string()
+      .trim()
+      .max(QUALIFICACAO_V2_PROMPT_MAX, `System prompt: máx ${QUALIFICACAO_V2_PROMPT_MAX} caracteres`),
   })
-  // Seções futuras gravadas por outra versão não quebram o save (forward-compat)
-  .catchall(z.string().trim().max(PROMPT_SECAO_MAX))
-  // Invariantes que a CF depende (mesma classe de guard do scheduler_mensagens:
-  // "remover {agenda_url} quebraria em silêncio"):
   .superRefine((val, ctx) => {
-    // 1) criterio_morno customizado DEVE manter o placeholder — sem ele o
-    //    critério de endereço some de TODA qualificação (MORNO vira FRIO).
-    if (val.criterio_morno && !val.criterio_morno.includes(PROMPT_PLACEHOLDER_VALIDO)) {
+    // Faixas do score: 1 ≤ frio < quente ≤ 100 — invertê-las zeraria QUENTE.
+    if (val.corte_frio >= val.corte_quente) {
       ctx.addIssue({
         code: "custom",
-        message: `O critério MORNO deve conter ${PROMPT_PLACEHOLDER_VALIDO} (substituído pela variante BR/internacional).`,
+        message: "Corte FRIO deve ser menor que o corte QUENTE (1 ≤ frio < quente ≤ 100).",
       });
-    }
-    // 2) Placeholder desconhecido chegaria LITERAL no prompt (typo silencioso).
-    for (const [chave, texto] of Object.entries(val)) {
-      if (typeof texto !== "string") continue;
-      for (const m of texto.matchAll(/\{[a-z_]+\}/g)) {
-        if (m[0] !== PROMPT_PLACEHOLDER_VALIDO) {
-          ctx.addIssue({
-            code: "custom",
-            message: `Placeholder desconhecido ${m[0]} em "${chave}" — só ${PROMPT_PLACEHOLDER_VALIDO} é substituído.`,
-          });
-        }
-      }
-    }
-    // 3) Âncoras de classe: o parser da CF espera QUENTE/MORNO/FRIO — critério
-    //    sem o próprio rótulo desorienta o Gemini (classe fora do contrato).
-    const ancoras: [keyof typeof val, string][] = [
-      ["criterio_quente", "QUENTE"],
-      ["criterio_morno", "MORNO"],
-      ["criterio_frio", "FRIO"],
-    ];
-    for (const [chave, rotulo] of ancoras) {
-      const texto = val[chave];
-      if (typeof texto === "string" && texto && !texto.includes(rotulo)) {
-        ctx.addIssue({
-          code: "custom",
-          message: `O critério deve conter o rótulo ${rotulo} (contrato de saída da qualificação).`,
-        });
-      }
     }
   });
 
-export type QualificacaoPromptInput = Partial<
-  Record<
-    | "persona"
-    | "criterio_quente"
-    | "criterio_morno"
-    | "morno_endereco_br"
-    | "morno_endereco_internacional"
-    | "criterio_frio"
-    | "regra_renda_variavel"
-    | "regras_importantes",
-    string
-  >
->;
+export type QualificacaoV2Input = z.input<typeof qualificacaoV2Schema>;
 
-/** Atualiza as seções editáveis do prompt de qualificação (configuracoes_
- *  sistema.qualificacao_prompt). Só OVERRIDES são gravados — seção vazia é
- *  omitida (a CF continua no default do código, que é a fonte da verdade e
- *  evolui sem "congelar" texto antigo). */
-export async function atualizarQualificacaoPrompt(
-  input: QualificacaoPromptInput,
+/** Atualiza as variáveis do Classificador v2 (configuracoes_sistema.
+ *  qualificacao_v2). O objeto é reescrito por completo — `system_prompt`
+ *  vazio volta ao prompt versionado no código da CF (fonte da verdade). */
+export async function atualizarQualificacaoV2(
+  input: QualificacaoV2Input,
 ): Promise<ActionResult> {
   const denied = await requireCeo();
   if (denied) return { success: false, error: denied };
 
-  // Remove campos vazios (voltam ao default do código)
-  const semVazios: Record<string, string> = {};
-  for (const [k, v] of Object.entries(input)) {
-    if (typeof v === "string" && v.trim()) semVazios[k] = v;
-  }
-  const parsed = promptCfgSchema.safeParse(semVazios);
+  const parsed = qualificacaoV2Schema.safeParse(input);
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? `Seções inválidas (máx ${PROMPT_SECAO_MAX} caracteres)`,
+      error: parsed.error.issues[0]?.message ?? "Configuração do classificador inválida",
     };
   }
 
@@ -968,18 +926,18 @@ export async function atualizarQualificacaoPrompt(
     const { data, error } = await supabase
       .from("configuracoes_sistema")
       .update({ valor: parsed.data })
-      .eq("chave", "qualificacao_prompt")
+      .eq("chave", "qualificacao_v2")
       .select("chave");
 
     if (error) return { success: false, error: error.message };
     if (!data || data.length === 0) {
-      return { success: false, error: "Config qualificacao_prompt não encontrada (migration pendente?)" };
+      return { success: false, error: "Config qualificacao_v2 não encontrada (migration pendente?)" };
     }
     revalidatePath("/automacoes");
     return { success: true };
   } catch (err) {
-    console.error({ level: "error", action: "atualizar_qualificacao_prompt", error: String(err) });
-    return { success: false, error: "Erro inesperado ao salvar o prompt." };
+    console.error({ level: "error", action: "atualizar_qualificacao_v2", error: String(err) });
+    return { success: false, error: "Erro inesperado ao salvar a configuração do classificador." };
   }
 }
 

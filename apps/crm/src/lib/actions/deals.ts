@@ -148,6 +148,38 @@ export async function moverDeal(
     });
   }
 
+  // ─── Loop de aprendizado do classificador v2 (spec §10, best-effort) ─────
+  // desfecho_real permite cruzar previsto × realizado a cada ciclo de 90d.
+  // fechou = contrato assinado em diante; perdeu = perdido. Nunca bloqueia.
+  const DESFECHO_POR_ETAPA: Partial<Record<StatusDeal, string>> = {
+    contrato_assinado: "fechou",
+    sinal_pago: "fechou",
+    admission_process: "fechou",
+    concluido: "fechou",
+    perdido: "perdeu",
+  };
+  const desfechoReal = DESFECHO_POR_ETAPA[novaEtapa];
+  if (desfechoReal && deal.atleta_id) {
+    try {
+      const { data: atletaFs } = await supabase
+        .from("atletas")
+        .select("form_submission_id")
+        .eq("id", deal.atleta_id)
+        .maybeSingle();
+      if (atletaFs?.form_submission_id) {
+        const { error: desfechoErr } = await supabase
+          .from("form_submissions")
+          .update({ desfecho_real: desfechoReal })
+          .eq("id", atletaFs.form_submission_id);
+        if (desfechoErr) {
+          console.warn("[moverDeal] desfecho_real update failed", desfechoErr.message);
+        }
+      }
+    } catch (err) {
+      console.warn("[moverDeal] desfecho_real update failed", err);
+    }
+  }
+
   // ─── Handoff application-level (best-effort, NUNCA bloqueia o sucesso) ───
   const FASES_FAMILIA: StatusDeal[] = ["admission_process", "concluido"];
   if (FASES_FAMILIA.includes(novaEtapa) && deal.atleta_id) {

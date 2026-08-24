@@ -160,6 +160,18 @@ const en: Translations = {
       profession: { label: "Profession", placeholder: "Profession" },
       phone: { label: "Phone / WhatsApp" },
       email: { label: "Email", placeholder: "email@example.com" },
+      profession2: { label: "Second guardian's profession", placeholder: "Profession" },
+      travel: { label: "Has the athlete ever traveled abroad?", yes: "Yes", no: "No" },
+      source: {
+        label: "How did you hear about Bolsa Atleta USA?",
+        placeholder: "Select an option",
+        referral: "Friend/family referral",
+        instagram: "Instagram",
+        google: "Google",
+        ad: "Online ad",
+        youtube: "YouTube",
+        other: "Other",
+      },
     },
 
     step13: {

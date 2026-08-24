@@ -68,6 +68,10 @@ const formSchema = z.object({
   familyDecision: z.string().min(1, "Selecione uma opção"),
   guardianName: z.string().min(1, "Nome é obrigatório"),
   guardianProfession: z.string().min(1, "Profissão é obrigatória"),
+  // Campos opcionais do classificador v2 (spec §11) — nunca bloqueiam o envio
+  guardianProfession2: z.string().optional(),
+  viajouExterior: z.string().optional(), // "sim" | "nao" | "" → boolean|null no payload
+  comoConheceu: z.string().optional(),
   guardianWhatsapp: z
     .string()
     .min(1, "Telefone é obrigatório")
@@ -156,7 +160,7 @@ const stepFieldsMap: Record<number, (keyof FormData)[]> = {
   9: ["youthCommitment"],
   10: ["familyDecision"],
   11: ["investmentRange"],
-  12: ["guardianName", "guardianProfession", "guardianWhatsapp", "guardianEmail"],
+  12: ["guardianName", "guardianProfession", "guardianWhatsapp", "guardianEmail", "guardianProfession2", "viajouExterior", "comoConheceu"],
   13: ["country", "addressCep", "addressStreet", "addressNumber", "addressComplement", "addressNeighborhood", "addressCity", "addressState"],
 };
 
@@ -194,7 +198,9 @@ const Forms = () => {
       position: "", clubHistory: "", achievements: "", instagram: "", videoHighlights: "",
       academicPerformance: "", englishLevel: "",
       behavioralProfile: "", youthCommitment: "", familyDecision: "",
-      guardianName: "", guardianProfession: "", guardianWhatsapp: "", guardianEmail: "",
+      guardianName: "", guardianProfession: "", guardianProfession2: "",
+      viajouExterior: "", comoConheceu: "",
+      guardianWhatsapp: "", guardianEmail: "",
       country: "BR",
       addressCep: "", addressStreet: "", addressNumber: "", addressComplement: "",
       addressNeighborhood: "", addressCity: "", addressState: "",
@@ -373,6 +379,7 @@ const Forms = () => {
     const results = await Promise.all(fields.filter(f => {
       // Campos sempre opcionais
       if (f === "achievements" || f === "instagram" || f === "addressComplement") return false;
+      if (f === "guardianProfession2" || f === "viajouExterior" || f === "comoConheceu") return false;
       // Campos opcionais para não-brasileiros (superRefine valida conforme país)
       if (!isBrazil && (f === "addressCep" || f === "addressStreet" || f === "addressNumber" || f === "addressNeighborhood" || f === "addressState")) return false;
       return true;
@@ -474,6 +481,11 @@ const Forms = () => {
         guardian_email: data.guardianEmail.trim(),
         guardian_whatsapp: data.guardianWhatsapp.trim() || data.whatsapp.trim(),
         guardian_profession: data.guardianProfession.trim(),
+        // Campos opcionais do classificador v2 (spec §11)
+        guardian_profession_2: data.guardianProfession2?.trim() || null,
+        viajou_exterior:
+          data.viajouExterior === "sim" ? true : data.viajouExterior === "nao" ? false : null,
+        como_conheceu: data.comoConheceu || null,
         address_country: data.country || "BR",
         address_cep: data.addressCep?.trim() || null,
         address_street: data.addressStreet?.trim() || null,
@@ -1108,6 +1120,65 @@ const Forms = () => {
               <label className={labelClass}>{t("form.step12.email.label")}</label>
               <Input {...register("guardianEmail")} type="email" placeholder={t("form.step12.email.placeholder")} className={inputClass} />
               <FieldError field="guardianEmail" />
+            </div>
+            <div>
+              <label className={labelClass}>
+                {t("form.step12.profession2.label")} <span className="text-white/40">({t("form.optional")})</span>
+              </label>
+              <Input {...register("guardianProfession2")} placeholder={t("form.step12.profession2.placeholder")} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>
+                {t("form.step12.travel.label")} <span className="text-white/40">({t("form.optional")})</span>
+              </label>
+              <RadioGroup
+                onValueChange={(v) => setValue("viajouExterior", v)}
+                value={watch("viajouExterior")}
+                className="space-y-2.5"
+              >
+                {([
+                  { value: "sim", label: t("form.step12.travel.yes") },
+                  { value: "nao", label: t("form.step12.travel.no") },
+                ] as const).map(opt => (
+                  <RadioOption key={opt.value} field="viajouExterior" value={opt.value} label={opt.label} />
+                ))}
+              </RadioGroup>
+            </div>
+            <div>
+              <label className={labelClass}>
+                {t("form.step12.source.label")} <span className="text-white/40">({t("form.optional")})</span>
+              </label>
+              <Select
+                value={watch("comoConheceu")}
+                onValueChange={(v) => setValue("comoConheceu", v)}
+              >
+                <SelectTrigger className="w-full bg-transparent border-0 border-b-2 border-white/30 hover:border-white/50 data-[state=open]:border-white rounded-none px-1 py-3.5 sm:py-4 text-[16px] sm:text-lg text-white ring-0 outline-none focus:ring-0 h-auto shadow-none transition-all duration-300 [&>span]:line-clamp-1 data-[placeholder]:text-white/45">
+                  <SelectValue placeholder={t("form.step12.source.placeholder")} />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  side="bottom"
+                  sideOffset={8}
+                  className="bg-[#0A1024]/90 backdrop-blur-2xl border border-white/10 text-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] z-[100] w-[var(--radix-select-trigger-width)] max-h-[280px] overflow-hidden"
+                >
+                  {[
+                    { value: "indicacao", label: t("form.step12.source.referral") },
+                    { value: "instagram", label: t("form.step12.source.instagram") },
+                    { value: "google",    label: t("form.step12.source.google") },
+                    { value: "anuncio",   label: t("form.step12.source.ad") },
+                    { value: "youtube",   label: t("form.step12.source.youtube") },
+                    { value: "outro",     label: t("form.step12.source.other") },
+                  ].map((opt) => (
+                    <SelectItem
+                      key={opt.value}
+                      value={opt.value}
+                      className="text-white/70 focus:bg-white/10 focus:text-white cursor-pointer text-[16px] sm:text-[15px] py-4 sm:py-3.5 pl-4 pr-12 rounded-xl transition-colors duration-200 outline-none my-0.5 data-[state=checked]:text-white data-[state=checked]:font-medium data-[state=checked]:bg-white/5 active:bg-white/10"
+                    >
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         );

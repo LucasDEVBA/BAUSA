@@ -79,6 +79,9 @@ const CLASSIFICATION_COLORS = {
   QUENTE: "bg-sys-green/15 text-sys-green border-sys-green/20",
   MORNO: "bg-sys-orange/15 text-sys-orange border-sys-orange/20",
   FRIO: "bg-sys-blue/15 text-sys-blue border-sys-blue/20",
+  // Estados v2 (nunca viram deal — neutro por completude do union)
+  INVALIDO: "bg-secondary text-muted-foreground border-border",
+  INCOMPLETO: "bg-secondary text-muted-foreground border-border",
 } as const;
 
 const NIVEL_COMPETITIVO_OPTIONS = [

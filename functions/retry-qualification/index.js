@@ -84,6 +84,70 @@ const fetchPendingLeads = async () => {
   return JSON.parse(result.body);
 };
 
+// ─── Requalificação em massa (mutirão do prompt, 2026-08-25) ───────────
+// mode:'requalify' + cutoff ISO: reprocessa TODOS os leads já qualificados
+// que ainda NÃO marcaram reunião, com o prompt vigente (config editável do
+// qualify-lead). O CURSOR é o próprio qualified_at: o qualify-lead renova
+// qualified_at ao gravar → o lead processado sai do filtro sozinho, e
+// re-invocar com o MESMO cutoff retoma de onde parou (idempotente, sobrevive
+// a timeout no meio do lote). O qualify-lead já é seguro p/ requalificação:
+// decisão humana (aprovado/reprovado) nunca é sobrescrita; QUENTE/MORNO sem
+// decisão entram na fila de aprovação; requalificado FRIO sai da fila.
+const REQUALIFY_LOTE_DEFAULT = 20;
+
+const requalifyFilters = (cutoff) =>
+  `qualification_classification=not.is.null`
+  + `&meeting_scheduled=not.is.true`
+  + `&deleted_at=is.null`
+  + `&qualified_at=lt.${encodeURIComponent(cutoff)}`;
+
+const fetchRequalifyLeads = async (cutoff, limit) => {
+  const url = `${SUPABASE_URL}/rest/v1/form_submissions?${requalifyFilters(cutoff)}`
+    + `&select=id,email,athlete_name,qualification_classification`
+    + `&order=qualified_at.asc&limit=${limit}`;
+  const result = await httpRequest(url, {
+    method: 'GET',
+    headers: {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept-Profile': SUPABASE_SCHEMA,
+    },
+  });
+  if (result.statusCode >= 400) {
+    throw new Error(`Supabase GET requalify leads: ${result.statusCode} ${result.body}`);
+  }
+  return JSON.parse(result.body);
+};
+
+const countRequalifyRemaining = async (cutoff) => {
+  const url = `${SUPABASE_URL}/rest/v1/form_submissions?${requalifyFilters(cutoff)}&select=id`;
+  const result = await new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = https.request({
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Prefer': 'count=exact',
+        'Range': '0-0',
+      },
+    }, (res) => {
+      let body = '';
+      res.on('data', (c) => (body += c));
+      res.on('end', () => resolve({ statusCode: res.statusCode, headers: res.headers, body }));
+    });
+    req.on('error', reject);
+    req.setTimeout(30000, () => req.destroy(new Error('count timeout')));
+    req.end();
+  });
+  if (result.statusCode >= 400) return null; // contagem é informativa — não derruba o lote
+  const total = parseInt(String(result.headers['content-range'] || '').split('/')[1], 10);
+  return Number.isFinite(total) ? total : null;
+};
+
 // ─── Buscar dados completos de 1 lead (para enviar ao qualify-lead) ─
 const fetchLeadFullRecord = async (leadId) => {
   const url = `${SUPABASE_URL}/rest/v1/form_submissions?id=eq.${encodeURIComponent(leadId)}&select=*&limit=1`;
@@ -138,6 +202,7 @@ functions.http('retryQualification', async (req, res) => {
   const startTime = Date.now();
   const triggeredBy = req.body?.triggered_by || 'cron';
   const forceLeadId = req.body?.lead_id;
+  const mode = req.body?.mode || 'retry';
 
   try {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !QUALIFY_LEAD_URL) {
@@ -153,8 +218,42 @@ functions.http('retryQualification', async (req, res) => {
     });
 
     let leads;
+    let requalifyCutoff = null;
 
-    if (forceLeadId) {
+    if (mode === 'requalify' && !forceLeadId) {
+      // Mutirão: cutoff ISO obrigatório (timestamp do INÍCIO do mutirão —
+      // fixa a população e vira o cursor; ver comentário do requalifyFilters).
+      const cutoff = req.body?.cutoff;
+      if (typeof cutoff !== 'string' || Number.isNaN(Date.parse(cutoff))) {
+        return res.status(400).send({
+          success: false,
+          error: "Modo 'requalify' exige body.cutoff (ISO do início do mutirão)",
+        });
+      }
+      requalifyCutoff = cutoff;
+      const limit = Math.min(
+        Math.max(parseInt(req.body?.limit, 10) || REQUALIFY_LOTE_DEFAULT, 1),
+        MAX_LEADS_PER_RUN,
+      );
+      const summary = await fetchRequalifyLeads(cutoff, limit);
+      log('INFO', 'requalify_batch_found', { count: summary.length, cutoff, limit });
+
+      if (summary.length === 0) {
+        return res.status(200).send({
+          success: true,
+          mode,
+          processed: 0,
+          remaining: 0,
+          message: 'Requalificação concluída — nenhum lead restante antes do cutoff',
+        });
+      }
+
+      leads = [];
+      for (const s of summary) {
+        const full = await fetchLeadFullRecord(s.id);
+        if (full) leads.push(full);
+      }
+    } else if (forceLeadId) {
       // Forçar retry de 1 lead específico (chamada manual via War Room/Lead detail)
       const lead = await fetchLeadFullRecord(forceLeadId);
       if (!lead) {
@@ -237,20 +336,27 @@ functions.http('retryQualification', async (req, res) => {
       if (i < leads.length - 1) await sleep(DELAY_BETWEEN_LEADS_MS);
     }
 
+    // Restantes do mutirão (informativo — o driver externo decide re-invocar)
+    const remaining = requalifyCutoff ? await countRequalifyRemaining(requalifyCutoff) : undefined;
+
     const durationMs = Date.now() - startTime;
     log('INFO', 'retry_qualification_complete', {
       triggeredBy,
+      mode,
       processed: leads.length,
       success: results.success,
       pendingAgain: results.pending_again,
       failed: results.failed,
+      ...(remaining !== undefined ? { remaining } : {}),
       durationMs,
     });
 
     return res.status(200).send({
       success: true,
       triggeredBy,
+      mode,
       processed: leads.length,
+      ...(remaining !== undefined ? { remaining } : {}),
       results,
       durationMs,
     });

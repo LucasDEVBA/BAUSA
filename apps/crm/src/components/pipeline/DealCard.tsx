@@ -54,6 +54,9 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, on
   const stageConfig =
     (configMap ?? DEFAULT_DEAL_STAGE_DISPLAY)[deal.stage] ?? DEAL_STAGE_CONFIG[deal.stage];
   const timing = deal.timing_status ? TIMING_BADGE[deal.timing_status] : undefined;
+  // Prioridade interna por engajamento (P1/P2) — camada de exibição; a
+  // classificação Gemini continua no badge "IA". Sem prioridade = sem badge.
+  const prioridade = deal.prioridade_engajamento ?? undefined;
   const timeInStage = formatRelativeTime(deal.stage_updated_at);
   const tierStyle = deal.product_tier
     ? PRODUCT_TIER_STYLES[deal.product_tier]
@@ -188,9 +191,26 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, on
           </div>
         )}
 
-      {/* Mini badges em rodapé (timing/qualif/retroc) */}
-      {(timing || isQualified || deal.flag_retrocedido) && (
+      {/* Mini badges em rodapé (prioridade/timing/qualif/retroc) */}
+      {(prioridade || timing || isQualified || deal.flag_retrocedido) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          {prioridade && (
+            <span
+              className={cn(
+                "inline-flex items-center rounded px-1 py-px text-[9px] font-semibold",
+                prioridade.nivel === "P1"
+                  ? "bg-sys-red/12 text-sys-red"
+                  : "bg-sys-orange/12 text-sys-orange",
+              )}
+              title={
+                prioridade.motivos.length > 0
+                  ? `${prioridade.motivos.join(" · ")} · ${prioridade.pontos} pts`
+                  : `Sem sinais de engajamento ainda · ${prioridade.pontos} pts`
+              }
+            >
+              {prioridade.nivel}
+            </span>
+          )}
           {timing && (
             <span
               className={cn(

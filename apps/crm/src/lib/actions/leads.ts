@@ -333,6 +333,14 @@ export interface LeadPendenteAprovacao {
   qualification_confidence: string | null;
   qualified_at: string | null;
   timing_status: string | null;
+  // Classificador v2 (migration 20260825120000) — NULL em leads pré-v2
+  score_financeiro: number | null;
+  tier_profissao: string | null;
+  sinais_reforco: string[] | null;
+  sinais_alerta: string[] | null;
+  /** Potencial ESPORTIVO (ALTA/MEDIA/PADRAO) — eixo independente do financeiro. */
+  prioridade_estrategica: string | null;
+  acao_recomendada: string | null;
   // Origem
   utm_source: string | null;
   utm_medium: string | null;
@@ -359,7 +367,9 @@ const COLUNAS_FILA_APROVACAO =
   "address_country, city_state, family_address, investment_range, start_timing, project_direction, " +
   "behavioral_profile, youth_commitment, family_decision_structure, why_international, " +
   "how_did_you_find, how_did_you_find_other, qualification_classification, qualification_reason, " +
-  "qualification_confidence, qualified_at, timing_status, utm_source, utm_medium, utm_campaign, " +
+  "qualification_confidence, qualified_at, timing_status, score_financeiro, tier_profissao, " +
+  "sinais_reforco, sinais_alerta, prioridade_estrategica, acao_recomendada, " +
+  "utm_source, utm_medium, utm_campaign, " +
   "utm_content, utm_term, referrer_url, landing_url, cta_source, device_type, form_started_at, " +
   "submitted_at";
 
@@ -431,6 +441,9 @@ export async function listarLeadsPendentesAprovacao(): Promise<
     // Defesa em profundidade: um 'pendente' residual requalificado como FRIO
     // não deve ser aprovável (a CF também limpa pendente→NULL nesse caso).
     .in("qualification_classification", ["QUENTE", "MORNO"])
+    // Fila por score do Classificador v2 (spec §8): maior score primeiro,
+    // leads pré-v2 (NULL) por último; empate = mais antigo primeiro.
+    .order("score_financeiro", { ascending: false, nullsFirst: false })
     .order("submitted_at", { ascending: true });
 
   if (error) {

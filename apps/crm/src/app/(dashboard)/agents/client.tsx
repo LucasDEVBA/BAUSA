@@ -565,7 +565,7 @@ export function AgentsClient({
           <SistemaLinkCard
             icon={GraduationCap}
             titulo="Qualificação de leads"
-            descricao="Prompt multi-seção que classifica cada lead (QUENTE/MORNO/FRIO). Editor dedicado em Automações."
+            descricao="Classificador v2: score financeiro 0–100 e classe do lead (QUENTE/MORNO/FRIO; INVÁLIDO/INCOMPLETO ficam fora do funil). Variáveis e override do prompt em Automações."
             custom={qualificacaoCustom}
           />
           <SistemaLinkCard

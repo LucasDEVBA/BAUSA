@@ -3,11 +3,17 @@ import { PipelineMetricsBar } from "@/components/pipeline/PipelineMetricsBar";
 import { PipelineExportButton } from "@/components/pipeline/PipelineExportButton";
 import { FutureLeadsSection } from "@/components/pipeline/FutureLeadsSection";
 import { PageHeader } from "@/components/ui";
+import { parseSinaisV2 } from "@/lib/classificador-v2";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getEtapasDealConfigOverrides, getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 import { getUserPapel } from "@/lib/auth";
 import { listarLeadsPendentesCards } from "@/lib/actions/leads";
 import { mergeDealStageConfig } from "@/lib/etapas-deal";
+import {
+  computarPrioridades,
+  type AlvoPrioridade,
+  type PrioridadeLead,
+} from "@/lib/prioridade-engajamento";
 import { type Deal, type DealStage } from "@/types/deal";
 import { type LeadClassification } from "@/types/lead";
 
@@ -87,6 +93,9 @@ interface SupabaseDealRow {
     responsavel_id: string | null;
     consentimento_lgpd: boolean | null;
     form_submission: {
+      id: string;
+      athlete_whatsapp: string | null;
+      guardian_whatsapp: string | null;
       submitted_at: string | null;
       whatsapp_sent_at: string | null;
       followup_1_sent_at: string | null;
@@ -100,11 +109,18 @@ interface SupabaseDealRow {
       guardian_profession: string | null;
       guardian_email: string | null;
       timing_status: string | null;
+      // Classificador v2 — jsonb chega sem tipo garantido (parse defensivo)
+      score_financeiro: number | null;
+      tier_profissao: string | null;
+      sinais_reforco: unknown;
+      sinais_alerta: unknown;
+      prioridade_estrategica: string | null;
+      acao_recomendada: string | null;
     } | null;
   } | null;
 }
 
-function mapDealRow(row: SupabaseDealRow): Deal {
+function mapDealRow(row: SupabaseDealRow, prioridades: Map<string, PrioridadeLead>): Deal {
   const atleta = row.atleta;
   const fs = atleta?.form_submission;
 
@@ -139,6 +155,13 @@ function mapDealRow(row: SupabaseDealRow): Deal {
     motivo_gemini: atleta?.motivo_gemini ?? undefined,
     confianca_gemini: atleta?.confianca_gemini ?? undefined,
     qualificado_gemini_at: atleta?.qualificado_gemini_at ?? undefined,
+    // Classificador v2 (form_submissions) — NULL em leads pré-v2
+    score_financeiro: typeof fs?.score_financeiro === "number" ? fs.score_financeiro : null,
+    tier_profissao: fs?.tier_profissao ?? null,
+    sinais_reforco: parseSinaisV2(fs?.sinais_reforco),
+    sinais_alerta: parseSinaisV2(fs?.sinais_alerta),
+    prioridade_estrategica: fs?.prioridade_estrategica ?? null,
+    acao_recomendada: fs?.acao_recomendada ?? null,
     // Lead Score
     lead_score: atleta?.lead_score ?? undefined,
     // Reuniao
@@ -174,6 +197,8 @@ function mapDealRow(row: SupabaseDealRow): Deal {
     guardian_email: fs?.guardian_email ?? undefined,
     // Timing do lead: vira BADGE no card (a coluna aguardando_timing saiu do board)
     timing_status: fs?.timing_status ?? undefined,
+    // Prioridade P1/P2 por engajamento — só deals em etapa não-final têm entrada
+    prioridade_engajamento: fs?.id ? (prioridades.get(fs.id) ?? null) : null,
     responsavel_id: row.responsavel_id ?? undefined,
     flag_valores_customizados: row.flag_valores_customizados ?? false,
     // LGPD
@@ -221,11 +246,14 @@ export default async function PipelinePage() {
         modelo_educacional, momento_inicio,
         responsavel_id, consentimento_lgpd,
         form_submission:form_submissions(
+          id, athlete_whatsapp, guardian_whatsapp,
           submitted_at, whatsapp_sent_at, followup_1_sent_at,
           followup_2_sent_at, meeting_scheduled, meeting_scheduled_at,
           qualification_reason, qualification_confidence, qualified_at,
           guardian_name, guardian_profession, guardian_email,
-          timing_status
+          timing_status, score_financeiro, tier_profissao,
+          sinais_reforco, sinais_alerta, prioridade_estrategica,
+          acao_recomendada
         )
       )
     `)
@@ -235,7 +263,25 @@ export default async function PipelinePage() {
 
   const stageConfig = mergeDealStageConfig(etapasOverrides);
 
-  const rawDeals = (rows ?? []).map((row) => mapDealRow(row as unknown as SupabaseDealRow));
+  const dealRows = (rows ?? []).map((row) => row as unknown as SupabaseDealRow);
+
+  // Prioridade P1/P2 por engajamento — todas as etapas exceto finais.
+  // (Camada de exibição: a classificação Gemini permanece intocada.)
+  const alvosPrioridade: AlvoPrioridade[] = [];
+  for (const row of dealRows) {
+    const fs = row.atleta?.form_submission;
+    if (!fs?.id) continue;
+    if (row.etapa === "concluido" || row.etapa === "perdido") continue;
+    alvosPrioridade.push({
+      id: fs.id,
+      athleteWhatsapp: fs.athlete_whatsapp ?? row.atleta?.whatsapp ?? null,
+      guardianWhatsapp: fs.guardian_whatsapp ?? null,
+      etapaDeal: row.etapa,
+    });
+  }
+  const prioridades = await computarPrioridades(supabase, alvosPrioridade);
+
+  const rawDeals = dealRows.map((row) => mapDealRow(row, prioridades));
 
   // Resolver siblings: agrupar por responsavel_id
   const respMap = new Map<string, { atletaId: string; nome: string; esporte?: string; dealIdx: number }[]>();

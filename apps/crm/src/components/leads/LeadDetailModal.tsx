@@ -35,6 +35,8 @@ import {
   useDocumentosAtleta,
 } from "@/components/documentos/DocumentosChecklist";
 import { AcoesRapidasCard } from "@/components/mensagem/AcoesRapidasCard";
+import { ClassificadorV2Resumo } from "@/components/leads/ClassificadorV2Resumo";
+import { temDadosClassificadorV2 } from "@/lib/classificador-v2";
 import { TranscricaoReuniaoCard } from "@/components/shared/TranscricaoReuniaoCard";
 import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 import { MemoriaLeadSection } from "@/components/leads/MemoriaLeadSection";
@@ -397,7 +399,7 @@ function ExecutivaSection({ lead }: { lead: Lead }) {
         highlightsUrl={lead.video_highlights}
       />
 
-      {lead.qualification_reason && (
+      {(lead.qualification_reason || temDadosClassificadorV2(lead)) && (
         <MinimalCard
           title="Justificativa Gemini"
           icon={Sparkles}
@@ -410,9 +412,13 @@ function ExecutivaSection({ lead }: { lead: Lead }) {
             )
           }
         >
-          <p className="text-xs leading-relaxed text-foreground/90">
-            {lead.qualification_reason}
-          </p>
+          {lead.qualification_reason && (
+            <p className="text-xs leading-relaxed text-foreground/90">
+              {lead.qualification_reason}
+            </p>
+          )}
+          {/* Classificador v2 — some sozinho em leads pré-v2 (campos NULL) */}
+          <ClassificadorV2Resumo dados={lead} compact />
           {lead.qualified_at && (
             <p className="mt-2 text-[10px] text-muted-foreground">
               Classificado em {fmtDateTime(lead.qualified_at)}
@@ -845,8 +851,10 @@ function DocumentosEmptySection({ lead }: { lead: Lead }) {
         Checklist de documentos indisponível
       </p>
       <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-        {lead.qualification_classification === "FRIO"
-          ? "Leads FRIO não são promovidos ao pipeline, portanto não têm checklist de documentos."
+        {lead.qualification_classification === "FRIO" ||
+        lead.qualification_classification === "INVALIDO" ||
+        lead.qualification_classification === "INCOMPLETO"
+          ? "Leads FRIO, inválidos ou incompletos não são promovidos ao pipeline, portanto não têm checklist de documentos."
           : "Este lead ainda não foi promovido ao pipeline. O checklist de documentos fica disponível quando o atleta é criado (leads QUENTE/MORNO são promovidos automaticamente na qualificação)."}
       </p>
     </div>

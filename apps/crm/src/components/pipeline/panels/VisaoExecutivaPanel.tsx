@@ -16,6 +16,7 @@ import {
   MinimalStat,
 } from "@/components/shared/MinimalUI";
 import { AcoesRapidasCard } from "@/components/mensagem/AcoesRapidasCard";
+import { ClassificadorV2Resumo } from "@/components/leads/ClassificadorV2Resumo";
 
 interface Props {
   deal: Deal;
@@ -177,6 +178,8 @@ export function VisaoExecutivaPanel({ deal }: Props) {
               Sem justificativa registrada.
             </p>
           )}
+          {/* Classificador v2 — some sozinho em leads pré-v2 (campos NULL) */}
+          <ClassificadorV2Resumo dados={deal} compact />
         </MinimalCard>
       )}
 

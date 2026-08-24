@@ -90,20 +90,29 @@ test('todas as CFs com gate têm fallback de config ({} em erro)', () => {
   }
 });
 
-test('qualify-lead: seções do prompt com default fail-open (PROMPT_DEFAULTS)', () => {
+test('qualify-lead: config v2 com defaults fail-open (CFG_V2_DEFAULTS)', () => {
+  // Classificador v2 (2026-08-25): o prompt é VERSIONADO no código e as
+  // variáveis de negócio (cotação/renda/cortes) vivem em `qualificacao_v2`
+  // — config ausente/quebrada cai nos defaults e a qualificação nunca para.
   const src = lerFonte('qualify-lead');
-  assert.ok(src.includes('PROMPT_DEFAULTS'), 'defaults do prompt devem existir no código');
+  assert.ok(src.includes('CFG_V2_DEFAULTS'), 'defaults da config v2 devem existir no código');
   assert.ok(
-    src.includes(': PROMPT_DEFAULTS[key]'),
-    'promptSection deve cair no default quando a config estiver ausente/vazia',
+    src.includes('{ ...CFG_V2_DEFAULTS, ...(cfgRaw'),
+    'config parcial/ausente deve mesclar sobre os defaults (fail-open)',
   );
-  // Textos-âncora dos critérios: garantem que os defaults não foram removidos
-  for (const ancora of ['1️⃣ QUENTE', '2️⃣ MORNO', '3️⃣ FRIO', 'PROFISSÕES COM RENDA VARIÁVEL', 'REGRAS IMPORTANTES']) {
-    assert.ok(src.includes(ancora), `default do prompt deve conter "${ancora}"`);
+  // Textos-âncora do prompt v1.0: garantem que as etapas não foram removidas
+  for (const ancora of [
+    '# ETAPA 0 — GATE DE VALIDAÇÃO',
+    '# ETAPA 1 — TIER DA PROFISSÃO',
+    'REGRA DE RENDA VARIÁVEL',
+    '# GUARDRAILS',
+    '# EXEMPLOS DE CALIBRAÇÃO',
+  ]) {
+    assert.ok(src.includes(ancora), `prompt v2 deve conter "${ancora}"`);
   }
-  // O contrato de saída JSON permanece FIXO no código (não é seção editável)
+  // O contrato de saída JSON permanece parseado defensivamente no código
   assert.ok(
-    src.includes('FORMATO OBRIGATÓRIO DE RESPOSTA'),
-    'contrato JSON de saída deve permanecer hardcoded',
+    src.includes('parseRespostaV2'),
+    'parse defensivo do JSON de saída deve permanecer no código',
   );
 });
