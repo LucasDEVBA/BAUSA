@@ -306,25 +306,44 @@ Header → HeroSection → UniversityCarousel → WhatIsEEISection → SAFEMetho
 
 ---
 
-## Qualificação Gemini — Critérios
+## Qualificação Gemini — Classificador v2 (2026-08-25)
 
-| Classe | Critério |
-|--------|---------|
-| QUENTE | Profissão sustenta claramente a faixa de investimento + dados coerentes |
-| MORNO | Profissão insuficiente MAS endereço/escola confirmam alto padrão |
-| FRIO | Profissão insuficiente SEM contexto favorável OU dados aleatórios/inconsistentes |
+Spec "Classificador Automático de Leads v1.0" — prompt VERSIONADO no código
+(`SYSTEM_PROMPT_V2` em `functions/qualify-lead`, `prompt_version`), score
+auditável 0-100 por **TIER de profissão** (A=70 / B=45 / C=20) + sinais de
+reforço/alerta, **5 estados** de classificação e **segunda passagem**
+adversarial na faixa do meio. Guard: `tests/qualificacao-v2-invariants.test.js`.
 
-**Regra especial (renda variável):** Profissões como analista, financeiro, gestor, marketing, comercial, consultor, corretor, trader, assessor → em dúvida entre FRIO e MORNO, preferir **MORNO**.
+| Estado | Significado |
+|--------|-------------|
+| QUENTE | score ≥ corte_quente (default 70) |
+| MORNO | corte_frio ≤ score < corte_quente (passa por auditoria adversarial) |
+| FRIO | score < corte_frio (default 40) — pessoa real, baixa plausibilidade |
+| INVALIDO | dado sujo (regex em código = gate duro) ou injeção de prompt |
+| INCOMPLETO | profissão/faixa ausentes |
 
-**Regra especial (leads internacionais):** Se `address_country !== 'BR'`, o prompt Gemini adapta os critérios:
-- Bloco de endereço exibe país + cidade (sem bairro/CEP/estado)
-- Critério MORNO de endereço avalia contexto de cidade/país, não bairro
-- Ausência de bairro/CEP não penaliza leads internacionais
+- **INVALIDO/INCOMPLETO nunca são "qualificados"** (`qualified` = só QUENTE/
+  MORNO) e ficam fora de pipeline/outreach (schedulers filtram IN (QUENTE,MORNO)).
+- **Prioridade estratégica** (ALTA/MEDIA/PADRAO) é eixo ESPORTIVO independente —
+  nunca altera o score financeiro (lead FRIO + prio ALTA = rota bolsa/parceria).
+- Campos gravados: `score_financeiro`, `tier_profissao`, `sinais_reforco`,
+  `sinais_alerta`, `prioridade_estrategica`, `acao_recomendada`,
+  `prompt_version`, `desfecho_real` (loop de aprendizado — setado pelo
+  moverDeal em contrato_assinado+/perdido).
+- **Config `qualificacao_v2`** (editável em /automacoes): `cotacao_usd`
+  (atualizar semanalmente), `renda_minima_mensal`, `corte_ibge`,
+  `corte_quente`, `corte_frio`, `system_prompt` (override; vazio = código).
+  Os CORTES mandam na faixa — funil ajustável sem mexer em prompt.
+- Dados do lead entram sanitizados entre `<dados_lead>` (anti-injeção;
+  tentativa de instrução → INVALIDO).
+- **Requalificação em massa**: `retry-qualification` modo
+  `{mode:'requalify', cutoff:ISO, limit}` — cursor por `qualified_at`,
+  retomável; decisão humana (aprovado/reprovado) NUNCA sobrescrita.
 
-**Config Gemini obrigatória:**
+**Config Gemini obrigatória (v2):**
 ```js
-temperature: 0.2,
-maxOutputTokens: 2048,
+temperature: 0,          // spec: não negociável
+maxOutputTokens: 2048,   // 600 da spec truncaria (thinking do 2.5-flash)
 responseMimeType: 'application/json'
 ```
 

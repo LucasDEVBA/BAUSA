@@ -4,6 +4,12 @@ import { Flame, Thermometer, Snowflake, Clock, Users } from "lucide-react";
 import { LeadsTable } from "@/components/leads/LeadsTable";
 import { LeadsExportButton } from "@/components/leads/LeadsExportButton";
 import { AprovacoesLeads } from "@/components/leads/AprovacoesLeads";
+import {
+  computarPrioridades,
+  type AlvoPrioridade,
+  type PrioridadeLead,
+} from "@/lib/prioridade-engajamento";
+import { parseSinaisV2 } from "@/lib/classificador-v2";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { type Lead, type LeadClassification } from "@/types/lead";
 import { PageHeader, StatCard } from "@/components/ui";
@@ -71,6 +77,13 @@ function mapFormSubmissionToLead(
     qualification_reason: (row.qualification_reason as string) ?? null,
     qualification_confidence: (row.qualification_confidence as string) ?? null,
     qualified_at: (row.qualified_at as string) ?? null,
+    // Classificador v2 — NULL em leads pré-v2 (exibição degrada)
+    score_financeiro: typeof row.score_financeiro === "number" ? row.score_financeiro : null,
+    tier_profissao: (row.tier_profissao as string) ?? null,
+    sinais_reforco: parseSinaisV2(row.sinais_reforco),
+    sinais_alerta: parseSinaisV2(row.sinais_alerta),
+    prioridade_estrategica: (row.prioridade_estrategica as string) ?? null,
+    acao_recomendada: (row.acao_recomendada as string) ?? null,
     whatsapp_sent_at: (row.whatsapp_sent_at as string) ?? null,
     followup_1_sent_at: (row.followup_1_sent_at as string) ?? null,
     followup_2_sent_at: (row.followup_2_sent_at as string) ?? null,
@@ -161,6 +174,30 @@ export default async function LeadsPage() {
       }
     }
   }
+
+  // Prioridade P1/P2 por engajamento — SÓ leads aprovados e QUENTE/MORNO
+  // (camada de exibição; a classificação Gemini continua intocada).
+  const alvosPrioridade: AlvoPrioridade[] = (rows ?? [])
+    .filter((r) => {
+      const row = r as Record<string, unknown>;
+      return (
+        row.aprovacao_status === "aprovado" &&
+        (row.qualification_classification === "QUENTE" ||
+          row.qualification_classification === "MORNO")
+      );
+    })
+    .map((r) => {
+      const row = r as Record<string, unknown>;
+      const id = row.id as string;
+      return {
+        id,
+        athleteWhatsapp: (row.athlete_whatsapp as string) ?? null,
+        guardianWhatsapp: (row.guardian_whatsapp as string) ?? null,
+        etapaDeal: pipelineMap.get(id)?.etapa ?? null,
+      };
+    });
+  const prioridadesMap = await computarPrioridades(supabase, alvosPrioridade);
+  const prioridades: Record<string, PrioridadeLead> = Object.fromEntries(prioridadesMap);
 
   const mappedLeads: Lead[] = (rows ?? []).map((row) =>
     mapFormSubmissionToLead(row, pipelineMap),
@@ -259,7 +296,7 @@ export default async function LeadsPage() {
       </div>
 
       {/* Table */}
-      <LeadsTable leads={leads} />
+      <LeadsTable leads={leads} prioridades={prioridades} />
     </div>
   );
 }

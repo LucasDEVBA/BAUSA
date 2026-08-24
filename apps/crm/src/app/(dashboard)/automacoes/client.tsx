@@ -68,9 +68,10 @@ import {
   atualizarAtivasSistema,
   atualizarEmailConfig,
   atualizarNpsMensagem,
-  atualizarQualificacaoPrompt,
+  atualizarQualificacaoV2,
   type AutomacaoInput,
   type NpsMensagemCfg,
+  type QualificacaoV2Input,
   type SchedulerIntervalos,
   type SchedulerMensagens,
   type SistemaAtivas,
@@ -81,10 +82,11 @@ import {
   NPS_MENSAGEM_VARIAVEIS,
 } from "@/lib/automacoes/nps-mensagem-default";
 import {
-  QUALIFICACAO_PROMPT_DEFAULTS,
-  QUALIFICACAO_PROMPT_LABELS,
-  type QualificacaoPromptCfg,
-} from "@/lib/automacoes/qualificacao-prompt-defaults";
+  QUALIFICACAO_V2_DEFAULTS,
+  QUALIFICACAO_V2_PLACEHOLDERS,
+  QUALIFICACAO_V2_PROMPT_MAX,
+  type QualificacaoV2Cfg,
+} from "@/lib/automacoes/qualificacao-v2-defaults";
 import { atualizarInsightsConversaPrompt } from "@/lib/actions/whatsapp-insights";
 import { atualizarInstrucoesIA } from "@/lib/actions/prompts-ia";
 import { InstrucoesIAEditor } from "@/components/agents/InstrucoesIAEditor";
@@ -126,7 +128,7 @@ export function AutomacoesClient({
   mensagens,
   ativas,
   emailCfg,
-  promptCfg,
+  qualifV2Cfg,
   insightsCfg,
   transcricaoCfg,
   cacCfg,
@@ -143,7 +145,7 @@ export function AutomacoesClient({
   mensagens: SchedulerMensagens | null;
   ativas: SistemaAtivas | null;
   emailCfg: SistemaEmailConfig | null;
-  promptCfg: QualificacaoPromptCfg | null;
+  qualifV2Cfg: QualificacaoV2Cfg | null;
   insightsCfg: InsightsPromptCfg | null;
   transcricaoCfg: InsightsPromptCfg | null;
   cacCfg: InsightsPromptCfg | null;
@@ -293,7 +295,7 @@ export function AutomacoesClient({
             mensagens={mensagens}
             ativas={ativas}
             emailCfg={emailCfg}
-            promptCfg={promptCfg}
+            qualifV2Cfg={qualifV2Cfg}
             insightsCfg={insightsCfg}
             transcricaoCfg={transcricaoCfg}
             cacCfg={cacCfg}
@@ -544,7 +546,9 @@ interface SistemaCard {
   toggles?: { chave: keyof SistemaAtivas; label: string; avisoDesligar?: string }[];
   /** Card de e-mails: edita o destino do e-mail interno (email_config). */
   editaEmailDestino?: boolean;
-  /** Card da qualificação: edita as seções do prompt Gemini. */
+  /** Card da qualificação: edita as variáveis do Classificador v2
+   *  (qualificacao_v2 — cotação, renda de referência, cortes e override
+   *  opcional do system prompt). */
   editaPrompt?: boolean;
   /** Card de insights de conversa: edita as instruções do prompt. */
   editaInsightsPrompt?: boolean;
@@ -652,11 +656,12 @@ const SISTEMA_AUTOMACOES: SistemaCard[] = [
   {
     id: "qualificacao_gemini",
     nome: "Qualificação Gemini",
-    descricao: "Todo lead novo é classificado (QUENTE/MORNO/FRIO) na entrada.",
+    descricao:
+      "Classificador v2: score financeiro 0–100 → QUENTE/MORNO/FRIO (dado sujo = INVÁLIDO; profissão/faixa ausentes = INCOMPLETO).",
     fluxo: [
-      "Dispara no cadastro de cada formulário (webhook Supabase) e classifica o lead como QUENTE, MORNO ou FRIO via Google Gemini.",
-      "QUENTE/MORNO entram na fila de aprovação (War Room/Leads) — a pré-qualificação da IA vira recomendação e o CEO/CTO decide quem entra no pipeline.",
-      "Falhas de qualificação são reprocessadas automaticamente 1x/dia. As seções do prompt são editáveis abaixo — seção vazia volta ao padrão do sistema.",
+      "Dispara no cadastro de cada formulário (webhook Supabase): o Classificador v2 dá um score financeiro auditável (0–100) por tier de profissão + sinais e classifica QUENTE, MORNO ou FRIO. Dado sujo/injeção vira INVÁLIDO e profissão/faixa ausentes viram INCOMPLETO — nenhum dos dois entra em pipeline ou outreach.",
+      "QUENTE/MORNO entram na fila de aprovação (War Room/Leads) — a pré-qualificação da IA vira recomendação (com score, sinais e prioridade esportiva) e o CEO/CTO decide quem entra no pipeline.",
+      "Falhas de qualificação são reprocessadas automaticamente 1x/dia. As variáveis do classificador (cotação, renda de referência e cortes do score) são editáveis abaixo — o prompt em si é versionado no código.",
     ],
     editaPrompt: true,
     toggles: [{
@@ -808,8 +813,9 @@ interface SistemaSavePayload {
   ativas?: Partial<SistemaAtivas>;
   /** Destino do e-mail interno ('' limpa o override → volta ao padrão env). */
   emailDestino?: string;
-  /** Overrides das seções do prompt ('' numa seção volta ao padrão do código). */
-  promptCfg?: QualificacaoPromptCfg;
+  /** Variáveis do Classificador v2 (objeto COMPLETO — system_prompt '' volta
+   *  ao prompt versionado no código da CF). */
+  qualifV2?: QualificacaoV2Input;
   /** Instruções do prompt de insights de conversa ('' volta ao padrão). */
   insightsInstrucoes?: string;
   /** Instruções do resumo de transcrição ('' volta ao padrão). */
@@ -829,7 +835,7 @@ function SistemaAutomacoesSection({
   mensagens,
   ativas,
   emailCfg,
-  promptCfg,
+  qualifV2Cfg,
   insightsCfg,
   transcricaoCfg,
   cacCfg,
@@ -843,7 +849,7 @@ function SistemaAutomacoesSection({
   mensagens: SchedulerMensagens | null;
   ativas: SistemaAtivas | null;
   emailCfg: SistemaEmailConfig | null;
-  promptCfg: QualificacaoPromptCfg | null;
+  qualifV2Cfg: QualificacaoV2Cfg | null;
   insightsCfg: InsightsPromptCfg | null;
   transcricaoCfg: InsightsPromptCfg | null;
   cacCfg: InsightsPromptCfg | null;
@@ -864,7 +870,7 @@ function SistemaAutomacoesSection({
     Boolean(card.editaReuniao && mensagens?.meeting_confirmed) ||
     Boolean(card.toggles?.length && ativas) ||
     Boolean(card.editaEmailDestino && emailCfg) ||
-    Boolean(card.editaPrompt && promptCfg) ||
+    Boolean(card.editaPrompt && qualifV2Cfg) ||
     Boolean(card.editaInsightsPrompt && insightsCfg) ||
     Boolean(card.editaTranscricaoPrompt && transcricaoCfg) ||
     Boolean(card.editaCacPrompt && cacCfg) ||
@@ -932,10 +938,10 @@ function SistemaAutomacoesSection({
           return;
         }
       }
-      if (payload.promptCfg) {
-        const result = await atualizarQualificacaoPrompt(payload.promptCfg);
+      if (payload.qualifV2) {
+        const result = await atualizarQualificacaoV2(payload.qualifV2);
         if (!result.success) {
-          toast.error(result.error ?? "Erro ao salvar o prompt");
+          toast.error(result.error ?? "Erro ao salvar as variáveis do classificador");
           router.refresh();
           return;
         }
@@ -1101,7 +1107,7 @@ function SistemaAutomacoesSection({
           mensagens={mensagens}
           ativas={ativas}
           emailCfg={emailCfg}
-          promptCfg={promptCfg}
+          qualifV2Cfg={qualifV2Cfg}
           insightsCfg={insightsCfg}
           transcricaoCfg={transcricaoCfg}
           cacCfg={cacCfg}
@@ -1175,6 +1181,109 @@ function VariaveisLegenda({ variaveis }: { variaveis: string[] }) {
   );
 }
 
+// ─── Classificador v2 — campos numéricos do modal da Qualificação ───────────
+
+interface QualifV2Campos {
+  cotacao: string;
+  renda: string;
+  corteIbge: string;
+  corteQuente: string;
+  corteFrio: string;
+  systemPrompt: string;
+}
+
+interface QualifV2Validacao {
+  cotacao: boolean;
+  renda: boolean;
+  corteIbge: boolean;
+  corteQuente: boolean;
+  corteFrio: boolean;
+  /** false quando ambos os cortes são válidos mas frio ≥ quente. */
+  cortesCoerentes: boolean;
+  systemPrompt: boolean;
+  /** Payload pronto pra action — null enquanto houver campo inválido. */
+  payload: QualificacaoV2Input | null;
+}
+
+/** Valida os campos do Classificador v2 (espelha o schema da action):
+ *  cotação/renda > 0; corte IBGE vazio → null (senão > 0); cortes inteiros
+ *  com 1 ≤ frio < quente ≤ 100; system prompt dentro do teto. */
+function validarQualifV2(campos: QualifV2Campos): QualifV2Validacao {
+  const num = (s: string): number => Number(s.trim().replace(",", "."));
+  const cotacao = num(campos.cotacao);
+  const renda = num(campos.renda);
+  const ibgeTexto = campos.corteIbge.trim();
+  const corteIbge = ibgeTexto === "" ? null : num(ibgeTexto);
+  const corteQuente = num(campos.corteQuente);
+  const corteFrio = num(campos.corteFrio);
+
+  const cotacaoOk = Number.isFinite(cotacao) && cotacao > 0;
+  const rendaOk = Number.isFinite(renda) && renda > 0;
+  const ibgeOk = corteIbge === null || (Number.isFinite(corteIbge) && corteIbge > 0);
+  const quenteOk = Number.isInteger(corteQuente) && corteQuente >= 1 && corteQuente <= 100;
+  const frioOk = Number.isInteger(corteFrio) && corteFrio >= 1 && corteFrio <= 100;
+  const cortesCoerentes = !quenteOk || !frioOk || corteFrio < corteQuente;
+  const promptOk = campos.systemPrompt.length <= QUALIFICACAO_V2_PROMPT_MAX;
+  const tudoOk =
+    cotacaoOk && rendaOk && ibgeOk && quenteOk && frioOk && corteFrio < corteQuente && promptOk;
+
+  return {
+    cotacao: cotacaoOk,
+    renda: rendaOk,
+    corteIbge: ibgeOk,
+    corteQuente: quenteOk,
+    corteFrio: frioOk,
+    cortesCoerentes,
+    systemPrompt: promptOk,
+    payload: tudoOk
+      ? {
+          cotacao_usd: cotacao,
+          renda_minima_mensal: renda,
+          corte_ibge: corteIbge,
+          corte_quente: corteQuente,
+          corte_frio: corteFrio,
+          system_prompt: campos.systemPrompt.trim(),
+        }
+      : null,
+  };
+}
+
+function CampoNumeroV2({
+  id,
+  label,
+  hint,
+  value,
+  invalido,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  value: string;
+  invalido: boolean;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label htmlFor={id} className="text-[11px] font-semibold text-foreground">
+        {label}
+      </label>
+      <Input
+        id={id}
+        type="text"
+        inputMode="decimal"
+        className="tabular-nums"
+        value={value}
+        aria-invalid={invalido || undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <p className={cn("text-[11px]", invalido ? "text-sys-red" : "text-muted-foreground")}>
+        {hint}
+      </p>
+    </div>
+  );
+}
+
 /** Modal único por card: descrição do fluxo + intervalo + TODOS os textos do
  *  card juntos. Cards sem nada editável viram "Detalhes" (só leitura). */
 /** Editor genérico de instruções de prompt de IA (textarea + contagem +
@@ -1185,7 +1294,7 @@ function SistemaModal({
   mensagens,
   ativas,
   emailCfg,
-  promptCfg,
+  qualifV2Cfg,
   insightsCfg,
   transcricaoCfg,
   cacCfg,
@@ -1199,7 +1308,7 @@ function SistemaModal({
   mensagens: SchedulerMensagens | null;
   ativas: SistemaAtivas | null;
   emailCfg: SistemaEmailConfig | null;
-  promptCfg: QualificacaoPromptCfg | null;
+  qualifV2Cfg: QualificacaoV2Cfg | null;
   insightsCfg: InsightsPromptCfg | null;
   transcricaoCfg: InsightsPromptCfg | null;
   cacCfg: InsightsPromptCfg | null;
@@ -1213,7 +1322,7 @@ function SistemaModal({
   // Toggles/e-mail/prompt: idem — null (migration pendente) desabilita
   const togglesEditaveis = ativas ? card.toggles ?? [] : [];
   const emailEditavel = Boolean(card.editaEmailDestino && emailCfg);
-  const promptEditavel = Boolean(card.editaPrompt && promptCfg);
+  const qualifV2Editavel = Boolean(card.editaPrompt && qualifV2Cfg);
   const insightsEditavel = Boolean(card.editaInsightsPrompt && insightsCfg);
   const transcricaoEditavel = Boolean(card.editaTranscricaoPrompt && transcricaoCfg);
   const cacEditavel = Boolean(card.editaCacPrompt && cacCfg);
@@ -1244,15 +1353,18 @@ function SistemaModal({
   const [emailDestino, setEmailDestino] = useState<string>(
     emailCfg?.destino_interno ?? "",
   );
-  // Seções do prompt: config ?? default do código (o CEO vê o texto que roda)
-  const [promptSecoes, setPromptSecoes] = useState<Record<string, string>>(() => {
-    const inicial: Record<string, string> = {};
-    if (card.editaPrompt && promptCfg) {
-      for (const chave of Object.keys(QUALIFICACAO_PROMPT_DEFAULTS) as (keyof QualificacaoPromptCfg)[]) {
-        inicial[chave] = promptCfg[chave] ?? QUALIFICACAO_PROMPT_DEFAULTS[chave];
-      }
-    }
-    return inicial;
+  // Variáveis do Classificador v2: config ?? default do código (o CEO vê o
+  // valor que roda). Estado em string p/ digitação livre; parse no salvar.
+  const [qualifV2Campos, setQualifV2Campos] = useState<QualifV2Campos>(() => {
+    const cfg = card.editaPrompt ? qualifV2Cfg : null;
+    return {
+      cotacao: String(cfg?.cotacao_usd ?? QUALIFICACAO_V2_DEFAULTS.cotacao_usd),
+      renda: String(cfg?.renda_minima_mensal ?? QUALIFICACAO_V2_DEFAULTS.renda_minima_mensal),
+      corteIbge: cfg?.corte_ibge != null ? String(cfg.corte_ibge) : "",
+      corteQuente: String(cfg?.corte_quente ?? QUALIFICACAO_V2_DEFAULTS.corte_quente),
+      corteFrio: String(cfg?.corte_frio ?? QUALIFICACAO_V2_DEFAULTS.corte_frio),
+      systemPrompt: cfg?.system_prompt ?? "",
+    };
   });
   // Instruções do prompt de insights de conversa (config ?? default do código)
   const [insightsInstrucoes, setInsightsInstrucoes] = useState<string>(() =>
@@ -1282,7 +1394,7 @@ function SistemaModal({
     reuniao !== null ||
     togglesEditaveis.length > 0 ||
     emailEditavel ||
-    promptEditavel ||
+    qualifV2Editavel ||
     insightsEditavel ||
     transcricaoEditavel ||
     cacEditavel ||
@@ -1297,16 +1409,16 @@ function SistemaModal({
     return par !== undefined && mensagemValida(par.atleta) && mensagemValida(par.responsavel);
   });
   const reuniaoValida = !reuniao || (mensagemValida(reuniao.lead) && mensagemValida(reuniao.ceo));
-  // Prompt: seção pode ficar vazia (= volta ao padrão), mas não estourar 4000
-  const promptValido =
-    !promptEditavel || Object.values(promptSecoes).every((v) => v.length <= 4000);
+  // Classificador v2: validação campo a campo + payload pronto (null = inválido)
+  const qualifV2Validacao = qualifV2Editavel ? validarQualifV2(qualifV2Campos) : null;
+  const qualifV2Valido = !qualifV2Editavel || qualifV2Validacao?.payload != null;
   const insightsValido = !insightsEditavel || insightsInstrucoes.length <= 4000;
   const transcricaoValido = !transcricaoEditavel || transcricaoInstrucoes.length <= 4000;
   const cacValido = !cacEditavel || cacInstrucoes.length <= 4000;
   // NPS: vazio = volta ao padrão do código; senão 10–2000 chars
   const npsValido = !npsEditavel || npsTexto.trim() === "" || mensagemValida(npsTexto.trim());
   const valido =
-    intervaloValido && textosValidos && reuniaoValida && emailValido && promptValido &&
+    intervaloValido && textosValidos && reuniaoValida && emailValido && qualifV2Valido &&
     insightsValido && transcricaoValido && cacValido && npsValido;
 
   const setTexto = (template: MensagemTemplate, campo: keyof MensagemPar, valor: string) => {
@@ -1317,18 +1429,6 @@ function SistemaModal({
   };
 
   const salvar = () => {
-    // Prompt: grava só OVERRIDES — seção igual ao default do código é enviada
-    // vazia (a action a omite; a CF segue no default, que evolui sem congelar)
-    let promptOverrides: QualificacaoPromptCfg | undefined;
-    if (promptEditavel) {
-      promptOverrides = {};
-      for (const [chave, valor] of Object.entries(promptSecoes)) {
-        const k = chave as keyof QualificacaoPromptCfg;
-        const texto = valor.trim();
-        (promptOverrides as Record<string, string>)[k] =
-          texto && texto !== QUALIFICACAO_PROMPT_DEFAULTS[k] ? texto : "";
-      }
-    }
     onSave({
       ...(card.intervaloChave
         ? { intervalo: { chave: card.intervaloChave, valor: intervalo } }
@@ -1337,7 +1437,8 @@ function SistemaModal({
       ...(reuniao ? { reuniao } : {}),
       ...(togglesEditaveis.length > 0 ? { ativas: toggleValores } : {}),
       ...(emailEditavel ? { emailDestino: emailDestino.trim() } : {}),
-      ...(promptOverrides ? { promptCfg: promptOverrides } : {}),
+      // Classificador v2: objeto completo já validado (botão desabilita se inválido)
+      ...(qualifV2Validacao?.payload ? { qualifV2: qualifV2Validacao.payload } : {}),
       // Igual ao default → '' (limpa o override; o default do código evolui)
       ...(insightsEditavel
         ? {
@@ -1376,18 +1477,21 @@ function SistemaModal({
   const titulo = temEdicao ? "Editar automação" : "Detalhes";
 
   return (
+    // Superfície de TRABALHO, não popup (usabilidade — pedido do CEO
+    // 2026-08-25): quase fullscreen, header e ações fixos, corpo com scroll
+    // próprio — textos longos de mensagem deixam de brigar por espaço.
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/20 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-3 backdrop-blur-sm sm:p-6"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`${titulo} — ${card.nome}`}
-        className="liquid-glass my-8 w-full max-w-2xl rounded-2xl p-5 shadow-xl"
+        className="liquid-glass flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl shadow-xl sm:max-h-[calc(100dvh-3rem)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-title-3 text-foreground">
             {titulo} — {card.nome}
           </h2>
@@ -1396,7 +1500,7 @@ function SistemaModal({
           </Button>
         </div>
 
-        <div className="space-y-5">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
           {/* Como funciona */}
           <section className="space-y-1.5">
             <p className={SECTION_LABEL}>Como funciona</p>
@@ -1555,66 +1659,116 @@ function SistemaModal({
             </p>
           )}
 
-          {/* Prompt de qualificação (seções editáveis — qualificacao_prompt) */}
-          {promptEditavel && (
+          {/* Variáveis do Classificador v2 (qualificacao_v2) */}
+          {qualifV2Editavel && qualifV2Validacao && (
             <section className="space-y-3">
-              <p className={SECTION_LABEL}>Prompt de qualificação (Gemini)</p>
+              <p className={SECTION_LABEL}>Variáveis do classificador (v2)</p>
               <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
-                Edite as seções abaixo com cuidado — elas definem QUEM vira QUENTE/MORNO/FRIO
-                (e, portanto, quem entra no pipeline e recebe WhatsApp). Os rótulos{" "}
-                <code className="font-mono">QUENTE</code>/<code className="font-mono">MORNO</code>/
-                <code className="font-mono">FRIO</code> devem continuar presentes nos critérios. No
-                critério MORNO, <code className="font-mono">{"{criterio_endereco}"}</code> é
-                substituído pela variante BR/internacional. Apagar uma seção volta ao padrão do
-                sistema. O formato de saída (JSON) não é editável.
+                Calibram o score financeiro (0–100) sem tocar no prompt: QUENTE = score ≥ corte
+                QUENTE; FRIO = score &lt; corte FRIO; MORNO fica entre os dois. A cotação e a
+                renda de referência ancoram a análise de plausibilidade. Valem a partir da
+                próxima qualificação.
               </p>
-              {(Object.keys(QUALIFICACAO_PROMPT_DEFAULTS) as (keyof QualificacaoPromptCfg)[]).map(
-                (chave) => {
-                  const valor = promptSecoes[chave] ?? "";
-                  const ehDefault =
-                    valor.trim() === "" || valor.trim() === QUALIFICACAO_PROMPT_DEFAULTS[chave];
-                  return (
-                    <div key={chave} className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label
-                          htmlFor={`prompt-${chave}`}
-                          className="text-[11px] font-semibold text-foreground"
-                        >
-                          {QUALIFICACAO_PROMPT_LABELS[chave]}
-                          {!ehDefault && (
-                            <Badge tone="blue" size="sm" className="ml-1.5">
-                              Personalizada
-                            </Badge>
-                          )}
-                        </label>
-                        <span
-                          className={cn(
-                            "text-[11px] tabular-nums",
-                            valor.length > 4000 ? "text-sys-red" : "text-muted-foreground",
-                          )}
-                        >
-                          {valor.length}/4000
-                        </span>
-                      </div>
-                      <textarea
-                        id={`prompt-${chave}`}
-                        className={cn(FIELD_CLASS, "min-h-24 resize-y font-mono text-[11px] leading-relaxed")}
-                        value={valor}
-                        onChange={(e) =>
-                          setPromptSecoes((prev) => ({ ...prev, [chave]: e.target.value }))
-                        }
-                      />
-                    </div>
-                  );
-                },
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <CampoNumeroV2
+                  id="qv2-cotacao"
+                  label="Cotação USD (R$)"
+                  hint="Câmbio de referência da análise — atualizar semanalmente."
+                  value={qualifV2Campos.cotacao}
+                  invalido={!qualifV2Validacao.cotacao}
+                  onChange={(v) => setQualifV2Campos((prev) => ({ ...prev, cotacao: v }))}
+                />
+                <CampoNumeroV2
+                  id="qv2-renda"
+                  label="Renda familiar líquida de referência (R$/mês)"
+                  hint="Premissa: o investimento não deve passar de 20–25% da renda líquida anual."
+                  value={qualifV2Campos.renda}
+                  invalido={!qualifV2Validacao.renda}
+                  onChange={(v) => setQualifV2Campos((prev) => ({ ...prev, renda: v }))}
+                />
+                <CampoNumeroV2
+                  id="qv2-corte-ibge"
+                  label="Corte IBGE (R$ — opcional)"
+                  hint="Renda média do setor censitário. Vazio = critério desativado."
+                  value={qualifV2Campos.corteIbge}
+                  invalido={!qualifV2Validacao.corteIbge}
+                  onChange={(v) => setQualifV2Campos((prev) => ({ ...prev, corteIbge: v }))}
+                />
+                <CampoNumeroV2
+                  id="qv2-corte-quente"
+                  label="Corte QUENTE (score ≥)"
+                  hint="Inteiro de 1 a 100 — precisa ser maior que o corte FRIO."
+                  value={qualifV2Campos.corteQuente}
+                  invalido={!qualifV2Validacao.corteQuente}
+                  onChange={(v) => setQualifV2Campos((prev) => ({ ...prev, corteQuente: v }))}
+                />
+                <CampoNumeroV2
+                  id="qv2-corte-frio"
+                  label="Corte FRIO (score <)"
+                  hint="Inteiro de 1 a 100 — precisa ser menor que o corte QUENTE."
+                  value={qualifV2Campos.corteFrio}
+                  invalido={!qualifV2Validacao.corteFrio}
+                  onChange={(v) => setQualifV2Campos((prev) => ({ ...prev, corteFrio: v }))}
+                />
+              </div>
+              {!qualifV2Validacao.cortesCoerentes && (
+                <p className="text-[11px] text-sys-red">
+                  Corte FRIO deve ser menor que o corte QUENTE (1 ≤ frio &lt; quente ≤ 100).
+                </p>
               )}
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="qv2-system-prompt"
+                    className="text-[11px] font-semibold text-foreground"
+                  >
+                    System prompt (override avançado)
+                    {qualifV2Campos.systemPrompt.trim() !== "" && (
+                      <Badge tone="blue" size="sm" className="ml-1.5">
+                        Personalizado
+                      </Badge>
+                    )}
+                  </label>
+                  <span
+                    className={cn(
+                      "text-[11px] tabular-nums",
+                      qualifV2Validacao.systemPrompt ? "text-muted-foreground" : "text-sys-red",
+                    )}
+                  >
+                    {qualifV2Campos.systemPrompt.length}/{QUALIFICACAO_V2_PROMPT_MAX}
+                  </span>
+                </div>
+                <textarea
+                  id="qv2-system-prompt"
+                  className={cn(FIELD_CLASS, "min-h-72 resize-y font-mono text-xs leading-relaxed")}
+                  placeholder="Vazio = prompt v1.0 versionado no código (recomendado)"
+                  value={qualifV2Campos.systemPrompt}
+                  onChange={(e) =>
+                    setQualifV2Campos((prev) => ({ ...prev, systemPrompt: e.target.value }))
+                  }
+                />
+                <p className="rounded-md bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                  Vazio = prompt v1.0 versionado no código da função (recomendado). Os
+                  placeholders{" "}
+                  {QUALIFICACAO_V2_PLACEHOLDERS.map((p) => (
+                    <code key={p} className="mr-1.5 font-mono text-foreground">
+                      {p}
+                    </code>
+                  ))}
+                  são substituídos pelos campos acima. A resposta DEVE continuar no schema JSON
+                  do classificador (classificacao, score_financeiro, tier_profissao, sinais,
+                  prioridade_estrategica, acao_recomendada) — fora dele a qualificação degrada
+                  para INCOMPLETO.
+                </p>
+              </div>
             </section>
           )}
-          {card.editaPrompt && !promptCfg && (
+          {card.editaPrompt && !qualifV2Cfg && (
             <p className="rounded-md border border-dashed border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
-              Prompt indisponível neste ambiente (seed{" "}
-              <code className="font-mono">qualificacao_prompt</code> pendente) — a qualificação
-              segue com o prompt padrão do sistema.
+              Variáveis indisponíveis neste ambiente (seed{" "}
+              <code className="font-mono">qualificacao_v2</code> pendente) — a qualificação
+              segue com as variáveis padrão do sistema.
             </p>
           )}
 
@@ -1764,7 +1918,7 @@ function SistemaModal({
           )}
         </div>
 
-        <div className="mt-5 flex items-center justify-end gap-2 border-t border-border pt-4">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-6 py-4">
           {temEdicao ? (
             <>
               <Button variant="ghost" onClick={onClose}>
