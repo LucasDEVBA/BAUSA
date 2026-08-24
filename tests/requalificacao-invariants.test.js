@@ -58,3 +58,24 @@ test('qualify-lead: decisão humana nunca é sobrescrita na requalificação', (
     'FRIO requalificado deixou de sair da fila de aprovação',
   );
 });
+
+test('pipeline: deal de lead pendente fica SUSPENSO do board (representação única)', () => {
+  // Ordem do CEO (2026-08-24): lead na fila de aprovação aparece SÓ na
+  // coluna "Aguardando aprovação" — o deal dele some das colunas de etapa
+  // até a re-decisão (e reaparece intacto ao aprovar; nada é movido).
+  const pageSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'apps', 'crm', 'src', 'app', '(dashboard)', 'pipeline', 'page.tsx'),
+    'utf8',
+  );
+  assert.match(
+    pageSrc,
+    /aprovacao_status !== "pendente"/,
+    'filtro de suspensão sumiu — lead pendente voltaria a aparecer em dobro no pipeline',
+  );
+  assert.match(
+    pageSrc,
+    /row\.etapa === "concluido" \|\| row\.etapa === "perdido"/,
+    'etapas finais devem escapar da suspensão (histórico nunca some do board)',
+  );
+  assert.match(pageSrc, /aprovacao_status, score_financeiro/, 'select do embed perdeu aprovacao_status');
+});
