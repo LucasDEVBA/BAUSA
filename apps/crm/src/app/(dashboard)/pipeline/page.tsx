@@ -109,6 +109,8 @@ interface SupabaseDealRow {
       guardian_profession: string | null;
       guardian_email: string | null;
       timing_status: string | null;
+      // Fila de aprovação: deal de lead PENDENTE fica suspenso do board
+      aprovacao_status: string | null;
       // Classificador v2 — jsonb chega sem tipo garantido (parse defensivo)
       score_financeiro: number | null;
       tier_profissao: string | null;
@@ -251,7 +253,7 @@ export default async function PipelinePage() {
           followup_2_sent_at, meeting_scheduled, meeting_scheduled_at,
           qualification_reason, qualification_confidence, qualified_at,
           guardian_name, guardian_profession, guardian_email,
-          timing_status, score_financeiro, tier_profissao,
+          timing_status, aprovacao_status, score_financeiro, tier_profissao,
           sinais_reforco, sinais_alerta, prioridade_estrategica,
           acao_recomendada
         )
@@ -263,7 +265,17 @@ export default async function PipelinePage() {
 
   const stageConfig = mergeDealStageConfig(etapasOverrides);
 
-  const dealRows = (rows ?? []).map((row) => row as unknown as SupabaseDealRow);
+  const todasDealRows = (rows ?? []).map((row) => row as unknown as SupabaseDealRow);
+
+  // Deal de lead PENDENTE fica SUSPENSO do board (ordem do CEO, 2026-08-24):
+  // a requalificação v2 devolveu o lead à fila — a representação no pipeline
+  // é ÚNICA, na coluna "Aguardando aprovação" (AprovacaoColumn, alimentada
+  // pela fila). Nada é movido nem perdido: ao re-aprovar, o deal reaparece
+  // na etapa em que estava. Etapas finais nunca são suspensas (histórico).
+  const dealRows = todasDealRows.filter((row) => {
+    if (row.etapa === "concluido" || row.etapa === "perdido") return true;
+    return row.atleta?.form_submission?.aprovacao_status !== "pendente";
+  });
 
   // Prioridade P1/P2 por engajamento — todas as etapas exceto finais.
   // (Camada de exibição: a classificação Gemini permanece intocada.)
