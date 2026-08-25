@@ -348,7 +348,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const buildReactivationAthleteMessage = (data) => {
   const name = sanitize(data.athlete_name) || 'Atleta';
 
-  return `*${name}*, temos uma novidade importante. 🇺🇸
+  return `*${name}*, temos uma novidade importante.
 
 Aqui é da *Bolsa Atleta USA*.
 
@@ -358,7 +358,7 @@ No fechamento do ciclo atual de seleção, o nosso comitê reavaliou perfis que 
 
 Isso acontece com um número muito restrito de atletas, e o seu perfil foi um dos selecionados para essa retomada.
 
-Já enviamos os detalhes e o link para o seu responsável. Fala com ele(a) ainda hoje — a janela desta reabertura é curta. 🚀`;
+Já enviamos os detalhes e o link para o seu responsável. Fala com ele(a) ainda hoje: *as vagas desta reabertura são poucas e expiram com o fechamento do ciclo*.`;
 };
 
 const buildReactivationGuardianMessage = (data) => {
@@ -377,7 +377,9 @@ Essas reaberturas são raras: acontecem para um número muito restrito de famíl
 
 O próximo passo é retomar exatamente de onde paramos: a *Reunião Estratégica Individual* com *Leandro Ribeiro*, fundador da Bolsa Atleta USA.
 
-A vaga desta reabertura está temporariamente reservada para vocês. Garanta o horário no link abaixo. 👇`;
+Essa reabertura é limitada: *são poucas vagas, e elas expiram com o fechamento do ciclo*.
+
+O horário de vocês com o Leandro ainda está disponível — recomendo garantir com brevidade, antes que a agenda desta rodada se encerre.`;
 };
 
 const buildAthleteMessage = (data) => {
