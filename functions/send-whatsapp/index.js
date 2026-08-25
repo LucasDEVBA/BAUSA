@@ -352,7 +352,7 @@ const buildReactivationAthleteMessage = (data) => {
 
 Aqui é da *Bolsa Atleta USA*.
 
-No fechamento do ciclo atual de seleção, o nosso comitê reavaliou perfis que ficaram pelo caminho — e o seu voltou à mesa.
+No fechamento do ciclo atual de seleção, o nosso comitê reavaliou perfis que ficaram pelo caminho, e o seu voltou à mesa.
 
 ✅ *Decidimos reabrir uma possibilidade para o seu projeto.*
 
@@ -369,17 +369,17 @@ const buildReactivationGuardianMessage = (data) => {
 
 Aqui é da *Bolsa Atleta USA*.
 
-No fechamento do ciclo atual de seleção, nosso comitê reavaliou alguns perfis — e uma decisão interna nos trouxe de volta ao de *${athleteName}*.
+No fechamento do ciclo atual de seleção, nosso comitê reavaliou alguns perfis, e uma decisão interna nos trouxe de volta ao de *${athleteName}*.
 
 ✅ *Decidimos reabrir uma possibilidade de posicionamento para ${athleteName}* nas instituições parceiras de excelência nos Estados Unidos, dentro do modelo da *Educação Esportiva Inteligente®*.
 
-Essas reaberturas são raras: acontecem para um número muito restrito de famílias, quando identificamos que o potencial mapeado na primeira análise permanece — e que ainda existe janela para estruturar o projeto com segurança.
+Essas reaberturas são raras: acontecem para um número muito restrito de famílias, quando identificamos que o potencial mapeado na primeira análise permanece e que ainda existe janela para estruturar o projeto com segurança.
 
 O próximo passo é retomar exatamente de onde paramos: a *Reunião Estratégica Individual* com *Leandro Ribeiro*, fundador da Bolsa Atleta USA.
 
 Essa reabertura é limitada: *são poucas vagas, e elas expiram com o fechamento do ciclo*.
 
-O horário de vocês com o Leandro ainda está disponível — recomendo garantir com brevidade, antes que a agenda desta rodada se encerre.`;
+O horário de vocês com o Leandro ainda está disponível. Recomendo garantir com brevidade, antes que a agenda desta rodada se encerre.`;
 };
 
 const buildAthleteMessage = (data) => {
