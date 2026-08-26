@@ -67,8 +67,15 @@ test('send-whatsapp: builders de reativação ligados nos dois destinatários', 
     'select do atleta não cobre reactivation');
   assert.match(sendSrc, /messageType === 'reactivation' \? buildReactivationGuardianMessage/,
     'select do responsável não cobre reactivation');
-  // Tom do funil: reabertura exclusiva, nunca o texto do initial repetido
-  assert.ok(sendSrc.includes('reabrir uma possibilidade'), 'copy de reabertura sumiu');
+  // Copy do CEO (2026-08-25): novo ciclo 2027 + frase de seleção; e a
+  // regra dele de estilo: ZERO travessões nos templates de reativação.
+  assert.ok(sendSrc.includes('novo ciclo'), 'copy do novo ciclo sumiu');
+  assert.ok(sendSrc.includes('Nem todo perfil que chega'), 'frase de seleção do CEO sumiu');
+  const regiao = sendSrc.slice(
+    sendSrc.indexOf('buildReactivationAthleteMessage'),
+    sendSrc.indexOf('const buildAthleteMessage'),
+  );
+  assert.ok(!regiao.includes('\u2014'), 'travessão voltou à copy de reativação');
 });
 
 test('migration da re-fila dos antigos: recorte conservador', () => {
