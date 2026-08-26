@@ -78,6 +78,21 @@ test('send-whatsapp: builders de reativação ligados nos dois destinatários', 
   assert.ok(!regiao.includes('\u2014'), 'travessão voltou à copy de reativação');
 });
 
+test('migration do re-envio do lote 2026-08-26: janela fechada + Diego fora', () => {
+  const migReenvio = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase', 'migrations',
+      '20260826120000_reenvio_lote_reativacao.sql'), 'utf8');
+  assert.ok(migReenvio.includes("whatsapp_sent_at >= '2026-08-26T14:00:00Z'"),
+    'borda inicial da janela sumiu');
+  assert.ok(migReenvio.includes("whatsapp_sent_at <  '2026-08-26T15:00:00Z'"),
+    'borda final da janela sumiu — sem ela a migration re-armaria lotes futuros');
+  assert.ok(migReenvio.includes("id <> 'b2904302-7ba1-4cae-b8d7-633f2da53c34'"),
+    'exclusão do Diego Alves Gonzaga sumiu (ordem do CEO: manter como está)');
+  assert.ok(migReenvio.includes("aprovacao_status = 'aprovado'"), 'gate humano sumiu');
+  assert.ok(migReenvio.includes('meeting_scheduled IS NOT TRUE'),
+    'lead que agendou nesse meio-tempo não pode ser re-armado');
+});
+
 test('migration da re-fila dos antigos: recorte conservador', () => {
   assert.ok(migSrc.includes("d.etapa IN ('contato_feito', 'lead', 'aguardando_timing')"),
     'recorte de etapa pré-reunião sumiu');

@@ -56,37 +56,31 @@ const normalize = (s) => String(s || '')
   .normalize('NFD')
   .replace(/[̀-ͯ]/g, '');
 
-// Tokens de nome p/ casar com o TÍTULO do evento: nome completo + sobrenome
-// (último token com 4+ letras). Eventos remarcados criados manualmente pelo
-// CEO muitas vezes não têm attendee/telefone — só o nome da família no título
-// (ex.: "Familia Gama & Leandro Ribeiro"). Falso positivo é aceitável: a
-// lista é read-only e a vinculação é escolha manual do CEO.
-const nameTokens = (names) => {
-  const tokens = new Set();
-  for (const raw of names) {
-    const nome = normalize(raw).trim();
-    if (!nome) continue;
-    tokens.add(nome);
-    const partes = nome.split(/\s+/);
-    const sobrenome = partes[partes.length - 1];
-    if (partes.length > 1 && sobrenome.length >= 4) tokens.add(sobrenome);
-  }
-  return [...tokens];
-};
+// Partes significativas de UM nome (3+ letras, sem conectivos). O matching
+// por nome exige 2+ partes do MESMO nome como palavras inteiras do título:
+// sobrenome sozinho ("Alves", "Silva", "Neves") puxava reuniões de OUTROS
+// leads para a aba Reunião (reclamação do CEO, 2026-08-26) — precisão vence
+// recall aqui, pois os eventos do fluxo automático já casam por e-mail de
+// attendee ou telefone na descrição.
+const NAME_STOPWORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+const nameParts = (raw) => normalize(raw)
+  .trim()
+  .split(/\s+/)
+  .filter((p) => p.length >= 3 && !NAME_STOPWORDS.has(p));
 
 // O evento casa com o lead? Attendee por e-mail, OU QUALQUER telefone do lead
 // (responsável e atleta — o webhook casa contra os dois) na descrição, OU
-// nome/sobrenome no título.
-const eventMatchesLead = (event, emails, tails, tokens) => {
+// 2+ partes de um mesmo nome no título.
+const eventMatchesLead = (event, emails, tails, nomes) => {
   const attendees = (event.attendees || []).map((a) => (a.email || '').toLowerCase());
   if (emails.some((e) => e && attendees.includes(e))) return true;
   if (tails.length > 0) {
     const descDigits = String(event.description || '').replace(/\D/g, '');
     if (tails.some((t) => descDigits.includes(t))) return true;
   }
-  if (tokens.length > 0) {
-    const summary = normalize(event.summary);
-    if (summary && tokens.some((t) => summary.includes(t))) return true;
+  if (nomes.length > 0) {
+    const palavras = new Set(normalize(event.summary).split(/[^a-z0-9]+/).filter(Boolean));
+    if (nomes.some((parts) => parts.filter((p) => palavras.has(p)).length >= 2)) return true;
   }
   return false;
 };
@@ -115,10 +109,13 @@ functions.http('calendarLeadEvents', async (req, res) => {
     // Aceita 1..N telefones (responsável + atleta — o webhook casa contra ambos)
     const phonesInput = Array.isArray(body.phones) ? body.phones : [body.phone];
     const tails = [...new Set(phonesInput.map(phoneTail).filter(Boolean))];
-    // Nomes p/ matching por título (eventos manuais sem attendee/telefone)
-    const tokens = nameTokens(Array.isArray(body.names) ? body.names : []);
+    // Nomes p/ matching por título (eventos manuais sem attendee/telefone) —
+    // cada pessoa vira sua lista de partes; nome com 1 parte útil não casa.
+    const nomes = (Array.isArray(body.names) ? body.names : [])
+      .map(nameParts)
+      .filter((parts) => parts.length >= 2);
 
-    if (emails.length === 0 && tails.length === 0 && tokens.length === 0) {
+    if (emails.length === 0 && tails.length === 0 && nomes.length === 0) {
       return res.status(400).send({ success: false, error: 'Informe email, phone(s) e/ou names.' });
     }
 
@@ -154,7 +151,7 @@ functions.http('calendarLeadEvents', async (req, res) => {
     }
 
     const eventos = items
-      .filter((ev) => eventMatchesLead(ev, emails, tails, tokens))
+      .filter((ev) => eventMatchesLead(ev, emails, tails, nomes))
       .map((ev) => {
         const attachment = (ev.attachments || []).find((a) =>
           a.mimeType === GOOGLE_DOC_MIME && TRANSCRIPT_TITLE_RE.test(a.title || ''));
