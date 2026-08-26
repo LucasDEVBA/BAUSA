@@ -347,18 +347,15 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Depois dela, o lead cai no MESMO follow-up de sempre (FU1 48h / FU2 7d).
 const buildReactivationAthleteMessage = (data) => {
   const name = sanitize(data.athlete_name) || 'Atleta';
+  const guardianName = sanitize(data.guardian_name) || 'seu responsável';
 
-  return `*${name}*, temos uma novidade importante.
+  return `Oi, *${name}*!
 
-Aqui é da *Bolsa Atleta USA*.
+Você foi selecionado(a) para a análise do novo ciclo da *Bolsa Atleta USA*: janelas de janeiro e agosto de 2027.
 
-No fechamento do ciclo atual de seleção, o nosso comitê reavaliou perfis que ficaram pelo caminho, e o seu voltou à mesa.
+Temos instituições parceiras nos Estados Unidos com perfil compatível com o seu.
 
-✅ *Decidimos reabrir uma possibilidade para o seu projeto.*
-
-Isso acontece com um número muito restrito de atletas, e o seu perfil foi um dos selecionados para essa retomada.
-
-Já enviamos os detalhes e o link para o seu responsável. Fala com ele(a) ainda hoje: *as vagas desta reabertura são poucas e expiram com o fechamento do ciclo*.`;
+Já falei com ${guardianName}. Conversem em casa e marquem a reunião com o Leandro: é lá que vocês veem quais são as escolas e o timing de cada janela.`;
 };
 
 const buildReactivationGuardianMessage = (data) => {
@@ -369,17 +366,13 @@ const buildReactivationGuardianMessage = (data) => {
 
 Aqui é da *Bolsa Atleta USA*.
 
-No fechamento do ciclo atual de seleção, nosso comitê reavaliou alguns perfis, e uma decisão interna nos trouxe de volta ao de *${athleteName}*.
+Abrimos o novo ciclo de seleção de famílias, para as janelas de embarque de janeiro e agosto de 2027, e o perfil do(a) *${athleteName}* entrou na análise. Pelo que mapeamos, ele(a) tem perfil compatível com as bolsas que nossas instituições parceiras abrem nesta rodada.
 
-✅ *Decidimos reabrir uma possibilidade de posicionamento para ${athleteName}* nas instituições parceiras de excelência nos Estados Unidos, dentro do modelo da *Educação Esportiva Inteligente®*.
+Nem todo perfil que chega até nós segue para essa conversa. *O do(a) ${athleteName} seguiu.*
 
-Essas reaberturas são raras: acontecem para um número muito restrito de famílias, quando identificamos que o potencial mapeado na primeira análise permanece e que ainda existe janela para estruturar o projeto com segurança.
+Vale uma hora de conversa com o Leandro, fundador da BAU, para vocês entenderem o caminho real, instituições, timing e investimento, e definirem qual das duas janelas faz mais sentido para o(a) ${athleteName}.
 
-O próximo passo é retomar exatamente de onde paramos: a *Reunião Estratégica Individual* com *Leandro Ribeiro*, fundador da Bolsa Atleta USA.
-
-Essa reabertura é limitada: *são poucas vagas, e elas expiram com o fechamento do ciclo*.
-
-O horário de vocês com o Leandro ainda está disponível. Recomendo garantir com brevidade, antes que a agenda desta rodada se encerre.`;
+Escolha o horário que funciona melhor para vocês:`;
 };
 
 const buildAthleteMessage = (data) => {
