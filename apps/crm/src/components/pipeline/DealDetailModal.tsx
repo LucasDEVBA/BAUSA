@@ -1149,7 +1149,9 @@ function ReunioesCalendarBlock({ deal }: { deal: Deal }) {
       if (r.success) {
         setAtual(ev.id);
         toast.success("Reunião vinculada ao deal", {
-          description: "Data, link e status do deal agora seguem este evento.",
+          description: r.etapa
+            ? `Deal movido para ${r.etapa === "reuniao_realizada" ? "Reunião realizada" : "Reunião marcada"}.`
+            : "Data, link e status do deal agora seguem este evento.",
         });
       } else {
         toast.error(r.error);
