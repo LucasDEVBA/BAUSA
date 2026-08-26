@@ -132,12 +132,22 @@ export async function listarReunioesLead(dealId: string): Promise<ListarReunioes
   }
 }
 
-export type RelinkResult = { success: true } | { success: false; error: string };
+export type RelinkResult =
+  | { success: true; etapa: "reuniao_marcada" | "reuniao_realizada" | null }
+  | { success: false; error: string };
+
+// Só estas etapas são PROMOVIDAS pelo vínculo — deal mais avançado (proposta,
+// contrato…), perdido ou concluído nunca é puxado de volta por um relink
+// (religar reunião antiga p/ ver transcrição não pode retroceder o pipeline).
+const ETAPAS_PRE_REUNIAO = new Set(["contato_feito", "lead", "aguardando_timing"]);
 
 /**
  * Religa o deal a um evento específico do Calendar (escolhido pelo CEO na
  * lista acima). Atualiza id/data/link da reunião — a CF meeting-transcripts
  * passa a procurar a transcrição no evento certo no próximo tick.
+ * Vincular também MOVE o deal (pedido do CEO, 2026-08-26): evento que já
+ * aconteceu → reuniao_realizada; evento futuro → reuniao_marcada — sempre
+ * só para frente.
  */
 export async function relinkReuniaoDeal(
   dealId: string,
@@ -154,12 +164,36 @@ export async function relinkReuniaoDeal(
 
   try {
     const supabase = await createAuditedSupabaseClient();
+
+    const { data: atual, error: erroLeitura } = await supabase
+      .from("deals")
+      .select("etapa, atleta:atletas(form_submission_id)")
+      .eq("id", dealId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (erroLeitura || !atual) {
+      return { success: false, error: "Deal não encontrado." };
+    }
+    const etapaAtual = (atual as { etapa: string }).etapa;
+    const formSubmissionId =
+      (atual as unknown as { atleta: { form_submission_id: string | null } | null })
+        .atleta?.form_submission_id ?? null;
+
+    const jaOcorreu = new Date(evento.start).getTime() <= Date.now();
+    const alvo: "reuniao_marcada" | "reuniao_realizada" = jaOcorreu
+      ? "reuniao_realizada"
+      : "reuniao_marcada";
+    const promove =
+      ETAPAS_PRE_REUNIAO.has(etapaAtual) ||
+      (etapaAtual === "reuniao_marcada" && alvo === "reuniao_realizada");
+
     const { data, error } = await supabase
       .from("deals")
       .update({
         google_calendar_event_id: evento.id,
         reuniao_data: evento.start,
         reuniao_link: evento.hangoutLink ?? evento.htmlLink ?? null,
+        ...(promove ? { etapa: alvo } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq("id", dealId)
@@ -171,10 +205,29 @@ export async function relinkReuniaoDeal(
       return { success: false, error: "Deal não encontrado ou sem permissão." };
     }
 
+    // Reunião vinculada = reunião existente: marca o flag que tira o lead dos
+    // follow-ups automáticos ("você não agendou"). Best-effort — falha aqui
+    // não desfaz o vínculo, só loga.
+    if (promove && formSubmissionId) {
+      const { error: erroFlag } = await supabase
+        .from("form_submissions")
+        .update({ meeting_scheduled: true, meeting_scheduled_at: new Date().toISOString() })
+        .eq("id", formSubmissionId)
+        .is("meeting_scheduled_at", null);
+      if (erroFlag) {
+        console.error({
+          level: "warn",
+          action: "relink_meeting_flag",
+          dealId,
+          error: erroFlag.message,
+        });
+      }
+    }
+
     revalidatePath("/pipeline");
     revalidatePath("/leads");
     revalidatePath("/agenda");
-    return { success: true };
+    return { success: true, etapa: promove ? alvo : null };
   } catch (err) {
     console.error({
       level: "error",
