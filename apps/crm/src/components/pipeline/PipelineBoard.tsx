@@ -127,6 +127,12 @@ export function PipelineBoard({
 }: PipelineBoardProps) {
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
+  // Reconcilia com o servidor: quando a page revalida (ex.: vincular reunião
+  // move o deal de etapa), a verdade do servidor vence a cópia local — sem
+  // isto o card fica na coluna antiga até um F5 (CEO reportou, 2026-08-26).
+  useEffect(() => {
+    setDeals(initialDeals);
+  }, [initialDeals]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);

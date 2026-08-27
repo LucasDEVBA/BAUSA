@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   X,
   Sparkles,
@@ -1105,6 +1106,7 @@ type TranscricaoEventoEstado =
   | { estado: "erro"; erro: string };
 
 function ReunioesCalendarBlock({ deal }: { deal: Deal }) {
+  const router = useRouter();
   const [eventos, setEventos] = useState<ReuniaoCalendar[] | null>(null);
   const [atual, setAtual] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -1153,6 +1155,9 @@ function ReunioesCalendarBlock({ deal }: { deal: Deal }) {
             ? `Deal movido para ${r.etapa === "reuniao_realizada" ? "Reunião realizada" : "Reunião marcada"}.`
             : "Data, link e status do deal agora seguem este evento.",
         });
+        // O board do Pipeline é client-side: sem refresh, o card fica na
+        // coluna antiga até um F5 (CEO reportou exatamente isso, 2026-08-26).
+        router.refresh();
       } else {
         toast.error(r.error);
       }
