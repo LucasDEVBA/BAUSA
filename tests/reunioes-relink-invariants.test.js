@@ -36,6 +36,22 @@ test('promoção só para frente: whitelist pré-reunião + marcada→realizada'
     'etapa deixou de ser condicional no update — relink retrocederia deal avançado');
 });
 
+test('board reflete o vínculo sem F5: refresh no modal + re-sync no board', () => {
+  const modalSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'apps', 'crm', 'src', 'components', 'pipeline', 'DealDetailModal.tsx'),
+    'utf8');
+  const boardSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'apps', 'crm', 'src', 'components', 'pipeline', 'PipelineBoard.tsx'),
+    'utf8');
+  const vincularRegion = modalSrc.slice(
+    modalSrc.indexOf('const vincular = (ev: ReuniaoCalendar)'),
+    modalSrc.indexOf('const toggleTranscricao'));
+  assert.match(vincularRegion, /router\.refresh\(\)/,
+    'router.refresh() sumiu do vincular — o board não repinta após mover o deal');
+  assert.match(boardSrc, /setDeals\(initialDeals\);\s*\n\s*\}, \[initialDeals\]\)/,
+    're-sync de deals com o servidor sumiu do PipelineBoard — card fica na coluna antiga até F5');
+});
+
 test('vincular marca meeting_scheduled sem sobrescrever detecção anterior', () => {
   assert.match(src, /meeting_scheduled: true/,
     'flag de reunião sumiu — lead vinculado voltaria a receber follow-up');
