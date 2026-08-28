@@ -397,7 +397,7 @@ export const pt = {
       subtitle: "Tours exclusivos e relacionamento direto com treinadores e diretores de admissão",
       typeUniversity: "UNIVERSIDADE",
       typePrepSchool: "PREP SCHOOL",
-      schoolsTitle: "Escolas",
+      schoolsTitle: "High Schools",
       universitiesTitle: "Faculdades",
       carouselPrev: "Anterior",
       carouselNext: "Próximo",
