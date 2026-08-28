@@ -6,35 +6,76 @@ import { Play, X, Building2, MapPin } from "lucide-react";
 import { useState } from "react";
 import { useLanguage } from "@/i18n";
 import leandroHarvard from "@/assets/leandro-harvard.jpg";
-import thumbHolyCross from "@/assets/thumb-holyCross.jpg";
 import thumbTaft from "@/assets/thumb-Taft.jpg";
+import thumbBenfica from "@/assets/thumb-benfica.jpg";
+import thumbImgAcademy from "@/assets/thumb-imgAcademy.jpg";
+import thumbMiami from "@/assets/thumb-miami.jpg";
+import thumbFlorida from "@/assets/thumb-florida.jpg";
 import logoWatermark from "@/assets/logo-watermark.png";
+import type { StaticImageData } from "next/image";
 
-// Using real Harvard photo and placeholder video from TestimonialsCarousel
-const institutions = [
+interface Institution {
+  id: string;
+  name: string;
+  location: string;
+  type: "university" | "prep-school";
+  photo: StaticImageData;
+  /** Compensa o crop 16:9 nas fotos verticais (mantém rostos no quadro) */
+  imagePosition?: string;
+  youtubeId: string;
+}
+
+// 3 escolas (prep-school) + 3 faculdades (university), nesta ordem no grid.
+const institutions: Institution[] = [
   {
-    id: "harvard",
-    name: "Harvard University",
-    location: "Cambridge, MA",
-    type: "university",
-    photo: leandroHarvard,
-    youtubeId: "qlSNBAQQPUs", // Placeholder video
+    id: "benfica",
+    name: "Benfica Residential Academy",
+    location: "Saint Leo, FL",
+    type: "prep-school",
+    photo: thumbBenfica,
+    youtubeId: "Byr7E1W8JSk",
   },
   {
-    id: "holy-cross",
-    name: "College of The Holy Cross",
-    location: "Worcester, MA",
-    type: "university",
-    photo: thumbHolyCross, // Placeholder - same photo until real one is provided
-    youtubeId: "l1h7TLvnZC8",
+    id: "img-academy",
+    name: "IMG Academy",
+    location: "Bradenton, FL",
+    type: "prep-school",
+    photo: thumbImgAcademy,
+    youtubeId: "zlJ3WUHY_BI",
   },
   {
     id: "taft",
     name: "The Taft School",
     location: "Watertown, CT",
     type: "prep-school",
-    photo: thumbTaft, // Placeholder - same photo until real one is provided
+    photo: thumbTaft,
+    imagePosition: "50% 35%",
     youtubeId: "ZPXd4GKYvQ8",
+  },
+  {
+    id: "miami",
+    name: "University of Miami",
+    location: "Coral Gables, FL",
+    type: "university",
+    photo: thumbMiami,
+    youtubeId: "gvcUVL0j_eQ",
+  },
+  {
+    id: "florida",
+    name: "University of Florida",
+    location: "Gainesville, FL",
+    type: "university",
+    photo: thumbFlorida,
+    youtubeId: "gpT0gG8nK6U",
+  },
+  {
+    id: "harvard",
+    name: "Harvard University",
+    location: "Cambridge, MA",
+    type: "university",
+    photo: leandroHarvard,
+    imagePosition: "50% 30%",
+    youtubeId: "qlSNBAQQPUs", // Placeholder video
   },
 ];
 
@@ -100,7 +141,7 @@ const InstitutionalRecognitionSection = () => {
         {/* Institution Cards Grid */}
         <div
           ref={cardsReveal.ref}
-          className={`${revealClass(cardsReveal.isRevealed)} grid md:grid-cols-3 gap-4 sm:gap-6 max-w-6xl mx-auto`}
+          className={`${revealClass(cardsReveal.isRevealed)} grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 max-w-6xl mx-auto`}
         >
           {institutions.map((institution, index) => (
             <div
@@ -109,11 +150,12 @@ const InstitutionalRecognitionSection = () => {
             >
               <div className="relative h-full rounded-2xl sm:rounded-3xl overflow-hidden bg-white/[0.03] backdrop-blur-sm border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.15] transition-all duration-500 hover:-translate-y-1">
                 {/* Image Container */}
-                <div className="relative aspect-[4/3] overflow-hidden">
+                <div className="relative aspect-video overflow-hidden">
                   <img
                     src={institution.photo.src}
                     alt={`${t("landing.institutionalRecognition.photoAltPrefix")} ${institution.name}`}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    style={{ objectPosition: institution.imagePosition ?? "center" }}
                     loading="lazy"
                     decoding="async"
                   />
