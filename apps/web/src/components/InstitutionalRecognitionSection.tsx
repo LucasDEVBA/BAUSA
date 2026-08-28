@@ -31,6 +31,15 @@ interface Institution {
 
 const schools: Institution[] = [
   {
+    id: "taft",
+    name: "The Taft School",
+    location: "Watertown, CT",
+    type: "prep-school",
+    photo: thumbTaft,
+    imagePosition: "50% 35%",
+    youtubeId: "ZPXd4GKYvQ8",
+  },
+  {
     id: "benfica",
     name: "Benfica Residential Academy",
     location: "Saint Leo, FL",
@@ -54,18 +63,18 @@ const schools: Institution[] = [
     photo: thumbRps,
     youtubeId: "VLnk65O91Pg",
   },
-  {
-    id: "taft",
-    name: "The Taft School",
-    location: "Watertown, CT",
-    type: "prep-school",
-    photo: thumbTaft,
-    imagePosition: "50% 35%",
-    youtubeId: "ZPXd4GKYvQ8",
-  },
 ];
 
 const universities: Institution[] = [
+  {
+    id: "harvard",
+    name: "Harvard University",
+    location: "Cambridge, MA",
+    type: "university",
+    photo: leandroHarvard,
+    imagePosition: "50% 30%",
+    youtubeId: "qlSNBAQQPUs", // Placeholder video
+  },
   {
     id: "miami",
     name: "University of Miami",
@@ -89,15 +98,6 @@ const universities: Institution[] = [
     type: "university",
     photo: thumbFiu,
     youtubeId: "t2-hpjOVjNQ",
-  },
-  {
-    id: "harvard",
-    name: "Harvard University",
-    location: "Cambridge, MA",
-    type: "university",
-    photo: leandroHarvard,
-    imagePosition: "50% 30%",
-    youtubeId: "qlSNBAQQPUs", // Placeholder video
   },
 ];
 
