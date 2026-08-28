@@ -116,23 +116,38 @@ function emailMonitor({ critico, itens, urlObservabilidade }) {
   });
 }
 
-/** Lead(s) esperando a decisão do CEO na fila de aprovação. */
-function emailAprovacaoPendente({ leads, urlAprovacoes, horas }) {
-  const itens = leads.map((l) =>
-    `${l.nome}${l.classificacao ? ` · ${l.classificacao}` : ''}${l.esperandoHoras ? ` · há ${l.esperandoHoras}h` : ''}`,
-  );
+/**
+ * Briefing diário das 9h: resumo do dia anterior + fila de aprovação.
+ * Substitui o antigo emailAprovacaoPendente (que saía a cada tick do
+ * monitor) — ordem do CEO, 2026-08-27: uma vez por dia, com o relatório.
+ */
+function emailResumoDiario({ resumo, leads, urlAprovacoes }) {
   const n = leads.length;
+  const itens = [
+    `Leads novos: ${resumo.chegaram}` +
+      (resumo.chegaram > 0
+        ? ` (${resumo.quentes} QUENTE · ${resumo.mornos} MORNO · ${resumo.frios} FRIO)`
+        : ''),
+    `Decisões de aprovação: ${resumo.aprovados} aprovado(s) · ${resumo.reprovados} reprovado(s)`,
+    `Mensagens enviadas: ${resumo.iniciais} primeira(s) · ${resumo.followups} follow-up(s)`,
+    `Reuniões marcadas: ${resumo.reunioes}`,
+    ...leads.slice(0, 10).map((l) =>
+      `Aguardando aprovação: ${l.nome}` +
+        `${l.classificacao ? ` · ${l.classificacao}` : ''}` +
+        `${l.esperandoHoras != null ? ` · há ${l.esperandoHoras}h` : ''}`,
+    ),
+    ...(n > 10 ? [`...e mais ${n - 10} lead(s) na fila de aprovação`] : []),
+  ];
   return layout({
-    tom: 'acao',
-    titulo: n === 1 ? '1 lead esperando sua aprovação' : `${n} leads esperando sua aprovação`,
-    resumo:
-      `Enquanto a decisão não sai, ${n === 1 ? 'esse lead não entra' : 'esses leads não entram'} no ` +
-      `pipeline e ${n === 1 ? 'não recebe' : 'não recebem'} nenhuma mensagem` +
-      (horas ? ` — o mais antigo está parado há ${horas}h.` : '.'),
+    tom: n > 0 ? 'acao' : 'ok',
+    titulo: `Resumo diário · ${resumo.dia}`,
+    resumo: n === 0
+      ? 'Nenhum lead aguardando sua aprovação. Os números de ontem estão abaixo.'
+      : `${n === 1 ? '1 lead espera' : `${n} leads esperam`} sua decisão para entrar no pipeline. Os números de ontem estão abaixo.`,
     itens,
-    cta: urlAprovacoes ? { label: 'Aprovar agora', url: urlAprovacoes } : undefined,
-    rodape: 'Aprovar libera o outreach automático. Reprovar encerra o lead sem mensagem.',
+    cta: n > 0 && urlAprovacoes ? { label: 'Aprovar agora', url: urlAprovacoes } : undefined,
+    rodape: 'Briefing diário das 9h. Aprovar libera o outreach automático; reprovar encerra o lead sem mensagem.',
   });
 }
 
-module.exports = { layout, emailMonitor, emailAprovacaoPendente, MARCA };
+module.exports = { layout, emailMonitor, emailResumoDiario, MARCA };
