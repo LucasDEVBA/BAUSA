@@ -43,7 +43,7 @@ const RESEND_API_KEY       = process.env.RESEND_API_KEY;
 const BREVO_API_KEY        = process.env.BREVO_API_KEY;
 const FROM_EMAIL           = process.env.FROM_EMAIL || 'Bolsa Atleta USA <contato@bolsaatletausa.com>';
 const ENGINE_URL           = (process.env.ENGINE_URL || 'https://bolsa-atleta-crm.vercel.app').replace(/\/+$/, '');
-const { emailMonitor, emailAprovacaoPendente } = require('./templates');
+const { emailMonitor, emailResumoDiario } = require('./templates');
 
 // Os DADOS monitorados são os de produção — sempre public (padrão do Engine).
 const DATA_SCHEMA = 'public';
@@ -585,68 +585,140 @@ const checkSeguro = async (chave, fn) => {
   }
 };
 
-// ─── Aviso da fila de aprovação (evento próprio, não é "monitor") ─────
+// ─── Briefing diário das 9h: fila de aprovação + resumo de ontem ──────
 // A fila é retenção PROPOSITAL: enquanto o CEO não decide, o lead não entra
-// no pipeline nem recebe mensagem. Por isso este aviso é o único que nasce
-// com WhatsApp ligado — e traz NOME e link direto, em vez de "N leads
-// pendentes", que obriga a abrir o sistema para saber de quem se trata.
+// no pipeline nem recebe mensagem. O aviso traz NOME e link direto.
+// Ordem do CEO (2026-08-27): antes saía a CADA tick (30min) e, com a Z-API
+// desconectada, acumulou 8 cópias na fila em 26/08 — agora e-mail/WhatsApp/
+// in-app saem UMA vez por dia, no 1º tick a partir das 9h BRT, junto com o
+// resumo do dia anterior. A marca do dia é gravada ANTES do envio (padrão
+// whatsapp_sent_at: falha no meio não vira loop de reenvio).
+const TZ_BRT = 'America/Sao_Paulo';
+const BRIEFING_HORA_BRT = 9;
+const dataBrt = (d = new Date()) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: TZ_BRT }).format(d);
+const horaBrt = () => Number(
+  new Intl.DateTimeFormat('en-GB', { timeZone: TZ_BRT, hour: '2-digit', hour12: false })
+    .format(new Date()),
+);
+
+// Janela de "ontem" (dia BRT) em UTC. BRT é UTC-3 fixo desde 2019 — o dia
+// BRT começa às 03:00Z.
+const janelaOntemUtc = () => {
+  const hoje = dataBrt();
+  const ontem = dataBrt(new Date(Date.now() - 86400000));
+  return { ontem, ini: `${ontem}T03:00:00Z`, fim: `${hoje}T03:00:00Z` };
+};
+
+const contarFs = async (filtros) => {
+  const rows = await buscar(
+    `form_submissions?select=id&deleted_at=is.null&${filtros}&limit=1000`,
+  );
+  return Array.isArray(rows) ? rows.length : 0;
+};
+
+const montarResumoOntem = async () => {
+  const { ontem, ini, fim } = janelaOntemUtc();
+  const jan = (col) => `${col}=gte.${encodeURIComponent(ini)}&${col}=lt.${encodeURIComponent(fim)}`;
+  const chegada = jan('submitted_at');
+  const [chegaram, quentes, mornos, frios, aprovados, reprovados, iniciais, fu1, fu2, reunioes] =
+    await Promise.all([
+      contarFs(chegada),
+      contarFs(`${chegada}&qualification_classification=eq.QUENTE`),
+      contarFs(`${chegada}&qualification_classification=eq.MORNO`),
+      contarFs(`${chegada}&qualification_classification=eq.FRIO`),
+      contarFs(`${jan('aprovacao_decidida_em')}&aprovacao_status=eq.aprovado`),
+      contarFs(`${jan('aprovacao_decidida_em')}&aprovacao_status=eq.reprovado`),
+      contarFs(jan('whatsapp_sent_at')),
+      contarFs(jan('followup_1_sent_at')),
+      contarFs(jan('followup_2_sent_at')),
+      contarFs(jan('meeting_scheduled_at')),
+    ]);
+  const [, mes, dia] = ontem.split('-');
+  return {
+    dia: `${dia}/${mes}`,
+    chegaram, quentes, mornos, frios,
+    aprovados, reprovados,
+    iniciais, followups: fu1 + fu2,
+    reunioes,
+  };
+};
+
 const alertarAprovacaoPendente = async (canais) => {
   const cfg = canais.lead_aguardando_aprovacao || {};
   if (cfg.inapp === false && cfg.email !== true && cfg.whatsapp !== true) return 0;
 
-  const limite = encodeURIComponent(isoAtras(APROVACAO_PENDENTE_HORAS));
+  // Uma vez por dia, no 1º tick a partir das 9h BRT.
+  if (horaBrt() < BRIEFING_HORA_BRT) return 0;
+  const hoje = dataBrt();
+  const state = await lerConfig('briefing_diario_state');
+  if (state.dia === hoje) return 0;
+  await salvarConfigKey('briefing_diario_state', {
+    dia: hoje,
+    enviado_em: new Date().toISOString(),
+  });
+
   const rows = await buscar(
     `form_submissions?select=athlete_name,qualification_classification,qualified_at` +
       `&aprovacao_status=eq.pendente&qualification_classification=in.(QUENTE,MORNO)` +
-      `&deleted_at=is.null&qualified_at=lt.${limite}&order=qualified_at.asc&limit=10`,
+      `&deleted_at=is.null&order=qualified_at.asc&limit=50`,
   );
-  if (!Array.isArray(rows) || rows.length === 0) return 0;
-
   const agora = Date.now();
-  const leads = rows.map((r) => ({
+  const leads = (Array.isArray(rows) ? rows : []).map((r) => ({
     nome: r.athlete_name,
     classificacao: r.qualification_classification,
     esperandoHoras: r.qualified_at
       ? Math.floor((agora - Date.parse(r.qualified_at)) / 3600000)
       : null,
   }));
-  const maisAntigo = leads[0]?.esperandoHoras ?? null;
   const urlAprovacoes = `${ENGINE_URL}/leads?aprovacoes=1`;
   const n = leads.length;
+  const resumo = await montarResumoOntem();
+
+  const linhaLeadsNovos =
+    `Leads novos: ${resumo.chegaram}` +
+    (resumo.chegaram > 0
+      ? ` (${resumo.quentes} QUENTE · ${resumo.mornos} MORNO · ${resumo.frios} FRIO)`
+      : '');
+  const linhaDecisoes = `Decisões: ${resumo.aprovados} aprovado(s) · ${resumo.reprovados} reprovado(s)`;
+  const linhaMensagens = `Mensagens: ${resumo.iniciais} primeira(s) · ${resumo.followups} follow-up(s)`;
+  const linhaReunioes = `Reuniões marcadas: ${resumo.reunioes}`;
 
   if (cfg.inapp !== false) {
     await criarNotificacoesInApp(
-      n === 1 ? '1 lead aguardando aprovação' : `${n} leads aguardando aprovação`,
-      leads.map((l) => `${l.nome} (${l.classificacao})`).join(', '),
+      `Resumo de ontem (${resumo.dia})` +
+        (n > 0 ? ` · ${n} lead(s) aguardando aprovação` : ''),
+      [linhaLeadsNovos, linhaDecisoes, linhaMensagens, linhaReunioes].join(' | '),
     );
   }
 
   if (cfg.whatsapp === true) {
     const lista = leads
       .slice(0, 5)
-      .map((l) => `• *${l.nome}* — ${l.classificacao}${l.esperandoHoras != null ? ` · há ${l.esperandoHoras}h` : ''}`)
+      .map((l) => `• *${l.nome}* · ${l.classificacao}${l.esperandoHoras != null ? ` · há ${l.esperandoHoras}h` : ''}`)
       .join('\n');
     const extra = n > 5 ? `\n_...e mais ${n - 5}_` : '';
-    // Curta de propósito: quem, quão quente, e o link. O texto explicando
-    // o custo de não decidir cansava na 3ª vez que chegava.
+    const blocoPendentes = n === 0
+      ? `✅ Nenhum lead aguardando sua aprovação.`
+      : `⏳ *${n === 1 ? '1 lead espera' : `${n} leads esperam`} sua aprovação*\n${lista}${extra}\n\nAprovar agora 👉 ${urlAprovacoes}`;
     const msg =
-      `👋 *${n === 1 ? 'Tem 1 lead' : `Tem ${n} leads`} esperando sua aprovação*\n\n` +
-      `${lista}${extra}\n\n` +
-      `Aprovar agora 👉 ${urlAprovacoes}`;
+      `☀️ *Bom dia! Resumo de ontem (${resumo.dia})*\n\n` +
+      `• ${linhaLeadsNovos}\n• ${linhaDecisoes}\n• ${linhaMensagens}\n• ${linhaReunioes}\n\n` +
+      blocoPendentes;
     await sendWhatsAppCeo(msg);
   }
 
   if (cfg.email === true) {
-    const html = emailAprovacaoPendente({ leads, urlAprovacoes, horas: maisAntigo });
-    const assunto = n === 1
-      ? '1 lead esperando sua aprovação'
-      : `${n} leads esperando sua aprovação`;
+    const html = emailResumoDiario({ resumo, leads, urlAprovacoes });
+    const assunto = n > 0
+      ? `Resumo diário ${resumo.dia} · ${n} lead(s) aguardando aprovação`
+      : `Resumo diário ${resumo.dia}`;
     for (const to of await fetchAlertRecipients()) {
       await sendEmailWithFallback(to, assunto, html);
     }
   }
 
-  log('INFO', 'alerta_aprovacao_pendente', { leads: n, canais: cfg });
+  log('INFO', 'briefing_diario_enviado', { pendentes: n, resumo, canais: cfg });
   return n;
 };
 
