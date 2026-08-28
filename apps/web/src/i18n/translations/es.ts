@@ -399,7 +399,7 @@ const es: Translations = {
       subtitle: "Tours exclusivos y relación directa con entrenadores y directores de admisión",
       typeUniversity: "UNIVERSIDAD",
       typePrepSchool: "PREP SCHOOL",
-      schoolsTitle: "Escuelas",
+      schoolsTitle: "High Schools",
       universitiesTitle: "Universidades",
       carouselPrev: "Anterior",
       carouselNext: "Siguiente",
