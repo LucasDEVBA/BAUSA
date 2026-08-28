@@ -277,6 +277,33 @@ const fetchAlertRecipients = async () => {
   }
 };
 
+/**
+ * Destinatários de alerta CRÍTICO: só o CTO (ordem do CEO, 2026-08-28 —
+ * "os e-mails de crítico devem ser enviados apenas para o lucasdevba").
+ * O crítico é operacional: quem age é o CTO; o CEO acompanha o funil pelo
+ * briefing diário e pelo in-app. Fail-safe: sem CTO ativo com e-mail, cai
+ * para TODOS os destinatários — alerta crítico nunca se perde por
+ * configuração de perfil.
+ */
+const fetchCriticalRecipients = async () => {
+  try {
+    const result = await httpRequest(
+      `${SUPABASE_URL}/rest/v1/user_profiles?papel=eq.cto&ativo=is.true&select=email`,
+      { method: 'GET', headers: supaHeaders() },
+    );
+    if (result.statusCode < 400) {
+      const rows = JSON.parse(result.body || '[]');
+      const emails = rows
+        .map((r) => r.email)
+        .filter((e) => typeof e === 'string' && e.includes('@'));
+      if (emails.length > 0) return emails;
+    }
+  } catch (error) {
+    log('WARN', 'monitor_critical_recipients_failed', { error: error.message });
+  }
+  return fetchAlertRecipients();
+};
+
 // ─── Sinais positivos de vida (lições do incidente 2026-07-15/17) ──
 /** Estado REAL da conexão Z-API — a Z-API caída aceita envios com 200. */
 const checkZapiConexao = async () => {
@@ -1268,6 +1295,9 @@ functions.http('monitorHealth', async (req, res) => {
         let enviado = false;
         let emailsEnviados = 0;
         const recipients = await fetchAlertRecipients();
+        // Crítico por e-mail vai SÓ ao CTO (fallback: todos) — atenção e o
+        // briefing diário continuam com a lista completa.
+        const recipientsCriticos = criticos.length > 0 ? await fetchCriticalRecipients() : [];
 
         for (const [grupo, lista] of [['monitor_critico', criticos], ['monitor_atencao', atencao]]) {
           if (lista.length === 0) continue;
@@ -1289,7 +1319,7 @@ functions.http('monitorHealth', async (req, res) => {
               itens: lista.map((c) => c.detalhe),
               urlObservabilidade: `${ENGINE_URL}/observabilidade`,
             });
-            for (const to of recipients) {
+            for (const to of (critico ? recipientsCriticos : recipients)) {
               if (await sendEmailWithFallback(to, `${critico ? '🚨' : '⚠️'} ${titulo}`, html)) emailsEnviados += 1;
             }
           }
