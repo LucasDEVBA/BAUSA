@@ -51,6 +51,32 @@ test('o aviso de aprovação leva NOME e link — não só a contagem', () => {
   assert.match(corpo, /aprovacoes=1/, 'o link deve abrir a fila de aprovação');
 });
 
+test('e-mail de CRÍTICO vai só ao CTO, com fallback fail-safe', () => {
+  // Ordem do CEO (2026-08-28): "os e-mails de crítico devem ser enviados
+  // apenas para o lucasdevba" — o crítico é operacional (quem age é o CTO).
+  assert.match(SRC, /const fetchCriticalRecipients = async/, 'destinatário de crítico sumiu');
+  assert.match(SRC, /papel=eq\.cto&ativo=is\.true/, 'crítico deve filtrar papel cto ativo');
+  const fn = SRC.slice(
+    SRC.indexOf('const fetchCriticalRecipients'),
+    SRC.indexOf('// ─── Sinais positivos'),
+  );
+  assert.match(fn, /return fetchAlertRecipients\(\);/,
+    'fallback para todos sumiu — sem CTO ativo o alerta crítico se perderia');
+  assert.match(SRC, /critico \? recipientsCriticos : recipients/,
+    'o dispatch deixou de rotear e-mail por severidade');
+});
+
+test('briefing diário continua com a lista completa de destinatários', () => {
+  const briefing = SRC.slice(
+    SRC.indexOf('const alertarAprovacaoPendente'),
+    SRC.indexOf('// ─── Cloud Scheduler API'),
+  );
+  assert.match(briefing, /fetchAlertRecipients\(\)/,
+    'o briefing das 9h deve ir a TODOS os destinatários, não só ao CTO');
+  assert.ok(!briefing.includes('fetchCriticalRecipients'),
+    'o briefing não pode herdar o recorte de crítico');
+});
+
 test('o e-mail usa o template, não HTML cru', () => {
   assert.match(SRC, /require\('\.\/templates'\)/, 'templates.js deve ser usado');
   assert.doesNotMatch(
