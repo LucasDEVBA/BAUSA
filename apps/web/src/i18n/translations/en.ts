@@ -410,7 +410,7 @@ const en: Translations = {
       swipeHint: "Swipe to see more",
     },
     universityCarousel: {
-      badge: "Partner Institutions",
+      badge: "Institutional Network",
       title1: "Access to the most",
       title2: "prestigious institutions in the world",
       swipeHint: "Swipe to see more",

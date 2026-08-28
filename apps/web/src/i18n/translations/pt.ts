@@ -408,7 +408,7 @@ export const pt = {
       swipeHint: "Deslize para ver mais",
     },
     universityCarousel: {
-      badge: "Instituições Parceiras",
+      badge: "Rede Institucional",
       title1: "Acesso às instituições mais",
       title2: "prestigiadas do mundo",
       swipeHint: "Deslize para ver mais",
