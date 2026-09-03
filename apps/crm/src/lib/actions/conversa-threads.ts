@@ -40,7 +40,7 @@ export async function listarThreadsLead(
 
   const supabase = await createServerSupabaseClient();
   const threads: ConversaThread[] = [];
-  const phonesVistos = new Set<string>();
+  const porPhone = new Map<string, ConversaThread>();
 
   let atletaId = input.atletaId ?? null;
   let responsavelId: string | null = null;
@@ -117,9 +117,20 @@ export async function listarThreadsLead(
 
   const addPrivado = (raw: string | null, label: string, detalhe?: string | null) => {
     const digits = raw ? cleanPhone(raw) : "";
-    if (!isValidPhone(digits) || phonesVistos.has(digits)) return;
-    phonesVistos.add(digits);
-    threads.push({ tipo: "privado", label, detalhe: detalhe ?? undefined, phone: digits });
+    if (!isValidPhone(digits)) return;
+    const existente = porPhone.get(digits);
+    if (existente) {
+      // Mesmo número para responsável e atleta (comum: atleta "o próprio").
+      // O chat é UM só, mas os dois papéis ficam visíveis no rótulo — antes
+      // o segundo papel era descartado e o CEO não sabia com quem falava
+      // (reclamação 2026-09-03: "não aparece o chat com atleta e responsável").
+      if (!existente.label.includes(label)) existente.label = `${existente.label} · ${label}`;
+      if (!existente.detalhe && detalhe) existente.detalhe = detalhe;
+      return;
+    }
+    const thread: ConversaThread = { tipo: "privado", label, detalhe: detalhe ?? undefined, phone: digits };
+    porPhone.set(digits, thread);
+    threads.push(thread);
   };
 
   // Ordem do seletor: responsável (thread principal do outreach) → atleta
