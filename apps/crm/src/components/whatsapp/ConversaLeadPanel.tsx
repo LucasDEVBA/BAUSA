@@ -460,6 +460,12 @@ export function ConversaLeadPanel({ telefone, atletaId, formSubmissionId }: Conv
               ? threadAtiva.label
               : (threadAtiva.detalhe ?? formatPhoneDisplay(threadAtiva.phone ?? ""))}
           </span>
+          {/* Papel ao lado do nome (pedido do CEO 2026-09-03) — quem é este chat */}
+          {threadAtiva.tipo === "privado" && threadAtiva.label !== "Contato" && (
+            <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              {threadAtiva.label}
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -472,11 +478,16 @@ export function ConversaLeadPanel({ telefone, atletaId, formSubmissionId }: Conv
         </button>
       </div>
 
-      {/* Seletor de thread (responsável / atleta / grupos) */}
-      {threads.length > 1 && (
+      {/* Seletor de thread (responsável / atleta / grupos). Renderiza também
+          com UM chat resolvido: quando responsável e atleta usam o MESMO
+          número (thread fundida "Responsável · Atleta"), esconder a barra
+          deixava o CEO sem saber com quem estava falando. */}
+      {(threads.length > 1 || (threads.length === 1 && threads[0].label !== "Contato")) && (
         <div className="flex shrink-0 flex-wrap gap-1 border-b border-border/60 px-2 py-1.5">
           {threads.map((t) => {
             const ativa = threadKey(t) === chaveAtiva;
+            const primeiroNome =
+              t.tipo === "privado" && t.detalhe ? t.detalhe.trim().split(/\s+/)[0] : null;
             return (
               <button
                 key={threadKey(t)}
@@ -491,6 +502,7 @@ export function ConversaLeadPanel({ telefone, atletaId, formSubmissionId }: Conv
               >
                 {t.tipo === "grupo" && <Users className="size-3" />}
                 {t.label}
+                {primeiroNome ? ` · ${primeiroNome}` : ""}
               </button>
             );
           })}
