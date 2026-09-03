@@ -9,9 +9,12 @@ import {
   CalendarClock,
   Check,
   ExternalLink,
+  FileText,
   Flame,
   Instagram,
   Loader2,
+  Mail,
+  MessageCircle,
   Sparkles,
   Thermometer,
   UserCheck,
@@ -20,8 +23,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge, Button, EmptyState, Skeleton } from "@/components/ui";
+import { Badge, BrandTabs, Button, EmptyState, Skeleton } from "@/components/ui";
 import { ClassificadorV2Resumo } from "@/components/leads/ClassificadorV2Resumo";
+import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
+import { EmailsLeadSection } from "@/components/emails/EmailsLeadSection";
 import {
   aprovarLead,
   contarLeadsPendentesAprovacao,
@@ -146,6 +151,10 @@ export function AprovacaoLeadsModal({
   const [reprovando, setReprovando] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [pending, startTransition] = useTransition();
+  // Abas do preview: dossiê (decisão), conversa (WhatsApp atleta+responsável)
+  // e e-mail — o CEO fala com o lead SEM sair da fila de aprovação. A aba
+  // fica "grudada" ao trocar de lead (revisar conversas em sequência).
+  const [aba, setAba] = useState<"dossie" | "conversa" | "email">("dossie");
 
   const selecionado = useMemo(
     () => leads.find((l) => l.id === selecionadoId) ?? null,
@@ -326,7 +335,43 @@ export function AprovacaoLeadsModal({
                 {/* Preview */}
                 {selecionado && (
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+                    <div className="shrink-0 border-b border-border/60 px-5 py-2.5">
+                      <BrandTabs
+                        ariaLabel="Seções do lead"
+                        variant="segmented"
+                        activeId={aba}
+                        onSelect={(id) => setAba(id as typeof aba)}
+                        items={[
+                          { id: "dossie", label: "Dossiê", icon: FileText },
+                          { id: "conversa", label: "Conversa", icon: MessageCircle },
+                          { id: "email", label: "E-mail", icon: Mail },
+                        ]}
+                      />
+                    </div>
+
+                    {aba === "conversa" && (
+                      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                        {/* key remonta por lead — threads/histórico nunca vazam entre leads */}
+                        <ConversaLeadPanel
+                          key={selecionado.id}
+                          telefone={selecionado.guardian_whatsapp ?? selecionado.athlete_whatsapp}
+                          formSubmissionId={selecionado.id}
+                        />
+                      </div>
+                    )}
+
+                    {aba === "email" && (
+                      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                        <EmailsLeadSection
+                          key={selecionado.id}
+                          formSubmissionId={selecionado.id}
+                          leadNome={selecionado.guardian_name ?? selecionado.athlete_name}
+                          leadEmail={selecionado.guardian_email ?? selecionado.email}
+                        />
+                      </div>
+                    )}
+
+                    <div className={cn("min-h-0 flex-1 space-y-5 overflow-y-auto p-5", aba !== "dossie" && "hidden")}>
                       {/* Identidade */}
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
