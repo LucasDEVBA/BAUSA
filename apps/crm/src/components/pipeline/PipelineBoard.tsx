@@ -45,11 +45,13 @@ import { celebrar } from "@/lib/gamificacao-store";
 import { reordenarEtapasPipeline } from "@/lib/actions/etapas-pipeline";
 import { EtapaColunaModal } from "./EtapaColunaModal";
 import { AprovacaoColumn } from "./AprovacaoColumn";
+import { FriosColumn } from "./FriosColumn";
+import { NovaColunaModal } from "./NovaColunaModal";
 import { AprovacaoLeadsModal } from "@/components/leads/AprovacoesLeads";
-import type { LeadPendenteCard } from "@/lib/actions/leads";
+import type { LeadFrioCard, LeadPendenteCard } from "@/lib/actions/leads";
 import { labelEtapa, type MoveDealAction } from "@/lib/move-deal-result";
 import { excluirLeadPorDeal } from "@/lib/actions/leads-excluir";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import type { StatusDeal } from "@/types/crm";
 import { toast } from "sonner";
 
@@ -64,6 +66,8 @@ interface PipelineBoardProps {
   podeEditarColunas?: boolean;
   /** Leads na fila de aprovação — primeira coluna do board (sem deal ainda). */
   leadsPendentes?: LeadPendenteCard[];
+  /** FRIOs recentes p/ revisão — coluna própria, read-only + resgate. */
+  leadsFrios?: LeadFrioCard[];
 }
 
 function getDealsByStage(deals: Deal[]) {
@@ -124,6 +128,7 @@ export function PipelineBoard({
   probabilidadePorEtapa = {},
   podeEditarColunas = false,
   leadsPendentes = [],
+  leadsFrios = [],
 }: PipelineBoardProps) {
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
@@ -244,6 +249,7 @@ export function PipelineBoard({
   );
 
   const [colunaAberta, setColunaAberta] = useState<DealStage | null>(null);
+  const [novaColunaAberta, setNovaColunaAberta] = useState(false);
   const [leadAprovacao, setLeadAprovacao] = useState<string | null>(null);
   const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
 
@@ -431,6 +437,10 @@ export function PipelineBoard({
             {podeEditarColunas && leadsPendentes.length > 0 && (
               <AprovacaoColumn leads={leadsPendentes} onLeadClick={setLeadAprovacao} />
             )}
+            {/* Frios p/ revisão: visível, mas fora de métrica/automação/outreach */}
+            {podeEditarColunas && leadsFrios.length > 0 && (
+              <FriosColumn leads={leadsFrios} onResgatado={() => router.refresh()} />
+            )}
             {visibleStages.map((stage) => (
               <PipelineColumn
                 key={stage}
@@ -448,6 +458,16 @@ export function PipelineBoard({
                 onExcluirDeal={setDealParaExcluir}
               />
             ))}
+            {podeEditarColunas && (
+              <button
+                type="button"
+                onClick={() => setNovaColunaAberta(true)}
+                className="flex h-24 w-[180px] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-dashed border-border text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Nova coluna
+              </button>
+            )}
           </div>
 
           <DragOverlay>
@@ -511,6 +531,17 @@ export function PipelineBoard({
           leadIdInicial={leadAprovacao}
           onClose={() => setLeadAprovacao(null)}
           onDecidido={() => router.refresh()}
+        />
+      )}
+
+      {/* Criar coluna nova (slot custom livre) */}
+      {novaColunaAberta && (
+        <NovaColunaModal
+          onClose={() => setNovaColunaAberta(false)}
+          onCriada={() => {
+            setNovaColunaAberta(false);
+            router.refresh();
+          }}
         />
       )}
 

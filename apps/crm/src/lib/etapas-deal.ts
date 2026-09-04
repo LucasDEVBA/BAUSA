@@ -177,7 +177,12 @@ export function mergeDealStageConfig(
     const override = overrides?.[stage];
     merged[stage] = {
       ...base,
-      oculta: override?.oculta === true,
+      // Slot custom nasce OCULTO até o CEO nomeá-lo ("Nova coluna" grava
+      // oculta:false); demais etapas seguem visíveis por padrão.
+      oculta:
+        typeof override?.oculta === "boolean"
+          ? override.oculta
+          : base.isCustomSlot === true,
       ...(override && isValidLabel(override.label)
         ? { label: override.label.trim(), shortLabel: override.label.trim() }
         : {}),
