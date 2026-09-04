@@ -424,6 +424,102 @@ export async function listarLeadsPendentesCards(): Promise<LeadPendenteCard[]> {
   return (data ?? []) as unknown as LeadPendenteCard[];
 }
 
+export interface LeadFrioCard {
+  id: string;
+  athlete_name: string;
+  city_state: string | null;
+  position: string | null;
+  score_financeiro: number | null;
+  qualification_reason: string | null;
+  submitted_at: string;
+}
+
+/** Janela da coluna Frios: só FRIOs recentes entram na revisão. */
+const FRIOS_REVISAO_DIAS = 90;
+const FRIOS_REVISAO_LIMITE = 80;
+
+/**
+ * Cards da coluna "Frios — revisão" do Kanban (pedido do CEO, 2026-09-04):
+ * FRIO deixava de aparecer em qualquer lugar do board; agora os últimos 90
+ * dias ficam visíveis para revisão humana. SÓ leitura + resgate explícito —
+ * FRIO continua fora de fila, pipeline, métricas e outreach (invariantes
+ * intactos). Exclui quem já tem deal (rebaixados do mutirão vivem em Perdido).
+ */
+export async function listarLeadsFriosCards(): Promise<LeadFrioCard[]> {
+  if ((await getUserPapel()) !== "ceo") return [];
+  const corte = new Date(Date.now() - FRIOS_REVISAO_DIAS * 86400000).toISOString();
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select(
+      "id, athlete_name, city_state, position, score_financeiro, qualification_reason, submitted_at, atletas(id, deals(id, deleted_at))",
+    )
+    .is("deleted_at", null)
+    .eq("qualification_classification", "FRIO")
+    .is("aprovacao_status", null)
+    .gte("submitted_at", corte)
+    .order("submitted_at", { ascending: false })
+    .limit(FRIOS_REVISAO_LIMITE);
+  if (error) return [];
+
+  type Row = LeadFrioCard & {
+    atletas: { deals: { id: string; deleted_at: string | null }[] | null }[] | null;
+  };
+  return ((data ?? []) as unknown as Row[])
+    .filter((row) => {
+      const deals = (row.atletas ?? []).flatMap((a) => a.deals ?? []);
+      return !deals.some((d) => d.deleted_at === null);
+    })
+    .map((row) => ({
+      id: row.id,
+      athlete_name: row.athlete_name,
+      city_state: row.city_state,
+      position: row.position,
+      score_financeiro: row.score_financeiro,
+      qualification_reason: row.qualification_reason,
+      submitted_at: row.submitted_at,
+    }));
+}
+
+/**
+ * Resgata um FRIO para a fila de aprovação (mesmo desenho do caso Pietro,
+ * 2026-09-04): vira MORNO provisório + pendente, com o motivo registrado.
+ * A fila exige QUENTE/MORNO (defesa em profundidade) — o provisório é
+ * documentado e uma requalificação futura sobrescreve com o score real.
+ * Pendente NUNCA recebe mensagem (gate humano intacto).
+ */
+export async function enviarFrioParaAprovacao(
+  leadId: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem resgatar um lead frio." };
+  }
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .update({
+      qualification_classification: "MORNO",
+      aprovacao_status: "pendente",
+      aprovacao_decidida_por: null,
+      aprovacao_decidida_em: null,
+      aprovacao_motivo:
+        "Resgatado da coluna Frios para revisão manual (classificação provisória MORNO)",
+    })
+    .eq("id", leadId)
+    .eq("qualification_classification", "FRIO")
+    .is("aprovacao_status", null)
+    .is("deleted_at", null)
+    .select("id");
+
+  if (error) return { success: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { success: false, error: "Lead não está mais elegível (já revisado ou requalificado)." };
+  }
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  return { success: true };
+}
+
 export async function listarLeadsPendentesAprovacao(): Promise<
   { success: true; leads: LeadPendenteAprovacao[] } | { success: false; error: string }
 > {

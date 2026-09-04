@@ -72,7 +72,11 @@ export async function moverDeal(
     novaEtapa !== "cancelamento_solicitado" &&
     novaEtapa !== "projeto_futuro" &&
     novaEtapa !== "aguardando_timing" &&
-    deal.etapa !== "aguardando_timing";
+    deal.etapa !== "aguardando_timing" &&
+    // Colunas personalizadas são raias livres do CEO — entrar/sair delas
+    // nunca é retrocesso (mesma isenção do trigger SQL, 20260904120000)
+    !novaEtapa.startsWith("custom_") &&
+    !String(deal.etapa).startsWith("custom_");
 
   // Decisão do CEO (2026-08-19): o pipeline é LIVRE — nenhum gate rígido de
   // avanço. Os antigos bloqueios (próxima ação preenchida, notas da reunião

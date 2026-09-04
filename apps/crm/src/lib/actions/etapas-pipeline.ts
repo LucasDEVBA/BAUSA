@@ -115,6 +115,57 @@ export async function salvarEtapaPipeline(input: SalvarEtapaInput): Promise<Resu
   return { success: true };
 }
 
+/**
+ * "Cria" uma coluna nova no board: nomeia o primeiro slot custom livre
+ * (custom_1..custom_6 — enum fixo, migration 20260904120000) e o revela no
+ * fim do board. Sem slot livre, orienta a liberar um (ocultar/renomear).
+ */
+export async function criarColunaPipeline(input: {
+  label: string;
+  accent: string;
+}): Promise<{ success: true; stage: DealStage } | { success: false; error: string }> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem criar colunas." };
+  }
+  const label = input.label.trim();
+  if (label.length === 0) return { success: false, error: "Dê um nome à coluna." };
+  if (label.length > ETAPA_DEAL_LABEL_MAX) {
+    return { success: false, error: `Nome muito longo (máx. ${ETAPA_DEAL_LABEL_MAX}).` };
+  }
+  if (input.accent !== "" && !isEtapaDealAccent(input.accent)) {
+    return { success: false, error: "Cor inválida." };
+  }
+
+  const atual = parseEtapasDealConfig(await lerConfig(CHAVE_ETAPAS));
+  const slotLivre = (DEAL_STAGES.filter(
+    (s) => DEAL_STAGE_CONFIG[s].isCustomSlot === true,
+  ) as DealStage[]).find((s) => atual[s] === undefined);
+  if (!slotLivre) {
+    return {
+      success: false,
+      error: "Limite de 6 colunas personalizadas atingido. Renomeie ou oculte uma existente.",
+    };
+  }
+
+  // Entra no fim do board: ordem maior que tudo que está configurado/estático.
+  const maiorOrdem = Math.max(
+    ...DEAL_STAGES.map((s) => atual[s]?.order ?? DEAL_STAGE_CONFIG[s].order),
+  );
+  const override: EtapaDealOverride = {
+    label,
+    order: Math.floor(maiorOrdem) + 1,
+    oculta: false,
+  };
+  if (input.accent !== "" && isEtapaDealAccent(input.accent)) override.accent = input.accent;
+
+  const r = await gravarConfig(CHAVE_ETAPAS, { ...atual, [slotLivre]: override });
+  if (!r.success) return r;
+
+  revalidatePath("/pipeline");
+  revalidatePath("/configuracoes");
+  return { success: true, stage: slotLivre };
+}
+
 /** Persiste a nova ordem das colunas (drag do board). */
 export async function reordenarEtapasPipeline(ordem: string[]): Promise<Result> {
   if ((await getUserPapel()) !== "ceo") {

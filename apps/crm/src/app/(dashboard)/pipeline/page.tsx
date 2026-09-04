@@ -7,7 +7,7 @@ import { parseSinaisV2 } from "@/lib/classificador-v2";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getEtapasDealConfigOverrides, getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 import { getUserPapel } from "@/lib/auth";
-import { listarLeadsPendentesCards } from "@/lib/actions/leads";
+import { listarLeadsFriosCards, listarLeadsPendentesCards } from "@/lib/actions/leads";
 import { mergeDealStageConfig } from "@/lib/etapas-deal";
 import {
   computarPrioridades,
@@ -220,11 +220,12 @@ export default async function PipelinePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Overrides de apresentação das etapas (CEO) em paralelo com os deals
-  const [etapasOverrides, probabilidadePorEtapa, papel, leadsPendentes, { data: rows }] = await Promise.all([
+  const [etapasOverrides, probabilidadePorEtapa, papel, leadsPendentes, leadsFrios, { data: rows }] = await Promise.all([
     getEtapasDealConfigOverrides(),
     getProbabilidadePorEtapa(),
     getUserPapel(),
     listarLeadsPendentesCards(),
+    listarLeadsFriosCards(),
     supabase
     .from("deals")
     .select(`
@@ -400,6 +401,7 @@ export default async function PipelinePage() {
           probabilidadePorEtapa={probabilidadePorEtapa}
           podeEditarColunas={papel === "ceo"}
           leadsPendentes={leadsPendentes}
+        leadsFrios={leadsFrios}
         />
       </div>
 

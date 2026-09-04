@@ -8,7 +8,9 @@ export type StatusDeal =
   | 'diagnostico_fit' | 'alinhamento_estrategico' | 'proposta_enviada'
   | 'followup_proposta' | 'negociacao' | 'contrato_enviado'
   | 'contrato_assinado' | 'sinal_pago' | 'admission_process'
-  | 'concluido' | 'perdido' | 'cancelamento_solicitado' | 'projeto_futuro';
+  | 'concluido' | 'perdido' | 'cancelamento_solicitado' | 'projeto_futuro'
+  // Slots de coluna personalizada do board (enum PG custom_1..custom_6)
+  | 'custom_1' | 'custom_2' | 'custom_3' | 'custom_4' | 'custom_5' | 'custom_6';
 
 export type ClassificacaoLead = 'hot' | 'warm' | 'cold';
 export type StatusParcela = 'previsto' | 'recebido' | 'atrasado' | 'cancelado';
@@ -200,6 +202,12 @@ export const ETAPA_LABELS: Record<StatusDeal, string> = {
   perdido: 'Perdido',
   cancelamento_solicitado: 'Cancelamento',
   projeto_futuro: 'Projeto Futuro',
+  custom_1: 'Coluna personalizada 1',
+  custom_2: 'Coluna personalizada 2',
+  custom_3: 'Coluna personalizada 3',
+  custom_4: 'Coluna personalizada 4',
+  custom_5: 'Coluna personalizada 5',
+  custom_6: 'Coluna personalizada 6',
 };
 
 // Ordem das etapas (para detectar retrocesso)
@@ -222,6 +230,14 @@ export const ETAPA_ORDEM: Record<StatusDeal, number> = {
   perdido: 16,
   cancelamento_solicitado: 17,
   projeto_futuro: 18,
+  // Colunas personalizadas: ordem 0 + isenção explícita de retrocesso no
+  // moverDeal e no trigger SQL — raias livres, sem semântica de funil.
+  custom_1: 0,
+  custom_2: 0,
+  custom_3: 0,
+  custom_4: 0,
+  custom_5: 0,
+  custom_6: 0,
 };
 
 // Etapas visíveis no Kanban (exclui perdido, concluido, cancelamento, projeto_futuro)
