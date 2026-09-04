@@ -18,7 +18,15 @@ export type DealStage =
   | "concluido"
   | "perdido"
   | "cancelamento_solicitado"
-  | "projeto_futuro";
+  | "projeto_futuro"
+  // Slots de coluna personalizada (o CEO "cria" uma coluna nomeando um slot
+  // livre em etapas_deal_config — o enum PG tem os mesmos 6 valores fixos).
+  | "custom_1"
+  | "custom_2"
+  | "custom_3"
+  | "custom_4"
+  | "custom_5"
+  | "custom_6";
 
 /** Timing do lead (form_submissions.timing_status) — exibido como badge no card. */
 export type DealTimingStatus = "ideal" | "muito_cedo" | "tarde_demais";
@@ -149,6 +157,8 @@ export interface DealStageConfig {
   order: number;
   /** Indica que o deal está aguardando timing (atleta muito jovem) e será reativado em novembro do ano civil seguinte. */
   isWaitingTiming?: boolean;
+  /** Slot de coluna personalizada: oculto por padrão até o CEO nomeá-lo. */
+  isCustomSlot?: boolean;
 }
 
 export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
@@ -317,7 +327,29 @@ export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
     isLost: false,
     order: 15,
   },
+  // Slots de coluna personalizada: nascem OCULTOS (isCustomSlot) e sem
+  // semântica de funil — o CEO os ativa nomeando em etapas_deal_config
+  // ("Nova coluna" no board). Ordem alta (21+) os deixa no fim por padrão.
+  custom_1: customSlot(1),
+  custom_2: customSlot(2),
+  custom_3: customSlot(3),
+  custom_4: customSlot(4),
+  custom_5: customSlot(5),
+  custom_6: customSlot(6),
 };
+
+function customSlot(i: number): DealStageConfig {
+  return {
+    id: `custom_${i}` as DealStage,
+    label: `Coluna personalizada ${i}`,
+    shortLabel: `Coluna ${i}`,
+    dotColor: "bg-muted-foreground",
+    isFinancial: false,
+    isLost: false,
+    order: 20 + i,
+    isCustomSlot: true,
+  };
+}
 
 export const PIPELINE_STAGE_ORDER: DealStage[] = [
   "contato_feito",
@@ -336,6 +368,14 @@ export const PIPELINE_STAGE_ORDER: DealStage[] = [
   "admission_process",
   "concluido",
   "perdido",
+  // Slots custom entram no conjunto do board; ocultos e vazios são
+  // invisíveis (regra existente: coluna oculta some quando esvazia).
+  "custom_1",
+  "custom_2",
+  "custom_3",
+  "custom_4",
+  "custom_5",
+  "custom_6",
 ];
 
 export const PRODUCT_TIER_STYLES: Record<ProductTier, { badge: string }> = {
