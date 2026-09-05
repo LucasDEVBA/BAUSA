@@ -46,6 +46,12 @@ test('coluna Frios: FRIO continua fora da fila — resgate explícito e guardado
   assert.match(leadsSrc, /FRIOS_REVISAO_DIAS = 90/, 'janela de revisão mudou');
   assert.match(leadsSrc, /!deals\.some\(\(d\) => d\.deleted_at === null\)/,
     'FRIO com deal ativo (rebaixados em Perdido) não pode duplicar no board');
+  // Incidente 2026-09-05: o embed 1:1 de atletas volta OBJETO — flatMap em
+  // objeto derrubou /pipeline em PRD. A normalização é obrigatória.
+  assert.match(leadsSrc, /Array\.isArray\(v\) \? v : v \? \[v\] : \[\]/,
+    'normalização objeto/array do embed sumiu — flatMap em objeto derruba a página');
+  assert.match(leadsSrc, /asArray\(row\.atletas\)\.flatMap\(\(a\) => asArray\(a\.deals\)\)/,
+    'as duas camadas do embed precisam ser normalizadas');
 });
 
 test('enum: seis slots custom adicionados de forma idempotente', () => {
