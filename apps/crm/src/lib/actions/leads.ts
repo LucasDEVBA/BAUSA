@@ -488,6 +488,46 @@ export async function listarLeadsFriosCards(): Promise<LeadFrioCard[]> {
 }
 
 /**
+ * Dossiê COMPLETO dos frios elegíveis (mesmas colunas da fila de aprovação):
+ * alimenta o modal em modo "frios" — clicar no card expande os dados com as
+ * abas Conversa/E-mail. Mesmo recorte e mesma normalização de embed 1:1 do
+ * listarLeadsFriosCards (incidente 2026-09-05).
+ */
+export async function listarLeadsFriosDetalhe(): Promise<
+  { success: true; leads: LeadPendenteAprovacao[] } | { success: false; error: string }
+> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem revisar leads frios." };
+  }
+  const corte = new Date(Date.now() - FRIOS_REVISAO_DIAS * 86400000).toISOString();
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select(`${COLUNAS_FILA_APROVACAO}, atletas(id, deals(id, deleted_at))`)
+    .is("deleted_at", null)
+    .eq("qualification_classification", "FRIO")
+    .is("aprovacao_status", null)
+    .gte("submitted_at", corte)
+    .order("submitted_at", { ascending: false })
+    .limit(FRIOS_REVISAO_LIMITE);
+  if (error) return { success: false, error: `Erro ao listar frios: ${error.message}` };
+
+  type DealEmb = { id: string; deleted_at: string | null };
+  type AtletaEmb = { deals: DealEmb[] | DealEmb | null };
+  type Row = LeadPendenteAprovacao & { atletas: AtletaEmb[] | AtletaEmb | null };
+  const asArr = <T,>(v: T[] | T | null | undefined): T[] =>
+    Array.isArray(v) ? v : v ? [v] : [];
+  const leads = ((data ?? []) as unknown as Row[])
+    .filter((row) => !asArr(row.atletas).flatMap((a) => asArr(a.deals)).some((d) => d.deleted_at === null))
+    .map((row) => {
+      const { atletas: _embed, ...rest } = row;
+      void _embed;
+      return rest as LeadPendenteAprovacao;
+    });
+  return { success: true, leads };
+}
+
+/**
  * Resgata um FRIO para a fila de aprovação (mesmo desenho do caso Pietro,
  * 2026-09-04): vira MORNO provisório + pendente, com o motivo registrado.
  * A fila exige QUENTE/MORNO (defesa em profundidade) — o provisório é

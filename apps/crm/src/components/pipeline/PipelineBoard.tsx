@@ -250,6 +250,7 @@ export function PipelineBoard({
 
   const [colunaAberta, setColunaAberta] = useState<DealStage | null>(null);
   const [novaColunaAberta, setNovaColunaAberta] = useState(false);
+  const [frioAberto, setFrioAberto] = useState<string | null>(null);
   const [leadAprovacao, setLeadAprovacao] = useState<string | null>(null);
   const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
 
@@ -439,7 +440,11 @@ export function PipelineBoard({
             )}
             {/* Frios p/ revisão: visível, mas fora de métrica/automação/outreach */}
             {podeEditarColunas && leadsFrios.length > 0 && (
-              <FriosColumn leads={leadsFrios} onResgatado={() => router.refresh()} />
+              <FriosColumn
+                leads={leadsFrios}
+                onResgatado={() => router.refresh()}
+                onLeadClick={setFrioAberto}
+              />
             )}
             {visibleStages.map((stage) => (
               <PipelineColumn
@@ -522,6 +527,16 @@ export function PipelineBoard({
           atletaId={ganho.atletaId}
           athleteName={ganho.athleteName}
           onClose={() => setGanho(null)}
+        />
+      )}
+
+      {/* Dossiê do lead FRIO (modal em modo frios: dados + conversa + e-mail) */}
+      {frioAberto && (
+        <AprovacaoLeadsModal
+          modo="frios"
+          leadIdInicial={frioAberto}
+          onClose={() => setFrioAberto(null)}
+          onDecidido={() => router.refresh()}
         />
       )}
 
