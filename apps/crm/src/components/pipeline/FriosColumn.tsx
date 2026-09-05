@@ -20,9 +20,11 @@ interface FriosColumnProps {
   leads: LeadFrioCard[];
   /** Recarrega o board após um resgate (router.refresh do pai). */
   onResgatado: () => void;
+  /** Clique no card: expande o dossiê completo (modal em modo frios). */
+  onLeadClick: (leadId: string) => void;
 }
 
-export function FriosColumn({ leads, onResgatado }: FriosColumnProps) {
+export function FriosColumn({ leads, onResgatado, onLeadClick }: FriosColumnProps) {
   const [resgatandoId, setResgatandoId] = useState<string | null>(null);
   const [resgatados, setResgatados] = useState<Set<string>>(new Set());
   const [, startTransition] = useTransition();
@@ -71,7 +73,14 @@ export function FriosColumn({ leads, onResgatado }: FriosColumnProps) {
             return (
               <div
                 key={lead.id}
-                className="group relative rounded-xl border border-border bg-card p-2.5 pl-3 shadow-xs"
+                role="button"
+                tabIndex={0}
+                onClick={() => onLeadClick(lead.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") onLeadClick(lead.id);
+                }}
+                title="Abrir dossiê completo (dados, conversa e e-mail)"
+                className="group relative cursor-pointer rounded-xl border border-border bg-card p-2.5 pl-3 shadow-xs transition-all hover:-translate-y-px hover:border-sys-blue/40 hover:shadow-md"
               >
                 <span
                   aria-hidden
@@ -100,7 +109,10 @@ export function FriosColumn({ leads, onResgatado }: FriosColumnProps) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => resgatar(lead)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    resgatar(lead);
+                  }}
                   disabled={resgatando}
                   title="Enviar para a fila de aprovação (MORNO provisório)"
                   className={cn(

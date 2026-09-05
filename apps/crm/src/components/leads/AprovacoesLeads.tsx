@@ -15,9 +15,11 @@ import {
   Loader2,
   Mail,
   MessageCircle,
+  Snowflake,
   Sparkles,
   Thermometer,
   UserCheck,
+  UserPlus,
   Video,
   X,
 } from "lucide-react";
@@ -30,6 +32,8 @@ import { EmailsLeadSection } from "@/components/emails/EmailsLeadSection";
 import {
   aprovarLead,
   contarLeadsPendentesAprovacao,
+  enviarFrioParaAprovacao,
+  listarLeadsFriosDetalhe,
   listarLeadsPendentesAprovacao,
   reprovarLead,
   type LeadPendenteAprovacao,
@@ -137,11 +141,14 @@ export function AprovacaoLeadsModal({
   onClose,
   onDecidido,
   leadIdInicial,
+  modo = "aprovacao",
 }: {
   onClose: () => void;
   onDecidido: () => void;
   /** Abre já com este lead selecionado (clique no card do Kanban). */
   leadIdInicial?: string;
+  /** "frios": revisão de leads FRIO — mesmo dossiê/abas; ação = resgatar p/ fila. */
+  modo?: "aprovacao" | "frios";
 }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
@@ -164,7 +171,10 @@ export function AprovacaoLeadsModal({
   useEffect(() => {
     let ativo = true;
     (async () => {
-      const res = await listarLeadsPendentesAprovacao();
+      const res =
+        modo === "frios"
+          ? await listarLeadsFriosDetalhe()
+          : await listarLeadsPendentesAprovacao();
       if (!ativo) return;
       if (res.success) {
         setLeads(res.leads);
@@ -180,7 +190,7 @@ export function AprovacaoLeadsModal({
     return () => {
       ativo = false;
     };
-  }, [leadIdInicial]);
+  }, [leadIdInicial, modo]);
 
   // Esc fecha + trava o scroll da página enquanto aberto
   useEffect(() => {
@@ -222,6 +232,20 @@ export function AprovacaoLeadsModal({
     });
   };
 
+  const handleResgatar = (lead: LeadPendenteAprovacao) => {
+    startTransition(async () => {
+      const res = await enviarFrioParaAprovacao(lead.id);
+      if (res.success) {
+        toast.success(`${lead.athlete_name} enviado para a fila de aprovação`, {
+          description: "Entrou como MORNO provisório — nada é enviado sem aprovar.",
+        });
+        removerDaFila(lead.id);
+      } else {
+        toast.error(res.error ?? "Erro ao resgatar.");
+      }
+    });
+  };
+
   const handleReprovar = (lead: LeadPendenteAprovacao) => {
     startTransition(async () => {
       const res = await reprovarLead(lead.id, motivo);
@@ -255,13 +279,24 @@ export function AprovacaoLeadsModal({
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
             <div className="flex items-center gap-2.5">
-              <span className="flex size-8 items-center justify-center rounded-full bg-sys-orange/12 text-sys-orange">
-                <UserCheck className="size-4" />
+              <span
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-full",
+                  modo === "frios" ? "bg-sys-blue/12 text-sys-blue" : "bg-sys-orange/12 text-sys-orange",
+                )}
+              >
+                {modo === "frios" ? <Snowflake className="size-4" /> : <UserCheck className="size-4" />}
               </span>
               <div>
-                <h2 className="text-sm font-semibold text-foreground">Aprovação de leads</h2>
+                <h2 className="text-sm font-semibold text-foreground">
+                  {modo === "frios" ? "Frios — revisão" : "Aprovação de leads"}
+                </h2>
                 <p className="text-xs text-muted-foreground">
-                  {carregando ? "Carregando fila…" : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
+                  {carregando
+                    ? "Carregando fila…"
+                    : modo === "frios"
+                      ? `${leads.length} lead(s) frios nos últimos 90 dias — fora do funil até você resgatar`
+                      : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
                 </p>
               </div>
             </div>
@@ -529,7 +564,22 @@ export function AprovacaoLeadsModal({
 
                     {/* Footer de decisão */}
                     <div className="shrink-0 border-t border-border p-4">
-                      {reprovando ? (
+                      {modo === "frios" ? (
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-muted-foreground">
+                            Resgatar manda para a fila de aprovação como MORNO provisório. Nada é enviado sem você aprovar lá.
+                          </p>
+                          <Button
+                            variant="primary"
+                            size="md"
+                            disabled={pending}
+                            onClick={() => handleResgatar(selecionado)}
+                          >
+                            {pending ? <Loader2 className="animate-spin" /> : <UserPlus />}
+                            Enviar p/ fila de aprovação
+                          </Button>
+                        </div>
+                      ) : reprovando ? (
                         <div className="space-y-2.5">
                           <textarea
                             value={motivo}
