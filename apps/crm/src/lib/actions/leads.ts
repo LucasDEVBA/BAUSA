@@ -462,12 +462,18 @@ export async function listarLeadsFriosCards(): Promise<LeadFrioCard[]> {
     .limit(FRIOS_REVISAO_LIMITE);
   if (error) return [];
 
-  type Row = LeadFrioCard & {
-    atletas: { deals: { id: string; deleted_at: string | null }[] | null }[] | null;
-  };
+  // PostgREST: atletas.form_submission_id é UNIQUE → o embed volta como
+  // OBJETO (1:1), não array (incidente 2026-09-05: flatMap em objeto
+  // derrubou /pipeline em PRD; a anon key não lê atletas e mascarou o
+  // formato no teste). Normaliza os dois formatos, nas duas camadas.
+  type DealEmb = { id: string; deleted_at: string | null };
+  type AtletaEmb = { deals: DealEmb[] | DealEmb | null };
+  type Row = LeadFrioCard & { atletas: AtletaEmb[] | AtletaEmb | null };
+  const asArray = <T,>(v: T[] | T | null | undefined): T[] =>
+    Array.isArray(v) ? v : v ? [v] : [];
   return ((data ?? []) as unknown as Row[])
     .filter((row) => {
-      const deals = (row.atletas ?? []).flatMap((a) => a.deals ?? []);
+      const deals = asArray(row.atletas).flatMap((a) => asArray(a.deals));
       return !deals.some((d) => d.deleted_at === null);
     })
     .map((row) => ({
