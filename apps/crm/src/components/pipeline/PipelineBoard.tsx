@@ -251,6 +251,7 @@ export function PipelineBoard({
   const [colunaAberta, setColunaAberta] = useState<DealStage | null>(null);
   const [novaColunaAberta, setNovaColunaAberta] = useState(false);
   const [frioAberto, setFrioAberto] = useState<string | null>(null);
+  const [muitoCedoAberto, setMuitoCedoAberto] = useState<string | null>(null);
   const [leadAprovacao, setLeadAprovacao] = useState<string | null>(null);
   const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
 
@@ -451,7 +452,16 @@ export function PipelineBoard({
                 key={stage}
                 stage={stage}
                 deals={dealsByStage[stage] ?? []}
-                onDealClick={(deal) => setSelectedDeal(deal)}
+                onDealClick={(deal) =>
+                  // Card estacionado por timing: clique abre o dossiê de
+                  // revisão (dados + conversa + e-mail), como nos Frios.
+                  // O deal completo continua acessível na visão de tabela.
+                  stage === "aguardando_timing" &&
+                  deal.timing_status === "muito_cedo" &&
+                  deal.form_submission_id
+                    ? setMuitoCedoAberto(deal.form_submission_id)
+                    : setSelectedDeal(deal)
+                }
                 stageConfig={stageConfig}
                 onHeaderClick={podeEditarColunas ? setColunaAberta : undefined}
                 onColumnDragStart={podeEditarColunas ? setArrastandoColuna : undefined}
@@ -536,6 +546,16 @@ export function PipelineBoard({
           modo="frios"
           leadIdInicial={frioAberto}
           onClose={() => setFrioAberto(null)}
+          onDecidido={() => router.refresh()}
+        />
+      )}
+
+      {/* Dossiê do lead MUITO CEDO (card da coluna Aguardando timing) */}
+      {muitoCedoAberto && (
+        <AprovacaoLeadsModal
+          modo="muito_cedo"
+          leadIdInicial={muitoCedoAberto}
+          onClose={() => setMuitoCedoAberto(null)}
           onDecidido={() => router.refresh()}
         />
       )}

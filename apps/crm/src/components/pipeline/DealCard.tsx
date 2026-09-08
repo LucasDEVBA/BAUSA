@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 const TIMING_BADGE: Record<string, { label: string; title: string; faixa: string; badge: string }> = {
   muito_cedo: {
     label: "Cedo",
-    title: "Fora do timing: atleta muito jovem — retomada automática em novembro",
+    title: "Fora do timing: atleta muito jovem — em revisão manual (mensagens automáticas desligadas em 2026-09-07)",
     faixa: "bg-plan-legacy",
     badge: "bg-plan-legacy/12 text-plan-legacy",
   },
