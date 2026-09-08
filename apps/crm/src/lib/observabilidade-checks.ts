@@ -565,6 +565,20 @@ async function lerIntervalos(supabase: Supabase): Promise<IntervalosConfig> {
   };
 }
 
+// Toggles de /automacoes (sistema_automacoes_ativas) — campo ausente = ATIVA,
+// mesmo fail-open das CFs. Fila de automação DESLIGADA não é fila presa: os
+// leads acumulam de propósito até o CEO religar (ex.: mensagens de timing
+// desligadas em 2026-09-07).
+async function lerAtivas(supabase: Supabase): Promise<Record<string, unknown>> {
+  const { data } = await supabase
+    .from("configuracoes_sistema")
+    .select("valor")
+    .eq("chave", "sistema_automacoes_ativas")
+    .limit(1);
+  const valor = data?.[0]?.valor;
+  return valor && typeof valor === "object" ? (valor as Record<string, unknown>) : {};
+}
+
 /**
  * Detecta comportamento incorreto entre etapas — ex.: follow-up 1 disparado
  * logo após o inicial sem respeitar o prazo configurado, ou etapa fora de
@@ -667,7 +681,7 @@ async function checkTimingEtapas(supabase: Supabase): Promise<CheckResult> {
 async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
   const id = "filas_presas";
   const titulo = "Filas presas (além do prazo + folga)";
-  const intervalos = await lerIntervalos(supabase);
+  const [intervalos, ativas] = await Promise.all([lerIntervalos(supabase), lerAtivas(supabase)]);
 
   const corteInicial = horasAtrasISO(intervalos.whatsapp_inicial_horas + FOLGA_FILA_HORAS);
   const corteAlt = horasAtrasISO(intervalos.whatsapp_timing_alt_horas + FOLGA_FILA_HORAS);
@@ -756,16 +770,20 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       .map((r) => String((r as Record<string, unknown>).athlete_name))
       .join(", ");
 
-  const filas: { label: string; res: { data: unknown[] | null; error: { message: string } | null }; peso: CheckStatus }[] = [
+  // `toggle` = campo em sistema_automacoes_ativas que desliga o scheduler da
+  // fila. Paridade com as CFs: desligado → o scheduler pula o bucket, então os
+  // leads acumulados são retenção proposital, nunca "fila presa".
+  const filas: { label: string; res: { data: unknown[] | null; error: { message: string } | null }; peso: CheckStatus; toggle?: string }[] = [
     { label: "Qualificação Gemini (>2h sem classe)", res: qualifRes, peso: "critico" },
-    { label: `WhatsApp inicial (>${intervalos.whatsapp_inicial_horas + FOLGA_FILA_HORAS}h)`, res: inicialRes, peso: "critico" },
-    { label: `Timing alternativo (>${intervalos.whatsapp_timing_alt_horas + FOLGA_FILA_HORAS}h)`, res: altRes, peso: "atencao" },
-    { label: `Follow-up 1 (>${intervalos.followup_1_horas + FOLGA_FILA_HORAS}h)`, res: fu1Res, peso: "atencao" },
-    { label: `Follow-up 2 (>${Math.round((intervalos.followup_2_horas + FOLGA_FILA_HORAS) / 24)}d)`, res: fu2Res, peso: "atencao" },
-    { label: "Retomada de novembro vencida", res: retomadaRes, peso: "atencao" },
+    { label: `WhatsApp inicial (>${intervalos.whatsapp_inicial_horas + FOLGA_FILA_HORAS}h)`, res: inicialRes, peso: "critico", toggle: "whatsapp_inicial" },
+    { label: `Timing alternativo (>${intervalos.whatsapp_timing_alt_horas + FOLGA_FILA_HORAS}h)`, res: altRes, peso: "atencao", toggle: "whatsapp_timing_alt" },
+    { label: `Follow-up 1 (>${intervalos.followup_1_horas + FOLGA_FILA_HORAS}h)`, res: fu1Res, peso: "atencao", toggle: "followup_1" },
+    { label: `Follow-up 2 (>${Math.round((intervalos.followup_2_horas + FOLGA_FILA_HORAS) / 24)}d)`, res: fu2Res, peso: "atencao", toggle: "followup_2" },
+    { label: "Retomada de novembro vencida", res: retomadaRes, peso: "atencao", toggle: "scheduled_return" },
   ];
 
   const detalhes: string[] = [];
+  const notasDesligadas: string[] = [];
   let status: CheckStatus = "ok";
   let total = 0;
   let falhas = 0;
@@ -779,18 +797,31 @@ async function checkFilasPresas(supabase: Supabase): Promise<CheckResult> {
       continue;
     }
     const n = f.res.data?.length ?? 0;
+    if (f.toggle && ativas[f.toggle] === false) {
+      if (n > 0) {
+        notasDesligadas.push(
+          `${f.label}: automação desligada em /automacoes — ${n} lead(s) aguardando religamento (${nomes(f.res.data)}${n > 5 ? "…" : ""})`,
+        );
+      }
+      continue;
+    }
     if (n === 0) continue;
     total += n;
     detalhes.push(`${f.label}: ${n} lead(s) — ${nomes(f.res.data)}${n > 5 ? "…" : ""}`);
     if (f.peso === "critico") status = "critico";
     else if (status !== "critico") status = "atencao";
   }
-  if (!retomadaRes.error && (retomadaRes.data?.length ?? 0) > 0) {
+  if (!retomadaRes.error && (retomadaRes.data?.length ?? 0) > 0 && ativas.scheduled_return !== false) {
     detalhes.push("Nota: conferir o cron da CF process-scheduled-followups (ausente em infra/scheduler.sh).");
   }
+  detalhes.push(...notasDesligadas);
 
   if (total === 0 && falhas === 0) {
-    return { id, titulo, status: "ok", resumo: "Nenhuma fila além do prazo esperado.", detalhes: [] };
+    const resumoOk =
+      notasDesligadas.length > 0
+        ? "Nenhuma fila presa — há automação desligada com leads acumulando de propósito."
+        : "Nenhuma fila além do prazo esperado.";
+    return { id, titulo, status: "ok", resumo: resumoOk, detalhes: notasDesligadas };
   }
   const resumo =
     total > 0

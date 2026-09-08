@@ -147,3 +147,29 @@ test("observabilidade: espelho correlaciona POR MARCA e por telefone (tails)", (
   assert.match(src, /athlete_whatsapp/, "telefone do atleta saiu da correlação");
   assert.match(src, /guardian_whatsapp/, "telefone do responsável saiu da correlação");
 });
+
+test("observabilidade: fila de automação DESLIGADA não vira fila presa (2026-09-07)", () => {
+  // Ordem do CEO (2026-09-07): mensagens de timing desligadas via toggle
+  // whatsapp_timing_alt. O scheduler pula o bucket; os leads acumulam de
+  // propósito. Sem este curto-circuito, a tela acusaria "fila presa" falsa.
+  assert.match(
+    src,
+    /"sistema_automacoes_ativas"/,
+    "leitura dos toggles de /automacoes sumiu do motor de filas",
+  );
+  assert.match(
+    src,
+    /ativas\[f\.toggle\] === false/,
+    "curto-circuito de fila com automação desligada sumiu",
+  );
+  // Os 5 mapeamentos fila→toggle (paridade com as CFs).
+  for (const t of [
+    'toggle: "whatsapp_inicial"',
+    'toggle: "whatsapp_timing_alt"',
+    'toggle: "followup_1"',
+    'toggle: "followup_2"',
+    'toggle: "scheduled_return"',
+  ]) {
+    assert.ok(src.includes(t), `mapeamento ${t} sumiu das filas`);
+  }
+});
