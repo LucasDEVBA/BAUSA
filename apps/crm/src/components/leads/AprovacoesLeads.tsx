@@ -15,6 +15,7 @@ import {
   Loader2,
   Mail,
   MessageCircle,
+  Play,
   Snowflake,
   Sparkles,
   Thermometer,
@@ -31,9 +32,11 @@ import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 import { EmailsLeadSection } from "@/components/emails/EmailsLeadSection";
 import {
   aprovarLead,
+  ativarLeadMuitoCedo,
   contarLeadsPendentesAprovacao,
   enviarFrioParaAprovacao,
   listarLeadsFriosDetalhe,
+  listarLeadsMuitoCedoDetalhe,
   listarLeadsPendentesAprovacao,
   reprovarLead,
   type LeadPendenteAprovacao,
@@ -147,8 +150,10 @@ export function AprovacaoLeadsModal({
   onDecidido: () => void;
   /** Abre já com este lead selecionado (clique no card do Kanban). */
   leadIdInicial?: string;
-  /** "frios": revisão de leads FRIO — mesmo dossiê/abas; ação = resgatar p/ fila. */
-  modo?: "aprovacao" | "frios";
+  /** "frios": revisão de leads FRIO — mesmo dossiê/abas; ação = resgatar p/ fila.
+   *  "muito_cedo": revisão dos aprovados estacionados em Aguardando timing
+   *  (mensagens automáticas desligadas); ação = ativar agora no funil. */
+  modo?: "aprovacao" | "frios" | "muito_cedo";
 }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
@@ -174,7 +179,9 @@ export function AprovacaoLeadsModal({
       const res =
         modo === "frios"
           ? await listarLeadsFriosDetalhe()
-          : await listarLeadsPendentesAprovacao();
+          : modo === "muito_cedo"
+            ? await listarLeadsMuitoCedoDetalhe()
+            : await listarLeadsPendentesAprovacao();
       if (!ativo) return;
       if (res.success) {
         setLeads(res.leads);
@@ -246,6 +253,20 @@ export function AprovacaoLeadsModal({
     });
   };
 
+  const handleAtivar = (lead: LeadPendenteAprovacao) => {
+    startTransition(async () => {
+      const res = await ativarLeadMuitoCedo(lead.id);
+      if (res.success) {
+        toast.success(`${lead.athlete_name} ativado no funil`, {
+          description: "Deal movido para a coluna Lead — o contato manual é seu.",
+        });
+        removerDaFila(lead.id);
+      } else {
+        toast.error(res.error ?? "Erro ao ativar.");
+      }
+    });
+  };
+
   const handleReprovar = (lead: LeadPendenteAprovacao) => {
     startTransition(async () => {
       const res = await reprovarLead(lead.id, motivo);
@@ -282,21 +303,37 @@ export function AprovacaoLeadsModal({
               <span
                 className={cn(
                   "flex size-8 items-center justify-center rounded-full",
-                  modo === "frios" ? "bg-sys-blue/12 text-sys-blue" : "bg-sys-orange/12 text-sys-orange",
+                  modo === "frios"
+                    ? "bg-sys-blue/12 text-sys-blue"
+                    : modo === "muito_cedo"
+                      ? "bg-plan-legacy/12 text-plan-legacy"
+                      : "bg-sys-orange/12 text-sys-orange",
                 )}
               >
-                {modo === "frios" ? <Snowflake className="size-4" /> : <UserCheck className="size-4" />}
+                {modo === "frios" ? (
+                  <Snowflake className="size-4" />
+                ) : modo === "muito_cedo" ? (
+                  <CalendarClock className="size-4" />
+                ) : (
+                  <UserCheck className="size-4" />
+                )}
               </span>
               <div>
                 <h2 className="text-sm font-semibold text-foreground">
-                  {modo === "frios" ? "Frios — revisão" : "Aprovação de leads"}
+                  {modo === "frios"
+                    ? "Frios — revisão"
+                    : modo === "muito_cedo"
+                      ? "Muito cedo — revisão"
+                      : "Aprovação de leads"}
                 </h2>
                 <p className="text-xs text-muted-foreground">
                   {carregando
                     ? "Carregando fila…"
                     : modo === "frios"
                       ? `${leads.length} lead(s) frios nos últimos 90 dias — fora do funil até você resgatar`
-                      : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
+                      : modo === "muito_cedo"
+                        ? `${leads.length} lead(s) aprovados em Aguardando timing — mensagens automáticas desligadas; o contato é seu`
+                        : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
                 </p>
               </div>
             </div>
@@ -320,7 +357,13 @@ export function AprovacaoLeadsModal({
                 className="flex-1"
                 icon={BadgeCheck}
                 title="Fila zerada"
-                description="Nenhum lead aguardando aprovação. Novos leads QUENTE/MORNO aparecem aqui antes de qualquer mensagem automática."
+                description={
+                  modo === "frios"
+                    ? "Nenhum lead frio nos últimos 90 dias para revisar."
+                    : modo === "muito_cedo"
+                      ? "Nenhum lead muito cedo estacionado em Aguardando timing."
+                      : "Nenhum lead aguardando aprovação. Novos leads QUENTE/MORNO aparecem aqui antes de qualquer mensagem automática."
+                }
               />
             ) : (
               <>
@@ -577,6 +620,21 @@ export function AprovacaoLeadsModal({
                           >
                             {pending ? <Loader2 className="animate-spin" /> : <UserPlus />}
                             Enviar p/ fila de aprovação
+                          </Button>
+                        </div>
+                      ) : modo === "muito_cedo" ? (
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-muted-foreground">
+                            Ativar move o deal para a coluna Lead e ele sai desta revisão. Nenhuma mensagem automática é enviada.
+                          </p>
+                          <Button
+                            variant="primary"
+                            size="md"
+                            disabled={pending}
+                            onClick={() => handleAtivar(selecionado)}
+                          >
+                            {pending ? <Loader2 className="animate-spin" /> : <Play />}
+                            Ativar agora no funil
                           </Button>
                         </div>
                       ) : reprovando ? (

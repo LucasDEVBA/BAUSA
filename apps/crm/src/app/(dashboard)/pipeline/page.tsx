@@ -199,6 +199,8 @@ function mapDealRow(row: SupabaseDealRow, prioridades: Map<string, PrioridadeLea
     guardian_email: fs?.guardian_email ?? undefined,
     // Timing do lead: vira BADGE no card (a coluna aguardando_timing saiu do board)
     timing_status: fs?.timing_status ?? undefined,
+    // Abre o dossiê de revisão (modal muito_cedo) a partir do card estacionado
+    form_submission_id: fs?.id ?? undefined,
     // Prioridade P1/P2 por engajamento — só deals em etapa não-final têm entrada
     prioridade_engajamento: fs?.id ? (prioridades.get(fs.id) ?? null) : null,
     responsavel_id: row.responsavel_id ?? undefined,
