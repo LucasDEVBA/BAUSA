@@ -141,6 +141,9 @@ export interface Deal {
   /** Timing do lead (form_submissions) — badge no card desde 2026-08-11,
    *  quando a coluna aguardando_timing saiu do board. */
   timing_status?: DealTimingStatus | string;
+  /** form_submissions.id — abre o dossiê completo (modal de revisão) a partir
+   *  do card; ausente em deals de prospecção manual (sem formulário). */
+  form_submission_id?: string;
   /** Prioridade interna P1/P2 por ENGAJAMENTO (camada de exibição, calculada
    *  na page via lib/prioridade-engajamento — não substitui a classe Gemini).
    *  União inline p/ não acoplar a camada de types à lib server-side. */

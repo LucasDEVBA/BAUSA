@@ -96,3 +96,45 @@ test('re-fila fora de timing: recorte conservador', () => {
   assert.match(migSrc, /d\.etapa IN \('contato_feito', 'lead', 'aguardando_timing'\)/,
     'só deals pré-reunião podem suspender do board');
 });
+
+// ─── Muito cedo — revisão (ordem do CEO, 2026-09-08) ─────────────────────
+// Mensagens de timing + retomada de novembro DESLIGADAS: a revisão manual
+// vive na coluna Aguardando Timing (card → dossiê; "Ativar agora" → Lead).
+
+const migMuitoCedoSrc = ler('supabase', 'migrations', '20260908120000_estacionar_muito_cedo_aprovados.sql');
+const boardSrc = ler('apps', 'crm', 'src', 'components', 'pipeline', 'PipelineBoard.tsx');
+
+test('muito cedo: revisão lista só aprovados estacionados, sem tocar timing_status', () => {
+  const fn = leadsSrc.slice(
+    leadsSrc.indexOf('export async function listarLeadsMuitoCedoDetalhe'),
+    leadsSrc.indexOf('export async function ativarLeadMuitoCedo'));
+  assert.match(fn, /\.eq\("timing_status", "muito_cedo"\)/, 'recorte de timing sumiu');
+  assert.match(fn, /\.eq\("aprovacao_status", "aprovado"\)/,
+    'revisão só pode listar aprovados — pendente pertence à fila de aprovação');
+  assert.match(fn, /\.in\("qualification_classification", \["QUENTE", "MORNO"\]\)/,
+    'filtro de classe sumiu da revisão');
+  assert.match(fn, /d\.etapa === "aguardando_timing"/,
+    'revisão deve exigir deal ativo estacionado (quem avançou sai sozinho)');
+
+  const ativar = leadsSrc.slice(leadsSrc.indexOf('export async function ativarLeadMuitoCedo'));
+  assert.match(ativar, /\.eq\("etapa", "aguardando_timing"\)/,
+    'CAS do ativar sumiu — deal que avançou em outra aba seria puxado de volta');
+  assert.match(ativar, /getUserPapel\(\)\) !== "ceo"/, 'gate CEO sumiu do ativar');
+  assert.ok(!/timing_status:/.test(ativar),
+    'ativar NUNCA pode escrever timing_status — mudaria a elegibilidade dos schedulers (follow-ups)');
+});
+
+test('muito cedo: card da coluna Aguardando timing abre o dossiê de revisão', () => {
+  assert.match(boardSrc, /stage === "aguardando_timing"/, 'interceptação do clique sumiu');
+  assert.match(boardSrc, /modo="muito_cedo"/, 'modal em modo muito_cedo sumiu do board');
+});
+
+test('muito cedo: one-shot de estacionamento tem recorte conservador', () => {
+  assert.match(migMuitoCedoSrc, /fs\.timing_status = 'muito_cedo'/, 'recorte de timing sumiu');
+  assert.match(migMuitoCedoSrc, /fs\.aprovacao_status = 'aprovado'/,
+    'só aprovados podem ser estacionados (pendente já está suspenso do board)');
+  assert.match(migMuitoCedoSrc, /fs\.meeting_scheduled IS NOT TRUE/,
+    'quem tem reunião nunca pode ser estacionado');
+  assert.match(migMuitoCedoSrc, /d\.etapa IN \('lead', 'contato_feito'\)/,
+    'só etapas iniciais podem ser estacionadas — deal avançado fica onde está');
+});

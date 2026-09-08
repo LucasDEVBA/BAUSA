@@ -747,3 +747,102 @@ export async function reprovarLead(formSubmissionId: string, motivo?: string) {
   revalidatePath("/war-room");
   return { success: true, gamificacao };
 }
+
+// ─── Muito cedo — revisão (ordem do CEO, 2026-09-08) ─────────────────────────
+// Com as mensagens de timing E a retomada de novembro DESLIGADAS em
+// sistema_automacoes_ativas, os leads muito_cedo aprovados ficam estacionados
+// em aguardando_timing sem nenhum contato automático. Esta revisão dá ao CEO
+// o mesmo dossiê dos Frios (dados + conversa + e-mail) e a decisão manual de
+// ativar o lead no funil quando ELE quiser.
+
+const MUITO_CEDO_REVISAO_LIMITE = 80;
+
+export async function listarLeadsMuitoCedoDetalhe(): Promise<
+  { success: true; leads: LeadPendenteAprovacao[] } | { success: false; error: string }
+> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem revisar leads muito cedo." };
+  }
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select(`${COLUNAS_FILA_APROVACAO}, atletas(id, deals(id, etapa, deleted_at))`)
+    .is("deleted_at", null)
+    .eq("timing_status", "muito_cedo")
+    .in("qualification_classification", ["QUENTE", "MORNO"])
+    .eq("aprovacao_status", "aprovado")
+    .order("submitted_at", { ascending: false })
+    .limit(MUITO_CEDO_REVISAO_LIMITE);
+  if (error) return { success: false, error: `Erro ao listar muito cedo: ${error.message}` };
+
+  // Embed 1:1 pode voltar OBJETO (FK UNIQUE) — normalizar SEMPRE (incidente 05/09).
+  type DealEmb = { id: string; etapa: string; deleted_at: string | null };
+  type AtletaEmb = { deals: DealEmb[] | DealEmb | null };
+  type Row = LeadPendenteAprovacao & { atletas: AtletaEmb[] | AtletaEmb | null };
+  const asArr = <T,>(v: T[] | T | null | undefined): T[] =>
+    Array.isArray(v) ? v : v ? [v] : [];
+  const leads = ((data ?? []) as unknown as Row[])
+    // Só quem está de fato estacionado: deal ativo em aguardando_timing.
+    // Quem já avançou (reunião marcada etc.) sai da revisão sozinho.
+    .filter((row) =>
+      asArr(row.atletas)
+        .flatMap((a) => asArr(a.deals))
+        .some((d) => d.deleted_at === null && d.etapa === "aguardando_timing"),
+    )
+    .map((row) => {
+      const { atletas: _embed, ...rest } = row;
+      void _embed;
+      return rest as LeadPendenteAprovacao;
+    });
+  return { success: true, leads };
+}
+
+export async function ativarLeadMuitoCedo(
+  leadId: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem ativar um lead muito cedo." };
+  }
+  const supabase = await createAuditedSupabaseClient();
+  const { data: atletas, error: atletaError } = await supabase
+    .from("atletas")
+    .select("id, deals(id, etapa, deleted_at)")
+    .eq("form_submission_id", leadId);
+  if (atletaError) {
+    return { success: false, error: `Erro ao localizar o deal: ${atletaError.message}` };
+  }
+  type DealEmb = { id: string; etapa: string; deleted_at: string | null };
+  type AtletaRow = { id: string; deals: DealEmb[] | DealEmb | null };
+  const asArr = <T,>(v: T[] | T | null | undefined): T[] =>
+    Array.isArray(v) ? v : v ? [v] : [];
+  const deal = ((atletas ?? []) as unknown as AtletaRow[])
+    .flatMap((a) => asArr(a.deals))
+    .find((d) => d.deleted_at === null && d.etapa === "aguardando_timing");
+  if (!deal) {
+    return { success: false, error: "Lead não está mais em Aguardando timing (já ativado?)." };
+  }
+
+  const updateData: Record<string, unknown> = { etapa: "lead" };
+  const probabilidadePorEtapa = await getProbabilidadePorEtapa();
+  if (probabilidadePorEtapa.lead !== undefined) {
+    updateData.probabilidade_fechamento = probabilidadePorEtapa.lead;
+  }
+
+  // CAS: só sai de aguardando_timing (o trigger isenta essa saída de
+  // retrocesso; um deal que avançou em outra aba nunca é puxado de volta).
+  const { data: casRows, error: casError } = await supabase
+    .from("deals")
+    .update(updateData)
+    .eq("id", deal.id)
+    .eq("etapa", "aguardando_timing")
+    .is("deleted_at", null)
+    .select("id");
+  if (casError) return { success: false, error: `Erro ao ativar: ${casError.message}` };
+  if (!casRows || casRows.length === 0) {
+    return { success: false, error: "Deal já saiu de Aguardando timing em outra aba." };
+  }
+
+  revalidatePath("/pipeline");
+  revalidatePath("/war-room");
+  return { success: true };
+}
