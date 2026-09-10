@@ -258,7 +258,7 @@ export const CLASSIFICACAO_COLORS: Record<ClassificacaoLead, { bg: string; text:
 export interface ContratoFinanceiro {
   id: string;
   deal_id: string;
-  plano: 'journey' | 'legacy' | 'start';
+  plano: 'journey' | 'legacy' | 'start' | 'personalizado';
   forma_pagamento_plano: 'padrao' | 'pix_avista';
   valor_total: number;
   valor_customizado: number | null;

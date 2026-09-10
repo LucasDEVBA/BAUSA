@@ -27,13 +27,21 @@ function mesclarGamificacao(
 }
 
 export async function criarContrato(dealId: string, dados: {
-  plano: 'journey' | 'legacy' | 'start';
+  plano: 'journey' | 'legacy' | 'start' | 'personalizado';
   forma_pagamento_plano: 'padrao' | 'pix_avista';
+  /** Valor negociado. Ausente = tabela do plano. Diferente da tabela (ou
+   *  plano personalizado) exige justificativa — Regra 3. */
+  valor_total?: number;
+  justificativa_customizacao?: string;
   entrada_valor?: number;
   entrada_forma: 'pix' | 'getnet_parcelado';
   entrada_parcelas?: number;
   saldo_forma: 'pix_avista' | 'getnet_parcelado';
   saldo_parcelas?: number;
+  inclui_psicologa?: boolean;
+  custo_psicologa?: number;
+  /** Data da 1ª cobrança (YYYY-MM-DD). Ausente = hoje. */
+  primeiro_vencimento?: string;
 }) {
   const papel = await getUserPapel();
   if (papel !== "ceo") {
@@ -54,12 +62,36 @@ export async function criarContrato(dealId: string, dados: {
     return { success: false, error: "Ja existe contrato para este deal." };
   }
 
-  const planoConfig = PLANO_VALORES[dados.plano];
-  const valorTotal = dados.forma_pagamento_plano === "pix_avista"
-    ? planoConfig.pix
-    : planoConfig.padrao;
+  // Valor efetivo: tabela do plano, ou o negociado. Customização (valor fora
+  // da tabela ou plano personalizado) exige justificativa — Regra 3, audit.
+  const planoConfig = dados.plano === "personalizado" ? null : PLANO_VALORES[dados.plano];
+  const valorTabela = planoConfig
+    ? (dados.forma_pagamento_plano === "pix_avista" ? planoConfig.pix : planoConfig.padrao)
+    : null;
+  const valorTotal = dados.valor_total ?? valorTabela;
+  if (valorTotal == null || valorTotal <= 0) {
+    return { success: false, error: "Plano personalizado exige o valor total negociado." };
+  }
+  const isCustomizado = valorTabela === null || valorTotal !== valorTabela;
+  const justificativa = dados.justificativa_customizacao?.trim() || null;
+  if (isCustomizado && !justificativa) {
+    return { success: false, error: "Valor fora da tabela do plano exige justificativa (fica no audit trail)." };
+  }
+
   const entradaValor = dados.entrada_valor ?? ENTRADA_PADRAO;
+  if (entradaValor < 0 || entradaValor > valorTotal) {
+    return { success: false, error: "Entrada não pode ser negativa nem maior que o valor total." };
+  }
+  if ((dados.entrada_parcelas ?? 1) < 1 || (dados.saldo_parcelas ?? 1) < 1) {
+    return { success: false, error: "Quantidade de parcelas deve ser pelo menos 1." };
+  }
+  if (dados.primeiro_vencimento && !/^\d{4}-\d{2}-\d{2}$/.test(dados.primeiro_vencimento)) {
+    return { success: false, error: "Data da primeira cobrança inválida." };
+  }
   const saldoRemanescente = valorTotal - entradaValor;
+
+  const incluiPsicologa = dados.inclui_psicologa ?? planoConfig?.psicologa ?? false;
+  const custoPsicologa = incluiPsicologa ? (dados.custo_psicologa ?? 1200) : 0;
 
   const { data: contrato, error: contratoError } = await supabase
     .from("contratos_financeiros")
@@ -68,13 +100,15 @@ export async function criarContrato(dealId: string, dados: {
       plano: dados.plano,
       forma_pagamento_plano: dados.forma_pagamento_plano,
       valor_total: valorTotal,
+      valor_customizado: isCustomizado ? valorTotal : null,
+      justificativa_customizacao: isCustomizado ? justificativa : null,
       entrada_valor: entradaValor,
       entrada_forma: dados.entrada_forma,
       entrada_parcelas: dados.entrada_parcelas ?? 1,
       saldo_forma: dados.saldo_forma,
       saldo_parcelas: dados.saldo_parcelas ?? 1,
-      inclui_psicologa: planoConfig.psicologa,
-      custo_psicologa: planoConfig.psicologa ? 1200 : 0,
+      inclui_psicologa: incluiPsicologa,
+      custo_psicologa: custoPsicologa,
     })
     .select("id")
     .single();
@@ -94,7 +128,11 @@ export async function criarContrato(dealId: string, dados: {
     status: string;
   }> = [];
 
-  const hoje = new Date();
+  // Base do cronograma: data da 1ª cobrança negociada, ou hoje. O T12:00:00
+  // evita o vencimento escorregar um dia por fuso ao serializar.
+  const hoje = dados.primeiro_vencimento
+    ? new Date(`${dados.primeiro_vencimento}T12:00:00`)
+    : new Date();
 
   // Parcela(s) de entrada
   const numEntrada = dados.entrada_parcelas ?? 1;
@@ -493,4 +531,69 @@ export async function getContratoByDeal(dealId: string) {
     .order("vencimento", { ascending: true });
 
   return { contrato, parcelas: parcelas || [] };
+}
+
+/**
+ * Refazer contrato (pedido do CEO, 2026-09-10 — contrato totalmente
+ * customizável): descarta um contrato SEM NENHUM pagamento confirmado para
+ * criar outro do zero com as novas condições. Soft delete (audit intacto).
+ * Com qualquer parcela recebida a exclusão é recusada — histórico financeiro
+ * real nunca se apaga.
+ */
+export async function excluirContratoSemPagamento(contratoId: string) {
+  const papel = await getUserPapel();
+  if (papel !== "ceo") {
+    return { success: false, error: "Apenas o CEO pode refazer contratos." };
+  }
+
+  const supabase = await createAuditedSupabaseClient();
+
+  const { data: contrato, error: fetchErr } = await supabase
+    .from("contratos_financeiros")
+    .select("id, entrada_paga")
+    .eq("id", contratoId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (fetchErr) return { success: false, error: `Erro ao localizar contrato: ${fetchErr.message}` };
+  if (!contrato) return { success: false, error: "Contrato não encontrado (já refeito?)." };
+  if (contrato.entrada_paga) {
+    return { success: false, error: "Contrato com entrada paga não pode ser refeito." };
+  }
+
+  const { count: recebidas, error: countErr } = await supabase
+    .from("parcelas")
+    .select("id", { count: "exact", head: true })
+    .eq("contrato_id", contratoId)
+    .eq("status", "recebido")
+    .is("deleted_at", null);
+  if (countErr) return { success: false, error: `Erro ao checar pagamentos: ${countErr.message}` };
+  if ((recebidas ?? 0) > 0) {
+    return { success: false, error: "Contrato já tem parcela recebida — não pode ser refeito." };
+  }
+
+  const agora = new Date().toISOString();
+  const { error: parcErr } = await supabase
+    .from("parcelas")
+    .update({ deleted_at: agora })
+    .eq("contrato_id", contratoId)
+    .is("deleted_at", null);
+  if (parcErr) return { success: false, error: `Erro ao descartar parcelas: ${parcErr.message}` };
+
+  // CAS: só exclui se AINDA não há pagamento (corrida com confirmarPagamento)
+  const { data: casRows, error: delErr } = await supabase
+    .from("contratos_financeiros")
+    .update({ deleted_at: agora })
+    .eq("id", contratoId)
+    .is("deleted_at", null)
+    .eq("entrada_paga", false)
+    .select("id");
+  if (delErr) return { success: false, error: `Erro ao excluir contrato: ${delErr.message}` };
+  if (!casRows || casRows.length === 0) {
+    return { success: false, error: "Contrato mudou de estado em outra aba — recarregue." };
+  }
+
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/pipeline");
+  revalidatePath("/financeiro");
+  return { success: true };
 }
