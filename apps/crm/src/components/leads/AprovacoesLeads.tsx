@@ -38,6 +38,7 @@ import {
   listarLeadsFriosDetalhe,
   listarLeadsMuitoCedoDetalhe,
   listarLeadsPendentesAprovacao,
+  reprovarFrio,
   reprovarLead,
   type LeadPendenteAprovacao,
 } from "@/lib/actions/leads";
@@ -249,6 +250,18 @@ export function AprovacaoLeadsModal({
         removerDaFila(lead.id);
       } else {
         toast.error(res.error ?? "Erro ao resgatar.");
+      }
+    });
+  };
+
+  const handleReprovarFrio = (lead: LeadPendenteAprovacao) => {
+    startTransition(async () => {
+      const res = await reprovarFrio(lead.id, motivo);
+      if (res.success) {
+        toast.success(`${lead.athlete_name} reprovado — sai da revisão de Frios.`);
+        removerDaFila(lead.id);
+      } else {
+        toast.error(res.error ?? "Erro ao reprovar.");
       }
     });
   };
@@ -607,20 +620,51 @@ export function AprovacaoLeadsModal({
 
                     {/* Footer de decisão */}
                     <div className="shrink-0 border-t border-border p-4">
-                      {modo === "frios" ? (
+                      {reprovando && modo === "frios" ? (
+                        <div className="space-y-2.5">
+                          <textarea
+                            value={motivo}
+                            onChange={(e) => setMotivo(e.target.value)}
+                            placeholder="Motivo da reprovação (opcional — fica no histórico)"
+                            aria-label="Motivo da reprovação"
+                            rows={2}
+                            className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-label-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          />
+                          <div className="flex items-center justify-end gap-2">
+                            <Button variant="ghost" size="sm" disabled={pending} onClick={() => setReprovando(false)}>
+                              Cancelar
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={pending}
+                              onClick={() => handleReprovarFrio(selecionado)}
+                            >
+                              {pending ? <Loader2 className="animate-spin" /> : <Ban />}
+                              Confirmar reprovação
+                            </Button>
+                          </div>
+                        </div>
+                      ) : modo === "frios" ? (
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-xs text-muted-foreground">
-                            Resgatar manda para a fila de aprovação como MORNO provisório. Nada é enviado sem você aprovar lá.
+                            Resgatar manda para a fila de aprovação como MORNO provisório. Reprovar encerra: fora da revisão, sem mensagens.
                           </p>
-                          <Button
-                            variant="primary"
-                            size="md"
-                            disabled={pending}
-                            onClick={() => handleResgatar(selecionado)}
-                          >
-                            {pending ? <Loader2 className="animate-spin" /> : <UserPlus />}
-                            Enviar p/ fila de aprovação
-                          </Button>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button variant="secondary" size="md" disabled={pending} onClick={() => setReprovando(true)}>
+                              <Ban className="text-destructive" />
+                              Reprovar
+                            </Button>
+                            <Button
+                              variant="primary"
+                              size="md"
+                              disabled={pending}
+                              onClick={() => handleResgatar(selecionado)}
+                            >
+                              {pending ? <Loader2 className="animate-spin" /> : <UserPlus />}
+                              Enviar p/ fila
+                            </Button>
+                          </div>
                         </div>
                       ) : modo === "muito_cedo" ? (
                         <div className="flex items-center justify-between gap-3">

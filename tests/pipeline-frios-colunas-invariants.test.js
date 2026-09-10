@@ -138,3 +138,25 @@ test('muito cedo: one-shot de estacionamento tem recorte conservador', () => {
   assert.match(migMuitoCedoSrc, /d\.etapa IN \('lead', 'contato_feito'\)/,
     'só etapas iniciais podem ser estacionadas — deal avançado fica onde está');
 });
+
+// ─── Ajustes 2026-09-10: reprovar Frios + drop na coluna inteira ─────────
+
+test('frios: reprovar só age sobre FRIO ainda sem decisão (nunca sobrescreve)', () => {
+  const fn = leadsSrc.slice(leadsSrc.indexOf('export async function reprovarFrio'));
+  assert.match(fn, /aprovacao_status: "reprovado"/, 'reprovar deixou de registrar a decisão');
+  assert.match(fn, /\.eq\("qualification_classification", "FRIO"\)/,
+    'reprovarFrio poderia agir sobre lead não-FRIO');
+  assert.match(fn, /\.is\("aprovacao_status", null\)/,
+    'reprovarFrio poderia sobrescrever decisão humana existente');
+  assert.match(fn, /getUserPapel\(\)\) !== "ceo"/, 'gate CEO sumiu do reprovarFrio');
+});
+
+test('colunas: o drop de reordenação cobre a coluna inteira, não só o cabeçalho', () => {
+  const colSrc = ler('apps', 'crm', 'src', 'components', 'pipeline', 'PipelineColumn.tsx');
+  // O onDrop precisa estar no div EXTERNO (junto do setNodeRef), senão soltar
+  // sobre os cards não faz nada e o reordenar parece quebrado (CEO, 2026-09-10).
+  const externo = colSrc.slice(colSrc.indexOf('ref={setNodeRef}'), colSrc.indexOf('draggable={'));
+  assert.match(externo, /onDrop=\{/, 'onDrop saiu do contêiner externo da coluna');
+  assert.match(externo, /origem !== arrastandoColuna\) return/,
+    'proteção contra drop externo (arquivo do Finder) sumiu');
+});

@@ -846,3 +846,40 @@ export async function ativarLeadMuitoCedo(
   revalidatePath("/war-room");
   return { success: true };
 }
+
+/**
+ * Reprova um FRIO direto da revisão (pedido do CEO, 2026-09-10): sai da
+ * coluna Frios para sempre, sem pipeline e sem mensagens (FRIO já estava
+ * fora de todo outreach — isto só registra a decisão humana).
+ * CAS: só age sobre FRIO ainda SEM decisão — nunca sobrescreve.
+ */
+export async function reprovarFrio(
+  leadId: string,
+  motivo?: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem reprovar um lead frio." };
+  }
+  const supabase = await createAuditedSupabaseClient();
+  const { data: userData } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .update({
+      aprovacao_status: "reprovado",
+      aprovacao_decidida_por: userData.user?.id ?? null,
+      aprovacao_decidida_em: new Date().toISOString(),
+      aprovacao_motivo: motivo?.trim() || "Reprovado na revisão de Frios",
+    })
+    .eq("id", leadId)
+    .eq("qualification_classification", "FRIO")
+    .is("aprovacao_status", null)
+    .is("deleted_at", null)
+    .select("id");
+  if (error) return { success: false, error: `Erro ao reprovar: ${error.message}` };
+  if (!data || data.length === 0) {
+    return { success: false, error: "Lead não está mais elegível (já revisado ou requalificado)." };
+  }
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  return { success: true };
+}
