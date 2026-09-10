@@ -28,6 +28,7 @@ import {
 import {
   criarContrato,
   confirmarPagamento,
+  excluirContratoSemPagamento,
   getContratoByDeal,
   updateNfData,
 } from "@/lib/actions/financeiro";
@@ -41,14 +42,17 @@ interface DealContratoTabProps {
 }
 
 type PlanoKey = "journey" | "legacy" | "start";
+/** Plano do formulário: os 3 fixos ou o negociado caso a caso (2026-09-10). */
+type PlanoSelecionado = PlanoKey | "personalizado";
 type FormaPagamento = "padrao" | "pix_avista";
 type FormaEntrada = "pix" | "getnet_parcelado";
 type FormaSaldo = "pix_avista" | "getnet_parcelado";
 
-const PLANO_LABELS: Record<PlanoKey, string> = {
+const PLANO_LABELS: Record<PlanoSelecionado, string> = {
   journey: "Journey R$ 26k",
   legacy: "Legacy R$ 32k",
   start: "Start R$ 18k",
+  personalizado: "Personalizado",
 };
 
 function formatCurrency(value: number): string {
@@ -67,7 +71,7 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
 
   // Create form state
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [plano, setPlano] = useState<PlanoKey>("journey");
+  const [plano, setPlano] = useState<PlanoSelecionado>("journey");
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("padrao");
   const [entradaValor, setEntradaValor] = useState(ENTRADA_PADRAO);
   const [entradaForma, setEntradaForma] = useState<FormaEntrada>("pix");
@@ -75,6 +79,14 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
   const [saldoForma, setSaldoForma] = useState<FormaSaldo>("getnet_parcelado");
   const [saldoParcelas, setSaldoParcelas] = useState(6);
   const [incluiPsicologa, setIncluiPsicologa] = useState(true);
+  // Customização total (2026-09-10): null = seguir a tabela do plano.
+  // Trocar plano/forma volta para a tabela (reset nos onChange, não em effect).
+  const [valorTotalCustom, setValorTotalCustom] = useState<number | null>(null);
+  const [justificativa, setJustificativa] = useState("");
+  const [custoPsicologa, setCustoPsicologa] = useState(1200);
+  const [primeiroVencimento, setPrimeiroVencimento] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
 
   // Docusign state
   const [docusignStatus, setDocusignStatus] = useState<string>("nao_enviado");
@@ -112,21 +124,41 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
 
-  // Computed values for the create form
-  const planoConfig = PLANO_VALORES[plano];
-  const valorTotal = formaPagamento === "pix_avista" ? planoConfig.pix : planoConfig.padrao;
+  // Computed values for the create form. Tabela do plano é só o ponto de
+  // partida — o valor efetivo é 100% editável (Regra 3: fora da tabela ou
+  // plano personalizado, a justificativa é obrigatória e vai ao audit).
+  const planoConfig = plano === "personalizado" ? null : PLANO_VALORES[plano];
+  const valorTabela = planoConfig
+    ? (formaPagamento === "pix_avista" ? planoConfig.pix : planoConfig.padrao)
+    : null;
+  const valorTotal = valorTotalCustom ?? valorTabela ?? 0;
+  const isCustomizado = valorTabela === null || valorTotal !== valorTabela;
+  const faltaJustificativa = isCustomizado && !justificativa.trim();
+  const faltaValor = plano === "personalizado" && valorTotal <= 0;
   const saldoRemanescente = valorTotal - entradaValor;
+
+  const trocarPlano = (novo: PlanoSelecionado) => {
+    setPlano(novo);
+    setValorTotalCustom(null);
+    const cfg = novo === "personalizado" ? null : PLANO_VALORES[novo];
+    setIncluiPsicologa(cfg?.psicologa ?? false);
+  };
 
   const handleCreateContrato = () => {
     startTransition(async () => {
       const result = await criarContrato(dealId, {
         plano,
         forma_pagamento_plano: formaPagamento,
+        valor_total: isCustomizado ? valorTotal : undefined,
+        justificativa_customizacao: isCustomizado ? justificativa : undefined,
         entrada_valor: entradaValor,
         entrada_forma: entradaForma,
         entrada_parcelas: entradaForma === "getnet_parcelado" ? entradaParcelas : 1,
         saldo_forma: saldoForma,
         saldo_parcelas: saldoForma === "getnet_parcelado" ? saldoParcelas : 1,
+        inclui_psicologa: incluiPsicologa,
+        custo_psicologa: incluiPsicologa ? custoPsicologa : 0,
+        primeiro_vencimento: primeiroVencimento || undefined,
       });
       if (result.success) {
         toast.success("Contrato criado com sucesso");
@@ -135,6 +167,23 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
         await fetchData();
       } else {
         toast.error(result.error ?? "Erro ao criar contrato");
+      }
+    });
+  };
+
+  const handleRefazerContrato = () => {
+    if (!contrato) return;
+    if (!window.confirm(
+      "Refazer o contrato? O atual (sem nenhum pagamento) será descartado e você cria outro do zero.",
+    )) return;
+    startTransition(async () => {
+      const result = await excluirContratoSemPagamento(contrato.id);
+      if (result.success) {
+        toast.success("Contrato descartado — crie o novo com as condições negociadas.");
+        setShowCreateForm(true);
+        await fetchData();
+      } else {
+        toast.error(result.error ?? "Erro ao refazer contrato");
       }
     });
   };
@@ -248,12 +297,24 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
           >
             Ver contrato completo
           </Link>
+          {/* Refazer: só enquanto NENHUM pagamento entrou (o server valida de novo) */}
+          {!contrato.entrada_paga && totalRecebido === 0 && (
+            <button
+              type="button"
+              onClick={handleRefazerContrato}
+              disabled={isPending}
+              title="Descarta este contrato (sem pagamentos) para criar outro com as condições negociadas"
+              className="rounded-md px-2 py-1 text-[11px] font-medium text-sys-red transition-colors hover:bg-sys-red/10 disabled:opacity-50"
+            >
+              Refazer contrato
+            </button>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
             <p className={labelClass}>Plano</p>
             <p className="text-foreground font-medium">
-              {PLANO_LABELS[contrato.plano as PlanoKey] ?? contrato.plano}
+              {PLANO_LABELS[contrato.plano as PlanoSelecionado] ?? contrato.plano}
             </p>
           </div>
           <div>
@@ -551,31 +612,83 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
             Criar Contrato Financeiro
           </h3>
           <div className="space-y-3">
-            {/* Plano */}
+            {/* Plano — a tabela é só o ponto de partida; tudo é editável */}
             <div>
               <label className={labelClass}>Plano</label>
               <select
                 value={plano}
-                onChange={(e) => setPlano(e.target.value as PlanoKey)}
+                onChange={(e) => trocarPlano(e.target.value as PlanoSelecionado)}
                 className={cn(selectClass, "mt-1")}
               >
                 <option value="journey">Journey - R$ 26.000</option>
                 <option value="legacy">Legacy - R$ 32.000</option>
                 <option value="start">Start - R$ 18.000</option>
+                <option value="personalizado">Personalizado — valor negociado</option>
               </select>
             </div>
 
-            {/* Forma pagamento */}
+            {/* Forma pagamento (nos planos fixos define o valor de tabela) */}
+            {plano !== "personalizado" && (
+              <div>
+                <label className={labelClass}>Forma de pagamento</label>
+                <select
+                  value={formaPagamento}
+                  onChange={(e) => {
+                    setFormaPagamento(e.target.value as FormaPagamento);
+                    setValorTotalCustom(null);
+                  }}
+                  className={cn(selectClass, "mt-1")}
+                >
+                  <option value="padrao">Padrao</option>
+                  <option value="pix_avista">Pix a vista</option>
+                </select>
+              </div>
+            )}
+
+            {/* Valor total — editável sempre */}
             <div>
-              <label className={labelClass}>Forma de pagamento</label>
-              <select
-                value={formaPagamento}
-                onChange={(e) => setFormaPagamento(e.target.value as FormaPagamento)}
-                className={cn(selectClass, "mt-1")}
-              >
-                <option value="padrao">Padrao</option>
-                <option value="pix_avista">Pix a vista</option>
-              </select>
+              <label className={labelClass}>Valor total (R$)</label>
+              <input
+                type="number"
+                min={0}
+                value={valorTotal}
+                onChange={(e) => setValorTotalCustom(Number(e.target.value))}
+                className={cn(inputClass, "mt-1")}
+              />
+              {valorTabela !== null && isCustomizado && (
+                <p className="mt-1 text-[11px] text-sys-orange">
+                  Fora da tabela do plano ({formatCurrency(valorTabela)}) — justificativa obrigatória.
+                </p>
+              )}
+            </div>
+
+            {/* Justificativa da customização (Regra 3 — audit trail) */}
+            {isCustomizado && (
+              <div>
+                <label className={labelClass}>Justificativa da customização</label>
+                <textarea
+                  value={justificativa}
+                  onChange={(e) => setJustificativa(e.target.value)}
+                  placeholder={
+                    plano === "personalizado"
+                      ? "O que foi negociado e por quê (fica no audit trail)"
+                      : "Por que o valor difere da tabela (fica no audit trail)"
+                  }
+                  rows={2}
+                  className={cn(inputClass, "mt-1 resize-none")}
+                />
+              </div>
+            )}
+
+            {/* Primeira cobrança */}
+            <div>
+              <label className={labelClass}>Data da 1ª cobrança</label>
+              <input
+                type="date"
+                value={primeiroVencimento}
+                onChange={(e) => setPrimeiroVencimento(e.target.value)}
+                className={cn(inputClass, "mt-1")}
+              />
             </div>
 
             {/* Entrada */}
@@ -644,7 +757,7 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
               </div>
             )}
 
-            {/* Psicologa toggle */}
+            {/* Psicologa toggle (custo editável quando incluída) */}
             <div className="flex items-center justify-between">
               <label className={labelClass}>Inclui psicologa</label>
               <button
@@ -665,6 +778,19 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
                 />
               </button>
             </div>
+
+            {incluiPsicologa && (
+              <div>
+                <label className={labelClass}>Custo psicologa (R$)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={custoPsicologa}
+                  onChange={(e) => setCustoPsicologa(Number(e.target.value))}
+                  className={cn(inputClass, "mt-1")}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -696,8 +822,20 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Psicologa</span>
                 <span className="text-foreground">
-                  {formatCurrency(1200)} (incluso)
+                  {formatCurrency(custoPsicologa)} (incluso)
                 </span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">1ª cobrança</span>
+              <span className="text-foreground">
+                {primeiroVencimento.split("-").reverse().join("/")}
+              </span>
+            </div>
+            {isCustomizado && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Condições</span>
+                <span className="font-medium text-sys-orange">Customizadas</span>
               </div>
             )}
           </div>
@@ -706,7 +844,14 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
         <div className="flex gap-2">
           <button
             onClick={handleCreateContrato}
-            disabled={isPending}
+            disabled={isPending || faltaJustificativa || faltaValor}
+            title={
+              faltaValor
+                ? "Informe o valor negociado"
+                : faltaJustificativa
+                  ? "Preencha a justificativa da customização"
+                  : undefined
+            }
             className="flex-1 flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {isPending ? (

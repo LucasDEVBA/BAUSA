@@ -59,9 +59,26 @@ export function PipelineColumn({
   return (
     <div
       ref={setNodeRef}
+      // Alvo de drop na COLUNA INTEIRA (antes era só a faixa do cabeçalho —
+      // soltar sobre os cards não fazia nada e o reordenar parecia quebrado,
+      // CEO reportou 2026-09-10). O arraste continua começando no cabeçalho,
+      // para não competir com o drag de deals (dnd-kit, pointer events).
+      onDragOver={(e) => {
+        if (arrastandoColuna && arrastandoColuna !== stage) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        // Só aceita um arraste de COLUNA iniciado aqui (um arquivo solto do
+        // Finder não pode reordenar o board).
+        const origem = e.dataTransfer.getData("text/plain");
+        if (!origem || !arrastandoColuna || origem !== arrastandoColuna) return;
+        e.preventDefault();
+        onColumnDrop?.(stage);
+      }}
       className={cn(
         "flex w-[252px] shrink-0 flex-col rounded-xl border border-border/70 bg-secondary/40 transition-colors",
         isOver && "border-primary/40 bg-primary/5",
+        // Durante um arraste de coluna, as demais sinalizam que aceitam o drop
+        arrastandoColuna && arrastandoColuna !== stage && "border-dashed border-primary/30",
       )}
     >
       <div
@@ -71,18 +88,7 @@ export function PipelineColumn({
           e.dataTransfer.setData("text/plain", stage);
           onColumnDragStart?.(stage);
         }}
-        onDragOver={(e) => {
-          if (arrastandoColuna && arrastandoColuna !== stage) e.preventDefault();
-        }}
         onDragEnd={() => onColumnDragEnd?.()}
-        onDrop={(e) => {
-          // Só aceita um arraste de COLUNA iniciado aqui (um arquivo solto do
-          // Finder não pode reordenar o board).
-          const origem = e.dataTransfer.getData("text/plain");
-          if (!origem || !arrastandoColuna || origem !== arrastandoColuna) return;
-          e.preventDefault();
-          onColumnDrop?.(stage);
-        }}
         className={cn(
           "flex items-center justify-between gap-2 px-2.5 py-2",
           onColumnDragStart && "cursor-grab active:cursor-grabbing",

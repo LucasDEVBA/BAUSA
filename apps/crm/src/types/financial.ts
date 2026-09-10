@@ -1,4 +1,4 @@
-export type PlanType = "Journey" | "Legacy" | "Start";
+export type PlanType = "Journey" | "Legacy" | "Start" | "Personalizado";
 export type PaymentMethod = "parcelado" | "pix";
 export type ReceivableStatus = "previsto" | "recebido" | "atrasado";
 
@@ -29,6 +29,16 @@ export const PLAN_CONFIG: Record<
     description: "Plano essencial para famílias em início de jornada",
     color: "text-plan-start",
     bg: "bg-plan-start/15 border-plan-start/30",
+  },
+  // Contrato negociado fora dos 3 planos fixos (2026-09-10). Sem preço de
+  // tabela: o valor real vive no contrato (valor_total + justificativa).
+  Personalizado: {
+    price: 0,
+    pix_price: 0,
+    signal: 4500,
+    description: "Contrato negociado caso a caso — valor e condições próprias",
+    color: "text-muted-foreground",
+    bg: "bg-secondary border-border",
   },
 };
 

@@ -53,6 +53,7 @@ function mapParcelaToReceivable(
     journey: "Journey",
     legacy: "Legacy",
     start: "Start",
+    personalizado: "Personalizado",
   };
 
   return {
@@ -273,8 +274,8 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     : 100;
 
   // Contratos por plano
-  const planMap: Record<string, PlanType> = { journey: "Journey", legacy: "Legacy", start: "Start" };
-  const contractsByPlan: Record<PlanType, number> = { Legacy: 0, Journey: 0, Start: 0 };
+  const planMap: Record<string, PlanType> = { journey: "Journey", legacy: "Legacy", start: "Start", personalizado: "Personalizado" };
+  const contractsByPlan: Record<PlanType, number> = { Legacy: 0, Journey: 0, Start: 0, Personalizado: 0 };
   for (const c of rawContratos ?? []) {
     const plan = planMap[c.plano as string];
     if (plan) contractsByPlan[plan]++;
