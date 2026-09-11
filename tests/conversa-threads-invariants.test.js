@@ -32,6 +32,13 @@ test('dedupe por telefone FUNDE os papéis, nunca descarta o segundo', () => {
     'o dedupe antigo (descarte silencioso) voltou');
 });
 
+test('thread do 2º responsável existe quando o form informa (2026-09-11)', () => {
+  assert.match(actionSrc, /addPrivado\(fsGuardian2Whatsapp, "2º Responsável", fsGuardian2Name\)/,
+    'thread do segundo responsável sumiu da aba Conversa');
+  assert.match(actionSrc, /guardian_name_2, guardian_whatsapp_2/,
+    'select deixou de buscar os dados do segundo responsável');
+});
+
 test('threads de responsável e atleta nascem com rótulo de papel', () => {
   assert.match(actionSrc, /addPrivado\(respWhatsapp \?\? fsGuardianWhatsapp, "Responsável"/,
     'thread do responsável perdeu o rótulo');

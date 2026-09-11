@@ -85,10 +85,12 @@ export async function listarThreadsLead(
   let fsGuardianWhatsapp: string | null = null;
   let fsGuardianName: string | null = null;
   let fsAthleteName: string | null = null;
+  let fsGuardian2Whatsapp: string | null = null;
+  let fsGuardian2Name: string | null = null;
   if (formSubmissionId) {
     const { data: fs } = await supabase
       .from("form_submissions")
-      .select("athlete_name, athlete_whatsapp, guardian_name, guardian_whatsapp")
+      .select("athlete_name, athlete_whatsapp, guardian_name, guardian_whatsapp, guardian_name_2, guardian_whatsapp_2")
       .eq("id", formSubmissionId)
       .maybeSingle();
     if (fs) {
@@ -96,6 +98,8 @@ export async function listarThreadsLead(
       fsGuardianWhatsapp = (fs.guardian_whatsapp as string) ?? null;
       fsGuardianName = (fs.guardian_name as string) ?? null;
       fsAthleteName = (fs.athlete_name as string) ?? null;
+      fsGuardian2Whatsapp = (fs.guardian_whatsapp_2 as string) ?? null;
+      fsGuardian2Name = (fs.guardian_name_2 as string) ?? null;
     }
   }
 
@@ -133,8 +137,10 @@ export async function listarThreadsLead(
     threads.push(thread);
   };
 
-  // Ordem do seletor: responsável (thread principal do outreach) → atleta
+  // Ordem do seletor: responsável (thread principal do outreach) → 2º
+  // responsável (form, 2026-09-11) → atleta. Mesmo número = papéis fundidos.
   addPrivado(respWhatsapp ?? fsGuardianWhatsapp, "Responsável", respNome ?? fsGuardianName);
+  addPrivado(fsGuardian2Whatsapp, "2º Responsável", fsGuardian2Name);
   addPrivado(fsAthleteWhatsapp ?? atletaWhatsapp, "Atleta", atletaNome ?? fsAthleteName);
 
   // ── Grupos vinculados à família ──

@@ -573,6 +573,19 @@ export function AprovacaoLeadsModal({
                         <Campo label="E-mail">{selecionado.guardian_email ?? "—"}</Campo>
                       </Secao>
 
+                      {/* Segundo responsável — só quando a família marcou "Sim" no form */}
+                      {(selecionado.guardian_name_2 ||
+                        selecionado.guardian_whatsapp_2 ||
+                        selecionado.guardian_email_2 ||
+                        selecionado.guardian_profession_2) && (
+                        <Secao titulo="Segundo responsável">
+                          <Campo label="Nome">{selecionado.guardian_name_2 ?? "—"}</Campo>
+                          <Campo label="Profissão">{selecionado.guardian_profession_2 ?? "—"}</Campo>
+                          <Campo label="WhatsApp">{selecionado.guardian_whatsapp_2 ?? "—"}</Campo>
+                          <Campo label="E-mail">{selecionado.guardian_email_2 ?? "—"}</Campo>
+                        </Secao>
+                      )}
+
                       <Secao titulo="Endereço">
                         <Campo label="Logradouro" wide>
                           {[selecionado.address_street, selecionado.address_number, selecionado.address_complement]
