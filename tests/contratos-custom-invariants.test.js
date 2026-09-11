@@ -76,14 +76,21 @@ test('deal: customizar valor grava justificativa + flag (coluna criada na 202609
     'migration da coluna do deal sumiu — o PATCH voltaria a quebrar (bug 2026-09-11)');
 });
 
-test('form: segundo responsável é Sim/Não — "não" nunca exige explicação', () => {
+test('form: segundo responsável é Sim/Não — "sim" exige os 4 dados, "não" nada', () => {
   const formSrc = ler('apps', 'web', 'src', 'components', 'forms', 'FormsPage.tsx');
   assert.match(formSrc, /hasSecondGuardian: z\.string\(\)\.min\(1/,
     'pergunta Sim/Não do segundo responsável sumiu do schema');
-  assert.match(formSrc, /data\.hasSecondGuardian === "sim" && !data\.guardianProfession2\?\.trim\(\)/,
-    'profissão do 2º responsável deixou de ser exigida no "sim"');
-  assert.match(formSrc, /if \(v === "nao"\) setValue\("guardianProfession2", ""/,
-    'marcar "não" deixou de limpar o campo — família voltaria a explicar ausência');
+  // "Sim" → mesmos dados do responsável principal (ordem do CEO, 2026-09-11)
+  for (const campo of ['guardianName2', 'guardianProfession2', 'guardianWhatsapp2', 'guardianEmail2']) {
+    assert.match(formSrc, new RegExp(`path: \\["${campo}"\\]`),
+      `${campo} deixou de ser exigido quando "sim"`);
+    assert.match(formSrc, new RegExp(`setValue\\("${campo}", ""`),
+      `marcar "não" deixou de limpar ${campo} — família voltaria a explicar ausência`);
+  }
+  assert.match(formSrc, /isValidPhoneNumber\(data\.guardianWhatsapp2\)/,
+    'WhatsApp do 2º responsável deixou de ser validado');
+  assert.match(formSrc, /guardian_name_2: data\.guardianName2\?\.trim\(\) \|\| null/,
+    'payload do 2º responsável sumiu do envio');
   assert.match(formSrc, /watch\("hasSecondGuardian"\) === "sim" && \(/,
-    'campo condicional do 2º responsável sumiu do JSX');
+    'bloco condicional do 2º responsável sumiu do JSX');
 });

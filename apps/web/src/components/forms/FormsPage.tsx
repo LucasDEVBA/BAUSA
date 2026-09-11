@@ -74,6 +74,9 @@ const formSchema = z.object({
   hasSecondGuardian: z.string().min(1, "Selecione uma opção"),
   // Campos opcionais do classificador v2 (spec §11) — nunca bloqueiam o envio
   guardianProfession2: z.string().optional(),
+  guardianName2: z.string().optional(),
+  guardianWhatsapp2: z.string().optional(),
+  guardianEmail2: z.string().optional(),
   viajouExterior: z.string().optional(), // "sim" | "nao" | "" → boolean|null no payload
   comoConheceu: z.string().optional(),
   guardianWhatsapp: z
@@ -91,13 +94,25 @@ const formSchema = z.object({
   addressCity: z.string().optional(),
   addressState: z.string().optional(),
 }).superRefine((data, ctx) => {
-  // Segundo responsável marcado como "sim" → profissão obrigatória
-  if (data.hasSecondGuardian === "sim" && !data.guardianProfession2?.trim()) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["guardianProfession2"],
-      message: "Profissão é obrigatória",
-    });
+  // Segundo responsável "sim" → mesmos dados do responsável principal
+  // (nome, profissão, WhatsApp válido, e-mail válido)
+  if (data.hasSecondGuardian === "sim") {
+    if (!data.guardianName2?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["guardianName2"], message: "Nome é obrigatório" });
+    }
+    if (!data.guardianProfession2?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["guardianProfession2"], message: "Profissão é obrigatória" });
+    }
+    if (!data.guardianWhatsapp2?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["guardianWhatsapp2"], message: "Telefone é obrigatório" });
+    } else if (!isValidPhoneNumber(data.guardianWhatsapp2)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["guardianWhatsapp2"], message: "Número inválido — confira o DDD e o país da bandeira" });
+    }
+    if (!data.guardianEmail2?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["guardianEmail2"], message: "E-mail é obrigatório" });
+    } else if (!z.string().email().safeParse(data.guardianEmail2).success) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["guardianEmail2"], message: "E-mail inválido" });
+    }
   }
   // Cidade é obrigatória para todos os países
   if (!data.addressCity?.trim()) {
@@ -172,7 +187,7 @@ const stepFieldsMap: Record<number, (keyof FormData)[]> = {
   9: ["youthCommitment"],
   10: ["familyDecision"],
   11: ["investmentRange"],
-  12: ["guardianName", "guardianProfession", "guardianWhatsapp", "guardianEmail", "hasSecondGuardian", "guardianProfession2", "viajouExterior", "comoConheceu"],
+  12: ["guardianName", "guardianProfession", "guardianWhatsapp", "guardianEmail", "hasSecondGuardian", "guardianName2", "guardianProfession2", "guardianWhatsapp2", "guardianEmail2", "viajouExterior", "comoConheceu"],
   13: ["country", "addressCep", "addressStreet", "addressNumber", "addressComplement", "addressNeighborhood", "addressCity", "addressState"],
 };
 
@@ -211,6 +226,7 @@ const Forms = () => {
       academicPerformance: "", englishLevel: "",
       behavioralProfile: "", youthCommitment: "", familyDecision: "",
       guardianName: "", guardianProfession: "", hasSecondGuardian: "", guardianProfession2: "",
+      guardianName2: "", guardianWhatsapp2: "", guardianEmail2: "",
       viajouExterior: "", comoConheceu: "",
       guardianWhatsapp: "", guardianEmail: "",
       country: "BR",
@@ -392,8 +408,10 @@ const Forms = () => {
       // Campos sempre opcionais
       if (f === "achievements" || f === "instagram" || f === "addressComplement") return false;
       if (f === "viajouExterior" || f === "comoConheceu") return false;
-      // Profissão do 2º responsável só é exigida quando a família marcou "sim"
-      if (f === "guardianProfession2") return getValues("hasSecondGuardian") === "sim";
+      // Dados do 2º responsável só são exigidos quando a família marcou "sim"
+      if (f === "guardianName2" || f === "guardianProfession2" || f === "guardianWhatsapp2" || f === "guardianEmail2") {
+        return getValues("hasSecondGuardian") === "sim";
+      }
       // Campos opcionais para não-brasileiros (superRefine valida conforme país)
       if (!isBrazil && (f === "addressCep" || f === "addressStreet" || f === "addressNumber" || f === "addressNeighborhood" || f === "addressState")) return false;
       return true;
@@ -497,6 +515,9 @@ const Forms = () => {
         guardian_profession: data.guardianProfession.trim(),
         // Campos opcionais do classificador v2 (spec §11)
         guardian_profession_2: data.guardianProfession2?.trim() || null,
+        guardian_name_2: data.guardianName2?.trim() || null,
+        guardian_whatsapp_2: data.guardianWhatsapp2?.trim() || null,
+        guardian_email_2: data.guardianEmail2?.trim() || null,
         viajou_exterior:
           data.viajouExterior === "sim" ? true : data.viajouExterior === "nao" ? false : null,
         como_conheceu: data.comoConheceu || null,
@@ -1140,7 +1161,12 @@ const Forms = () => {
               <RadioGroup
                 onValueChange={(v) => {
                   setValue("hasSecondGuardian", v, { shouldValidate: true });
-                  if (v === "nao") setValue("guardianProfession2", "", { shouldValidate: true });
+                  if (v === "nao") {
+                    setValue("guardianProfession2", "", { shouldValidate: true });
+                    setValue("guardianName2", "", { shouldValidate: true });
+                    setValue("guardianWhatsapp2", "", { shouldValidate: true });
+                    setValue("guardianEmail2", "", { shouldValidate: true });
+                  }
                 }}
                 value={watch("hasSecondGuardian")}
                 className="space-y-2.5"
@@ -1155,11 +1181,32 @@ const Forms = () => {
               <FieldError field="hasSecondGuardian" />
             </div>
             {watch("hasSecondGuardian") === "sim" && (
-              <div>
-                <label className={labelClass}>{t("form.step12.profession2.label")}</label>
-                <Input {...register("guardianProfession2")} placeholder={t("form.step12.profession2.placeholder")} className={inputClass} />
-                <FieldError field="guardianProfession2" />
-              </div>
+              <>
+                <div>
+                  <label className={labelClass}>{t("form.step12.secondGuardian.name.label")}</label>
+                  <Input {...register("guardianName2")} placeholder={t("form.step12.secondGuardian.name.placeholder")} className={inputClass} />
+                  <FieldError field="guardianName2" />
+                </div>
+                <div>
+                  <label className={labelClass}>{t("form.step12.profession2.label")}</label>
+                  <Input {...register("guardianProfession2")} placeholder={t("form.step12.profession2.placeholder")} className={inputClass} />
+                  <FieldError field="guardianProfession2" />
+                </div>
+                <div>
+                  <label className={labelClass}>{t("form.step12.secondGuardian.phone.label")}</label>
+                  <FormPhoneInput
+                    value={watch("guardianWhatsapp2") ?? ""}
+                    onChange={(v) => setValue("guardianWhatsapp2", v, { shouldValidate: true })}
+                    placeholder="(11) 99999-9999"
+                  />
+                  <FieldError field="guardianWhatsapp2" />
+                </div>
+                <div>
+                  <label className={labelClass}>{t("form.step12.secondGuardian.email.label")}</label>
+                  <Input {...register("guardianEmail2")} type="email" placeholder={t("form.step12.secondGuardian.email.placeholder")} className={inputClass} />
+                  <FieldError field="guardianEmail2" />
+                </div>
+              </>
             )}
             <div>
               <label className={labelClass}>
