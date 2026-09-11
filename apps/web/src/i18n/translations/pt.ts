@@ -158,7 +158,12 @@ export const pt = {
       profession: { label: "Profissão", placeholder: "Profissão" },
       phone: { label: "Telefone / WhatsApp" },
       email: { label: "E-mail", placeholder: "email@exemplo.com" },
-      secondGuardian: { label: "Existe um segundo responsável legal?", yes: "Sim", no: "Não" },
+      secondGuardian: {
+        label: "Existe um segundo responsável legal?", yes: "Sim", no: "Não",
+        name: { label: "Nome completo do segundo responsável", placeholder: "Nome completo" },
+        phone: { label: "Telefone / WhatsApp do segundo responsável" },
+        email: { label: "E-mail do segundo responsável", placeholder: "email@exemplo.com" },
+      },
       profession2: { label: "Profissão do segundo responsável", placeholder: "Profissão" },
       travel: { label: "O atleta já viajou para o exterior?", yes: "Sim", no: "Não" },
       source: {

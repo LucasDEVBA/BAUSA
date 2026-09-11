@@ -306,6 +306,11 @@ export interface LeadPendenteAprovacao {
   guardian_email: string | null;
   guardian_whatsapp: string | null;
   guardian_profession: string | null;
+  // Segundo responsável (form: hasSecondGuardian=sim; null = não existe)
+  guardian_name_2: string | null;
+  guardian_email_2: string | null;
+  guardian_whatsapp_2: string | null;
+  guardian_profession_2: string | null;
   // Endereço
   address_cep: string | null;
   address_street: string | null;
@@ -362,7 +367,9 @@ const COLUNAS_FILA_APROVACAO =
   "video_highlights, position, club_history, achievements, school_year, current_school, " +
   "school_city_state, is_high_school, education_model, english_level, english_exam, exam_result, " +
   "academic_performance, school_priorities, school_graduated_from, graduated_when, guardian_name, " +
-  "guardian_email, guardian_whatsapp, guardian_profession, address_cep, address_street, " +
+  "guardian_email, guardian_whatsapp, guardian_profession, " +
+  "guardian_name_2, guardian_email_2, guardian_whatsapp_2, guardian_profession_2, " +
+  "address_cep, address_street, " +
   "address_number, address_complement, address_neighborhood, address_city, address_state, " +
   "address_country, city_state, family_address, investment_range, start_timing, project_direction, " +
   "behavioral_profile, youth_commitment, family_decision_structure, why_international, " +

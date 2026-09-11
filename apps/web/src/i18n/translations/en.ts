@@ -160,7 +160,12 @@ const en: Translations = {
       profession: { label: "Profession", placeholder: "Profession" },
       phone: { label: "Phone / WhatsApp" },
       email: { label: "Email", placeholder: "email@example.com" },
-      secondGuardian: { label: "Is there a second legal guardian?", yes: "Yes", no: "No" },
+      secondGuardian: {
+        label: "Is there a second legal guardian?", yes: "Yes", no: "No",
+        name: { label: "Second guardian's full name", placeholder: "Full name" },
+        phone: { label: "Second guardian's phone / WhatsApp" },
+        email: { label: "Second guardian's email", placeholder: "email@example.com" },
+      },
       profession2: { label: "Second guardian's profession", placeholder: "Profession" },
       travel: { label: "Has the athlete ever traveled abroad?", yes: "Yes", no: "No" },
       source: {

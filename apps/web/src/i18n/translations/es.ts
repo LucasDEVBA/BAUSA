@@ -160,7 +160,12 @@ const es: Translations = {
       profession: { label: "Profesión", placeholder: "Profesión" },
       phone: { label: "Teléfono / WhatsApp" },
       email: { label: "Correo electrónico", placeholder: "email@ejemplo.com" },
-      secondGuardian: { label: "¿Existe un segundo responsable legal?", yes: "Sí", no: "No" },
+      secondGuardian: {
+        label: "¿Existe un segundo responsable legal?", yes: "Sí", no: "No",
+        name: { label: "Nombre completo del segundo responsable", placeholder: "Nombre completo" },
+        phone: { label: "Teléfono / WhatsApp del segundo responsable" },
+        email: { label: "Correo del segundo responsable", placeholder: "email@ejemplo.com" },
+      },
       profession2: { label: "Profesión del segundo responsable", placeholder: "Profesión" },
       travel: { label: "¿El atleta ya ha viajado al extranjero?", yes: "Sí", no: "No" },
       source: {
