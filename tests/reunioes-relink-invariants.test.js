@@ -48,8 +48,13 @@ test('board reflete o vínculo sem F5: refresh no modal + re-sync no board', () 
     modalSrc.indexOf('const toggleTranscricao'));
   assert.match(vincularRegion, /router\.refresh\(\)/,
     'router.refresh() sumiu do vincular — o board não repinta após mover o deal');
-  assert.match(boardSrc, /setDeals\(initialDeals\);\s*\n\s*\}, \[initialDeals\]\)/,
+  // O effect de re-sync pode crescer (2026-09-11: reconcilia também o deal
+  // aberto no modal) — o invariante é setDeals(initialDeals) DENTRO de um
+  // effect com dep [initialDeals], não o corpo exato.
+  assert.match(boardSrc, /setDeals\(initialDeals\);[\s\S]{0,400}\}, \[initialDeals\]\)/,
     're-sync de deals com o servidor sumiu do PipelineBoard — card fica na coluna antiga até F5');
+  assert.match(boardSrc, /deals\.find\(\(d\) => d\.id === selectedDealId\)/,
+    'deal aberto deixou de ser derivado por id — voltaria a cópia obsoleta (valor customizado só após reabrir)');
 });
 
 test('vincular marca meeting_scheduled sem sobrescrever detecção anterior', () => {

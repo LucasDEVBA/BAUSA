@@ -39,7 +39,8 @@ import {
   DEFAULT_DEAL_STAGE_DISPLAY,
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
-import { atualizarDeal, moverDeal, customizarValorDeal, type StructuredLossData } from "@/lib/actions/deals";
+import { atualizarDeal, moverDeal, type StructuredLossData } from "@/lib/actions/deals";
+import { CustomizarValorModal } from "./CustomizarValorModal";
 import { GanhoEscolasModal } from "./GanhoEscolasModal";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
@@ -126,12 +127,6 @@ const LOSS_REASON_OPTIONS = [
   { value: "outro", label: "Outro" },
 ];
 
-const SERVICOS_AVULSOS = [
-  { nome: "Preparacao TOEFL", valor: 2500, valorFormatado: "R$ 2.500" },
-  { nome: "Aula particular ingles (3 meses)", valor: 3600, valorFormatado: "R$ 3.600" },
-  { nome: "Acompanhamento psicologico extra", valor: 1200, valorFormatado: "R$ 1.200" },
-  { nome: "Traducao juramentada", valor: 800, valorFormatado: "R$ 800" },
-];
 
 const LEAD_SCORE_INFO =
   "O Lead Score e calculado automaticamente com base nos dados preenchidos do atleta. Quanto mais completos os dados, mais preciso o score. Criterios: Investimento (25%), Timing (20%), Ingles (15%), Academico (15%), Competitivo (10%), Comprometimento (10%), Video (5%)";
@@ -571,9 +566,9 @@ export function DealDetailSheet({
   const [showScoreInfo, setShowScoreInfo] = useState(false);
 
   // Customizar valor
+  // Customização de valor: modal dedicado (CustomizarValorModal) desde
+  // 2026-09-11 — o editor inline do sheet foi aposentado a pedido do CEO.
   const [showCustomizarValor, setShowCustomizarValor] = useState(false);
-  const [customValor, setCustomValor] = useState(deal?.deal_value_brl ?? 0);
-  const [customJustificativa, setCustomJustificativa] = useState("");
 
   if (!deal) return null;
 
@@ -943,9 +938,10 @@ export function DealDetailSheet({
                 )}
               </div>
 
-              {/* Customizar valor do deal */}
+              {/* Customizar valor — abre o modal dedicado (com máscara e
+                  serviços adicionais clicáveis) */}
               <div className={cardClass}>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Valor estimado</span>
                     <span className="text-sm font-bold text-sys-green">
@@ -955,103 +951,24 @@ export function DealDetailSheet({
                       <span className="text-[9px] font-semibold text-sys-orange">(customizado)</span>
                     )}
                   </div>
-                  {!showCustomizarValor && (
-                    <button
-                      onClick={() => setShowCustomizarValor(true)}
-                      className="text-[10px] font-medium text-primary hover:text-primary transition-colors"
-                    >
-                      Customizar valor
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setShowCustomizarValor(true)}
+                    className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/15"
+                  >
+                    Customizar valor
+                  </button>
                 </div>
-
-                {showCustomizarValor && (
-                  <div className="space-y-3 mt-3 pt-3 border-t border-border">
-                    <div className="space-y-1.5">
-                      <label className={labelClass}>Novo valor (R$)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={100}
-                        value={customValor}
-                        onChange={(e) => setCustomValor(Number(e.target.value))}
-                        className={inputClass}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className={labelClass}>Justificativa *</label>
-                      <textarea
-                        value={customJustificativa}
-                        onChange={(e) => setCustomJustificativa(e.target.value)}
-                        rows={2}
-                        placeholder="Motivo da customizacao do valor..."
-                        className={cn(inputClass, "resize-none")}
-                      />
-                    </div>
-                    <div className="flex gap-2 justify-end">
-                      <button
-                        onClick={() => {
-                          setShowCustomizarValor(false);
-                          setCustomValor(deal.deal_value_brl);
-                          setCustomJustificativa("");
-                        }}
-                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-fill-4"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (!customJustificativa.trim()) {
-                            toast.error("Informe a justificativa");
-                            return;
-                          }
-                          startTransition(async () => {
-                            const result = await customizarValorDeal(deal.id, customValor, customJustificativa);
-                            if (result.success) {
-                              toast.success("Valor customizado com sucesso");
-                              setShowCustomizarValor(false);
-                              router.refresh();
-                            } else {
-                              toast.error(result.error ?? "Erro ao customizar valor");
-                            }
-                          });
-                        }}
-                        disabled={isPending}
-                        className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
-                      >
-                        {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-                        Salvar
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Servicos Adicionais - catalogo de referencia */}
-              <div className={cardClass}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-4 w-4 text-sys-orange" />
-                  <p className="text-xs font-semibold text-foreground">
-                    Servicos Adicionais
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  {SERVICOS_AVULSOS.map((servico) => (
-                    <div
-                      key={servico.nome}
-                      className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
-                    >
-                      <p className="text-xs text-foreground">{servico.nome}</p>
-                      <p className="text-xs font-semibold text-sys-green">
-                        {servico.valorFormatado}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-2 text-[10px] text-label-tertiary">
-                  Tabela de referencia. Para adicionar ao contrato, use &quot;Customizar valor&quot; acima.
-                </p>
-              </div>
+              {showCustomizarValor && (
+                <CustomizarValorModal
+                  dealId={deal.id}
+                  athleteName={deal.athlete_name}
+                  valorAtual={deal.deal_value_brl}
+                  jaCustomizado={deal.flag_valores_customizados}
+                  onClose={() => setShowCustomizarValor(false)}
+                />
+              )}
 
               {/* Editable fields */}
               <div className="space-y-4">
