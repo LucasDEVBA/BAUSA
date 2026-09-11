@@ -132,14 +132,18 @@ export function PipelineBoard({
 }: PipelineBoardProps) {
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  // O deal aberto no modal é DERIVADO por id (não uma cópia em estado): assim
+  // customizar o valor (router.refresh → initialDeals novos) repinta o modal
+  // na hora, sem fechar e reabrir (2026-09-11).
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+  const setSelectedDeal = (deal: Deal | null) => setSelectedDealId(deal?.id ?? null);
   // Reconcilia com o servidor: quando a page revalida (ex.: vincular reunião
   // move o deal de etapa), a verdade do servidor vence a cópia local — sem
   // isto o card fica na coluna antiga até um F5 (CEO reportou, 2026-08-26).
   useEffect(() => {
     setDeals(initialDeals);
   }, [initialDeals]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   // Excluir lead direto do card (mesmo padrão da tabela de /leads):
   // confirmação fora do card, setter estável dentro do render.
@@ -200,6 +204,9 @@ export function PipelineBoard({
   );
 
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
+  const selectedDeal = selectedDealId
+    ? (deals.find((d) => d.id === selectedDealId) ?? null)
+    : null;
 
   // Transform SÓ de render, aplicado coluna a coluna dentro do agrupamento.
   // Mover card entre colunas (dnd) muda `stage`, não posição — o drag-and-drop
