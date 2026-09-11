@@ -68,6 +68,10 @@ const formSchema = z.object({
   familyDecision: z.string().min(1, "Selecione uma opção"),
   guardianName: z.string().min(1, "Nome é obrigatório"),
   guardianProfession: z.string().min(1, "Profissão é obrigatória"),
+  // Segundo responsável: pergunta Sim/Não evita que a família precise
+  // explicar uma ausência (separação, falecimento, guarda unilateral) —
+  // assunto sensível. "Sim" abre o campo de profissão (obrigatório).
+  hasSecondGuardian: z.string().min(1, "Selecione uma opção"),
   // Campos opcionais do classificador v2 (spec §11) — nunca bloqueiam o envio
   guardianProfession2: z.string().optional(),
   viajouExterior: z.string().optional(), // "sim" | "nao" | "" → boolean|null no payload
@@ -87,6 +91,14 @@ const formSchema = z.object({
   addressCity: z.string().optional(),
   addressState: z.string().optional(),
 }).superRefine((data, ctx) => {
+  // Segundo responsável marcado como "sim" → profissão obrigatória
+  if (data.hasSecondGuardian === "sim" && !data.guardianProfession2?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["guardianProfession2"],
+      message: "Profissão é obrigatória",
+    });
+  }
   // Cidade é obrigatória para todos os países
   if (!data.addressCity?.trim()) {
     ctx.addIssue({
@@ -160,7 +172,7 @@ const stepFieldsMap: Record<number, (keyof FormData)[]> = {
   9: ["youthCommitment"],
   10: ["familyDecision"],
   11: ["investmentRange"],
-  12: ["guardianName", "guardianProfession", "guardianWhatsapp", "guardianEmail", "guardianProfession2", "viajouExterior", "comoConheceu"],
+  12: ["guardianName", "guardianProfession", "guardianWhatsapp", "guardianEmail", "hasSecondGuardian", "guardianProfession2", "viajouExterior", "comoConheceu"],
   13: ["country", "addressCep", "addressStreet", "addressNumber", "addressComplement", "addressNeighborhood", "addressCity", "addressState"],
 };
 
@@ -198,7 +210,7 @@ const Forms = () => {
       position: "", clubHistory: "", achievements: "", instagram: "", videoHighlights: "",
       academicPerformance: "", englishLevel: "",
       behavioralProfile: "", youthCommitment: "", familyDecision: "",
-      guardianName: "", guardianProfession: "", guardianProfession2: "",
+      guardianName: "", guardianProfession: "", hasSecondGuardian: "", guardianProfession2: "",
       viajouExterior: "", comoConheceu: "",
       guardianWhatsapp: "", guardianEmail: "",
       country: "BR",
@@ -379,7 +391,9 @@ const Forms = () => {
     const results = await Promise.all(fields.filter(f => {
       // Campos sempre opcionais
       if (f === "achievements" || f === "instagram" || f === "addressComplement") return false;
-      if (f === "guardianProfession2" || f === "viajouExterior" || f === "comoConheceu") return false;
+      if (f === "viajouExterior" || f === "comoConheceu") return false;
+      // Profissão do 2º responsável só é exigida quando a família marcou "sim"
+      if (f === "guardianProfession2") return getValues("hasSecondGuardian") === "sim";
       // Campos opcionais para não-brasileiros (superRefine valida conforme país)
       if (!isBrazil && (f === "addressCep" || f === "addressStreet" || f === "addressNumber" || f === "addressNeighborhood" || f === "addressState")) return false;
       return true;
@@ -1122,11 +1136,31 @@ const Forms = () => {
               <FieldError field="guardianEmail" />
             </div>
             <div>
-              <label className={labelClass}>
-                {t("form.step12.profession2.label")} <span className="text-white/40">({t("form.optional")})</span>
-              </label>
-              <Input {...register("guardianProfession2")} placeholder={t("form.step12.profession2.placeholder")} className={inputClass} />
+              <label className={labelClass}>{t("form.step12.secondGuardian.label")}</label>
+              <RadioGroup
+                onValueChange={(v) => {
+                  setValue("hasSecondGuardian", v, { shouldValidate: true });
+                  if (v === "nao") setValue("guardianProfession2", "", { shouldValidate: true });
+                }}
+                value={watch("hasSecondGuardian")}
+                className="space-y-2.5"
+              >
+                {([
+                  { value: "sim", label: t("form.step12.secondGuardian.yes") },
+                  { value: "nao", label: t("form.step12.secondGuardian.no") },
+                ] as const).map(opt => (
+                  <RadioOption key={opt.value} field="hasSecondGuardian" value={opt.value} label={opt.label} />
+                ))}
+              </RadioGroup>
+              <FieldError field="hasSecondGuardian" />
             </div>
+            {watch("hasSecondGuardian") === "sim" && (
+              <div>
+                <label className={labelClass}>{t("form.step12.profession2.label")}</label>
+                <Input {...register("guardianProfession2")} placeholder={t("form.step12.profession2.placeholder")} className={inputClass} />
+                <FieldError field="guardianProfession2" />
+              </div>
+            )}
             <div>
               <label className={labelClass}>
                 {t("form.step12.travel.label")} <span className="text-white/40">({t("form.optional")})</span>

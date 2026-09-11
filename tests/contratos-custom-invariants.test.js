@@ -62,3 +62,28 @@ test('contratos: migration do plano personalizado é idempotente', () => {
   assert.match(migSrc, /ADD VALUE IF NOT EXISTS 'personalizado'/,
     'ADD VALUE idempotente sumiu da migration');
 });
+
+// ─── 2026-09-11: customização de VALOR DO DEAL (modal) + coluna que faltava ──
+
+test('deal: customizar valor grava justificativa + flag (coluna criada na 20260911120000)', () => {
+  const dealsSrc2 = ler('apps', 'crm', 'src', 'lib', 'actions', 'deals.ts');
+  const fn = dealsSrc2.slice(dealsSrc2.indexOf('export async function customizarValorDeal'));
+  assert.match(fn, /flag_valores_customizados: true/, 'flag de customização sumiu');
+  assert.match(fn, /justificativa_customizacao: justificativa/, 'justificativa deixou de ser gravada no deal');
+  assert.match(fn, /if \(!justificativa\.trim\(\)\)/, 'justificativa deixou de ser obrigatória');
+  const mig = ler('supabase', 'migrations', '20260911120000_deals_justificativa_customizacao.sql');
+  assert.match(mig, /ADD COLUMN IF NOT EXISTS justificativa_customizacao TEXT/,
+    'migration da coluna do deal sumiu — o PATCH voltaria a quebrar (bug 2026-09-11)');
+});
+
+test('form: segundo responsável é Sim/Não — "não" nunca exige explicação', () => {
+  const formSrc = ler('apps', 'web', 'src', 'components', 'forms', 'FormsPage.tsx');
+  assert.match(formSrc, /hasSecondGuardian: z\.string\(\)\.min\(1/,
+    'pergunta Sim/Não do segundo responsável sumiu do schema');
+  assert.match(formSrc, /data\.hasSecondGuardian === "sim" && !data\.guardianProfession2\?\.trim\(\)/,
+    'profissão do 2º responsável deixou de ser exigida no "sim"');
+  assert.match(formSrc, /if \(v === "nao"\) setValue\("guardianProfession2", ""/,
+    'marcar "não" deixou de limpar o campo — família voltaria a explicar ausência');
+  assert.match(formSrc, /watch\("hasSecondGuardian"\) === "sim" && \(/,
+    'campo condicional do 2º responsável sumiu do JSX');
+});

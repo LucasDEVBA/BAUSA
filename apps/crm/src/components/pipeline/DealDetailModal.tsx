@@ -55,6 +55,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { DealDetailSheet } from "./DealDetailSheet";
+import { CustomizarValorModal } from "./CustomizarValorModal";
 import {
   DocumentosChecklist,
   DocumentosUrgentesBadge,
@@ -845,13 +846,32 @@ function ComercialSection({
   stageConfig?: DealStageConfigMap;
 }) {
   const stageCfg = stageConfig[deal.stage];
+  // Customização do valor direto do modal (2026-09-11) — sem passar pelo
+  // editor lateral antigo.
+  const [customizando, setCustomizando] = useState(false);
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatPill
-          label="Valor BRL"
-          value={fmtBRL(deal.deal_value_brl)}
-        />
+        <button
+          type="button"
+          onClick={() => setCustomizando(true)}
+          title="Customizar valor (com justificativa — fica no audit)"
+          className="rounded-lg text-left transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <StatPill
+            label={deal.flag_valores_customizados ? "Valor BRL · customizado ✎" : "Valor BRL ✎"}
+            value={fmtBRL(deal.deal_value_brl)}
+          />
+        </button>
+        {customizando && (
+          <CustomizarValorModal
+            dealId={deal.id}
+            athleteName={deal.athlete_name}
+            valorAtual={deal.deal_value_brl}
+            jaCustomizado={deal.flag_valores_customizados}
+            onClose={() => setCustomizando(false)}
+          />
+        )}
         <StatPill
           label="Sinal BRL"
           value={fmtBRL(deal.signal_value_brl)}
