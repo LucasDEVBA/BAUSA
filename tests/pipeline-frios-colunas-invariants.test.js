@@ -160,3 +160,51 @@ test('colunas: o drop de reordenação cobre a coluna inteira, não só o cabeç
   assert.match(externo, /origem !== arrastandoColuna\) return/,
     'proteção contra drop externo (arquivo do Finder) sumiu');
 });
+
+// ─── Incompletos — revisão + filtros nas colunas de revisão (2026-09-23) ──
+
+test('incompletos: resgate/reprovação só sobre INCOMPLETO sem decisão', () => {
+  const resgate = leadsSrc.slice(
+    leadsSrc.indexOf('export async function enviarIncompletoParaAprovacao'),
+    leadsSrc.indexOf('export async function reprovarIncompleto'));
+  assert.match(resgate, /qualification_classification: "MORNO"/, 'provisório MORNO sumiu do resgate');
+  assert.match(resgate, /aprovacao_status: "pendente"/, 'resgate deve cair na fila (pendente)');
+  assert.match(resgate, /\.eq\("qualification_classification", "INCOMPLETO"\)/,
+    'resgate só pode agir sobre INCOMPLETO');
+  assert.match(resgate, /\.is\("aprovacao_status", null\)/,
+    'resgate não pode sobrescrever decisão humana');
+  const reprovar = leadsSrc.slice(leadsSrc.indexOf('export async function reprovarIncompleto'));
+  assert.match(reprovar, /\.eq\("qualification_classification", "INCOMPLETO"\)/,
+    'reprovarIncompleto poderia agir sobre outra classe');
+  assert.match(reprovar, /\.is\("aprovacao_status", null\)/,
+    'reprovarIncompleto poderia sobrescrever decisão humana');
+});
+
+test('incompletos: listagem tem recorte próprio e não duplica lead resgatado', () => {
+  const fn = leadsSrc.slice(
+    leadsSrc.indexOf('export async function listarLeadsIncompletosCards'),
+    leadsSrc.indexOf('export async function listarLeadsIncompletosDetalhe'));
+  assert.match(fn, /\.eq\("qualification_classification", "INCOMPLETO"\)/, 'recorte de classe sumiu');
+  assert.match(fn, /\.is\("aprovacao_status", null\)/, 'lead decidido não pode voltar à revisão');
+  assert.match(fn, /asArray\(row\.atletas\)\.flatMap/,
+    'normalização do embed 1:1 sumiu (classe do incidente 2026-09-05)');
+  const board2 = ler('apps', 'crm', 'src', 'components', 'pipeline', 'PipelineBoard.tsx');
+  assert.match(board2, /modo="incompletos"/, 'modal em modo incompletos sumiu do board');
+  assert.match(board2, /<IncompletosColumn/, 'coluna Incompletos sumiu do board');
+});
+
+test('filtros do pipeline valem para as colunas de revisão (2026-09-23)', () => {
+  const board2 = ler('apps', 'crm', 'src', 'components', 'pipeline', 'PipelineBoard.tsx');
+  // Colunas renderizam os arrays FILTRADOS — nunca os crus
+  assert.match(board2, /pendentesFiltrados\.length > 0 && \(/, 'fila de aprovação ignora os filtros');
+  assert.match(board2, /friosFiltrados\.length > 0 && \(/, 'coluna Frios ignora os filtros');
+  assert.match(board2, /incompletosFiltrados\.length > 0 && \(/, 'coluna Incompletos ignora os filtros');
+  assert.ok(!/leads=\{leadsPendentes\}|leads=\{leadsFrios\}|leads=\{leadsIncompletos\}/.test(board2),
+    'alguma coluna de revisão voltou a receber o array cru (sem filtro)');
+  // Plano e "com atraso" são conceitos de deal — esvaziam as revisões
+  assert.match(board2, /if \(f\.plano !== "TODOS" \|\| f\.comAtraso\) return false;/,
+    'filtro de plano/atraso deixou de esvaziar as colunas de revisão');
+  // Classificação casa com a classe do card
+  assert.match(board2, /f\.classificacao !== "TODAS" && classe !== f\.classificacao/,
+    'filtro de classificação deixou de valer nas revisões');
+});
