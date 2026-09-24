@@ -9,6 +9,7 @@ import {
   CalendarClock,
   Check,
   ExternalLink,
+  FileQuestion,
   FileText,
   Flame,
   Instagram,
@@ -35,10 +36,13 @@ import {
   ativarLeadMuitoCedo,
   contarLeadsPendentesAprovacao,
   enviarFrioParaAprovacao,
+  enviarIncompletoParaAprovacao,
   listarLeadsFriosDetalhe,
+  listarLeadsIncompletosDetalhe,
   listarLeadsMuitoCedoDetalhe,
   listarLeadsPendentesAprovacao,
   reprovarFrio,
+  reprovarIncompleto,
   reprovarLead,
   type LeadPendenteAprovacao,
 } from "@/lib/actions/leads";
@@ -152,9 +156,11 @@ export function AprovacaoLeadsModal({
   /** Abre já com este lead selecionado (clique no card do Kanban). */
   leadIdInicial?: string;
   /** "frios": revisão de leads FRIO — mesmo dossiê/abas; ação = resgatar p/ fila.
+   *  "incompletos": revisão de INCOMPLETO (dados obrigatórios ausentes) —
+   *  mesmas ações da revisão de frios (resgatar/reprovar).
    *  "muito_cedo": revisão dos aprovados estacionados em Aguardando timing
    *  (mensagens automáticas desligadas); ação = ativar agora no funil. */
-  modo?: "aprovacao" | "frios" | "muito_cedo";
+  modo?: "aprovacao" | "frios" | "incompletos" | "muito_cedo";
 }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
@@ -180,9 +186,11 @@ export function AprovacaoLeadsModal({
       const res =
         modo === "frios"
           ? await listarLeadsFriosDetalhe()
-          : modo === "muito_cedo"
-            ? await listarLeadsMuitoCedoDetalhe()
-            : await listarLeadsPendentesAprovacao();
+          : modo === "incompletos"
+            ? await listarLeadsIncompletosDetalhe()
+            : modo === "muito_cedo"
+              ? await listarLeadsMuitoCedoDetalhe()
+              : await listarLeadsPendentesAprovacao();
       if (!ativo) return;
       if (res.success) {
         setLeads(res.leads);
@@ -242,7 +250,10 @@ export function AprovacaoLeadsModal({
 
   const handleResgatar = (lead: LeadPendenteAprovacao) => {
     startTransition(async () => {
-      const res = await enviarFrioParaAprovacao(lead.id);
+      const res =
+        modo === "incompletos"
+          ? await enviarIncompletoParaAprovacao(lead.id)
+          : await enviarFrioParaAprovacao(lead.id);
       if (res.success) {
         toast.success(`${lead.athlete_name} enviado para a fila de aprovação`, {
           description: "Entrou como MORNO provisório — nada é enviado sem aprovar.",
@@ -254,11 +265,16 @@ export function AprovacaoLeadsModal({
     });
   };
 
-  const handleReprovarFrio = (lead: LeadPendenteAprovacao) => {
+  const handleReprovarRevisao = (lead: LeadPendenteAprovacao) => {
     startTransition(async () => {
-      const res = await reprovarFrio(lead.id, motivo);
+      const res =
+        modo === "incompletos"
+          ? await reprovarIncompleto(lead.id, motivo)
+          : await reprovarFrio(lead.id, motivo);
       if (res.success) {
-        toast.success(`${lead.athlete_name} reprovado — sai da revisão de Frios.`);
+        toast.success(
+          `${lead.athlete_name} reprovado — sai da revisão de ${modo === "incompletos" ? "Incompletos" : "Frios"}.`,
+        );
         removerDaFila(lead.id);
       } else {
         toast.error(res.error ?? "Erro ao reprovar.");
@@ -318,13 +334,17 @@ export function AprovacaoLeadsModal({
                   "flex size-8 items-center justify-center rounded-full",
                   modo === "frios"
                     ? "bg-sys-blue/12 text-sys-blue"
-                    : modo === "muito_cedo"
-                      ? "bg-plan-legacy/12 text-plan-legacy"
-                      : "bg-sys-orange/12 text-sys-orange",
+                    : modo === "incompletos"
+                      ? "bg-sys-purple/12 text-sys-purple"
+                      : modo === "muito_cedo"
+                        ? "bg-plan-legacy/12 text-plan-legacy"
+                        : "bg-sys-orange/12 text-sys-orange",
                 )}
               >
                 {modo === "frios" ? (
                   <Snowflake className="size-4" />
+                ) : modo === "incompletos" ? (
+                  <FileQuestion className="size-4" />
                 ) : modo === "muito_cedo" ? (
                   <CalendarClock className="size-4" />
                 ) : (
@@ -335,18 +355,22 @@ export function AprovacaoLeadsModal({
                 <h2 className="text-sm font-semibold text-foreground">
                   {modo === "frios"
                     ? "Frios — revisão"
-                    : modo === "muito_cedo"
-                      ? "Muito cedo — revisão"
-                      : "Aprovação de leads"}
+                    : modo === "incompletos"
+                      ? "Incompletos — revisão"
+                      : modo === "muito_cedo"
+                        ? "Muito cedo — revisão"
+                        : "Aprovação de leads"}
                 </h2>
                 <p className="text-xs text-muted-foreground">
                   {carregando
                     ? "Carregando fila…"
                     : modo === "frios"
                       ? `${leads.length} lead(s) frios nos últimos 90 dias — fora do funil até você resgatar`
-                      : modo === "muito_cedo"
-                        ? `${leads.length} lead(s) aprovados em Aguardando timing — mensagens automáticas desligadas; o contato é seu`
-                        : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
+                      : modo === "incompletos"
+                        ? `${leads.length} cadastro(s) sem os dados obrigatórios — complete na conversa e resgate quando fizer sentido`
+                        : modo === "muito_cedo"
+                          ? `${leads.length} lead(s) aprovados em Aguardando timing — mensagens automáticas desligadas; o contato é seu`
+                          : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
                 </p>
               </div>
             </div>
@@ -373,6 +397,8 @@ export function AprovacaoLeadsModal({
                 description={
                   modo === "frios"
                     ? "Nenhum lead frio nos últimos 90 dias para revisar."
+                    : modo === "incompletos"
+                      ? "Nenhum cadastro incompleto nos últimos 90 dias para revisar."
                     : modo === "muito_cedo"
                       ? "Nenhum lead muito cedo estacionado em Aguardando timing."
                       : "Nenhum lead aguardando aprovação. Novos leads QUENTE/MORNO aparecem aqui antes de qualquer mensagem automática."
@@ -633,7 +659,7 @@ export function AprovacaoLeadsModal({
 
                     {/* Footer de decisão */}
                     <div className="shrink-0 border-t border-border p-4">
-                      {reprovando && modo === "frios" ? (
+                      {reprovando && (modo === "frios" || modo === "incompletos") ? (
                         <div className="space-y-2.5">
                           <textarea
                             value={motivo}
@@ -651,14 +677,14 @@ export function AprovacaoLeadsModal({
                               variant="destructive"
                               size="sm"
                               disabled={pending}
-                              onClick={() => handleReprovarFrio(selecionado)}
+                              onClick={() => handleReprovarRevisao(selecionado)}
                             >
                               {pending ? <Loader2 className="animate-spin" /> : <Ban />}
                               Confirmar reprovação
                             </Button>
                           </div>
                         </div>
-                      ) : modo === "frios" ? (
+                      ) : modo === "frios" || modo === "incompletos" ? (
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-xs text-muted-foreground">
                             Resgatar manda para a fila de aprovação como MORNO provisório. Reprovar encerra: fora da revisão, sem mensagens.
