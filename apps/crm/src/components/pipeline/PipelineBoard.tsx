@@ -46,9 +46,10 @@ import { reordenarEtapasPipeline } from "@/lib/actions/etapas-pipeline";
 import { EtapaColunaModal } from "./EtapaColunaModal";
 import { AprovacaoColumn } from "./AprovacaoColumn";
 import { FriosColumn } from "./FriosColumn";
+import { IncompletosColumn } from "./IncompletosColumn";
 import { NovaColunaModal } from "./NovaColunaModal";
 import { AprovacaoLeadsModal } from "@/components/leads/AprovacoesLeads";
-import type { LeadFrioCard, LeadPendenteCard } from "@/lib/actions/leads";
+import type { LeadFrioCard, LeadIncompletoCard, LeadPendenteCard } from "@/lib/actions/leads";
 import { labelEtapa, type MoveDealAction } from "@/lib/move-deal-result";
 import { excluirLeadPorDeal } from "@/lib/actions/leads-excluir";
 import { Plus, Trash2 } from "lucide-react";
@@ -68,6 +69,8 @@ interface PipelineBoardProps {
   leadsPendentes?: LeadPendenteCard[];
   /** FRIOs recentes p/ revisão — coluna própria, read-only + resgate. */
   leadsFrios?: LeadFrioCard[];
+  /** INCOMPLETOs recentes p/ revisão — coluna própria, read-only + resgate. */
+  leadsIncompletos?: LeadIncompletoCard[];
 }
 
 function getDealsByStage(deals: Deal[]) {
@@ -129,6 +132,7 @@ export function PipelineBoard({
   podeEditarColunas = false,
   leadsPendentes = [],
   leadsFrios = [],
+  leadsIncompletos = [],
 }: PipelineBoardProps) {
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
@@ -203,6 +207,38 @@ export function PipelineBoard({
     [deals, filters, currentUserId],
   );
 
+  // Filtros também valem para as colunas de revisão (pedido do CEO,
+  // 2026-09-23): busca casa por nome/posição/cidade; classificação casa com a
+  // classe do card (Frios = FRIO, Incompletos = nenhuma das três); plano e
+  // "com atraso" são conceitos de DEAL — qualquer um ativo esvazia as
+  // revisões. Coluna sem card filtrado simplesmente não renderiza.
+  const applyFiltersLeadCard = (
+    card: { athlete_name: string; position: string | null; city_state: string | null },
+    classe: string | null,
+    f: PipelineFiltersState,
+  ): boolean => {
+    if (f.plano !== "TODOS" || f.comAtraso) return false;
+    if (f.classificacao !== "TODAS" && classe !== f.classificacao) return false;
+    const search = f.search.trim().toLowerCase();
+    if (search) {
+      const hay = `${card.athlete_name} ${card.position ?? ""} ${card.city_state ?? ""}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  };
+  const pendentesFiltrados = useMemo(
+    () => leadsPendentes.filter((l) => applyFiltersLeadCard(l, l.qualification_classification, filters)),
+    [leadsPendentes, filters],
+  );
+  const friosFiltrados = useMemo(
+    () => leadsFrios.filter((l) => applyFiltersLeadCard(l, "FRIO", filters)),
+    [leadsFrios, filters],
+  );
+  const incompletosFiltrados = useMemo(
+    () => leadsIncompletos.filter((l) => applyFiltersLeadCard(l, "INCOMPLETO", filters)),
+    [leadsIncompletos, filters],
+  );
+
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
   const selectedDeal = selectedDealId
     ? (deals.find((d) => d.id === selectedDealId) ?? null)
@@ -258,6 +294,7 @@ export function PipelineBoard({
   const [colunaAberta, setColunaAberta] = useState<DealStage | null>(null);
   const [novaColunaAberta, setNovaColunaAberta] = useState(false);
   const [frioAberto, setFrioAberto] = useState<string | null>(null);
+  const [incompletoAberto, setIncompletoAberto] = useState<string | null>(null);
   const [muitoCedoAberto, setMuitoCedoAberto] = useState<string | null>(null);
   const [leadAprovacao, setLeadAprovacao] = useState<string | null>(null);
   const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
@@ -443,15 +480,23 @@ export function PipelineBoard({
           <div className="flex h-full gap-3 overflow-x-auto pb-4">
             {/* Fila de aprovação: primeira coluna, antes de qualquer etapa —
                 o lead só vira deal (coluna seguinte) depois do OK do CEO. */}
-            {podeEditarColunas && leadsPendentes.length > 0 && (
-              <AprovacaoColumn leads={leadsPendentes} onLeadClick={setLeadAprovacao} />
+            {podeEditarColunas && pendentesFiltrados.length > 0 && (
+              <AprovacaoColumn leads={pendentesFiltrados} onLeadClick={setLeadAprovacao} />
             )}
             {/* Frios p/ revisão: visível, mas fora de métrica/automação/outreach */}
-            {podeEditarColunas && leadsFrios.length > 0 && (
+            {podeEditarColunas && friosFiltrados.length > 0 && (
               <FriosColumn
-                leads={leadsFrios}
+                leads={friosFiltrados}
                 onResgatado={() => router.refresh()}
                 onLeadClick={setFrioAberto}
+              />
+            )}
+            {/* Incompletos p/ revisão: dados obrigatórios ausentes (2026-09-23) */}
+            {podeEditarColunas && incompletosFiltrados.length > 0 && (
+              <IncompletosColumn
+                leads={incompletosFiltrados}
+                onResgatado={() => router.refresh()}
+                onLeadClick={setIncompletoAberto}
               />
             )}
             {visibleStages.map((stage) => (
@@ -553,6 +598,16 @@ export function PipelineBoard({
           modo="frios"
           leadIdInicial={frioAberto}
           onClose={() => setFrioAberto(null)}
+          onDecidido={() => router.refresh()}
+        />
+      )}
+
+      {/* Dossiê do lead INCOMPLETO (modal em modo incompletos) */}
+      {incompletoAberto && (
+        <AprovacaoLeadsModal
+          modo="incompletos"
+          leadIdInicial={incompletoAberto}
+          onClose={() => setIncompletoAberto(null)}
           onDecidido={() => router.refresh()}
         />
       )}

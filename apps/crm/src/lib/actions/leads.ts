@@ -890,3 +890,173 @@ export async function reprovarFrio(
   revalidatePath("/leads");
   return { success: true };
 }
+
+// ─── Incompletos — revisão (ordem do CEO, 2026-09-23) ────────────────────────
+// INCOMPLETO (classificador v2: profissão/faixa ausentes) ficava invisível —
+// fora de fila, board e outreach. Caso real: 6 INCOMPLETOs num único dia
+// (21/09), gente de verdade que só preencheu mal. Mesma revisão dos Frios:
+// coluna própria, dossiê completo, resgate explícito (padrão Pietro) ou
+// reprovação. INVALIDO segue fora de tudo (dado sujo/injeção — proteção).
+
+export interface LeadIncompletoCard {
+  id: string;
+  athlete_name: string;
+  city_state: string | null;
+  position: string | null;
+  qualification_reason: string | null;
+  submitted_at: string;
+}
+
+const INCOMPLETOS_REVISAO_DIAS = 90;
+const INCOMPLETOS_REVISAO_LIMITE = 80;
+
+export async function listarLeadsIncompletosCards(): Promise<LeadIncompletoCard[]> {
+  if ((await getUserPapel()) !== "ceo") return [];
+  const corte = new Date(Date.now() - INCOMPLETOS_REVISAO_DIAS * 86400000).toISOString();
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select(
+      "id, athlete_name, city_state, position, qualification_reason, submitted_at, atletas(id, deals(id, deleted_at))",
+    )
+    .is("deleted_at", null)
+    .eq("qualification_classification", "INCOMPLETO")
+    .is("aprovacao_status", null)
+    .gte("submitted_at", corte)
+    .order("submitted_at", { ascending: false })
+    .limit(INCOMPLETOS_REVISAO_LIMITE);
+  if (error) return [];
+
+  // Embed 1:1 pode voltar OBJETO (FK UNIQUE) — normalizar SEMPRE (incidente
+  // 2026-09-05). INCOMPLETO raramente tem deal, mas o resgate cria — e o
+  // lead resgatado não pode duplicar no board.
+  type DealEmb = { id: string; deleted_at: string | null };
+  type AtletaEmb = { deals: DealEmb[] | DealEmb | null };
+  type Row = LeadIncompletoCard & { atletas: AtletaEmb[] | AtletaEmb | null };
+  const asArray = <T,>(v: T[] | T | null | undefined): T[] =>
+    Array.isArray(v) ? v : v ? [v] : [];
+  return ((data ?? []) as unknown as Row[])
+    .filter((row) => {
+      const deals = asArray(row.atletas).flatMap((a) => asArray(a.deals));
+      return !deals.some((d) => d.deleted_at === null);
+    })
+    .map((row) => ({
+      id: row.id,
+      athlete_name: row.athlete_name,
+      city_state: row.city_state,
+      position: row.position,
+      qualification_reason: row.qualification_reason,
+      submitted_at: row.submitted_at,
+    }));
+}
+
+/**
+ * Dossiê COMPLETO dos incompletos elegíveis — alimenta o modal em modo
+ * "incompletos" (mesmas abas Dossiê/Conversa/E-mail).
+ */
+export async function listarLeadsIncompletosDetalhe(): Promise<
+  { success: true; leads: LeadPendenteAprovacao[] } | { success: false; error: string }
+> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem revisar leads incompletos." };
+  }
+  const corte = new Date(Date.now() - INCOMPLETOS_REVISAO_DIAS * 86400000).toISOString();
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select(`${COLUNAS_FILA_APROVACAO}, atletas(id, deals(id, deleted_at))`)
+    .is("deleted_at", null)
+    .eq("qualification_classification", "INCOMPLETO")
+    .is("aprovacao_status", null)
+    .gte("submitted_at", corte)
+    .order("submitted_at", { ascending: false })
+    .limit(INCOMPLETOS_REVISAO_LIMITE);
+  if (error) return { success: false, error: `Erro ao listar incompletos: ${error.message}` };
+
+  type DealEmb = { id: string; deleted_at: string | null };
+  type AtletaEmb = { deals: DealEmb[] | DealEmb | null };
+  type Row = LeadPendenteAprovacao & { atletas: AtletaEmb[] | AtletaEmb | null };
+  const asArr = <T,>(v: T[] | T | null | undefined): T[] =>
+    Array.isArray(v) ? v : v ? [v] : [];
+  const leads = ((data ?? []) as unknown as Row[])
+    .filter((row) => !asArr(row.atletas).flatMap((a) => asArr(a.deals)).some((d) => d.deleted_at === null))
+    .map((row) => {
+      const { atletas: _embed, ...rest } = row;
+      void _embed;
+      return rest as LeadPendenteAprovacao;
+    });
+  return { success: true, leads };
+}
+
+/**
+ * Resgata um INCOMPLETO para a fila de aprovação — literalmente o caso
+ * Pietro (aguardava profissão): MORNO provisório + pendente, motivo
+ * documentado; requalificação futura sobrescreve. Pendente NUNCA recebe
+ * mensagem (gate humano intacto).
+ */
+export async function enviarIncompletoParaAprovacao(
+  leadId: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem resgatar um lead incompleto." };
+  }
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .update({
+      qualification_classification: "MORNO",
+      aprovacao_status: "pendente",
+      aprovacao_decidida_por: null,
+      aprovacao_decidida_em: null,
+      aprovacao_motivo:
+        "Resgatado da coluna Incompletos para revisão manual (classificação provisória MORNO — completar dados e requalificar)",
+    })
+    .eq("id", leadId)
+    .eq("qualification_classification", "INCOMPLETO")
+    .is("aprovacao_status", null)
+    .is("deleted_at", null)
+    .select("id");
+
+  if (error) return { success: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { success: false, error: "Lead não está mais elegível (já revisado ou requalificado)." };
+  }
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  return { success: true };
+}
+
+/**
+ * Reprova um INCOMPLETO direto da revisão: sai da coluna para sempre, sem
+ * pipeline e sem mensagens. CAS: só sobre INCOMPLETO ainda sem decisão.
+ */
+export async function reprovarIncompleto(
+  leadId: string,
+  motivo?: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, error: "Apenas CEO/CTO podem reprovar um lead incompleto." };
+  }
+  const supabase = await createAuditedSupabaseClient();
+  const { data: userData } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .update({
+      aprovacao_status: "reprovado",
+      aprovacao_decidida_por: userData.user?.id ?? null,
+      aprovacao_decidida_em: new Date().toISOString(),
+      aprovacao_motivo: motivo?.trim() || "Reprovado na revisão de Incompletos",
+    })
+    .eq("id", leadId)
+    .eq("qualification_classification", "INCOMPLETO")
+    .is("aprovacao_status", null)
+    .is("deleted_at", null)
+    .select("id");
+  if (error) return { success: false, error: `Erro ao reprovar: ${error.message}` };
+  if (!data || data.length === 0) {
+    return { success: false, error: "Lead não está mais elegível (já revisado ou requalificado)." };
+  }
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  return { success: true };
+}
