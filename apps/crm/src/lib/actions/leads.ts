@@ -76,6 +76,47 @@ type PromocaoResult =
  * e ramificação do deal por timing_status (aguardando_timing / perdido / lead).
  * Idempotente: se o atleta já existe, retorna sucesso com os ids existentes.
  */
+/**
+ * Campos de etapa do deal por timing_status — fonte ÚNICA para criar
+ * (promoverLeadCore) e reabrir (garantirDealAtivoNaAprovacao) um deal.
+ * ideal → lead · muito_cedo → aguardando_timing (retoma em novembro) ·
+ * tarde_demais → perdido/timing (destino natural; nunca na coluna Lead).
+ */
+function dealCamposPorTiming(
+  timingStatus: string,
+  probabilidadePorEtapa: Record<string, number>,
+): Record<string, unknown> {
+  if (timingStatus === "muito_cedo") {
+    const proximoAno = new Date().getFullYear() + 1;
+    return {
+      etapa: "aguardando_timing",
+      probabilidade_fechamento: 5,
+      next_action: "Retomar contato em novembro (lead muito cedo)",
+      data_proxima_acao: `${proximoAno}-11-01`,
+    };
+  }
+  if (timingStatus === "tarde_demais") {
+    return {
+      etapa: "perdido",
+      probabilidade_fechamento: 0,
+      motivo_perda: "timing",
+      detalhe_perda: "Lead chegou tarde demais (graduated_2plus)",
+      pode_reativar: true,
+    };
+  }
+  return {
+    etapa: "lead",
+    probabilidade_fechamento: probabilidadePorEtapa["lead"] ?? 10,
+  };
+}
+
+/** Etapas em que o lead ainda NÃO avançou: só nelas a reativação pode ser re-armada. */
+const ETAPAS_REARMAVEIS = ["contato_feito", "lead"];
+/** Pré-reunião: um deal perdido daqui nunca passou de conversa inicial. */
+const ETAPAS_PRE_REUNIAO = ["contato_feito", "lead", "aguardando_timing"];
+/** Para onde um deal perdido NÃO pode ser reaberto (estados sem funil). */
+const ETAPAS_NAO_REABRIVEIS = ["perdido", "cancelamento_solicitado", "projeto_futuro"];
+
 async function promoverLeadCore(
   supabase: SupabaseClient,
   fs: Record<string, unknown>,
@@ -204,30 +245,8 @@ async function promoverLeadCore(
     valor_estimado: mapInvestmentToValor(fs.investment_range as string | null),
     status_decisao_familia: "em_discussao",
     safra: "fall_2026",
+    ...dealCamposPorTiming(timingStatus, probabilidadePorEtapa),
   };
-
-  if (timingStatus === "muito_cedo") {
-    const proximoAno = new Date().getFullYear() + 1;
-    Object.assign(dealBase, {
-      etapa: "aguardando_timing",
-      probabilidade_fechamento: 5,
-      next_action: "Retomar contato em novembro (lead muito cedo)",
-      data_proxima_acao: `${proximoAno}-11-01`,
-    });
-  } else if (timingStatus === "tarde_demais") {
-    Object.assign(dealBase, {
-      etapa: "perdido",
-      probabilidade_fechamento: 0,
-      motivo_perda: "timing",
-      detalhe_perda: "Lead chegou tarde demais (graduated_2plus)",
-      pode_reativar: true,
-    });
-  } else {
-    Object.assign(dealBase, {
-      etapa: "lead",
-      probabilidade_fechamento: probabilidadePorEtapa["lead"] ?? 10,
-    });
-  }
 
   const { data: deal, error: dealError } = await supabase
     .from("deals")
@@ -610,6 +629,243 @@ export async function listarLeadsPendentesAprovacao(): Promise<
  * inverso e inofensivo: atleta/deal criados com lead ainda pendente — o CEO
  * clica de novo e o CAS completa.
  */
+/**
+ * Garante que o lead aprovado tenha um deal ATIVO e VISÍVEL no board, na
+ * etapa CERTA (bug 2026-10-05). Leads resgatados — do INVALIDO, de Frios/
+ * Incompletos ou re-filas antigas — podem já ter: atleta com deal 'perdido'
+ * (mutirão de requalificação de 24/08), só deals excluídos, deal avançado
+ * (cliente em admissão re-enfileirado) ou reunião já detectada sem deal
+ * (Samuel Santana, 21/09). Antes, a aprovação devolvia o deal como estava e
+ * o disparo automático mandava convite de reunião a quem já tinha reunião.
+ *
+ * Etapa final do deal:
+ * - deal ativo fora de 'perdido' → mantido (muito_cedo em lead/contato_feito
+ *   é estacionado em aguardando_timing — regra do CEO de 2026-09-08);
+ * - deal 'perdido' → reaberto: se já houve reunião no histórico, volta para
+ *   a etapa anterior à perda; senão, para o ramo de timing (ou Reunião
+ *   marcada, se o formulário já tem reunião detectada). tarde_demais fica
+ *   em perdido/timing;
+ * - sem deal ativo → criado no ramo de timing (ou Reunião marcada).
+ *
+ * `rearmavel` = a reativação (mensagem automática) PODE ser re-armada: só
+ * timing ideal, sem reunião em lugar nenhum e deal pré-reunião. Cliente em
+ * admissão, família que desistiu após reunião, muito_cedo (contato manual)
+ * e tarde_demais NUNCA recebem convite automático por causa da aprovação.
+ */
+type GarantiaDeal =
+  | {
+      ok: true;
+      dealId: string;
+      etapa: string;
+      reaberto: boolean;
+      rearmavel: boolean;
+      /** Lead de timing ideal que JÁ passou do convite (reunião no histórico ou
+       *  deal além da pré-reunião): o convite inicial seria indevido. */
+      semConviteInicial: boolean;
+    }
+  | { ok: false; error: string };
+
+async function garantirDealAtivoNaAprovacao(
+  supabase: SupabaseClient,
+  atletaId: string,
+  fs: Record<string, unknown>,
+): Promise<GarantiaDeal> {
+  const { data: deals, error: dealsErr } = await supabase
+    .from("deals")
+    .select("id, etapa, deleted_at, etapa_anterior, reuniao_realizada_at, reuniao_data, reuniao_agendada_at")
+    .eq("atleta_id", atletaId);
+  if (dealsErr) return { ok: false, error: `Erro ao ler deals: ${dealsErr.message}` };
+
+  const timingStatus = (fs.timing_status as string | null) ?? "ideal";
+  const timingIdeal = timingStatus === "ideal";
+  const reuniaoNoFormulario = fs.meeting_scheduled === true;
+  const resultado = (
+    dealId: string,
+    etapa: string,
+    reaberto: boolean,
+    houveReuniao = false,
+  ): GarantiaDeal => ({
+    ok: true,
+    dealId,
+    etapa,
+    reaberto,
+    rearmavel:
+      timingIdeal && !reuniaoNoFormulario && !houveReuniao && ETAPAS_REARMAVEIS.includes(etapa),
+    semConviteInicial:
+      timingIdeal && (reuniaoNoFormulario || houveReuniao || !ETAPAS_PRE_REUNIAO.includes(etapa)),
+  });
+
+  type DealRow = {
+    id: string;
+    etapa: string;
+    deleted_at: string | null;
+    etapa_anterior: string | null;
+    reuniao_realizada_at: string | null;
+    reuniao_data: string | null;
+    reuniao_agendada_at: string | null;
+  };
+  const ativos = ((deals ?? []) as DealRow[]).filter((d) => d.deleted_at === null);
+  const dealTeveReuniao = (d: DealRow): boolean =>
+    Boolean(d.reuniao_realizada_at || d.reuniao_data || d.reuniao_agendada_at);
+  const hoje = new Date().toISOString().split("T")[0];
+  const probabilidadePorEtapa = await getProbabilidadePorEtapa();
+
+  const camposReuniao = (motivo: string): Record<string, unknown> => ({
+    etapa: "reuniao_marcada",
+    probabilidade_fechamento: probabilidadePorEtapa["reuniao_marcada"] ?? 20,
+    next_action: motivo,
+    data_proxima_acao: hoje,
+  });
+  const MOTIVO_REUNIAO_FORM = "Reunião detectada antes da aprovação — confirmar se aconteceu";
+
+  // Etapa de destino para um deal sem histórico de reunião no DEAL.
+  // Reunião no formulário: ideal → Reunião marcada; muito_cedo → Lead
+  // (visível, nunca estacionado — recorte da regra de 2026-09-08).
+  const camposSemHistorico = (): Record<string, unknown> => {
+    if (reuniaoNoFormulario && timingIdeal) return camposReuniao(MOTIVO_REUNIAO_FORM);
+    if (reuniaoNoFormulario && timingStatus === "muito_cedo") {
+      return dealCamposPorTiming("ideal", probabilidadePorEtapa);
+    }
+    return dealCamposPorTiming(timingStatus, probabilidadePorEtapa);
+  };
+
+  const visivel = ativos.find((d) => d.etapa !== "perdido");
+  if (visivel) {
+    const sinalReuniao = reuniaoNoFormulario || dealTeveReuniao(visivel);
+    // CAS genérico de transição do deal visível (só a partir de etapas
+    // pré-reunião; deal avançado nunca é mexido pela aprovação).
+    const transicionar = async (campos: Record<string, unknown>, de: string[]) => {
+      const { data: casRows, error: casErr } = await supabase
+        .from("deals")
+        .update(campos)
+        .eq("id", visivel.id)
+        .in("etapa", de)
+        .is("deleted_at", null)
+        .select("id");
+      if (casErr) return { erro: casErr.message, moveu: false };
+      return { erro: null, moveu: Boolean(casRows && casRows.length > 0) };
+    };
+
+    // Timing ideal com reunião e deal ainda pré-reunião (inclui o deal que o
+    // promoverLeadCore acabou de criar em 'lead' — caso Samuel Santana): o
+    // card vai para Reunião marcada. Avanço 2/3→4, sem falso retrocesso.
+    if (timingIdeal && sinalReuniao && ETAPAS_PRE_REUNIAO.includes(visivel.etapa)) {
+      const r = await transicionar(
+        camposReuniao(
+          reuniaoNoFormulario ? MOTIVO_REUNIAO_FORM : "Reunião no histórico do deal — confirmar o próximo passo",
+        ),
+        ETAPAS_PRE_REUNIAO,
+      );
+      if (r.erro) return { ok: false, error: `Erro ao mover deal para Reunião marcada: ${r.erro}` };
+      if (r.moveu) return resultado(visivel.id, "reuniao_marcada", false, true);
+    }
+    if (timingStatus === "muito_cedo") {
+      // Com reunião: visível em Lead (nunca estacionado — recorte da regra de
+      // 2026-09-08). aguardando_timing→lead é isento de retrocesso no trigger.
+      if (sinalReuniao && visivel.etapa === "aguardando_timing") {
+        const r = await transicionar(dealCamposPorTiming("ideal", probabilidadePorEtapa), ["aguardando_timing"]);
+        if (r.erro) return { ok: false, error: `Erro ao tirar deal do estacionamento: ${r.erro}` };
+        if (r.moveu) return resultado(visivel.id, "lead", false, true);
+      }
+      // Sem reunião: estacionado em aguardando_timing (não mora na coluna Lead).
+      if (!sinalReuniao && ETAPAS_REARMAVEIS.includes(visivel.etapa)) {
+        const r = await transicionar(dealCamposPorTiming("muito_cedo", probabilidadePorEtapa), ETAPAS_REARMAVEIS);
+        if (r.erro) return { ok: false, error: `Erro ao estacionar deal: ${r.erro}` };
+        if (r.moveu) return resultado(visivel.id, "aguardando_timing", false);
+      }
+    }
+    return resultado(visivel.id, visivel.etapa, false, sinalReuniao);
+  }
+
+  const perdido = ativos[0];
+  if (perdido) {
+    const anterior = perdido.etapa_anterior;
+    const houveReuniao =
+      dealTeveReuniao(perdido) ||
+      Boolean(anterior && !ETAPAS_PRE_REUNIAO.includes(anterior) && !ETAPAS_NAO_REABRIVEIS.includes(anterior));
+    if (timingStatus === "tarde_demais") {
+      return resultado(perdido.id, "perdido", false, houveReuniao);
+    }
+
+    // Já houve reunião: o deal volta de onde parou (nunca para o início).
+    const destino: Record<string, unknown> = houveReuniao
+      ? (() => {
+          const etapaVolta =
+            anterior && !ETAPAS_PRE_REUNIAO.includes(anterior) && !ETAPAS_NAO_REABRIVEIS.includes(anterior)
+              ? anterior
+              : "reuniao_marcada";
+          return {
+            etapa: etapaVolta,
+            probabilidade_fechamento: probabilidadePorEtapa[etapaVolta] ?? 20,
+            next_action: "Deal reaberto na re-aprovação — retomar de onde parou",
+            data_proxima_acao: hoje,
+          };
+        })()
+      : {
+          next_action: "Lead re-aprovado pelo CEO — retomar contato",
+          data_proxima_acao: hoje,
+          ...camposSemHistorico(),
+        };
+    const etapa = String(destino.etapa);
+
+    // CAS: só reabre se AINDA estiver perdido (outra aba pode ter movido).
+    const { data: casRows, error: casErr } = await supabase
+      .from("deals")
+      .update({ motivo_perda: null, detalhe_perda: null, pode_reativar: null, ...destino })
+      .eq("id", perdido.id)
+      .eq("etapa", "perdido")
+      .is("deleted_at", null)
+      .select("id");
+    if (casErr) return { ok: false, error: `Erro ao reabrir deal: ${casErr.message}` };
+    if (!casRows || casRows.length === 0) {
+      return { ok: false, error: "Deal mudou de etapa durante a aprovação — confira no pipeline." };
+    }
+    // trg_deals_check_etapa marca perdido(16)→etapa menor como retrocesso;
+    // reabrir por re-aprovação não é retrocesso de funil. aguardando_timing é
+    // isento no trigger. CAS sobre a PRÓPRIA transição para não apagar um
+    // retrocesso legítimo (com motivo) de outra aba.
+    if (etapa !== "aguardando_timing") {
+      const { error: flagErr } = await supabase
+        .from("deals")
+        .update({ flag_retrocedido: false, motivo_retrocesso: null })
+        .eq("id", perdido.id)
+        .eq("etapa", etapa)
+        .eq("etapa_anterior", "perdido")
+        .eq("flag_retrocedido", true)
+        .is("motivo_retrocesso", null);
+      if (flagErr) console.warn("[aprovarLead] limpar flag_retrocedido falhou", flagErr.message);
+    }
+    // Perda do mutirão (pré-reunião) deixou de ser verdade; perda orgânica
+    // pós-reunião segue no loop de aprendizado.
+    if (!houveReuniao) {
+      const { error: desfechoErr } = await supabase
+        .from("form_submissions")
+        .update({ desfecho_real: null })
+        .eq("id", String(fs.id))
+        .eq("desfecho_real", "perdeu");
+      if (desfechoErr) console.warn("[aprovarLead] limpar desfecho_real falhou", desfechoErr.message);
+    }
+    return resultado(perdido.id, etapa, true, houveReuniao);
+  }
+
+  const campos = camposSemHistorico();
+  const { data: userData } = await supabase.auth.getUser();
+  const { data: novo, error: novoErr } = await supabase
+    .from("deals")
+    .insert({
+      atleta_id: atletaId,
+      responsavel_id: userData.user?.id,
+      valor_estimado: mapInvestmentToValor(fs.investment_range as string | null),
+      status_decisao_familia: "em_discussao",
+      safra: "fall_2026",
+      ...campos,
+    })
+    .select("id")
+    .single();
+  if (novoErr || !novo) return { ok: false, error: `Erro ao criar deal: ${novoErr?.message}` };
+  return resultado(String((novo as { id: string }).id), String(campos.etapa), false);
+}
+
 export async function aprovarLead(formSubmissionId: string) {
   const papel = await getUserPapel();
   if (papel !== "ceo") {
@@ -639,13 +895,22 @@ export async function aprovarLead(formSubmissionId: string) {
     return { success: false, error: `Promoção falhou — lead segue na fila: ${promocao.error}` };
   }
 
-  // 2. CAS: um único vencedor libera a elegibilidade
+  // 2. CAS: um único vencedor libera a elegibilidade.
+  // Reunião já detectada e nenhum envio: o convite inicial ("agende sua
+  // reunião") seria indevido — o Bucket A não olha meeting_scheduled. O
+  // carimbo no MESMO update (atômico com a aprovação) tira o lead da fila de
+  // envio; usa a data da detecção (antiga) para não acusar "envio sem
+  // espelho" no monitor.
+  const bloquearInicial = fsRow.meeting_scheduled === true && !fsRow.whatsapp_sent_at;
   const { data: casRows, error: casError } = await supabase
     .from("form_submissions")
     .update({
       aprovacao_status: "aprovado",
       aprovacao_decidida_por: userData.user?.id ?? null,
       aprovacao_decidida_em: new Date().toISOString(),
+      ...(bloquearInicial
+        ? { whatsapp_sent_at: (fsRow.meeting_scheduled_at as string | null) ?? (fsRow.submitted_at as string) }
+        : {}),
     })
     .eq("id", formSubmissionId)
     .eq("aprovacao_status", "pendente")
@@ -685,8 +950,82 @@ export async function aprovarLead(formSubmissionId: string) {
   // se agendarem de novo, o calendar-webhook re-seta). Best-effort: falha
   // aqui não desfaz a aprovação — o CEO vê o lead aprovado e o monitor de
   // filas acusa se o outreach não sair.
+  // Deal ativo e visível ANTES de qualquer outreach (bug 2026-10-05).
+  const garantia = await garantirDealAtivoNaAprovacao(supabase, promocao.atletaId, fsRow);
+  if (!garantia.ok) {
+    // ORDEM É SEGURANÇA: o CAS acima já tornou o lead elegível ao disparo
+    // inicial. Sem deal visível, desfaz a aprovação (CAS reverso) — o lead
+    // volta à fila e nenhuma mensagem sai com o deal escondido.
+    console.error("[aprovarLead] deal ativo não garantido — revertendo aprovação", garantia.error);
+    let reverter = supabase
+      .from("form_submissions")
+      .update({
+        aprovacao_status: "pendente",
+        aprovacao_decidida_por: null,
+        aprovacao_decidida_em: null,
+        // desfaz também o carimbo anti-convite deste mesmo CAS
+        ...(bloquearInicial ? { whatsapp_sent_at: null } : {}),
+      })
+      .eq("id", formSubmissionId)
+      .eq("aprovacao_status", "aprovado");
+    if (userData.user?.id) reverter = reverter.eq("aprovacao_decidida_por", userData.user.id);
+    const { data: revertidos, error: revertErr } = await reverter.select("id");
+    if (revertErr || !revertidos || revertidos.length === 0) {
+      console.error("[aprovarLead] reversão da aprovação FALHOU", {
+        formSubmissionId,
+        erro: revertErr?.message ?? "0 linhas",
+      });
+      return {
+        success: false,
+        error: `ATENÇÃO: o deal não pôde ser aberto no pipeline (${garantia.error}) e a aprovação NÃO pôde ser desfeita. O lead está aprovado sem deal visível — confira antes do próximo disparo automático (de hora em hora).`,
+      };
+    }
+    return {
+      success: false,
+      error: `O deal não pôde ser aberto no pipeline (${garantia.error}). A aprovação foi desfeita — o lead segue na fila.`,
+    };
+  }
+  const dealId = garantia.dealId;
+  let aviso: string | null = null;
+
+  // Reunião no HISTÓRICO do deal (ou deal já além da pré-reunião) sem nenhum
+  // envio: o convite inicial seria indevido. O CAS acima só sabia do flag do
+  // formulário; este carimbo cobre o resto (CAS no próprio NULL, data antiga
+  // para não acusar "envio sem espelho" no monitor).
+  if (!bloquearInicial && !fsRow.whatsapp_sent_at && garantia.semConviteInicial) {
+    // Fecha o ciclo INTEIRO (inicial + FU1 + FU2): só carimbar o inicial
+    // liberaria o FU1 "agende sua reunião" 48h depois — o followup-scheduler
+    // não olha a etapa do deal.
+    const marca = (fsRow.submitted_at as string) ?? new Date(0).toISOString();
+    const { data: carimbados, error: carimboErr } = await supabase
+      .from("form_submissions")
+      .update({ whatsapp_sent_at: marca, followup_1_sent_at: marca, followup_2_sent_at: marca })
+      .eq("id", formSubmissionId)
+      .is("whatsapp_sent_at", null)
+      .select("id");
+    if (carimboErr || !carimbados || carimbados.length === 0) {
+      console.error("[aprovarLead] bloqueio do convite inicial falhou", {
+        formSubmissionId,
+        erro: carimboErr?.message ?? "0 linhas (corrida com o disparo?)",
+      });
+      aviso = `ATENÇÃO: o deal está em "${garantia.etapa}", mas não foi possível bloquear as mensagens automáticas — o convite pode ter saído; confira.`;
+    } else {
+      aviso = `Aprovado sem mensagem automática: o deal já está em "${garantia.etapa}".`;
+    }
+  }
+
   let reativacao = false;
-  if (fsRow.whatsapp_sent_at) {
+  if (bloquearInicial) {
+    aviso = `Aprovado sem mensagem automática: a reunião já foi detectada — deal em "${garantia.etapa}".`;
+  }
+  if (fsRow.whatsapp_sent_at && !garantia.rearmavel) {
+    // Histórico de outreach, mas o deal já avançou (ex.: cliente em
+    // admissão) ou o timing é alternativo: aprovar NUNCA re-dispara convite.
+    aviso = `Aprovado sem nova mensagem: o deal está em "${garantia.etapa}"${
+      fsRow.timing_status && fsRow.timing_status !== "ideal" ? ` e o timing é ${String(fsRow.timing_status)}` : ""
+    } — a reativação automática não foi disparada.`;
+  }
+  if (fsRow.whatsapp_sent_at && garantia.rearmavel) {
     const { error: reativErr } = await supabase
       .from("form_submissions")
       .update({
@@ -699,6 +1038,7 @@ export async function aprovarLead(formSubmissionId: string) {
       .eq("id", formSubmissionId);
     if (reativErr) {
       console.error("[aprovarLead] re-arme de reativação falhou", reativErr.message);
+      aviso = "Aprovado, mas o re-arme da mensagem de reativação falhou — o lead não receberá a reabertura automática.";
     } else {
       reativacao = true;
     }
@@ -707,13 +1047,21 @@ export async function aprovarLead(formSubmissionId: string) {
   // Gamificação (fail-open — null nunca quebra a aprovação)
   const gamificacao = await registrarEventoGamificacao(
     "lead_aprovado",
-    promocao.dealId ? { tipo: "deal", id: promocao.dealId } : undefined,
+    dealId ? { tipo: "deal", id: dealId } : undefined,
   );
 
   revalidatePath("/leads");
   revalidatePath("/pipeline");
   revalidatePath("/war-room");
-  return { success: true, atletaId: promocao.atletaId, dealId: promocao.dealId, gamificacao, reativacao };
+  return {
+    success: true,
+    atletaId: promocao.atletaId,
+    dealId,
+    gamificacao,
+    reativacao,
+    dealReaberto: garantia.reaberto,
+    aviso,
+  };
 }
 
 export async function reprovarLead(formSubmissionId: string, motivo?: string) {
