@@ -239,7 +239,15 @@ export function AprovacaoLeadsModal({
     startTransition(async () => {
       const res = await aprovarLead(lead.id);
       if (res.success) {
-        toast.success(`${lead.athlete_name} aprovado — entrou no pipeline.`);
+        if ("aviso" in res && res.aviso) {
+          toast.warning(res.aviso);
+        } else {
+          toast.success(
+            "dealReaberto" in res && res.dealReaberto
+              ? `${lead.athlete_name} aprovado — deal antigo reaberto no pipeline.`
+              : `${lead.athlete_name} aprovado — entrou no pipeline.`,
+          );
+        }
         celebrar(res.gamificacao, GAMIFICACAO_TIPO_LABEL.lead_aprovado);
         removerDaFila(lead.id);
       } else {
