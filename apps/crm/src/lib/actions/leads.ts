@@ -993,14 +993,22 @@ export async function aprovarLead(formSubmissionId: string) {
   // formulário; este carimbo cobre o resto (CAS no próprio NULL, data antiga
   // para não acusar "envio sem espelho" no monitor).
   if (!bloquearInicial && !fsRow.whatsapp_sent_at && garantia.semConviteInicial) {
-    const { error: carimboErr } = await supabase
+    // Fecha o ciclo INTEIRO (inicial + FU1 + FU2): só carimbar o inicial
+    // liberaria o FU1 "agende sua reunião" 48h depois — o followup-scheduler
+    // não olha a etapa do deal.
+    const marca = (fsRow.submitted_at as string) ?? new Date(0).toISOString();
+    const { data: carimbados, error: carimboErr } = await supabase
       .from("form_submissions")
-      .update({ whatsapp_sent_at: (fsRow.submitted_at as string) ?? new Date(0).toISOString() })
+      .update({ whatsapp_sent_at: marca, followup_1_sent_at: marca, followup_2_sent_at: marca })
       .eq("id", formSubmissionId)
-      .is("whatsapp_sent_at", null);
-    if (carimboErr) {
-      console.error("[aprovarLead] bloqueio do convite inicial falhou", carimboErr.message);
-      aviso = `ATENÇÃO: o deal está em "${garantia.etapa}", mas não foi possível bloquear o convite inicial automático — confira antes do próximo disparo.`;
+      .is("whatsapp_sent_at", null)
+      .select("id");
+    if (carimboErr || !carimbados || carimbados.length === 0) {
+      console.error("[aprovarLead] bloqueio do convite inicial falhou", {
+        formSubmissionId,
+        erro: carimboErr?.message ?? "0 linhas (corrida com o disparo?)",
+      });
+      aviso = `ATENÇÃO: o deal está em "${garantia.etapa}", mas não foi possível bloquear as mensagens automáticas — o convite pode ter saído; confira.`;
     } else {
       aviso = `Aprovado sem mensagem automática: o deal já está em "${garantia.etapa}".`;
     }

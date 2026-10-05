@@ -122,6 +122,8 @@ test('convite inicial bloqueado também pelo histórico do deal / deal avançado
   assert.match(pos, /!bloquearInicial && !fsRow\.whatsapp_sent_at && garantia\.semConviteInicial/,
     'carimbo pós-garantia sumiu — lead com reunião no histórico receberia o convite inicial');
   assert.match(pos, /\.is\("whatsapp_sent_at", null\)/, 'carimbo pós-garantia sem CAS');
+  assert.match(pos, /whatsapp_sent_at: marca, followup_1_sent_at: marca, followup_2_sent_at: marca/,
+    'carimbo precisa fechar o ciclo inteiro — senão o FU1 "agende sua reunião" sai 48h depois');
   assert.match(helper, /semConviteInicial:\s*timingIdeal && \(reuniaoNoFormulario \|\| houveReuniao \|\| !ETAPAS_PRE_REUNIAO\.includes\(etapa\)\)/,
     'critério do semConviteInicial mudou');
 });
