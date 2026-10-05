@@ -94,13 +94,36 @@ test('reunião já detectada: convite inicial bloqueado no MESMO update da aprov
 test('rearmavel exige ausência de reunião (formulário ou histórico do deal)', () => {
   assert.match(helper, /timingIdeal && !reuniaoNoFormulario && !houveReuniao && ETAPAS_REARMAVEIS\.includes\(etapa\)/,
     'rearmavel deixou de excluir reunião — família que desistiu após reunião receberia reativação');
-  assert.match(helper, /reuniao_realizada_at \|\| perdido\.reuniao_data/,
+  assert.match(helper, /const houveReuniao =\s*dealTeveReuniao\(perdido\)/,
     'histórico de reunião do deal perdido deixou de ser considerado');
 });
 
-test('muito_cedo aprovado com deal em lead é estacionado (regra 2026-09-08)', () => {
-  assert.match(helper, /timingStatus === "muito_cedo" && ETAPAS_REARMAVEIS\.includes\(visivel\.etapa\)/,
-    'muito_cedo aprovado voltaria a ficar na coluna Lead');
+test('muito_cedo: estacionado SÓ sem reunião (mesmo recorte da migration 2026-09-08)', () => {
+  const ramoVisivel = helper.slice(helper.indexOf('const visivel = ativos.find'), helper.indexOf('const perdido = ativos[0]'));
+  assert.match(ramoVisivel, /if \(!sinalReuniao && ETAPAS_REARMAVEIS\.includes\(visivel\.etapa\)\)/,
+    'estacionamento de muito_cedo deixou de exigir ausência de reunião (Jade/Arthur/Miguel seriam estacionados)');
+  assert.match(ramoVisivel, /sinalReuniao && visivel\.etapa === "aguardando_timing"/,
+    'muito_cedo com reunião deve sair do estacionamento (visível em Lead)');
+  assert.match(helper, /reuniaoNoFormulario \|\| dealTeveReuniao\(visivel\)/,
+    'sinal de reunião deve somar formulário e histórico do deal');
+  assert.match(helper, /reuniao_realizada_at \|\| d\.reuniao_data \|\| d\.reuniao_agendada_at/,
+    'detector de reunião do deal perdeu algum campo');
+});
+
+test('timing ideal + reunião + deal pré-reunião (inclusive recém-criado) → Reunião marcada', () => {
+  const ramoVisivel = helper.slice(helper.indexOf('const visivel = ativos.find'), helper.indexOf('const perdido = ativos[0]'));
+  assert.match(ramoVisivel, /if \(timingIdeal && sinalReuniao && ETAPAS_PRE_REUNIAO\.includes\(visivel\.etapa\)\)/,
+    'o deal criado pelo promoverLeadCore em lead ficaria em Lead mesmo com reunião (caso Samuel)');
+  assert.match(ramoVisivel, /camposReuniao\(/, 'transição para Reunião marcada sumiu do ramo visível');
+});
+
+test('convite inicial bloqueado também pelo histórico do deal / deal avançado', () => {
+  const pos = aprovar.slice(aprovar.indexOf('const dealId = garantia.dealId'));
+  assert.match(pos, /!bloquearInicial && !fsRow\.whatsapp_sent_at && garantia\.semConviteInicial/,
+    'carimbo pós-garantia sumiu — lead com reunião no histórico receberia o convite inicial');
+  assert.match(pos, /\.is\("whatsapp_sent_at", null\)/, 'carimbo pós-garantia sem CAS');
+  assert.match(helper, /semConviteInicial:\s*timingIdeal && \(reuniaoNoFormulario \|\| houveReuniao \|\| !ETAPAS_PRE_REUNIAO\.includes\(etapa\)\)/,
+    'critério do semConviteInicial mudou');
 });
 
 test('reversão confirmada: nunca diz "desfeita" sem ter desfeito', () => {

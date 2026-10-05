@@ -653,7 +653,16 @@ export async function listarLeadsPendentesAprovacao(): Promise<
  * e tarde_demais NUNCA recebem convite automático por causa da aprovação.
  */
 type GarantiaDeal =
-  | { ok: true; dealId: string; etapa: string; reaberto: boolean; rearmavel: boolean }
+  | {
+      ok: true;
+      dealId: string;
+      etapa: string;
+      reaberto: boolean;
+      rearmavel: boolean;
+      /** Lead de timing ideal que JÁ passou do convite (reunião no histórico ou
+       *  deal além da pré-reunião): o convite inicial seria indevido. */
+      semConviteInicial: boolean;
+    }
   | { ok: false; error: string };
 
 async function garantirDealAtivoNaAprovacao(
@@ -663,7 +672,7 @@ async function garantirDealAtivoNaAprovacao(
 ): Promise<GarantiaDeal> {
   const { data: deals, error: dealsErr } = await supabase
     .from("deals")
-    .select("id, etapa, deleted_at, etapa_anterior, reuniao_realizada_at, reuniao_data")
+    .select("id, etapa, deleted_at, etapa_anterior, reuniao_realizada_at, reuniao_data, reuniao_agendada_at")
     .eq("atleta_id", atletaId);
   if (dealsErr) return { ok: false, error: `Erro ao ler deals: ${dealsErr.message}` };
 
@@ -682,6 +691,8 @@ async function garantirDealAtivoNaAprovacao(
     reaberto,
     rearmavel:
       timingIdeal && !reuniaoNoFormulario && !houveReuniao && ETAPAS_REARMAVEIS.includes(etapa),
+    semConviteInicial:
+      timingIdeal && (reuniaoNoFormulario || houveReuniao || !ETAPAS_PRE_REUNIAO.includes(etapa)),
   });
 
   type DealRow = {
@@ -691,44 +702,86 @@ async function garantirDealAtivoNaAprovacao(
     etapa_anterior: string | null;
     reuniao_realizada_at: string | null;
     reuniao_data: string | null;
+    reuniao_agendada_at: string | null;
   };
   const ativos = ((deals ?? []) as DealRow[]).filter((d) => d.deleted_at === null);
+  const dealTeveReuniao = (d: DealRow): boolean =>
+    Boolean(d.reuniao_realizada_at || d.reuniao_data || d.reuniao_agendada_at);
   const hoje = new Date().toISOString().split("T")[0];
   const probabilidadePorEtapa = await getProbabilidadePorEtapa();
 
-  // Etapa de destino para um deal sem histórico de reunião.
-  const camposSemHistorico = (): Record<string, unknown> =>
-    timingIdeal && reuniaoNoFormulario
-      ? {
-          etapa: "reuniao_marcada",
-          probabilidade_fechamento: probabilidadePorEtapa["reuniao_marcada"] ?? 20,
-          next_action: "Reunião detectada antes da aprovação — confirmar se aconteceu",
-          data_proxima_acao: hoje,
-        }
-      : dealCamposPorTiming(timingStatus, probabilidadePorEtapa);
+  const camposReuniao = (motivo: string): Record<string, unknown> => ({
+    etapa: "reuniao_marcada",
+    probabilidade_fechamento: probabilidadePorEtapa["reuniao_marcada"] ?? 20,
+    next_action: motivo,
+    data_proxima_acao: hoje,
+  });
+  const MOTIVO_REUNIAO_FORM = "Reunião detectada antes da aprovação — confirmar se aconteceu";
+
+  // Etapa de destino para um deal sem histórico de reunião no DEAL.
+  // Reunião no formulário: ideal → Reunião marcada; muito_cedo → Lead
+  // (visível, nunca estacionado — recorte da regra de 2026-09-08).
+  const camposSemHistorico = (): Record<string, unknown> => {
+    if (reuniaoNoFormulario && timingIdeal) return camposReuniao(MOTIVO_REUNIAO_FORM);
+    if (reuniaoNoFormulario && timingStatus === "muito_cedo") {
+      return dealCamposPorTiming("ideal", probabilidadePorEtapa);
+    }
+    return dealCamposPorTiming(timingStatus, probabilidadePorEtapa);
+  };
 
   const visivel = ativos.find((d) => d.etapa !== "perdido");
   if (visivel) {
-    // muito_cedo aprovado não mora na coluna Lead (estacionamento 2026-09-08).
-    if (timingStatus === "muito_cedo" && ETAPAS_REARMAVEIS.includes(visivel.etapa)) {
+    const sinalReuniao = reuniaoNoFormulario || dealTeveReuniao(visivel);
+    // CAS genérico de transição do deal visível (só a partir de etapas
+    // pré-reunião; deal avançado nunca é mexido pela aprovação).
+    const transicionar = async (campos: Record<string, unknown>, de: string[]) => {
       const { data: casRows, error: casErr } = await supabase
         .from("deals")
-        .update(dealCamposPorTiming("muito_cedo", probabilidadePorEtapa))
+        .update(campos)
         .eq("id", visivel.id)
-        .in("etapa", ETAPAS_REARMAVEIS)
+        .in("etapa", de)
         .is("deleted_at", null)
         .select("id");
-      if (casErr) return { ok: false, error: `Erro ao estacionar deal: ${casErr.message}` };
-      if (casRows && casRows.length > 0) return resultado(visivel.id, "aguardando_timing", false);
+      if (casErr) return { erro: casErr.message, moveu: false };
+      return { erro: null, moveu: Boolean(casRows && casRows.length > 0) };
+    };
+
+    // Timing ideal com reunião e deal ainda pré-reunião (inclui o deal que o
+    // promoverLeadCore acabou de criar em 'lead' — caso Samuel Santana): o
+    // card vai para Reunião marcada. Avanço 2/3→4, sem falso retrocesso.
+    if (timingIdeal && sinalReuniao && ETAPAS_PRE_REUNIAO.includes(visivel.etapa)) {
+      const r = await transicionar(
+        camposReuniao(
+          reuniaoNoFormulario ? MOTIVO_REUNIAO_FORM : "Reunião no histórico do deal — confirmar o próximo passo",
+        ),
+        ETAPAS_PRE_REUNIAO,
+      );
+      if (r.erro) return { ok: false, error: `Erro ao mover deal para Reunião marcada: ${r.erro}` };
+      if (r.moveu) return resultado(visivel.id, "reuniao_marcada", false, true);
     }
-    return resultado(visivel.id, visivel.etapa, false);
+    if (timingStatus === "muito_cedo") {
+      // Com reunião: visível em Lead (nunca estacionado — recorte da regra de
+      // 2026-09-08). aguardando_timing→lead é isento de retrocesso no trigger.
+      if (sinalReuniao && visivel.etapa === "aguardando_timing") {
+        const r = await transicionar(dealCamposPorTiming("ideal", probabilidadePorEtapa), ["aguardando_timing"]);
+        if (r.erro) return { ok: false, error: `Erro ao tirar deal do estacionamento: ${r.erro}` };
+        if (r.moveu) return resultado(visivel.id, "lead", false, true);
+      }
+      // Sem reunião: estacionado em aguardando_timing (não mora na coluna Lead).
+      if (!sinalReuniao && ETAPAS_REARMAVEIS.includes(visivel.etapa)) {
+        const r = await transicionar(dealCamposPorTiming("muito_cedo", probabilidadePorEtapa), ETAPAS_REARMAVEIS);
+        if (r.erro) return { ok: false, error: `Erro ao estacionar deal: ${r.erro}` };
+        if (r.moveu) return resultado(visivel.id, "aguardando_timing", false);
+      }
+    }
+    return resultado(visivel.id, visivel.etapa, false, sinalReuniao);
   }
 
   const perdido = ativos[0];
   if (perdido) {
     const anterior = perdido.etapa_anterior;
     const houveReuniao =
-      Boolean(perdido.reuniao_realizada_at || perdido.reuniao_data) ||
+      dealTeveReuniao(perdido) ||
       Boolean(anterior && !ETAPAS_PRE_REUNIAO.includes(anterior) && !ETAPAS_NAO_REABRIVEIS.includes(anterior));
     if (timingStatus === "tarde_demais") {
       return resultado(perdido.id, "perdido", false, houveReuniao);
@@ -934,6 +987,24 @@ export async function aprovarLead(formSubmissionId: string) {
   }
   const dealId = garantia.dealId;
   let aviso: string | null = null;
+
+  // Reunião no HISTÓRICO do deal (ou deal já além da pré-reunião) sem nenhum
+  // envio: o convite inicial seria indevido. O CAS acima só sabia do flag do
+  // formulário; este carimbo cobre o resto (CAS no próprio NULL, data antiga
+  // para não acusar "envio sem espelho" no monitor).
+  if (!bloquearInicial && !fsRow.whatsapp_sent_at && garantia.semConviteInicial) {
+    const { error: carimboErr } = await supabase
+      .from("form_submissions")
+      .update({ whatsapp_sent_at: (fsRow.submitted_at as string) ?? new Date(0).toISOString() })
+      .eq("id", formSubmissionId)
+      .is("whatsapp_sent_at", null);
+    if (carimboErr) {
+      console.error("[aprovarLead] bloqueio do convite inicial falhou", carimboErr.message);
+      aviso = `ATENÇÃO: o deal está em "${garantia.etapa}", mas não foi possível bloquear o convite inicial automático — confira antes do próximo disparo.`;
+    } else {
+      aviso = `Aprovado sem mensagem automática: o deal já está em "${garantia.etapa}".`;
+    }
+  }
 
   let reativacao = false;
   if (bloquearInicial) {
