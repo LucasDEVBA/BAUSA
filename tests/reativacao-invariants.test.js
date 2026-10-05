@@ -32,7 +32,9 @@ const migSrc = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'migrations', '20260825150000_reativacao_leads_antigos.sql'), 'utf8');
 
 test('aprovarLead: re-arme SÓ com histórico, com os 5 campos do ciclo', () => {
-  assert.match(leadsSrc, /if \(fsRow\.whatsapp_sent_at\) \{/,
+  // O gate do histórico pode ganhar condições extras (2026-10-05: só re-arma
+  // com deal visível garantido), mas nunca sumir.
+  assert.match(leadsSrc, /if \(fsRow\.whatsapp_sent_at(?: && [\w.]+)?\) \{/,
     'gate do histórico sumiu — aprovação de lead novo re-armaria ciclo inexistente');
   for (const campo of [
     'reativacao_em: new Date().toISOString()',
