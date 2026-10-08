@@ -490,6 +490,17 @@ badge.variant: "danger" | "warning" | "success" | "neutral"
 </section>
 ```
 
+### Testes de componente (Vitest + RTL + jest-axe)
+
+- Rodar: `pnpm --filter @bolsa-atleta/engine test` (ou `test:watch`). CI: job **Component Tests CRM**.
+- Arquivo `src/**/*.test.tsx` ao lado do componente (ex.: `components/ui/Button.test.tsx`), ambiente jsdom. Teste de função pura sem JSX pode ser `src/**/*.test.ts` (também roda).
+- `vitest.setup.ts` repõe o que o RTL só faz sozinho com globais: `cleanup` entre testes e `IS_REACT_ACT_ENVIRONMENT = true` (sem ele o aviso "not wrapped in act(...)" some). Guard: `src/test/vitest-setup.test.ts`.
+- Importe `describe/it/expect/vi` **de `"vitest"`** — não há globais (o `tsc --noEmit` e o `next build` checam os testes).
+- Interação via `userEvent.setup()` + `await user.type/click` (nunca `fireEvent` para digitação).
+- Acessibilidade: `expect(await axe(container)).toHaveNoViolations()` (matcher registrado em `vitest.setup.ts`; contraste de cor não é checado no jsdom).
+- Teste não toca rede nem banco: server actions e Supabase entram como `vi.mock`.
+- Tipos do `jest-axe` vêm de `src/test/jest-axe.d.ts` (o pacote não publica .d.ts; não instale `@types/jest-axe`, que traz os globais do Jest).
+
 ---
 
 ## Git
@@ -522,4 +533,4 @@ badge.variant: "danger" | "warning" | "success" | "neutral"
 ### Próximos passos
 
 - [ ] Motor de Match com IA (Gemini) — substituir cálculo manual
-- [ ] Testes (Vitest + React Testing Library)
+- [ ] Testes (Vitest + React Testing Library) — infraestrutura pronta (ver "Testes de componente"); falta cobertura dos componentes
