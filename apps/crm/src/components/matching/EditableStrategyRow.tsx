@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import {
   CheckCircle,
   AlertCircle,
@@ -10,6 +10,13 @@ import {
   Loader2,
 } from "lucide-react";
 import { atualizarResultadoEscola } from "@/lib/actions/escolas";
+import {
+  RESULTADO_ESTRATEGIA_LABEL,
+  RESULTADO_ESTRATEGIA_OPTIONS,
+  isValorDe,
+  RESULTADO_ESTRATEGIA_VALUES,
+  type ResultadoEstrategia,
+} from "@/components/escolas/school-options";
 import {
   type MatchClassification,
   MATCH_CLASSIFICATION_CONFIG,
@@ -38,14 +45,15 @@ interface EditableStrategyRowProps {
   strategy: StrategyData;
 }
 
-const RESULTADO_OPTIONS = [
-  { value: "nao_aplicado", label: "Nao aplicado" },
-  { value: "aplicado", label: "Aplicado" },
-  { value: "aceito", label: "Aceito" },
-  { value: "rejeitado", label: "Rejeitado" },
-  { value: "lista_espera", label: "Lista de espera" },
-  { value: "desistiu", label: "Desistiu" },
-];
+// Valores = CHECK estrategia_escolas.resultado (as opções antigas
+// "aplicado/rejeitado/lista_espera/desistiu" violavam o CHECK → 23514).
+
+/** "" → null (limpa o campo); número inválido → null. */
+function numeroOuNull(texto: string): number | null {
+  if (texto.trim() === "") return null;
+  const n = Number(texto.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
 
 function ScoreMeter({ score, classification }: { score: number; classification: MatchClassification }) {
   const cfg = MATCH_CLASSIFICATION_CONFIG[classification];
@@ -83,22 +91,31 @@ export function EditableStrategyRow({ strategy }: EditableStrategyRowProps) {
   const [bolsaValor, setBolsaValor] = useState(strategy.bolsa_obtida_valor?.toString() ?? "");
   const [dataAplicacao, setDataAplicacao] = useState(strategy.data_aplicacao ?? "");
   const [dataResposta, setDataResposta] = useState(strategy.data_resposta ?? "");
-  const [resultado, setResultado] = useState(strategy.resultado);
+  const [resultado, setResultado] = useState<ResultadoEstrategia>(
+    isValorDe(RESULTADO_ESTRATEGIA_VALUES, strategy.resultado) ? strategy.resultado : "nao_aplicado",
+  );
+  const idBase = useId();
 
   const cfg = MATCH_CLASSIFICATION_CONFIG[strategy.classification];
 
   const handleSave = () => {
     startTransition(async () => {
-      const result = await atualizarResultadoEscola(strategy.id, {
-        resultado,
-        bolsa_obtida_pct: bolsaPct ? Number(bolsaPct) : undefined,
-        bolsa_obtida_valor: bolsaValor ? Number(bolsaValor) : undefined,
-        data_resposta: dataResposta || undefined,
-      });
-      if (result.success) {
-        toast.success("Estrategia atualizada!");
-      } else {
-        toast.error(result.error ?? "Erro ao salvar");
+      try {
+        const result = await atualizarResultadoEscola(strategy.id, {
+          resultado,
+          bolsa_obtida_pct: numeroOuNull(bolsaPct),
+          bolsa_obtida_valor: numeroOuNull(bolsaValor),
+          data_aplicacao: dataAplicacao || null,
+          data_resposta: dataResposta || null,
+        });
+        if (result.success) {
+          toast.success("Resultado salvo.");
+        } else {
+          toast.error(result.error);
+        }
+      } catch (e) {
+        console.error({ level: "error", action: "atualizar_resultado_escola_ui", estrategiaId: strategy.id, erro: String(e) });
+        toast.error("Falha de conexão ao salvar. Tente de novo.");
       }
     });
   };
@@ -123,10 +140,10 @@ export function EditableStrategyRow({ strategy }: EditableStrategyRowProps) {
               <span className={cn(
                 "rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
                 resultado === "aceito" ? "border-sys-green/30 bg-sys-green/10 text-sys-green"
-                  : resultado === "rejeitado" ? "border-sys-red/30 bg-sys-red/10 text-sys-red"
+                  : resultado === "recusado" ? "border-sys-red/30 bg-sys-red/10 text-sys-red"
                   : "border-sys-orange/30 bg-sys-orange/10 text-sys-orange"
               )}>
-                {RESULTADO_OPTIONS.find((o) => o.value === resultado)?.label ?? resultado}
+                {RESULTADO_ESTRATEGIA_LABEL[resultado]}
               </span>
             )}
           </div>
@@ -148,7 +165,12 @@ export function EditableStrategyRow({ strategy }: EditableStrategyRowProps) {
             ))}
           </div>
         </div>
-        <button className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground">
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          aria-label={isExpanded ? `Recolher ${strategy.school_name}` : `Registrar resultado em ${strategy.school_name}`}
+          className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground"
+        >
           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </div>
@@ -158,53 +180,61 @@ export function EditableStrategyRow({ strategy }: EditableStrategyRowProps) {
         <div className="mt-4 space-y-3 border-t border-border pt-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Resultado</label>
+              <label htmlFor={`${idBase}-resultado`} className="text-xs font-medium text-muted-foreground">Resultado</label>
               <select
+                id={`${idBase}-resultado`}
                 value={resultado}
-                onChange={(e) => setResultado(e.target.value)}
+                onChange={(e) => {
+                  const valor = e.target.value;
+                  if (isValorDe(RESULTADO_ESTRATEGIA_VALUES, valor)) setResultado(valor);
+                }}
                 className={cn(inputClass, "appearance-none")}
               >
-                {RESULTADO_OPTIONS.map((opt) => (
+                {RESULTADO_ESTRATEGIA_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Bolsa obtida (%)</label>
+              <label htmlFor={`${idBase}-pct`} className="text-xs font-medium text-muted-foreground">Bolsa obtida (%)</label>
               <input
                 type="number"
                 min="0"
                 max="100"
+                id={`${idBase}-pct`}
                 value={bolsaPct}
                 onChange={(e) => setBolsaPct(e.target.value)}
-                placeholder="0"
+                placeholder="Não informado"
                 className={inputClass}
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Bolsa obtida (USD)</label>
+              <label htmlFor={`${idBase}-valor`} className="text-xs font-medium text-muted-foreground">Bolsa obtida (USD)</label>
               <input
                 type="number"
                 min="0"
+                id={`${idBase}-valor`}
                 value={bolsaValor}
                 onChange={(e) => setBolsaValor(e.target.value)}
-                placeholder="0"
+                placeholder="Não informado"
                 className={inputClass}
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Data aplicacao</label>
+              <label htmlFor={`${idBase}-aplicacao`} className="text-xs font-medium text-muted-foreground">Data de aplicação</label>
               <input
                 type="date"
+                id={`${idBase}-aplicacao`}
                 value={dataAplicacao}
                 onChange={(e) => setDataAplicacao(e.target.value)}
                 className={inputClass}
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Data resposta</label>
+              <label htmlFor={`${idBase}-resposta`} className="text-xs font-medium text-muted-foreground">Data de resposta</label>
               <input
                 type="date"
+                id={`${idBase}-resposta`}
                 value={dataResposta}
                 onChange={(e) => setDataResposta(e.target.value)}
                 className={inputClass}

@@ -335,7 +335,7 @@ src/
     ├── lead.ts                        → Lead, LeadClassification, LeadStatus
     ├── matching.ts                    → SchoolMatch, MatchClassification, MATCH_CLASSIFICATION_CONFIG
     ├── revenue.ts                     → MetaRevenueMetrics, CommercialFunnelMetrics, WarRoomMetrics…
-    └── school.ts                      → School, SchoolType, SchoolSportInfluence, ScholarshipAggressiveness
+    └── school.ts                      → School (valores crus do banco), HistoricoEscola, ContatoEscola — enums/rótulos em components/escolas/school-options.ts
 ```
 
 ---
