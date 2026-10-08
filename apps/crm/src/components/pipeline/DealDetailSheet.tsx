@@ -41,6 +41,7 @@ import {
 } from "@/lib/etapas-deal";
 import { atualizarDeal, moverDeal, type StructuredLossData } from "@/lib/actions/deals";
 import { CustomizarValorModal } from "./CustomizarValorModal";
+import { ROTULO_ORIGEM_VALOR, explicarOrigemValor, formatarValorDeal } from "@/lib/valor-deal";
 import { GanhoEscolasModal } from "./GanhoEscolasModal";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
@@ -790,14 +791,17 @@ export function DealDetailSheet({
                 <span className={cn("h-2 w-2 rounded-full", stageConfig.dotColor)} />
                 <span className="text-xs text-muted-foreground">{stageConfig.label}</span>
                 <span className="text-xs text-label-tertiary">&middot;</span>
-                <span className="text-xs font-semibold text-sys-green">
-                  R$ {deal.deal_value_brl.toLocaleString("pt-BR")}
+                <span className="text-xs font-semibold text-sys-green" title={explicarOrigemValor(deal)}>
+                  {formatarValorDeal(deal.deal_value_brl, deal.valor_origem)}
                 </span>
-                {deal.flag_valores_customizados && (
+                {deal.valor_origem === "negociado" && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-sys-orange/20 bg-sys-orange/15 px-1.5 py-0.5 text-[9px] font-semibold text-sys-orange">
                     <AlertTriangle className="h-2.5 w-2.5" />
-                    Customizado
+                    Negociado
                   </span>
+                )}
+                {deal.valor_origem === "estimado" && (
+                  <span className="text-[9px] font-medium text-muted-foreground">estimado</span>
                 )}
               </div>
             </div>
@@ -942,21 +946,29 @@ export function DealDetailSheet({
                   serviços adicionais clicáveis) */}
               <div className={cardClass}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Valor estimado</span>
-                    <span className="text-sm font-bold text-sys-green">
-                      R$ {deal.deal_value_brl.toLocaleString("pt-BR")}
+                  <div className="flex min-w-0 items-center gap-2" title={explicarOrigemValor(deal)}>
+                    <span className="text-xs text-muted-foreground">
+                      Valor · {ROTULO_ORIGEM_VALOR[deal.valor_origem ?? "estimado"]}
                     </span>
-                    {deal.flag_valores_customizados && (
-                      <span className="text-[9px] font-semibold text-sys-orange">(customizado)</span>
-                    )}
+                    <span className="text-sm font-bold text-sys-green">
+                      {formatarValorDeal(deal.deal_value_brl, deal.valor_origem)}
+                    </span>
                   </div>
-                  <button
-                    onClick={() => setShowCustomizarValor(true)}
-                    className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/15"
-                  >
-                    Customizar valor
-                  </button>
+                  {deal.valor_origem === "contratado" ? (
+                    <button
+                      onClick={() => setActiveTab("contrato")}
+                      className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/15"
+                    >
+                      Editar no contrato
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setShowCustomizarValor(true)}
+                      className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/15"
+                    >
+                      Customizar valor
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -966,6 +978,12 @@ export function DealDetailSheet({
                   athleteName={deal.athlete_name}
                   valorAtual={deal.deal_value_brl}
                   jaCustomizado={deal.flag_valores_customizados}
+                  origem={deal.valor_origem}
+                  explicacaoOrigem={explicarOrigemValor(deal)}
+                  onTemContrato={() => {
+                    setShowCustomizarValor(false);
+                    setActiveTab("contrato");
+                  }}
                   onClose={() => setShowCustomizarValor(false)}
                 />
               )}

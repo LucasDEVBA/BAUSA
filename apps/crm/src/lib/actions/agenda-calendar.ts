@@ -7,6 +7,12 @@ import { getUserPapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { promoverLead } from "@/lib/actions/leads";
+import {
+  EMBED_CONTRATO_VALOR_LEVE,
+  resolverValorDeal,
+  type ContratoValorEmbed,
+} from "@/lib/valor-deal";
+import { type OrigemValorDeal } from "@/types/deal";
 
 /**
  * Agenda ligada ao Google Calendar de verdade.
@@ -364,7 +370,9 @@ export interface EventoMesclado {
   reuniaoData: string;
   reuniaoLink: string | null;
   etapa: string | null;
+  /** Valor do deal como no /pipeline (contrato > negociado > estimado — T3). */
   valorEstimado: number | null;
+  valorOrigem?: OrigemValorDeal | null;
   atletaId: string | null;
   nome: string;
   esporte: string | null;
@@ -418,8 +426,7 @@ export async function getAgendaDoMes(mes: string): Promise<AgendaDoMes> {
   const { data: deals } = await supabase
     .from("deals")
     .select(
-      "id, reuniao_data, reuniao_link, etapa, valor_estimado, google_calendar_event_id, " +
-        "atleta:atletas(id, nome_completo, esporte, lead_classificacao)",
+      `id, reuniao_data, reuniao_link, etapa, valor_estimado, flag_valores_customizados, google_calendar_event_id, atleta:atletas(id, nome_completo, esporte, lead_classificacao), ${EMBED_CONTRATO_VALOR_LEVE}`,
     )
     .not("reuniao_data", "is", null)
     .is("deleted_at", null)
@@ -433,6 +440,8 @@ export async function getAgendaDoMes(mes: string): Promise<AgendaDoMes> {
     reuniao_link: string | null;
     etapa: string;
     valor_estimado: number | null;
+    flag_valores_customizados: boolean | null;
+    contrato: ContratoValorEmbed | ContratoValorEmbed[] | null;
     google_calendar_event_id: string | null;
     atleta:
       | { id: string; nome_completo: string; esporte: string | null; lead_classificacao: string | null }
@@ -454,12 +463,14 @@ export async function getAgendaDoMes(mes: string): Promise<AgendaDoMes> {
 
   const doBanco: EventoMesclado[] = rows.map((d) => {
     const atleta = Array.isArray(d.atleta) ? d.atleta[0] : d.atleta;
+    const valor = resolverValorDeal(d);
     return {
       dealId: d.id,
       reuniaoData: d.reuniao_data,
       reuniaoLink: d.reuniao_link ?? null,
       etapa: d.etapa,
-      valorEstimado: d.valor_estimado ?? null,
+      valorEstimado: valor.valor > 0 ? valor.valor : null,
+      valorOrigem: valor.valor > 0 ? valor.origem : null,
       atletaId: atleta?.id ?? null,
       nome: atleta?.nome_completo ?? "—",
       esporte: atleta?.esporte ?? null,

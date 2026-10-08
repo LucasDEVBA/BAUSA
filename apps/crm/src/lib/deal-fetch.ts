@@ -1,5 +1,11 @@
 import { parseSinaisV2 } from "@/lib/classificador-v2";
+import { rotuloFaixaInvestimento } from "@/lib/faixa-investimento";
 import { createBrowserClient } from "@/lib/supabase-browser";
+import {
+  EMBED_CONTRATO_VALOR,
+  camposValorDeal,
+  type ContratoValorEmbed,
+} from "@/lib/valor-deal";
 import { type Deal, type DealStage } from "@/types/deal";
 import { type LeadClassification } from "@/types/lead";
 
@@ -16,17 +22,6 @@ function mapClassificacao(cls: string | null): LeadClassification {
   return "FRIO";
 }
 
-function mapInvestmentRange(faixa: string | null): string {
-  if (!faixa) return "";
-  const map: Record<string, string> = {
-    "40k_mais": "40k-50k",
-    "30k_40k": "30k-40k",
-    "20k_30k": "20k-30k",
-    "ate_20k": "15k-20k",
-  };
-  return map[faixa] ?? faixa;
-}
-
 export async function fetchDeal(dealId: string): Promise<Deal | null> {
   const supabase = createBrowserClient();
 
@@ -40,8 +35,9 @@ export async function fetchDeal(dealId: string): Promise<Deal | null> {
       contrato_assinado_at, sinal_pago_at,
       pode_reativar, data_reativacao,
       projeto_futuro_ano, projeto_futuro_data_reativacao,
-      deleted_at, flag_valores_customizados,
+      deleted_at, flag_valores_customizados, justificativa_customizacao,
       reuniao_agendada_at, reuniao_link, reuniao_data,
+      ${EMBED_CONTRATO_VALOR},
       atleta:atletas(
         id, nome_completo, posicao, esporte, serie_escolar,
         lead_classificacao, whatsapp, faixa_investimento, cidade_estado,
@@ -56,7 +52,7 @@ export async function fetchDeal(dealId: string): Promise<Deal | null> {
           submitted_at, whatsapp_sent_at, followup_1_sent_at,
           followup_2_sent_at, meeting_scheduled, meeting_scheduled_at,
           qualification_reason, qualification_confidence, qualified_at,
-          guardian_name, guardian_profession, guardian_email,
+          guardian_name, guardian_profession, guardian_email, investment_range,
           score_financeiro, tier_profissao, sinais_reforco, sinais_alerta,
           prioridade_estrategica, acao_recomendada
         )
@@ -77,8 +73,17 @@ export async function fetchDeal(dealId: string): Promise<Deal | null> {
     athlete_position: (atleta?.posicao as string) ?? undefined,
     guardian_name: (fs?.guardian_name as string) ?? "",
     guardian_profession: (fs?.guardian_profession as string) ?? undefined,
-    investment_range: mapInvestmentRange((atleta?.faixa_investimento as string) ?? null),
-    deal_value_brl: (row.valor_estimado as number) ?? 0,
+    investment_range:
+      (fs?.investment_range as string | null) ??
+      rotuloFaixaInvestimento(atleta?.faixa_investimento as string | null) ??
+      "",
+    // contrato > negociado > estimado (mesma regra do /pipeline)
+    ...camposValorDeal({
+      valor_estimado: row.valor_estimado as number | string | null,
+      flag_valores_customizados: row.flag_valores_customizados as boolean | null,
+      contrato: row.contrato as ContratoValorEmbed | ContratoValorEmbed[] | null,
+    }),
+    justificativa_valor: (row.justificativa_customizacao as string) ?? undefined,
     stage: row.etapa as DealStage,
     classification: mapClassificacao((atleta?.lead_classificacao as string) ?? null),
     address_state: (atleta?.cidade_estado as string)?.split(" - ").pop()?.trim() ?? undefined,

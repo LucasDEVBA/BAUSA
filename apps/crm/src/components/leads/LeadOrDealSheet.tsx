@@ -15,6 +15,9 @@ interface LeadOrDealSheetProps {
 export function LeadOrDealSheet({ lead, onClose }: LeadOrDealSheetProps) {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [loading, setLoading] = useState(false);
+  // Rebusca o deal após editar o valor no modal (aqui não há router.refresh
+  // que repinte: o deal é buscado no cliente).
+  const [versao, setVersao] = useState(0);
 
   useEffect(() => {
     if (!lead || !lead.is_in_pipeline || !lead.pipeline_deal_id) {
@@ -43,13 +46,20 @@ export function LeadOrDealSheet({ lead, onClose }: LeadOrDealSheetProps) {
     return () => {
       cancelled = true;
     };
-  }, [lead?.id, lead?.pipeline_deal_id, lead?.is_in_pipeline]);
+  }, [lead?.id, lead?.pipeline_deal_id, lead?.is_in_pipeline, versao]);
 
   if (!lead) return null;
 
   // Lead no pipeline e deal carregado: mostra modal central super-completo
   if (lead.is_in_pipeline && deal) {
-    return <DealDetailModal key={deal.id} deal={deal} onClose={onClose} />;
+    return (
+      <DealDetailModal
+        key={deal.id}
+        deal={deal}
+        onClose={onClose}
+        onDealAtualizado={() => setVersao((v) => v + 1)}
+      />
+    );
   }
 
   // Carregando deal

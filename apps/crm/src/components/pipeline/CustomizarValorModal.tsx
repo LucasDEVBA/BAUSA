@@ -8,7 +8,9 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui";
 import { customizarValorDeal } from "@/lib/actions/deals";
+import { ROTULO_ORIGEM_VALOR } from "@/lib/valor-deal";
 import { cn } from "@/lib/utils";
+import { type OrigemValorDeal } from "@/types/deal";
 
 /**
  * Modal de customização do valor do deal (pedido do CEO, 2026-09-11 —
@@ -37,9 +39,15 @@ interface CustomizarValorModalProps {
   athleteName: string;
   valorAtual: number;
   jaCustomizado?: boolean;
+  /** Origem do valor atual (T3). Ausente = deduz de `jaCustomizado`. */
+  origem?: OrigemValorDeal;
+  /** Frase que explica de onde veio o valor atual (lib/valor-deal). */
+  explicacaoOrigem?: string;
   onClose: () => void;
   /** Chamado após salvar (o pai dá router.refresh / reconcilia o board). */
   onSaved?: () => void;
+  /** O servidor recusou porque o deal tem contrato — o pai leva à aba do contrato. */
+  onTemContrato?: () => void;
 }
 
 export function CustomizarValorModal({
@@ -47,9 +55,13 @@ export function CustomizarValorModal({
   athleteName,
   valorAtual,
   jaCustomizado,
+  origem,
+  explicacaoOrigem,
   onClose,
   onSaved,
+  onTemContrato,
 }: CustomizarValorModalProps) {
+  const origemAtual: OrigemValorDeal = origem ?? (jaCustomizado ? "negociado" : "estimado");
   const router = useRouter();
   const [valor, setValor] = useState(valorAtual);
   const [justificativa, setJustificativa] = useState("");
@@ -70,8 +82,19 @@ export function CustomizarValorModal({
     };
   }, [onClose]);
 
+  // Devolve o foco a quem abriu (valor no card / Visão Executiva) — a11y.
+  // Capturado no 1º render: no commit o autoFocus já moveu o foco p/ o "X".
+  const [gatilho] = useState<HTMLElement | null>(() =>
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
+  useEffect(() => () => gatilho?.focus(), [gatilho]);
+
   const delta = valor - valorAtual;
-  const semMudanca = delta === 0;
+  // Estimativa pode ser CONFIRMADA sem mudar o número (vira "negociado").
+  const confirmandoEstimativa = delta === 0 && origemAtual === "estimado";
+  const semMudanca = delta === 0 && !confirmandoEstimativa;
   const faltaJustificativa = !justificativa.trim();
   const valorInvalido = valor <= 0;
 
@@ -95,15 +118,16 @@ export function CustomizarValorModal({
     startTransition(async () => {
       const result = await customizarValorDeal(dealId, valor, justificativa);
       if (result.success) {
-        toast.success("Valor customizado", {
+        toast.success("Valor negociado salvo", {
           description: `${athleteName}: ${fmtBRL(valorAtual)} → ${fmtBRL(valor)}`,
         });
         onSaved?.();
         router.refresh();
         onClose();
-      } else {
-        toast.error(result.error ?? "Erro ao customizar valor");
+        return;
       }
+      toast.error(result.error ?? "Erro ao customizar valor");
+      if (result.code === "TEM_CONTRATO") onTemContrato?.();
     });
   };
 
@@ -144,13 +168,24 @@ export function CustomizarValorModal({
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground">Valor atual</p>
                 <p className="text-sm font-semibold tabular-nums text-foreground">
+                  {origemAtual === "estimado" ? "≈ " : ""}
                   {fmtBRL(valorAtual)}
-                  {jaCustomizado && (
-                    <span className="ml-1.5 text-[9px] font-semibold uppercase text-sys-orange">customizado</span>
-                  )}
+                  <span
+                    className={cn(
+                      "ml-1.5 text-[9px] font-semibold uppercase",
+                      origemAtual === "negociado" ? "text-sys-orange" : "text-muted-foreground",
+                    )}
+                  >
+                    {ROTULO_ORIGEM_VALOR[origemAtual]}
+                  </span>
                 </p>
+                {explicacaoOrigem && (
+                  <p className="mt-0.5 max-w-[16rem] text-[10px] leading-snug text-muted-foreground">
+                    {explicacaoOrigem}
+                  </p>
+                )}
               </div>
-              {!semMudanca && (
+              {delta !== 0 && (
                 <span
                   className={cn(
                     "rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums",
@@ -255,7 +290,7 @@ export function CustomizarValorModal({
               onClick={salvar}
             >
               {pending ? <Loader2 className="animate-spin" /> : <Check />}
-              Salvar novo valor
+              {confirmandoEstimativa ? "Confirmar valor" : "Salvar novo valor"}
             </Button>
           </div>
         </div>

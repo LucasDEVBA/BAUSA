@@ -13,6 +13,11 @@ import {
 } from "@/lib/etapas-deal";
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import {
+  ROTULO_ORIGEM_VALOR,
+  explicarOrigemValor,
+  formatarValorDeal,
+} from "@/lib/valor-deal";
 
 /** Timing fora da janela ideal — badge lateral (a coluna aguardando_timing
  *  saiu do board em 2026-08-11; o motivo continua visível no card). */
@@ -39,9 +44,54 @@ interface DealCardProps {
   stageConfig?: DealStageConfigMap;
   /** Excluir o LEAD inteiro (soft delete em cascata) direto do card. */
   onExcluir?: () => void;
+  /** Clique no VALOR (T3): sem contrato abre a customização; com contrato, a
+   *  aba do contrato. Ausente (sem permissão) = valor só leitura. */
+  onValorClick?: () => void;
 }
 
-export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, onExcluir }: DealCardProps) {
+/** "≈ R$ 22.000 estimado" / "R$ 24.000 negociado" / "R$ 26.000" (contrato). */
+function ValorDoCard({ deal }: { deal: Deal }) {
+  const origem = deal.valor_origem ?? "estimado";
+  return (
+    <>
+      <span
+        className={cn(
+          "truncate text-[11px] font-semibold tabular-nums",
+          origem === "estimado" ? "text-muted-foreground" : "text-foreground",
+        )}
+      >
+        {formatarValorDeal(deal.deal_value_brl, origem)}
+      </span>
+      {origem !== "contratado" && (
+        <span
+          className={cn(
+            "shrink-0 text-[9px] font-medium",
+            origem === "negociado" ? "text-sys-orange" : "text-muted-foreground",
+          )}
+        >
+          {ROTULO_ORIGEM_VALOR[origem]}
+        </span>
+      )}
+    </>
+  );
+}
+
+function rotuloAcessivelValor(deal: Deal): string {
+  if (!(deal.deal_value_brl > 0)) return "Sem valor. Definir valor negociado";
+  const valor = `R$ ${Math.round(deal.deal_value_brl).toLocaleString("pt-BR")}`;
+  if (deal.valor_origem === "contratado") return `Valor do contrato ${valor}. Abrir contrato`;
+  if (deal.valor_origem === "negociado") return `Valor negociado ${valor}. Editar valor`;
+  return `Valor estimado ${valor}. Definir valor negociado`;
+}
+
+export function DealCard({
+  deal,
+  isDragging,
+  onClick,
+  stageConfig: configMap,
+  onExcluir,
+  onValorClick,
+}: DealCardProps) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: deal.id,
   });
@@ -62,6 +112,7 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, on
     ? PRODUCT_TIER_STYLES[deal.product_tier]
     : null;
   const isQualified = deal.qualificado_gemini === true;
+  const sinalRecebido = deal.signal_value_brl ?? 0;
 
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = deal.next_action_date && deal.next_action_date < today;
@@ -151,12 +202,30 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, on
         )}
       </div>
 
-      {/* Linha 3: valor + estado */}
+      {/* Linha 3: valor (contrato > negociado > estimado) + tempo na etapa.
+          O botão do valor não dispara drag (pointerdown) nem o clique do card. */}
       <div className="mt-1.5 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold tabular-nums text-foreground">
-          R$ {deal.deal_value_brl.toLocaleString("pt-BR")}
-        </span>
-        <span className="flex items-center gap-1 text-[10px] tabular-nums text-muted-foreground">
+        {onValorClick ? (
+          <button
+            type="button"
+            draggable={false}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onValorClick();
+            }}
+            title={explicarOrigemValor(deal)}
+            aria-label={rotuloAcessivelValor(deal)}
+            className="-mx-1 flex min-w-0 items-baseline gap-1 rounded px-1 py-0.5 text-left transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ValorDoCard deal={deal} />
+          </button>
+        ) : (
+          <span className="flex min-w-0 items-baseline gap-1" title={explicarOrigemValor(deal)}>
+            <ValorDoCard deal={deal} />
+          </span>
+        )}
+        <span className="flex shrink-0 items-center gap-1 text-[10px] tabular-nums text-muted-foreground">
           <Clock className="h-2.5 w-2.5" />
           {timeInStage}
         </span>
@@ -177,19 +246,23 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, on
         </p>
       )}
 
-      {/* Barra financeira (apenas em estágios pós-contrato) */}
-      {stageConfig.isFinancial &&
-        deal.signal_value_brl &&
-        deal.deal_value_brl > 0 && (
-          <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-secondary">
+      {/* Sinal recebido (soma das parcelas de entrada RECEBIDAS — T3). Em
+          qualquer etapa: o sinal pode chegar antes do plano (T11). */}
+      {sinalRecebido > 0 && deal.deal_value_brl > 0 && (
+        <div className="mt-1.5">
+          <p className="text-[9px] tabular-nums text-sys-green">
+            Sinal R$ {Math.round(sinalRecebido).toLocaleString("pt-BR")}
+          </p>
+          <div aria-hidden className="mt-0.5 h-0.5 w-full overflow-hidden rounded-full bg-secondary">
             <div
               className="h-full rounded-full bg-sys-green"
               style={{
-                width: `${Math.round((deal.signal_value_brl / deal.deal_value_brl) * 100)}%`,
+                width: `${Math.min(100, Math.round((sinalRecebido / deal.deal_value_brl) * 100))}%`,
               }}
             />
           </div>
-        )}
+        </div>
+      )}
 
       {/* Mini badges em rodapé (prioridade/timing/qualif/retroc) */}
       {(prioridade || timing || isQualified || deal.flag_retrocedido) && (

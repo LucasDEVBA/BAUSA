@@ -30,6 +30,9 @@ export interface PipelineMetrics {
   perdidos: number;
   leadsNovos: number;
   acoesAtrasadas: number;
+  /** Ativos cujo valor ainda é ESTIMATIVA da faixa (sem contrato/negociação) —
+   *  transparência do total (T3). Opcional: ausente = sem hint. */
+  ativosComValorEstimado?: number;
 }
 
 type Tone = "primary" | "blue" | "green" | "red" | "muted";
@@ -51,11 +54,13 @@ function Chip({
   label,
   value,
   tone,
+  hint,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   tone: Tone;
+  hint?: string;
 }) {
   const t = TONE[tone];
   return (
@@ -66,6 +71,7 @@ function Chip({
       <div className="min-w-0">
         <p className="truncate text-xs text-muted-foreground">{label}</p>
         <p className={cn("text-sm font-bold", t.value)}>{value}</p>
+        {hint && <p className="truncate text-[10px] text-muted-foreground">{hint}</p>}
       </div>
     </div>
   );
@@ -94,8 +100,12 @@ export function PipelineMetricsBar({ metrics }: { metrics: PipelineMetrics }) {
     });
   };
 
-  const cards: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; tone: Tone }[] = [
-    { icon: TrendingUp, label: "Total em pipeline", value: brl(metrics.totalPipelineBrl), tone: "primary" },
+  const estimados = metrics.ativosComValorEstimado ?? 0;
+  const hintEstimados =
+    estimados > 0 ? `${estimados} de ${metrics.activeCount} por estimativa da faixa` : undefined;
+
+  const cards: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; tone: Tone; hint?: string }[] = [
+    { icon: TrendingUp, label: "Total em pipeline", value: brl(metrics.totalPipelineBrl), tone: "primary", hint: hintEstimados },
     { icon: Layers, label: "Deals ativos", value: String(metrics.activeCount), tone: "primary" },
     { icon: Receipt, label: "Ticket médio", value: brl(metrics.ticketMedioBrl), tone: "primary" },
     { icon: UserPlus, label: "Leads novos", value: String(metrics.leadsNovos), tone: "blue" },
@@ -145,7 +155,7 @@ export function PipelineMetricsBar({ metrics }: { metrics: PipelineMetrics }) {
         <div className="overflow-hidden">
           <div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {cards.map((c) => (
-              <Chip key={c.label} icon={c.icon} label={c.label} value={c.value} tone={c.tone} />
+              <Chip key={c.label} icon={c.icon} label={c.label} value={c.value} tone={c.tone} hint={c.hint} />
             ))}
           </div>
         </div>

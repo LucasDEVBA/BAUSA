@@ -52,7 +52,8 @@ import {
   DEFAULT_DEAL_STAGE_DISPLAY,
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
-import { cn } from "@/lib/utils";
+import { cn, formatInvestmentRange } from "@/lib/utils";
+import { ROTULO_ORIGEM_VALOR, explicarOrigemValor, formatarValorDeal } from "@/lib/valor-deal";
 import { toast } from "sonner";
 import { DealDetailSheet } from "./DealDetailSheet";
 import { CustomizarValorModal } from "./CustomizarValorModal";
@@ -86,7 +87,18 @@ interface DealDetailModalProps {
   onClose: () => void;
   /** Config de exibição das etapas (rótulos/cores) — default estático. */
   stageConfig?: DealStageConfigMap;
+  /** Seção em que o modal abre (ex.: "financeiro" ao clicar no valor de um
+   *  deal com contrato). Padrão: Visão Executiva. */
+  initialSection?: DealDetailSection;
+  /** Valor editável (CEO). Padrão true: preserva o comportamento dos
+   *  consumidores antigos (/leads) — o servidor revalida o papel. */
+  podeEditarValor?: boolean;
+  /** Chamado após salvar o valor — quem busca o deal no cliente (/leads)
+   *  rebusca; o /pipeline já reconcilia via router.refresh. */
+  onDealAtualizado?: () => void;
 }
+
+export type DealDetailSection = SectionId;
 
 type SectionId =
   | "executiva"
@@ -342,8 +354,11 @@ export function DealDetailModal({
   deal,
   onClose,
   stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+  initialSection,
+  podeEditarValor = true,
+  onDealAtualizado,
 }: DealDetailModalProps) {
-  const [section, setSection] = useState<SectionId>("executiva");
+  const [section, setSection] = useState<SectionId>(initialSection ?? "executiva");
   const [showLateralEditor, setShowLateralEditor] = useState(false);
   const documentos = useDocumentosAtleta(deal?.atleta_id);
 
@@ -432,7 +447,12 @@ export function DealDetailModal({
                 </span>
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
-                <span>{fmtBRL(deal.deal_value_brl)}</span>
+                <span title={explicarOrigemValor(deal)}>
+                  {formatarValorDeal(deal.deal_value_brl, deal.valor_origem)}
+                  {deal.valor_origem && deal.valor_origem !== "contratado" && (
+                    <> · {ROTULO_ORIGEM_VALOR[deal.valor_origem]}</>
+                  )}
+                </span>
                 <span>·</span>
                 <span>{diasEtapa}d na etapa</span>
                 <span>·</span>
@@ -543,7 +563,14 @@ export function DealDetailModal({
 
             {/* Content */}
             <main className="min-w-0 flex-1 overflow-y-auto px-4 py-3">
-              {section === "executiva" && <VisaoExecutivaPanel deal={deal} />}
+              {section === "executiva" && (
+                <VisaoExecutivaPanel
+                  deal={deal}
+                  podeEditarValor={podeEditarValor}
+                  onAbrirContrato={() => setSection("financeiro")}
+                  onValorAtualizado={onDealAtualizado}
+                />
+              )}
               {section === "acompanhamento" && (
                 <AcompanhamentoHeadPanel atletaId={deal.atleta_id} />
               )}
@@ -559,7 +586,13 @@ export function DealDetailModal({
               {section === "esporte" && <EsporteSection deal={deal} />}
               {section === "familia" && <FamiliaSection deal={deal} />}
               {section === "comercial" && (
-                <ComercialSection deal={deal} stageConfig={stageConfig} />
+                <ComercialSection
+                  deal={deal}
+                  stageConfig={stageConfig}
+                  podeEditarValor={podeEditarValor}
+                  onAbrirContrato={() => setSection("financeiro")}
+                  onValorAtualizado={onDealAtualizado}
+                />
               )}
               {section === "reuniao" && <ReuniaoSection deal={deal} />}
               {section === "conversa" && (
@@ -805,9 +838,12 @@ function FamiliaSection({ deal }: { deal: Deal }) {
           <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
             <Field
               label="Faixa investimento"
-              value={deal.investment_range}
+              value={deal.investment_range ? formatInvestmentRange(deal.investment_range) : undefined}
             />
-            <Field label="Plano" value={deal.product_tier} />
+            <Field
+              label="Plano"
+              value={deal.product_tier ?? (deal.contrato_id ? "Aguardando plano" : undefined)}
+            />
             <Field
               label="Tem desconto?"
               value={deal.has_discount ? `${deal.discount_pct ?? 0}%` : "Não"}
@@ -841,44 +877,66 @@ function FamiliaSection({ deal }: { deal: Deal }) {
 function ComercialSection({
   deal,
   stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+  podeEditarValor = true,
+  onAbrirContrato,
+  onValorAtualizado,
 }: {
   deal: Deal;
   stageConfig?: DealStageConfigMap;
+  podeEditarValor?: boolean;
+  onAbrirContrato?: () => void;
+  onValorAtualizado?: () => void;
 }) {
   const stageCfg = stageConfig[deal.stage];
   // Customização do valor direto do modal (2026-09-11) — sem passar pelo
-  // editor lateral antigo.
+  // editor lateral antigo. Com contrato, o valor é editado no contrato (T3).
   const [customizando, setCustomizando] = useState(false);
+  const origem = deal.valor_origem ?? "estimado";
+  const valorPill = (
+    <StatPill
+      label={`Valor BRL · ${ROTULO_ORIGEM_VALOR[origem]}${podeEditarValor ? " ✎" : ""}`}
+      value={formatarValorDeal(deal.deal_value_brl, origem)}
+      tone={origem === "negociado" ? "orange" : "default"}
+    />
+  );
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <button
-          type="button"
-          onClick={() => setCustomizando(true)}
-          title="Customizar valor (com justificativa — fica no audit)"
-          className="rounded-lg text-left transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <StatPill
-            label={deal.flag_valores_customizados ? "Valor BRL · customizado ✎" : "Valor BRL ✎"}
-            value={fmtBRL(deal.deal_value_brl)}
-          />
-        </button>
+        {podeEditarValor ? (
+          <button
+            type="button"
+            onClick={() => (origem === "contratado" ? onAbrirContrato?.() : setCustomizando(true))}
+            title={explicarOrigemValor(deal)}
+            className="rounded-lg text-left transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {valorPill}
+          </button>
+        ) : (
+          <div title={explicarOrigemValor(deal)}>{valorPill}</div>
+        )}
         {customizando && (
           <CustomizarValorModal
             dealId={deal.id}
             athleteName={deal.athlete_name}
             valorAtual={deal.deal_value_brl}
             jaCustomizado={deal.flag_valores_customizados}
+            origem={deal.valor_origem}
+            explicacaoOrigem={explicarOrigemValor(deal)}
             onClose={() => setCustomizando(false)}
+            onSaved={onValorAtualizado}
+            onTemContrato={() => {
+              setCustomizando(false);
+              onAbrirContrato?.();
+            }}
           />
         )}
         <StatPill
-          label="Sinal BRL"
+          label="Sinal recebido"
           value={fmtBRL(deal.signal_value_brl)}
           tone="green"
         />
         <StatPill
-          label="Saldo BRL"
+          label="Saldo a receber"
           value={fmtBRL(deal.remaining_value_brl)}
           tone="blue"
         />
@@ -935,6 +993,7 @@ function ComercialSection({
               label="Valores customizados?"
               value={deal.flag_valores_customizados ? "Sim" : "Não"}
             />
+            <Field label="Origem do valor" value={explicarOrigemValor(deal)} />
           </dl>
         </Card>
 

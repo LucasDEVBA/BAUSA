@@ -2,6 +2,7 @@
 
 import { ExportCSVButton } from "@/components/shared/ExportCSVButton";
 import { type Deal } from "@/types/deal";
+import { ROTULO_ORIGEM_VALOR } from "@/lib/valor-deal";
 import {
   DEFAULT_DEAL_STAGE_DISPLAY,
   type DealStageConfigMap,
@@ -25,6 +26,9 @@ export function PipelineExportButton({
     "Proxima Acao",
     "Data Proxima Acao",
     "Criado em",
+    // T3 — no FIM para não deslocar colunas de planilhas já montadas
+    "Origem do valor",
+    "Plano",
   ];
 
   const rows = deals.map((deal) => [
@@ -37,6 +41,8 @@ export function PipelineExportButton({
       ? new Date(deal.next_action_date).toLocaleDateString("pt-BR")
       : "",
     new Date(deal.created_at).toLocaleDateString("pt-BR"),
+    ROTULO_ORIGEM_VALOR[deal.valor_origem ?? "estimado"],
+    deal.product_tier ?? "",
   ]);
 
   return (

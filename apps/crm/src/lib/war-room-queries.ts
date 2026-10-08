@@ -14,6 +14,7 @@ import type {
 } from "@/types/revenue";
 import type { Family } from "@/types/family";
 import type { Deal, DealStage } from "@/types/deal";
+import { EMBED_CONTRATO_VALOR_LEVE, valorExibidoDeal } from "@/lib/valor-deal";
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -64,10 +65,15 @@ export async function fetchDealsAtivos() {
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase
     .from("deals")
-    .select("id, valor_estimado, probabilidade_fechamento, etapa, next_action, data_proxima_acao, atleta:atletas(nome_completo)")
+    // Template literal ÚNICO (sem "+"): concatenar vira `string` e o
+    // supabase-js perde o parse do select (GenericStringError).
+    .select(
+      `id, valor_estimado, flag_valores_customizados, probabilidade_fechamento, etapa, next_action, data_proxima_acao, atleta:atletas(nome_completo), ${EMBED_CONTRATO_VALOR_LEVE}`,
+    )
     .is("deleted_at", null)
     .not("etapa", "in", "(perdido,concluido,cancelamento_solicitado)");
-  return data || [];
+  // `valor` = mesmo número do card do /pipeline (contrato > negociado > estimado — T3)
+  return (data || []).map((d) => ({ ...d, valor: valorExibidoDeal(d) }));
 }
 
 export async function fetchDealsConcluidos() {
@@ -157,7 +163,7 @@ export async function fetchWarRoomMetrics(): Promise<WarRoomMetrics> {
     fetchExperienciaStats(),
   ]);
 
-  const pipelineTotal = dealsAtivos.reduce((s, d) => s + (Number(d.valor_estimado) || 0), 0);
+  const pipelineTotal = dealsAtivos.reduce((s, d) => s + d.valor, 0);
   const taxaConversao = dealsTotal > 0 ? Math.round((dealsConcluidos / dealsTotal) * 100) : 0;
   const avgTicket = dealsConcluidos > 0 ? Math.round(pipelineTotal / dealsAtivos.length) : 0;
   const expTotal = expStats.length;
@@ -252,7 +258,7 @@ export async function fetchMetaRevenue(): Promise<MetaRevenueMetrics> {
   ]);
 
   const pipelineProvavel = dealsAtivos.reduce(
-    (s, d) => s + (Number(d.valor_estimado) || 0) * (Number(d.probabilidade_fechamento) || 0) / 100,
+    (s, d) => s + d.valor * (Number(d.probabilidade_fechamento) || 0) / 100,
     0
   );
   const projected = receitaRecebida + pipelineProvavel;
@@ -324,21 +330,21 @@ export async function fetchRevenueAtRisk(): Promise<RevenueAtRiskMetrics> {
   // Contratos enviados sem assinatura
   const { data: semAssinatura } = await supabase
     .from("deals")
-    .select("id, valor_estimado")
+    .select(`id, valor_estimado, flag_valores_customizados, ${EMBED_CONTRATO_VALOR_LEVE}`)
     .eq("etapa", "contrato_enviado")
     .is("deleted_at", null);
 
   // Contrato assinado sem sinal pago
   const { data: semSinal } = await supabase
     .from("deals")
-    .select("id, valor_estimado")
+    .select(`id, valor_estimado, flag_valores_customizados, ${EMBED_CONTRATO_VALOR_LEVE}`)
     .eq("etapa", "contrato_assinado")
     .is("deleted_at", null);
 
   // Sinal pago com remanescente pendente
   const { data: semRemanescente } = await supabase
     .from("deals")
-    .select("id, valor_estimado")
+    .select(`id, valor_estimado, flag_valores_customizados, ${EMBED_CONTRATO_VALOR_LEVE}`)
     .in("etapa", ["sinal_pago", "admission_process"])
     .is("deleted_at", null);
 
@@ -352,11 +358,11 @@ export async function fetchRevenueAtRisk(): Promise<RevenueAtRiskMetrics> {
 
   return {
     contracts_without_signature_count: semAssinaturaList.length,
-    contracts_without_signature_brl: semAssinaturaList.reduce((s, d) => s + (Number(d.valor_estimado) || 0), 0),
+    contracts_without_signature_brl: semAssinaturaList.reduce((s, d) => s + valorExibidoDeal(d), 0),
     unpaid_signals_count: semSinalList.length,
-    unpaid_signals_brl: semSinalList.reduce((s, d) => s + (Number(d.valor_estimado) || 0) * 0.15, 0),
+    unpaid_signals_brl: semSinalList.reduce((s, d) => s + valorExibidoDeal(d) * 0.15, 0),
     pending_remaining_count: semRemanList.length,
-    pending_remaining_brl: semRemanList.reduce((s, d) => s + (Number(d.valor_estimado) || 0) * 0.85, 0),
+    pending_remaining_brl: semRemanList.reduce((s, d) => s + valorExibidoDeal(d) * 0.85, 0),
     overdue_receivables_brl: totalAtrasado,
   };
 }
@@ -365,7 +371,7 @@ export async function fetchPositioning(): Promise<PositioningMetrics> {
   // Ticket médio do pipeline (deals ativos) — independente do mix de planos.
   const dealsAtivos = await fetchDealsAtivos();
   const totalDeals = dealsAtivos.length;
-  const totalValor = dealsAtivos.reduce((s, d) => s + (Number(d.valor_estimado) || 0), 0);
+  const totalValor = dealsAtivos.reduce((s, d) => s + d.valor, 0);
   const avg_ticket_brl = totalDeals > 0 ? Math.round(totalValor / totalDeals) : 0;
 
   // Mix de planos + desconto vêm dos CONTRATOS: o plano real do cliente vive em
@@ -648,13 +654,13 @@ export async function fetchBottlenecks(): Promise<Bottleneck[]> {
   const supabase = await createServerSupabaseClient();
   const { data: propostasParadas } = await supabase
     .from("deals")
-    .select("id, valor_estimado")
+    .select(`id, valor_estimado, flag_valores_customizados, ${EMBED_CONTRATO_VALOR_LEVE}`)
     .eq("etapa", "proposta_enviada")
     .is("deleted_at", null)
     .lt("updated_at", limite15d);
 
   if (propostasParadas && propostasParadas.length > 0) {
-    const total = propostasParadas.reduce((s, d) => s + (Number(d.valor_estimado) || 0), 0);
+    const total = propostasParadas.reduce((s, d) => s + valorExibidoDeal(d), 0);
     bottlenecks.push({
       id: "b-proposta",
       title: `Pipeline parado na etapa de Proposta Enviada`,
@@ -978,7 +984,9 @@ export async function fetchCancellations(): Promise<CancellationDeal[]> {
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase
     .from("deals")
-    .select("id, etapa, valor_estimado, motivo_perda, detalhe_perda, pode_reativar, data_reativacao, updated_at, atleta:atletas(nome_completo)")
+    .select(
+      `id, etapa, valor_estimado, flag_valores_customizados, motivo_perda, detalhe_perda, pode_reativar, data_reativacao, updated_at, atleta:atletas(nome_completo), ${EMBED_CONTRATO_VALOR_LEVE}`,
+    )
     .is("deleted_at", null)
     .in("etapa", ["cancelamento_solicitado", "perdido"])
     .order("updated_at", { ascending: false });
@@ -990,7 +998,8 @@ export async function fetchCancellations(): Promise<CancellationDeal[]> {
     return {
       id: d.id as string,
       athlete_name: (atleta?.nome_completo as string) || "Atleta",
-      valor_estimado: Number(d.valor_estimado) || 0,
+      // Nome do campo mantido (consumidor /financeiro); valor resolvido (T3)
+      valor_estimado: valorExibidoDeal(d),
       motivo_perda: d.motivo_perda as string | null,
       detalhe_perda: d.detalhe_perda as string | null,
       pode_reativar: (d.pode_reativar as boolean) || false,
