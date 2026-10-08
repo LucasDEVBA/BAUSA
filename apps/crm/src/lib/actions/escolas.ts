@@ -85,7 +85,12 @@ export async function criarEscola(input: unknown): Promise<Resultado<{ escolaId:
       .ilike("nome", dados.nome.replace(/[%_\\]/g, "\\$&"))
       .is("deleted_at", null)
       .limit(1);
-    if (erroBusca) logErro("criar_escola_dedupe", {}, erroBusca);
+    // Fail-closed: o banco não tem UNIQUE em nome — se a checagem falhar,
+    // gravar às cegas pode criar o homônimo que confunde Match e Ganho.
+    if (erroBusca) {
+      logErro("criar_escola_dedupe", {}, erroBusca);
+      return { success: false, error: mensagemErroBanco(erroBusca) };
+    }
     if ((homonimas ?? []).length > 0) {
       return { success: false, error: "Já existe uma escola com este nome no banco." };
     }
@@ -143,13 +148,18 @@ export async function atualizarEscola(escolaId: string, patch: unknown): Promise
     }
 
     if (dados.nome && dados.nome.toLowerCase() !== String(atual.nome).toLowerCase()) {
-      const { data: homonimas } = await supabase
+      const { data: homonimas, error: erroHomonimas } = await supabase
         .from("escolas")
         .select("id")
         .ilike("nome", dados.nome.replace(/[%_\\]/g, "\\$&"))
         .neq("id", escolaId)
         .is("deleted_at", null)
         .limit(1);
+      // Fail-closed, como a leitura acima (sem UNIQUE em nome no banco).
+      if (erroHomonimas) {
+        logErro("atualizar_escola_dedupe", { escolaId }, erroHomonimas);
+        return { success: false, error: mensagemErroBanco(erroHomonimas) };
+      }
       if ((homonimas ?? []).length > 0) {
         return { success: false, error: "Já existe outra escola com este nome no banco." };
       }

@@ -20,7 +20,11 @@
 //   6. Migration aditiva: perfil NULLABLE sem default, gate por TABELA, view
 //      security_invoker; calcular_match_score intocado.
 //   7. Sheets: cadastro digitado não some sem confirmação e o foco nunca cai
-//      fora do diálogo (abrir/fechar, entrar/sair da edição).
+//      fora do diálogo (abrir/fechar, entrar/sair da edição, aba Contatos).
+//      "Salvar" sem alteração não pergunta "Descartar?" e o sheet não fecha
+//      com o UPDATE em voo. Quem trava o <main> usa a trava COM CONTADOR
+//      (ConfirmProvider + sheet fechando no mesmo commit prendiam a rolagem).
+//   8. Script de correção em lote aborta com nome ambíguo.
 // ════════════════════════════════════════════════════════════════════════
 
 const { test } = require('node:test');
@@ -206,6 +210,11 @@ test('atualizarEscola: CEO-gated, Zod estrito com lista branca, sem as any', () 
   assert.match(fn, /escolaAtualizarSchema\.safeParse\(/, 'validação Zod sumiu');
   assert.match(fn, /\.update\(dados\)/, 'UPDATE deve usar SÓ o dado validado');
   assert.match(fn, /\.is\("deleted_at", null\)/, 'não pode editar escola removida');
+  // Sem UNIQUE em escolas.nome: dedupe que falha não pode gravar às cegas.
+  assert.match(fn, /if \(erroHomonimas\) \{[\s\S]*?return \{ success: false/,
+    'dedupe do renomear deve ser fail-closed');
+  const criar = src.slice(src.indexOf('export async function criarEscola'), src.indexOf('export async function atualizarEscola'));
+  assert.match(criar, /if \(erroBusca\) \{[\s\S]*?return \{ success: false/, 'dedupe do cadastro deve ser fail-closed');
 
   const schema = semComentarios(ler(SCHEMA));
   assert.match(schema, /escolaAtualizarSchema = z\.strictObject\(ESCOLA_COLUNAS_SHAPE\)\.partial\(\)/,
@@ -249,6 +258,63 @@ test('sheets de escola: cadastro não some sem confirmação e o foco nunca cai 
   const detalhe = semComentarios(ler(path.join(CRM, 'components', 'escolas', 'SchoolDetailSheet.tsx')));
   assert.match(detalhe, /editarRef\.current\?\.focus\(\)/, 'sair da edição deve devolver o foco ao "Editar"');
   assert.match(semComentarios(ler(EDIT)), /setFocus\("nome"\)/, 'entrar na edição deve focar o 1º campo');
+  const contatos = semComentarios(ler(path.join(CRM, 'components', 'escolas', 'SchoolContatosTab.tsx')));
+  assert.match(contatos, /novoContatoRef\.current\?\.focus\(\)/,
+    'fechar o form de contato (Salvar/Cancelar) deve devolver o foco ao "Novo contato"');
+});
+
+test('"Salvar" sem alteração sai da edição sem perguntar e o sheet não fecha com UPDATE em voo', () => {
+  const edit = semComentarios(ler(EDIT));
+  const ramoVazio = edit.slice(
+    edit.indexOf('Object.keys(patch).length === 0'),
+    edit.indexOf('escolaAtualizarSchema.safeParse(patch)'),
+  );
+  assert.match(ramoVazio, /onSemAlteracoes\(\)/, 'patch vazio deve sair da edição direto');
+  assert.ok(!/onCancel\(\)/.test(ramoVazio),
+    'patch vazio caía no "Descartar alterações?" (isDirty cru × diff normalizado)');
+  assert.match(edit, /onSavingChange\(salvando\)/, 'o pai precisa saber que o UPDATE está em voo');
+
+  const detalhe = semComentarios(ler(path.join(CRM, 'components', 'escolas', 'SchoolDetailSheet.tsx')));
+  const fechar = detalhe.slice(detalhe.indexOf('const fechar = useCallback'), detalhe.indexOf('onClose();'));
+  assert.match(fechar, /if \(salvandoEdicao\) return;/,
+    'Esc/fundo/X durante o salvamento ofereciam "Descartar" e o servidor gravava mesmo assim');
+  assert.match(detalhe, /onSavingChange=\{setSalvandoEdicao\}/);
+  assert.match(detalhe, /onSemAlteracoes=\{sairDaEdicao\}/);
+});
+
+test('trava de rolagem do <main> é compartilhada e com contador', () => {
+  const trava = semComentarios(ler(path.join(CRM, 'lib', 'trava-rolagem.ts')));
+  assert.match(trava, /donos \+= 1/, 'trava precisa contar os donos');
+  assert.match(
+    trava,
+    /if \(minhaTrava\.donos > 0\) return;[\s\S]*?elemento\.style\.overflow = minhaTrava\.overflowOriginal/,
+    'só a ÚLTIMA liberação pode restaurar o overflow original',
+  );
+  assert.match(trava, /if \(liberada\) return;/, 'liberar 2x não pode descontar outro dono');
+
+  // Todo arquivo do Engine que trava o <main> passa pela trava compartilhada:
+  // "salva e restaura" no mesmo scroller depende da ordem das limpezas.
+  const arquivos = [];
+  const varrer = (dir) => {
+    for (const nome of fs.readdirSync(dir)) {
+      const p = path.join(dir, nome);
+      if (fs.statSync(p).isDirectory()) varrer(p);
+      else if (/\.(ts|tsx)$/.test(nome)) arquivos.push(p);
+    }
+  };
+  varrer(CRM);
+  const violacoes = arquivos.filter((f) => {
+    if (f.endsWith(path.join('lib', 'trava-rolagem.ts'))) return false;
+    const src = semComentarios(ler(f));
+    return /querySelector\(["']main["']\)/.test(src) && /\.style\.overflow\s*=(?!=)/.test(src);
+  });
+  assert.deepEqual(violacoes, [], `trava manual do <main> (use travarRolagem):\n${violacoes.join('\n')}`);
+  for (const f of [
+    path.join(CRM, 'components', 'ui', 'ConfirmDialog.tsx'),
+    path.join(CRM, 'components', 'escolas', 'prender-foco.ts'),
+  ]) {
+    assert.match(ler(f), /from "@\/lib\/trava-rolagem"/, `${path.basename(f)} deve usar a trava compartilhada`);
+  }
 });
 
 // ─── 4. Contatos ─────────────────────────────────────────────────────────
@@ -330,4 +396,14 @@ test('migration audit: fallback auth.uid() protegido por EXCEPTION, SECURITY DEF
   // (JWT de usuário removido) abortaria a escrita com 23503.
   assert.match(sql, /NOT EXISTS \(SELECT 1 FROM auth\.users au WHERE au\.id = _user_id\)/,
     'user_id só pode ser gravado se existir em auth.users');
+});
+
+// ─── 8. Script de correção em lote ───────────────────────────────────────
+
+test('script 02 aborta com nome ambíguo (sem UNIQUE em escolas.nome)', () => {
+  const sql = ler(path.join(RAIZ, 'scripts', 'sql', 'pendentes-ceo', 'escolas', '02_correcao_pos_validacao.sql'));
+  const guardas = sql.slice(sql.indexOf('DO $$'), sql.indexOf('END $$;'));
+  assert.match(guardas, /GROUP BY lower\(c\.nome\) HAVING count\(\*\) > 1/,
+    'UPDATE ... FROM corrigiria todas as homônimas ativas sem aviso');
+  assert.match(sql, /ROLLBACK;\s*--/, 'script deve terminar em ROLLBACK');
 });

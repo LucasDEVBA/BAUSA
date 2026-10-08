@@ -192,6 +192,7 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
   const [aba, setAba] = useState<Aba>("info");
   const [editando, setEditando] = useState(false);
   const [formSujo, setFormSujo] = useState(false);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const fecharRef = useRef<HTMLButtonElement>(null);
   const editarRef = useRef<HTMLButtonElement>(null);
   const estavaEditando = useRef(false);
@@ -199,6 +200,9 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
   const localizacao = formatarLocalizacao(school.cidade, school.estado_us);
 
   const fechar = useCallback(async () => {
+    // UPDATE em voo: "Descartar" aqui mentiria — o servidor grava e o toast
+    // "Escola atualizada." chega depois do sheet fechado.
+    if (salvandoEdicao) return;
     if (editando && formSujo) {
       const descartar = await confirm({
         title: "Descartar alterações?",
@@ -209,7 +213,7 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
       if (!descartar) return;
     }
     onClose();
-  }, [confirm, editando, formSujo, onClose]);
+  }, [confirm, editando, formSujo, onClose, salvandoEdicao]);
 
   // Foco inicial no fechar; Esc fecha; foco volta para quem abriu; sem scroll do fundo.
   useEffect(() => {
@@ -237,11 +241,15 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
     estavaEditando.current = editando;
   }, [editando]);
 
-  const aoSalvar = useCallback(() => {
+  const sairDaEdicao = useCallback(() => {
     setEditando(false);
     setFormSujo(false);
+  }, []);
+
+  const aoSalvar = useCallback(() => {
+    sairDaEdicao();
     router.refresh();
-  }, [router]);
+  }, [router, sairDaEdicao]);
 
   const cancelarEdicao = useCallback(async () => {
     if (formSujo) {
@@ -252,9 +260,8 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
       });
       if (!descartar) return;
     }
-    setEditando(false);
-    setFormSujo(false);
-  }, [confirm, formSujo]);
+    sairDaEdicao();
+  }, [confirm, formSujo, sairDaEdicao]);
 
   return (
     <>
@@ -292,6 +299,7 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
             variant="ghost"
             size="icon"
             onClick={() => void fechar()}
+            disabled={salvandoEdicao}
             aria-label="Fechar detalhe da escola"
             className="shrink-0"
           >
@@ -339,7 +347,9 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
                 school={school}
                 onCancel={() => void cancelarEdicao()}
                 onSaved={aoSalvar}
+                onSemAlteracoes={sairDaEdicao}
                 onDirtyChange={setFormSujo}
+                onSavingChange={setSalvandoEdicao}
               />
             ) : (
               <div className="space-y-4">

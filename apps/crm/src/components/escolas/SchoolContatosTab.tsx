@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import {
   Calendar,
   FileText,
@@ -66,6 +66,20 @@ export function SchoolContatosTab({ escolaId, agoraMs, onRegistrado }: SchoolCon
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [salvando, startSalvar] = useTransition();
   const [tentativa, setTentativa] = useState(0);
+  const novoContatoRef = useRef<HTMLButtonElement>(null);
+  const formEstavaAberto = useRef(false);
+
+  // Salvar/Cancelar desmontam o botão focado ao fechar o formulário: sem isto
+  // o foco cai no <body>, fora do diálogo, e o Tab escapa para a página.
+  useEffect(() => {
+    if (formEstavaAberto.current && !mostrarForm) novoContatoRef.current?.focus();
+    formEstavaAberto.current = mostrarForm;
+  }, [mostrarForm]);
+
+  const recarregar = () => {
+    setLista({ fase: "carregando" });
+    setTentativa((t) => t + 1);
+  };
 
   useEffect(() => {
     let ativo = true;
@@ -96,11 +110,19 @@ export function SchoolContatosTab({ escolaId, agoraMs, onRegistrado }: SchoolCon
           setErroForm(r.error);
           return;
         }
-        setLista((atual) =>
-          atual.fase === "pronto"
-            ? { fase: "pronto", contatos: [r.data, ...atual.contatos].sort((a, b) => b.data.localeCompare(a.data)) }
-            : { fase: "pronto", contatos: [r.data] },
-        );
+        // Lista em erro/carregando: fabricar [r.data] esconderia os contatos
+        // que já existem (e o load em voo, anterior ao INSERT, o sobrescreveria).
+        // `lista` é a do clique: de "pronto" ela nunca sai, então só erra para
+        // o lado seguro (recarregar à toa).
+        if (lista.fase === "pronto") {
+          setLista((atual) =>
+            atual.fase === "pronto"
+              ? { fase: "pronto", contatos: [r.data, ...atual.contatos].sort((a, b) => b.data.localeCompare(a.data)) }
+              : atual,
+          );
+        } else {
+          recarregar();
+        }
         setForm({ data: hojeIsoBrasilia(agoraMs), tipo: "email", resumo: "" });
         setMostrarForm(false);
         toast.success("Contato registrado.");
@@ -116,7 +138,13 @@ export function SchoolContatosTab({ escolaId, agoraMs, onRegistrado }: SchoolCon
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-foreground">Timeline de contatos</h3>
-        <Button variant="secondary" size="sm" onClick={() => setMostrarForm((v) => !v)} aria-expanded={mostrarForm}>
+        <Button
+          ref={novoContatoRef}
+          variant="secondary"
+          size="sm"
+          onClick={() => setMostrarForm((v) => !v)}
+          aria-expanded={mostrarForm}
+        >
           <Plus aria-hidden />
           Novo contato
         </Button>
@@ -188,7 +216,15 @@ export function SchoolContatosTab({ escolaId, agoraMs, onRegistrado }: SchoolCon
       {lista.fase === "erro" && (
         <div role="alert" className="rounded-lg border border-sys-red/25 bg-sys-red/8 px-3 py-2 text-xs text-sys-red">
           {lista.mensagem}{" "}
-          <button type="button" onClick={() => { setLista({ fase: "carregando" }); setTentativa((t) => t + 1); }} className="font-semibold underline">
+          <button
+            type="button"
+            onClick={() => {
+              // O botão some no "carregando": o foco não pode cair no <body>.
+              novoContatoRef.current?.focus();
+              recarregar();
+            }}
+            className="font-semibold underline"
+          >
             Tentar de novo
           </button>
         </div>

@@ -26,6 +26,16 @@ type FiltroTipo = TipoEscola | typeof TODOS;
 type FiltroStatus = StatusEscola | typeof TODOS;
 type FiltroPerfil = PerfilEscola | typeof SEM_PERFIL | typeof TODOS;
 
+/**
+ * Opções derivadas das escolas atuais + a selecionada, se ela sumiu (ex.: a
+ * última escola "A confirmar" ganhou UF). Sem isto o <select> controlado fica
+ * em branco com o filtro invisível ainda aplicado.
+ */
+function opcoesComSelecionada(opcoes: string[], selecionada: string): string[] {
+  if (selecionada === TODOS || opcoes.includes(selecionada)) return opcoes;
+  return [...opcoes, selecionada].sort();
+}
+
 const selectClass =
   "h-9 w-full min-w-0 appearance-none rounded-md border border-input bg-card px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 sm:w-auto";
 
@@ -58,12 +68,12 @@ export function EscolasClient({ schools, historicoDisponivel, agoraMs }: Escolas
   );
 
   const estados = useMemo(
-    () => Array.from(new Set(schools.map((s) => s.estado_us))).sort(),
-    [schools],
+    () => opcoesComSelecionada(Array.from(new Set(schools.map((s) => s.estado_us))).sort(), estado),
+    [schools, estado],
   );
   const esportes = useMemo(
-    () => Array.from(new Set(schools.flatMap((s) => s.esportes_oferecidos))).sort(),
-    [schools],
+    () => opcoesComSelecionada(Array.from(new Set(schools.flatMap((s) => s.esportes_oferecidos))).sort(), esporte),
+    [schools, esporte],
   );
 
   const filtered = useMemo(() => {
@@ -111,7 +121,8 @@ export function EscolasClient({ schools, historicoDisponivel, agoraMs }: Escolas
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por nome, cidade ou estado…"
-            className="pl-9 pr-9"
+            // O X nativo do type=search duplicaria o "Limpar busca" abaixo.
+            className="pl-9 pr-9 [&::-webkit-search-cancel-button]:hidden"
           />
           {query && (
             <button

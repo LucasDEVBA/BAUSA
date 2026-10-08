@@ -46,6 +46,13 @@ BEGIN
              WHERE e.id IS NULL) THEN
     RAISE EXCEPTION 'Escola não encontrada (nome diferente do cadastro).';
   END IF;
+  -- Sem UNIQUE em escolas.nome: o UPDATE ... FROM abaixo corrigiria TODAS as
+  -- homônimas ativas sem aviso. Ambíguo = corrigir pela tela, escola a escola.
+  IF EXISTS (SELECT 1 FROM correcoes_escolas c
+             JOIN public.escolas e ON lower(e.nome) = lower(c.nome) AND e.deleted_at IS NULL
+             GROUP BY lower(c.nome) HAVING count(*) > 1) THEN
+    RAISE EXCEPTION 'Nome ambíguo: mais de uma escola ativa (ou linha repetida na lista) com este nome — corrigir pela tela.';
+  END IF;
   IF EXISTS (SELECT 1 FROM correcoes_escolas WHERE tipo IS NOT NULL AND tipo NOT IN ('boarding','day','mista')) THEN
     RAISE EXCEPTION 'tipo inválido (use boarding, day ou mista).';
   END IF;

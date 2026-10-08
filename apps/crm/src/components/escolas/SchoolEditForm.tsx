@@ -26,7 +26,11 @@ interface SchoolEditFormProps {
   school: School;
   onCancel: () => void;
   onSaved: () => void;
+  /** Patch vazio: sai da edição SEM perguntar "Descartar?" (não há o que descartar). */
+  onSemAlteracoes: () => void;
   onDirtyChange: (sujo: boolean) => void;
+  /** O pai bloqueia fechar o sheet enquanto o UPDATE está em voo. */
+  onSavingChange: (salvando: boolean) => void;
 }
 
 /**
@@ -34,7 +38,14 @@ interface SchoolEditFormProps {
  * envia SÓ os campos alterados — "Salvar" sem mexer não chama o servidor.
  * O pai remonta este componente por `key={school.updated_at}`.
  */
-export function SchoolEditForm({ school, onCancel, onSaved, onDirtyChange }: SchoolEditFormProps) {
+export function SchoolEditForm({
+  school,
+  onCancel,
+  onSaved,
+  onSemAlteracoes,
+  onDirtyChange,
+  onSavingChange,
+}: SchoolEditFormProps) {
   const original = useMemo(() => valoresDaEscola(school), [school]);
   const [salvando, startSalvar] = useTransition();
   const {
@@ -54,6 +65,14 @@ export function SchoolEditForm({ school, onCancel, onSaved, onDirtyChange }: Sch
     onDirtyChange(isDirty);
   }, [isDirty, onDirtyChange]);
 
+  useEffect(() => {
+    onSavingChange(salvando);
+  }, [salvando, onSavingChange]);
+
+  // O sucesso desmonta o form no mesmo commit em que `salvando` volta a
+  // false (o efeito acima não roda mais): sem isto o sheet ficaria "salvando".
+  useEffect(() => () => onSavingChange(false), [onSavingChange]);
+
   // O "Editar" que tinha o foco desmonta ao entrar na edição: o foco vai para
   // o 1º campo (senão cai no <body>, fora do diálogo).
   useEffect(() => {
@@ -69,8 +88,10 @@ export function SchoolEditForm({ school, onCancel, onSaved, onDirtyChange }: Sch
 
     const patch = diffEscola(original, montagem.valores);
     if (Object.keys(patch).length === 0) {
+      // O isDirty do RHF compara o input cru; o diff, o valor normalizado
+      // (espaço no fim, ordem dos testes): sujo para um, vazio para o outro.
       toast.info("Nenhuma alteração para salvar.");
-      onCancel();
+      onSemAlteracoes();
       return;
     }
 

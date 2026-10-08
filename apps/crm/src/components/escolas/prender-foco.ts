@@ -1,5 +1,7 @@
 import type { KeyboardEvent } from "react";
 
+import { travarRolagem } from "@/lib/trava-rolagem";
+
 const FOCAVEIS =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -29,13 +31,9 @@ export function prenderTabNoDialogo(e: KeyboardEvent<HTMLElement>): void {
 
 /**
  * Trava a rolagem do fundo. O scroller do dashboard é o <main>, não o <body>
- * (mesmo alvo do ConfirmProvider). Devolve a função que restaura.
+ * — o MESMO alvo do ConfirmProvider, por isso a trava compartilhada com
+ * contador (ver lib/trava-rolagem). Devolve a função que libera.
  */
 export function travarRolagemDoFundo(): () => void {
-  const scroller = document.querySelector("main") ?? document.body;
-  const anterior = scroller.style.overflow;
-  scroller.style.overflow = "hidden";
-  return () => {
-    scroller.style.overflow = anterior;
-  };
+  return travarRolagem(document.querySelector("main") ?? document.body);
 }
