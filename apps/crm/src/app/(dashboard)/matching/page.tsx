@@ -17,6 +17,7 @@ import {
   MATCH_CLASSIFICATION_CONFIG,
 } from "@/types/matching";
 import { EditableStrategyRow } from "@/components/matching/EditableStrategyRow";
+import { rotuloTipoEscola, siglaEstadoUs } from "@/lib/escolas/apresentacao";
 import {
   ScrollList,
   PageHeader,
@@ -53,8 +54,9 @@ function mapEstrategiaToMatch(row: Record<string, unknown>): SchoolMatch {
   return {
     school_id: (row.escola_id as string) ?? "",
     school_name: (escola?.nome as string) ?? "Escola desconhecida",
-    school_type: (escola?.tipo as string) ?? "",
-    school_state: (escola?.estado_us as string) ?? "",
+    // Rótulo legível ("Boarding (internato)"), nunca o código cru do banco.
+    school_type: rotuloTipoEscola(escola?.tipo as string | null | undefined) ?? "",
+    school_state: siglaEstadoUs(escola?.estado_us as string | null | undefined) ?? "",
     school_city: "",
     score,
     classification,
@@ -371,9 +373,8 @@ export default async function MatchingPage() {
           <div>
             <p className="text-sm font-semibold text-foreground">Inteligencia Institucional Acumulada</p>
             <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-              Cada processo concluido alimenta automaticamente a base de dados com escola aplicada, aceite,
-              bolsa obtida, tempo de resposta e sucesso por perfil de atleta. Com o tempo, o sistema passara
-              a sugerir escolas automaticamente com base em padroes historicos.
+              Cada resultado registrado aqui (aplicação, aceite, recusa e bolsa obtida) alimenta o histórico
+              da escola no Banco de Escolas — atletas em andamento, aceites e bolsa média por escola.
             </p>
           </div>
         </div>

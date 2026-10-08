@@ -1,123 +1,140 @@
-import { GraduationCap, TrendingUp, Users, Star } from "lucide-react";
+import { GraduationCap, Star, TrendingUp, Users } from "lucide-react";
 
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
-  type School,
-  type SchoolType,
-  type SchoolStatus,
-  type SchoolSportInfluence,
-  type ScholarshipAggressiveness,
-} from "@/types/school";
-import { PageHeader, StatCard } from "@/components/ui";
+  ESCOLA_COLUNAS,
+  HISTORICO_COLUNAS,
+  mapearEscola,
+  mapearHistorico,
+  resumirBancoEscolas,
+} from "@/lib/escolas/dados";
+import { formatarPercentual } from "@/lib/escolas/apresentacao";
+import type { HistoricoEscola, School } from "@/types/school";
+import { EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { EscolasClient } from "@/components/escolas/EscolasClient";
 
-// Mapeia dados Supabase (tabela `escolas`) para o tipo School do componente
-function mapSupabaseToSchool(row: Record<string, unknown>): School {
-  const tipoMap: Record<string, SchoolType> = {
-    boarding: "Division I",
-    day: "Division II",
-    mista: "Division III",
-  };
-
-  const statusMap: Record<string, SchoolStatus> = {
-    ativa: "ativa",
-    inativa: "inativa",
-    em_analise: "em_avaliacao",
-  };
-
-  const influenceMap: Record<string, SchoolSportInfluence> = {
-    decisiva: "decisiva",
-    alta: "alta",
-    media: "media",
-    baixa: "baixa",
-  };
-
-  const aggressivenessMap: Record<string, ScholarshipAggressiveness> = {
-    agressiva: "agressiva",
-    moderada: "moderada",
-    conservadora: "conservadora",
-  };
-
-  return {
-    id: row.id as string,
-    name: (row.nome as string) ?? "",
-    state: (row.estado_us as string) ?? "",
-    city: (row.cidade as string) ?? "",
-    type: tipoMap[row.tipo as string] ?? "NAIA",
-    status: statusMap[row.status as string] ?? "ativa",
-    min_budget_usd: Number(row.budget_minimo_usd) || 0,
-    strong_budget_usd: Number(row.budget_forte_usd) || 0,
-    sport_influence: influenceMap[row.influencia_esporte as string] ?? "media",
-    elite_athlete_exception: (row.aceita_excecao_elite as boolean) ?? false,
-    scholarship_aggressiveness: aggressivenessMap[row.agressividade_bolsa as string] ?? "moderada",
-    min_english_level: (row.ingles_minimo as string) ?? "Basico",
-    required_tests: ((row.testes_exigidos as string[]) ?? []) as School["required_tests"],
-    preferred_grade: Array.isArray(row.series_preferenciais) && (row.series_preferenciais as string[]).length > 0
-      ? (row.series_preferenciais as string[])[0]
-      : "",
-    max_grade_accepted: (row.serie_maxima as string) ?? "",
-    total_applications: Number(row.total_aplicados) || 0,
-    acceptance_count: Number(row.total_aceitos) || 0,
-    avg_scholarship_pct: Number(row.bolsa_media_obtida) || 0,
-    avg_response_days: Number(row.tempo_medio_resposta) || 0,
-    practical_rule: (row.regra_pratica as string) ?? "",
-    coach_name: (row.admissions_officer_nome as string) ?? undefined,
-    coach_email: (row.admissions_officer_email as string) ?? undefined,
-    coach_phone: (row.admissions_officer_telefone as string) ?? undefined,
-    notes: (row.notas_internas as string) ?? undefined,
-    link_inscricao: (row.link_inscricao as string) ?? null,
-    link_plano_saude: (row.link_plano_saude as string) ?? null,
-    gpa_minimo: row.gpa_minimo != null ? Number(row.gpa_minimo) : null,
-    temperatura_relacionamento: (row.temperatura_relacionamento as string) ?? "neutro",
-    ultimo_contato_at: (row.ultimo_contato_at as string) ?? null,
-    deadline_fall: (row.deadline_fall as string) ?? null,
-    deadline_spring: (row.deadline_spring as string) ?? null,
-    rolling_admission: (row.rolling_admission as boolean) ?? false,
-    serie_maxima: (row.serie_maxima as string) ?? "",
-  };
-}
+type Linha = Record<string, unknown>;
 
 export default async function EscolasPage() {
   await requirePapel("ceo");
 
   const supabase = await createServerSupabaseClient();
 
-  const { data: rawEscolas } = await supabase
-    .from("escolas")
-    .select("*")
-    .is("deleted_at", null)
-    .order("nome", { ascending: true });
+  // Exatamente 2 consultas: cadastro + histórico agregado (view, ≤ 1 linha
+  // por escola — não esbarra no max_rows=1000 do PostgREST).
+  const [escolasRes, historicoRes] = await Promise.all([
+    supabase
+      .from("escolas")
+      .select(ESCOLA_COLUNAS)
+      .is("deleted_at", null)
+      .order("nome", { ascending: true }),
+    supabase.from("escolas_historico_bausa").select(HISTORICO_COLUNAS),
+  ]);
 
-  const schools: School[] = (rawEscolas ?? []).map(mapSupabaseToSchool);
+  if (escolasRes.error) {
+    console.error({
+      level: "error",
+      action: "carregar_banco_escolas",
+      code: escolasRes.error.code,
+      erro: escolasRes.error.message,
+    });
+    return (
+      <div className="space-y-5">
+        <PageHeader dense eyebrow="Inteligência" title="Banco de Escolas" />
+        <EmptyState
+          icon={GraduationCap}
+          title="Não foi possível carregar o Banco de Escolas"
+          description="Tente recarregar a página. Se persistir, avise o time técnico."
+        />
+      </div>
+    );
+  }
 
-  const activeSchools = schools.filter((s) => s.status === "ativa");
-  const totalApplications = schools.reduce((s, sc) => s + sc.total_applications, 0);
-  const totalAccepted = schools.reduce((s, sc) => s + sc.acceptance_count, 0);
-  const overallAcceptance = totalApplications > 0 ? Math.round((totalAccepted / totalApplications) * 100) : 0;
-  const schoolsWithScholarship = schools.filter((s) => s.avg_scholarship_pct > 0);
-  const avgScholarship = schoolsWithScholarship.length > 0
-    ? Math.round(schoolsWithScholarship.reduce((s, sc) => s + sc.avg_scholarship_pct, 0) / schoolsWithScholarship.length)
-    : 0;
+  // Sinal secundário nunca derruba a tela: sem histórico, os cards mostram
+  // "Histórico indisponível" em vez de zeros.
+  const historicoDisponivel = !historicoRes.error;
+  if (historicoRes.error) {
+    console.error({
+      level: "error",
+      action: "carregar_historico_escolas",
+      code: historicoRes.error.code,
+      erro: historicoRes.error.message,
+    });
+  }
+
+  const historicoPorEscola = new Map<string, HistoricoEscola>();
+  for (const linha of (historicoRes.data ?? []) as Linha[]) {
+    const par = mapearHistorico(linha);
+    if (par) historicoPorEscola.set(par[0], par[1]);
+  }
+
+  const schools: School[] = ((escolasRes.data ?? []) as Linha[])
+    .map((linha) => mapearEscola(linha, historicoPorEscola.get(String(linha.id))))
+    .filter((e): e is School => e !== null);
+
+  const resumo = resumirBancoEscolas(schools);
+  const semDado = historicoDisponivel ? undefined : "histórico indisponível";
 
   return (
     <div className="space-y-5">
-      <PageHeader dense
+      <PageHeader
+        dense
         eyebrow="Inteligência"
         title="Banco de Escolas"
-        description={`Inteligência institucional acumulada — ${schools.length} instituições cadastradas`}
+        description={`High schools parceiras — ${schools.length} ${schools.length === 1 ? "escola cadastrada" : "escolas cadastradas"}`}
       />
 
-      {/* KPI strip */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Escolas ativas" value={activeSchools.length} icon={GraduationCap} accent="brand" />
-        <StatCard label="Aplicações totais" value={totalApplications} icon={Users} accent="blue" />
-        <StatCard label="Taxa de aceite global" value={`${overallAcceptance}%`} icon={TrendingUp} accent="green" />
-        <StatCard label="Bolsa média" value={`${avgScholarship}%`} icon={Star} accent="orange" />
+        <StatCard
+          label="Escolas ativas"
+          value={resumo.escolasAtivas}
+          context={`de ${resumo.totalEscolas}`}
+          icon={GraduationCap}
+          accent="brand"
+        />
+        {/* Soma por escola = pares atleta×escola: o mesmo atleta em 2 escolas conta 2. */}
+        <StatCard
+          label="Candidaturas em andamento"
+          value={historicoDisponivel ? resumo.emAndamento : "—"}
+          context={semDado ?? "atleta × escola, aplicadas ou pré-acordadas"}
+          icon={Users}
+          accent="blue"
+        />
+        <StatCard
+          label="Aceites"
+          value={historicoDisponivel && resumo.respostas > 0 ? resumo.aceitos : "—"}
+          context={
+            semDado ??
+            (resumo.taxaAceitePct != null
+              ? `${resumo.taxaAceitePct}% das respostas`
+              : "nenhuma resposta registrada")
+          }
+          icon={TrendingUp}
+          accent="green"
+        />
+        <StatCard
+          label="Bolsa média obtida"
+          value={historicoDisponivel ? formatarPercentual(resumo.bolsaMediaPct) : "—"}
+          context={
+            semDado ??
+            (resumo.bolsasInformadas > 0
+              ? `${resumo.bolsasInformadas} ${resumo.bolsasInformadas === 1 ? "bolsa informada" : "bolsas informadas"}`
+              : "sem bolsa registrada")
+          }
+          icon={Star}
+          accent="orange"
+        />
       </div>
 
-      {/* Toolbar + grid + sheets (client) */}
-      <EscolasClient schools={schools} />
+      <EscolasClient
+        schools={schools}
+        historicoDisponivel={historicoDisponivel}
+        // Página dinâmica (lê cookies): timestamp de request-time é intencional —
+        // âncora única do "último contato há N dias" (sem mismatch de hidratação).
+        // eslint-disable-next-line react-hooks/purity
+        agoraMs={Date.now()}
+      />
     </div>
   );
 }

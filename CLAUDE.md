@@ -548,7 +548,7 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | `parcelas` | Parcelas de pagamento | vencimento, status, metodo |
 | `crm_experiencia` | Experiência pós-venda (1:1 com atleta) | temperatura (auto), ansiedade, satisfacao |
 | `contatos_experiencia` | Timeline de contatos família | tipo, resumo, proximo_contato |
-| `escolas` | Banco de escolas USA (40+ campos) | taxa_aceitacao (GENERATED), temperatura_relacionamento |
+| `escolas` | Banco de **high schools** USA (40+ campos; tipo boarding/day/mista — nunca vocabulário de universidade) | `perfil` (opcional, preenchido por pessoa), temperatura_relacionamento; histórico real na view `escolas_historico_bausa` (as colunas `total_*`/`bolsa_media_obtida` são legado não alimentado) |
 | `estrategia_escolas` | Match por par atleta-escola | match_score, resultado |
 | `historico_contatos_escola` | Timeline contatos com escolas | tipo, resumo |
 | `tarefas` | Tarefas com prioridade | prazo, prioridade, criada_automaticamente |
@@ -580,7 +580,7 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | `familias_em_alerta_inatividade()` | Famílias excedendo threshold por fase |
 | `trg_experiencia_temperatura()` | Auto-calcula verde/amarelo/vermelho |
 | `trg_deals_check_etapa()` | Detecta retrocesso + seta timestamps |
-| `audit.log_change()` | Trigger genérico de auditoria em 17 tabelas |
+| `audit.log_change()` | Trigger genérico de auditoria (54 triggers). Desde `20261008170100` registra o usuário do JWT da própria requisição (fallback `auth.uid()`, só se existir em `auth.users`); service role/cron = NULL ("sistema") |
 
 ### Páginas CRM (14 rotas)
 
@@ -591,7 +591,7 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | `/crm/leads` | CEO | LeadsTable, LeadStatusBadge, detail sheet |
 | `/crm/pipeline` | CEO | KanbanBoard, KanbanColumn, DealCard, DealModal |
 | `/crm/financeiro` | CEO | MetricCard, ContratoPanel |
-| `/crm/escolas` | CEO | EscolasList, EscolaModal |
+| `/crm/escolas` | CEO | EscolasClient, SchoolCard, SchoolDetailSheet (edição por diff + Contatos) — escrita só CEO/CTO |
 | `/crm/matching` | CEO | Tabelas de estratégia + grid de atletas |
 | `/crm/experiencia` | CEO + Head | ExperienciaDashboard, FamiliaModal |
 | `/crm/tarefas` | Todos | TarefasList |

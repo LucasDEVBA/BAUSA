@@ -720,7 +720,8 @@ Notificacoes in-app. Imutavel apos criacao (sem `updated_at` nem `deleted_at`). 
 
 ### 15. escolas
 
-Base institucional de boarding schools americanas. Cadastro manual pelo CEO.
+Base institucional de **high schools** americanas (boarding, day ou boarding + day — não há
+divisão universitária aqui). Cadastro e edição manuais por CEO/CTO em `/escolas`.
 
 | Coluna | Tipo | Nullable | Default | Constraint | Descricao |
 |--------|------|----------|---------|------------|-----------|
@@ -728,7 +729,8 @@ Base institucional de boarding schools americanas. Cadastro manual pelo CEO.
 | `nome` | TEXT | NOT NULL | — | — | Nome da escola |
 | `estado_us` | TEXT | NOT NULL | — | — | Estado americano |
 | `cidade` | TEXT | NOT NULL | — | — | Cidade |
-| `tipo` | TEXT | NOT NULL | — | `CHECK IN ('boarding','day','mista')` | Tipo de escola |
+| `tipo` | TEXT | NOT NULL | — | `CHECK IN ('boarding','day','mista')` | Tipo da high school — rótulos na UI: Boarding (internato) / Day school / Boarding + Day |
+| `perfil` | TEXT | NULL | — | `CHECK IN ('academia_esportiva','prep_tradicional','religiosa','boarding_internacional','outro')` | Perfil da escola (migration `20261008170000`). Preenchido por pessoa, nunca por IA. NULL = não classificado. Não entra no match |
 | `status` | TEXT | NOT NULL | `'ativa'` | `CHECK IN ('ativa','inativa','em_analise')` | Status da escola |
 | `website` | TEXT | NULL | — | — | URL do site |
 | `notas_internas` | TEXT | NULL | — | — | Notas internas |
@@ -752,11 +754,11 @@ Base institucional de boarding schools americanas. Cadastro manual pelo CEO.
 | `deadline_fall` | DATE | NULL | — | — | Deadline para Fall |
 | `deadline_spring` | DATE | NULL | — | — | Deadline para Spring |
 | `rolling_admission` | BOOLEAN | NULL | `false` | — | Se aceita rolling admission |
-| `tempo_medio_resposta` | INTEGER | NULL | — | — | Tempo medio de resposta (dias) |
-| `total_aplicados` | INTEGER | NOT NULL | `0` | — | Total de atletas BAUSA aplicados |
-| `total_aceitos` | INTEGER | NOT NULL | `0` | — | Total de atletas BAUSA aceitos |
+| `tempo_medio_resposta` | INTEGER | NULL | — | — | **Legado, não alimentado** — não exibir |
+| `total_aplicados` | INTEGER | NOT NULL | `0` | — | **Legado, não alimentado** — lido só pelo `calcular_match_score` (0 → score histórico 50). Não exibir; histórico real = view `escolas_historico_bausa` |
+| `total_aceitos` | INTEGER | NOT NULL | `0` | — | **Legado, não alimentado** (desde 2026-10 nada incrementa) |
 | `taxa_aceitacao` | NUMERIC(5,2) | NOT NULL | — | **GENERATED ALWAYS AS** (`CASE WHEN total_aplicados > 0 THEN total_aceitos / total_aplicados * 100 ELSE 0 END`) STORED | Taxa de aceitacao calculada |
-| `bolsa_media_obtida` | NUMERIC(5,2) | NULL | — | — | Bolsa media obtida (%) |
+| `bolsa_media_obtida` | NUMERIC(5,2) | NULL | — | — | **Legado, não alimentado** — usar `escolas_historico_bausa.bolsa_media_obtida_pct` |
 | `admissions_officer_nome` | TEXT | NULL | — | — | Nome do officer de admissao |
 | `admissions_officer_email` | TEXT | NULL | — | — | Email do officer |
 | `admissions_officer_telefone` | TEXT | NULL | — | — | Telefone do officer |
@@ -780,6 +782,19 @@ Base institucional de boarding schools americanas. Cadastro manual pelo CEO.
 | `idx_escolas_estado` | `estado_us` | B-tree | `WHERE deleted_at IS NULL` |
 | `idx_escolas_tipo` | `tipo` | B-tree | `WHERE deleted_at IS NULL` |
 | `idx_escolas_nome` | `nome` | GIN (gin_trgm_ops) | — |
+
+**View `escolas_historico_bausa`** (migration `20261008170000`, `security_invoker = true`,
+SELECT só para `authenticated`/`service_role`): histórico BAUSA por escola derivado de
+`estrategia_escolas` (estratégias e atletas não removidos). Fonte única dos cards e KPIs de
+`/escolas`. Buckets mutuamente exclusivos (somam `atletas_total`):
+
+| Coluna | Regra |
+|--------|-------|
+| `atletas_total` | estratégias ativas da escola (= atletas, `UNIQUE(atleta_id, escola_id)`) |
+| `em_andamento` | `resultado IN ('pendente','waitlist')` OU (`nao_aplicado` e `status = 'pre_acordada'`) |
+| `em_planejamento` | `resultado = 'nao_aplicado'` e `status <> 'pre_acordada'` |
+| `aceitos` / `recusados` | `resultado = 'aceito'` / `'recusado'` |
+| `bolsas_informadas`, `bolsa_obtida_pct_soma`, `bolsa_media_obtida_pct` | sobre os aceites com `bolsa_obtida_pct` preenchida |
 
 ---
 
@@ -967,7 +982,7 @@ Colunas com `GENERATED ALWAYS AS ... STORED` que sao calculadas automaticamente 
 | `public.update_updated_at_column()` | — | TRIGGER | Variante de `updated_at` para schemas `uat` e `dev`. |
 | `public.get_user_papel()` | — | TEXT | Retorna o papel EFETIVO de autorização (`ceo`/`head_sucesso`/`comercial`) do usuario autenticado (`auth.uid()`). **`cto` resolve para `ceo`** (mesmas permissões; por isso policies `= 'ceo'` não mudam). `SECURITY DEFINER STABLE`. Usada em todas as policies RLS. |
 | `public.set_audit_user()` | — | VOID | Seta `audit.user_id` e `audit.user_papel` no contexto da transacao via `set_config`. Chamada via RPC antes de operacoes com audit trail. `SECURITY DEFINER`. |
-| `audit.log_change()` | — | TRIGGER | Trigger generico de audit. Captura tabela, id, operacao, OLD, NEW, campos alterados, user_id, papel, IP. Aplicado em todas as tabelas CRM. `SECURITY DEFINER`. |
+| `audit.log_change()` | — | TRIGGER | Trigger generico de audit. Captura tabela, id, operacao, OLD, NEW, campos alterados, user_id, papel, IP. Aplicado em todas as tabelas CRM. `SECURITY DEFINER`. Desde `20261008170100`: se `audit.user_id` estiver vazio (o `set_audit_user` chamado por RPC separada nao sobrevive), usa `auth.uid()` do JWT da propria requisicao e o papel real de `user_profiles`; so grava `user_id` que exista em `auth.users` (FK sem ON DELETE — sub orfao viraria 23503 e abortaria a escrita). Service role/cron seguem NULL (= sistema). |
 | `audit.prevent_audit_mutation()` | — | TRIGGER | Bloqueia UPDATE e DELETE na tabela `audit_logs`. Lanca excecao. |
 
 ### Funcoes de Negocio — Lead Score

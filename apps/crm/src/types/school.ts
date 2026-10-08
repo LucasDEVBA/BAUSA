@@ -1,65 +1,83 @@
-export type SchoolType = "Division I" | "Division II" | "Division III" | "NAIA" | "JUCO";
-export type SchoolStatus = "ativa" | "inativa" | "em_avaliacao";
-export type SchoolSportInfluence = "baixa" | "media" | "alta" | "decisiva";
-export type ScholarshipAggressiveness = "conservadora" | "moderada" | "agressiva";
-export type RequiredTest = "Duolingo" | "PSAT" | "SSAT" | "TOEFL" | "SAT";
+import type {
+  AgressividadeBolsa,
+  InfluenciaEsporte,
+  NivelIngles,
+  PerfilEscola,
+  StatusEscola,
+  TemperaturaRelacionamento,
+  TipoEscola,
+} from "@/components/escolas/school-options";
 
+/**
+ * Histórico BAUSA da escola — derivado de estrategia_escolas pela view
+ * `escolas_historico_bausa` (buckets mutuamente exclusivos: somam
+ * atletas_total). Substitui as colunas mortas total_aplicados/total_aceitos/
+ * bolsa_media_obtida/tempo_medio_resposta, que nenhum código alimenta.
+ */
+export interface HistoricoEscola {
+  atletas_total: number;
+  em_andamento: number;
+  em_planejamento: number;
+  aceitos: number;
+  recusados: number;
+  /** Quantos aceites têm bolsa_obtida_pct preenchida. */
+  bolsas_informadas: number;
+  /** Soma de bolsa_obtida_pct dos aceites (p/ média ponderada global). */
+  bolsa_obtida_pct_soma: number | null;
+  /** Média de bolsa_obtida_pct dos aceites — null quando ninguém informou. */
+  bolsa_media_obtida_pct: number | null;
+}
+
+/**
+ * Escola como a tela /escolas usa: nomes e valores CRUS do banco (sem camada
+ * de tradução — a tradução antiga gerou o vocabulário de universidade e os
+ * valores inventados). NULL continua NULL; a apresentação decide o rótulo.
+ */
 export interface School {
   id: string;
-  name: string;
-  state: string;
-  city: string;
-  type: SchoolType;
-  status: SchoolStatus;
+  nome: string;
+  cidade: string;
+  estado_us: string;
+  tipo: TipoEscola;
+  perfil: PerfilEscola | null;
+  status: StatusEscola;
+  website: string | null;
+  link_inscricao: string | null;
+  link_plano_saude: string | null;
+  budget_minimo_usd: number | null;
+  budget_forte_usd: number | null;
+  agressividade_bolsa: AgressividadeBolsa | null;
+  ingles_minimo: NivelIngles | null;
+  nota_minima_duolingo: number | null;
+  gpa_minimo: number | null;
+  testes_exigidos: string[];
+  esportes_oferecidos: string[];
+  influencia_esporte: InfluenciaEsporte | null;
+  aceita_excecao_elite: boolean;
+  /** TEXT no banco — normalmente um de SERIE_VALUES, mas não é garantido por CHECK. */
+  serie_maxima: string | null;
+  rolling_admission: boolean;
+  deadline_fall: string | null;
+  deadline_spring: string | null;
+  admissions_officer_nome: string | null;
+  admissions_officer_email: string | null;
+  admissions_officer_telefone: string | null;
+  temperatura_relacionamento: TemperaturaRelacionamento | null;
+  ultimo_contato_at: string | null;
+  regra_pratica: string | null;
+  notas_internas: string | null;
+  updated_at: string;
+  historico: HistoricoEscola;
+}
 
-  // Regras financeiras
-  min_budget_usd: number;
-  strong_budget_usd: number;
-
-  // Regras esportivas
-  sport_influence: SchoolSportInfluence;
-  elite_athlete_exception: boolean;
-  scholarship_aggressiveness: ScholarshipAggressiveness;
-
-  // Regras acadêmicas
-  min_english_level: string;
-  required_tests: RequiredTest[];
-
-  // Regras por série
-  preferred_grade: string;
-  max_grade_accepted: string;
-
-  // Inteligência institucional (acumulada por processos)
-  total_applications: number;
-  acceptance_count: number;
-  avg_scholarship_pct: number;
-  avg_response_days: number;
-
-  // Regra prática BAUSA
-  practical_rule: string;
-
-  // Contato
-  coach_name?: string;
-  coach_email?: string;
-  coach_phone?: string;
-
-  // Notas internas
-  notes?: string;
-
-  // Links operacionais (botões na UI)
-  link_inscricao?: string | null;
-  link_plano_saude?: string | null;
-
-  // GPA
-  gpa_minimo?: number | null;
-
-  // Relacionamento e deadlines
-  temperatura_relacionamento?: string;
-  ultimo_contato_at?: string | null;
-  deadline_fall?: string | null;
-  deadline_spring?: string | null;
-  rolling_admission?: boolean;
-  serie_maxima?: string;
+/** Linha de historico_contatos_escola (colunas reais: `data` e `tipo`). */
+export interface ContatoEscola {
+  id: string;
+  escola_id: string;
+  data: string;
+  tipo: string;
+  resumo: string;
+  created_at: string;
 }
 
 export interface SchoolStageStrategy {
@@ -73,20 +91,6 @@ export interface SchoolStageStrategy {
   estimated_scholarship_usd: number;
   notes?: string;
 }
-
-export const SCHOOL_STATUS_CONFIG: Record<SchoolStatus, { label: string; color: string; bg: string }> = {
-  ativa: { label: "Ativa", color: "text-sys-green", bg: "bg-sys-green/15 border-sys-green/20" },
-  inativa: { label: "Inativa", color: "text-sys-red", bg: "bg-sys-red/15 border-sys-red/20" },
-  em_avaliacao: { label: "Em Avaliação", color: "text-sys-orange", bg: "bg-sys-orange/15 border-sys-orange/20" },
-};
-
-export const SCHOOL_TYPE_CONFIG: Record<SchoolType, { label: string; color: string; bg: string }> = {
-  "Division I": { label: "Div. I", color: "text-plan-legacy", bg: "bg-plan-legacy/15 border-plan-legacy/30" },
-  "Division II": { label: "Div. II", color: "text-primary", bg: "bg-primary/15 border-primary/30" },
-  "Division III": { label: "Div. III", color: "text-sys-cyan", bg: "bg-sys-cyan/15 border-sys-cyan/30" },
-  NAIA: { label: "NAIA", color: "text-sys-teal", bg: "bg-sys-teal/15 border-sys-teal/30" },
-  JUCO: { label: "JUCO", color: "text-muted-foreground", bg: "bg-secondary border-border" },
-};
 
 export const STAGE_STRATEGY_STATUS_CONFIG = {
   pre_acordada: { label: "Pré-acordada", color: "text-sys-green", bg: "bg-sys-green/15 border-sys-green/20" },
