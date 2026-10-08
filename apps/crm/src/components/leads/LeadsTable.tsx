@@ -10,7 +10,7 @@ import {
   type Updater,
   flexRender,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MessageCircle, Check, Calendar, Send, Clock, AlertTriangle, Users, EyeOff, Trash2, Loader2 } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MessageCircle, Check, Calendar, CalendarCheck, Send, Clock, AlertTriangle, Users, EyeOff, Trash2, Loader2 } from "lucide-react";
 import { type Lead, type LeadClassification } from "@/types/lead";
 import { excluirLead } from "@/lib/actions/leads-excluir";
 import {
@@ -403,6 +403,15 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
         accessorFn: (row) => row.pipeline_stage ?? "",
         cell: ({ row }) => {
           const lead = row.original;
+          // T14: reunião detectada e nenhum deal = a reunião existe e o funil não sabe.
+          if (lead.meeting_scheduled === true && !lead.pipeline_deal_id) {
+            return (
+              <Badge size="sm" tone="green" title="Reunião detectada no Google Calendar — o lead não tem deal no pipeline">
+                <CalendarCheck aria-hidden className="size-2.5" />
+                Reunião detectada
+              </Badge>
+            );
+          }
           if (!lead.is_in_pipeline) {
             return <span className="text-xs text-label-tertiary">—</span>;
           }

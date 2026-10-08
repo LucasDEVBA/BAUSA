@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   Ban,
   BellOff,
+  CalendarCheck,
   CalendarClock,
   Check,
   ExternalLink,
@@ -158,6 +159,13 @@ type PaginaDetalhe = Extract<ResultadoDetalheRevisao, { success: true }>;
 /** Revisão de Frios/Incompletos vem paginada (T7); fila e muito cedo, não. */
 function ehPaginaDetalhe(r: { success: true; leads: LeadPendenteAprovacao[] }): r is PaginaDetalhe {
   return "proximoOffset" in r;
+}
+
+// T14: o Calendar achou reunião deste lead e ele ainda não tem deal.
+function reuniaoTitulo(detectadaEm: string | null): string {
+  return detectadaEm
+    ? `Reunião detectada no Google Calendar em ${fmtData(detectadaEm)} — o lead ainda não tem deal no pipeline`
+    : "Reunião detectada no Google Calendar — o lead ainda não tem deal no pipeline";
 }
 
 // ─── Modal ───────────────────────────────────────────────────────────────
@@ -533,7 +541,7 @@ export function AprovacaoLeadsModal({
                     : modo === "frios"
                       ? `${total ?? leads.length} lead(s) frios nos últimos 90 dias — fora do funil até você resgatar`
                       : modo === "incompletos"
-                        ? `${total ?? leads.length} cadastro(s) sem os dados obrigatórios — complete na conversa e resgate quando fizer sentido`
+                        ? `${total ?? leads.length} cadastro(s) marcados como incompletos pelo classificador — confira os dados no dossiê e resgate quando fizer sentido`
                         : modo === "muito_cedo"
                           ? `${leads.length} lead(s) aprovados em Aguardando timing — mensagens automáticas desligadas; o contato é seu`
                           : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
@@ -610,7 +618,15 @@ export function AprovacaoLeadsModal({
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {l.position ?? "—"} · {l.city_state ?? "—"}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-label-tertiary">Recebido {fmtData(l.submitted_at)}</p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <p className="text-[11px] text-label-tertiary">Recebido {fmtData(l.submitted_at)}</p>
+                        {l.meeting_scheduled === true && (
+                          <Badge size="sm" tone="green" title={reuniaoTitulo(l.meeting_scheduled_at)}>
+                            <CalendarCheck aria-hidden className="size-2.5" />
+                            Reunião detectada
+                          </Badge>
+                        )}
+                      </div>
                     </button>
                   ))}
                   {total !== null && carregadosNoRecorte < total && (
@@ -680,6 +696,12 @@ export function AprovacaoLeadsModal({
                             <Badge tone="purple">
                               <CalendarClock className="size-3" />
                               {TIMING_LABEL[selecionado.timing_status] ?? selecionado.timing_status}
+                            </Badge>
+                          )}
+                          {selecionado.meeting_scheduled === true && (
+                            <Badge tone="green" title={reuniaoTitulo(selecionado.meeting_scheduled_at)}>
+                              <CalendarCheck aria-hidden className="size-3" />
+                              Reunião detectada
                             </Badge>
                           )}
                         </div>

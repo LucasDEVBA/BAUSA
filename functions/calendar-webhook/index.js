@@ -9,6 +9,13 @@ const SUPABASE_SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_SCHEMA         = process.env.SUPABASE_SCHEMA || 'public';
 // Runs de observabilidade vão p/ public SEMPRE — o Engine (apps/crm) lê public em todos os ambientes, igual ao whatsapp_mensagens da zapi-inbox. NÃO usar SUPABASE_SCHEMA aqui.
 const RUNS_SCHEMA = 'public';
+// Aviso in-app de "reunião de lead fora do pipeline" (T14): o sininho é do
+// Engine, que lê public em todo ambiente → grava em public. E SÓ a instância
+// de produção avisa: a de UAT casa leads de uat.form_submissions, e um aviso
+// no sininho de PRD apontando para um lead que não existe em public seria
+// link quebrado (mesmo gate "só age em produção" do monitor-health).
+const NOTIF_SCHEMA = 'public';
+const AVISO_FORA_PIPELINE_ATIVO = SUPABASE_SCHEMA === 'public';
 const SEND_WHATSAPP_URL       = process.env.SEND_WHATSAPP_URL;
 const SYNC_LEADS_URL          = process.env.SYNC_LEADS_URL;
 const SERVICE_ACCOUNT_EMAIL   = process.env.SERVICE_ACCOUNT_EMAIL;
@@ -361,6 +368,178 @@ const moveDealToReuniao = async (leadId, event) => {
   }));
 
   return updateRes.statusCode < 400;
+};
+
+// ─── Reunião de lead FORA do pipeline (T14) ───────────────────
+// moveDealToReuniao só move deal em lead/contato_feito. Quando ele devolve
+// false, o lead pode estar (a) SEM deal — INVALIDO, FRIO, INCOMPLETO,
+// pendente na fila — ou (b) com deal parado fora do funil ativo (perdido,
+// aguardando_timing, projeto_futuro). Nos dois casos a reunião existe no
+// Calendar e o Engine não mostrava NADA: Samuel (INVALIDO, 21/09) e Clara
+// (FRIO, 08/09) ficaram invisíveis. Deal em reuniao_marcada ou além é o
+// normal (2ª reunião, remarcação) → sem aviso.
+//
+// SÓ AVISA o CEO/CTO no sininho. Nunca cria deal, nunca muda classe nem
+// aprovação, nunca manda mensagem ao lead — a decisão é humana (dossiê).
+const ETAPAS_DEAL_PARADO = {
+  perdido: 'Perdido',
+  aguardando_timing: 'Aguardando timing',
+  projeto_futuro: 'Projeto futuro',
+};
+
+// 'sem_deal' | 'deal_parado' | 'no_pipeline'. Lança em erro HTTP — quem
+// chama (avisarReuniaoForaDoPipeline) é à prova de falha.
+const diagnosticarVinculoPipeline = async (leadId) => {
+  const headers = {
+    'apikey': SUPABASE_SERVICE_KEY,
+    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+    'Accept-Profile': SUPABASE_SCHEMA,
+  };
+  const atletaRes = await httpRequest(
+    `${SUPABASE_URL}/rest/v1/atletas?form_submission_id=eq.${encodeURIComponent(leadId)}` +
+      '&deleted_at=is.null&select=id&limit=1',
+    { method: 'GET', headers, timeoutMs: 5000 },
+  );
+  if (atletaRes.statusCode >= 400) throw new Error(`atletas HTTP ${atletaRes.statusCode}`);
+  const atletas = JSON.parse(atletaRes.body || '[]');
+  if (!Array.isArray(atletas) || atletas.length === 0) {
+    return { situacao: 'sem_deal', dealId: null, etapa: null };
+  }
+
+  const dealRes = await httpRequest(
+    `${SUPABASE_URL}/rest/v1/deals?atleta_id=eq.${encodeURIComponent(atletas[0].id)}` +
+      '&deleted_at=is.null&select=id,etapa&order=created_at.desc&limit=10',
+    { method: 'GET', headers, timeoutMs: 5000 },
+  );
+  if (dealRes.statusCode >= 400) throw new Error(`deals HTTP ${dealRes.statusCode}`);
+  const deals = JSON.parse(dealRes.body || '[]');
+  if (!Array.isArray(deals) || deals.length === 0) {
+    return { situacao: 'sem_deal', dealId: null, etapa: null };
+  }
+  // Qualquer deal ativo no funil (reunião ou além) = está no pipeline.
+  const ativo = deals.find((d) => !ETAPAS_DEAL_PARADO[d.etapa]);
+  if (ativo) return { situacao: 'no_pipeline', dealId: ativo.id, etapa: ativo.etapa };
+  return { situacao: 'deal_parado', dealId: deals[0].id, etapa: deals[0].etapa };
+};
+
+// "08/10 às 14:30" (BRT) — curto, cabe no sininho.
+const formatarQuandoCurto = (event) => {
+  const inicio = event?.start?.dateTime;
+  if (!inicio) return 'data a confirmar';
+  const d = new Date(inicio);
+  if (Number.isNaN(d.getTime())) return 'data a confirmar';
+  const data = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' });
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+  return `${data} às ${hora}`;
+};
+
+// Conteúdo da notificação (função pura — o guard roda de verdade).
+// PII: só o nome do atleta (mesma regra das runs) — nada de telefone/e-mail.
+const montarAvisoForaDoPipeline = (lead, event, diag) => {
+  const nome = String(lead.athlete_name || 'Lead sem nome').trim().slice(0, 80);
+  const quando = formatarQuandoCurto(event);
+  const semDeal = diag.situacao === 'sem_deal';
+  const etapaRotulo = ETAPAS_DEAL_PARADO[diag.etapa] || diag.etapa || '—';
+  return {
+    titulo: semDeal
+      ? `Reunião detectada — ${nome} está fora do pipeline`
+      : `Reunião detectada — ${nome} está em "${etapaRotulo}"`,
+    mensagem: semDeal
+      ? `Reunião marcada para ${quando}. Classificação: ${lead.qualification_classification || 'sem classificação'}` +
+        ` · aprovação: ${lead.aprovacao_status || 'sem decisão'}. O lead não tem deal no pipeline — abra o dossiê` +
+        ' e decida (aprovar, resgatar ou reprovar). Nenhuma mensagem extra foi enviada ao lead.'
+      : `Reunião marcada para ${quando}, mas o deal está em "${etapaRotulo}" e não foi movido para Reunião` +
+        ' marcada. Revise a etapa no pipeline. Nenhuma mensagem extra foi enviada ao lead.',
+    tipo: 'reuniao_fora_pipeline',
+    severidade: semDeal ? 'alta' : 'media',
+    link: `/leads?lead=${lead.id}`,
+    deal_id: diag.dealId || null,
+    dedupe_key: `reuniao_fora_pipeline:${lead.id}:${event?.id || 'sem-evento'}`,
+  };
+};
+
+// Best-effort: NUNCA lança, NUNCA bloqueia confirmação/sync. Idempotência em
+// 2 camadas: o CAS de meeting_scheduled (só quem marcou chega aqui) e
+// UNIQUE(destinatario_id, dedupe_key) no banco (ignore-duplicates).
+const avisarReuniaoForaDoPipeline = async (lead, event, origem) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !lead?.id) return false;
+    if (!AVISO_FORA_PIPELINE_ATIVO) {
+      log('INFO', 'reuniao_fora_pipeline_dry', { leadId: lead.id, schema: SUPABASE_SCHEMA, origem });
+      return false;
+    }
+
+    const diag = await diagnosticarVinculoPipeline(lead.id);
+    if (diag.situacao === 'no_pipeline') return false;
+
+    const headersNotif = {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept-Profile': NOTIF_SCHEMA,
+    };
+    const usersRes = await httpRequest(
+      `${SUPABASE_URL}/rest/v1/user_profiles?papel=in.(ceo,cto)&ativo=is.true&select=id`,
+      { method: 'GET', headers: headersNotif, timeoutMs: 5000 },
+    );
+    if (usersRes.statusCode >= 400) throw new Error(`user_profiles HTTP ${usersRes.statusCode}`);
+    const users = JSON.parse(usersRes.body || '[]');
+    if (!Array.isArray(users) || users.length === 0) {
+      log('WARN', 'reuniao_fora_pipeline_sem_destinatario', { leadId: lead.id });
+      return false;
+    }
+
+    const conteudo = montarAvisoForaDoPipeline(lead, event, diag);
+    const postData = JSON.stringify(users.map((u) => ({ destinatario_id: u.id, ...conteudo })));
+    const postHeaders = {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Profile': NOTIF_SCHEMA,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData),
+    };
+    let res = await httpRequest(
+      `${SUPABASE_URL}/rest/v1/notificacoes?on_conflict=destinatario_id,dedupe_key`,
+      {
+        method: 'POST',
+        headers: { ...postHeaders, 'Prefer': 'resolution=ignore-duplicates,return=minimal' },
+        timeoutMs: 5000,
+      },
+      postData,
+    );
+    // Coluna/índice de dedupe ainda inexistentes (CF publicada antes da
+    // migration 20261008180000 — 42P10 sem índice, PGRST204 sem coluna):
+    // degrada para INSERT simples sem a chave. O CAS já garante 1x.
+    if (res.statusCode >= 400 && /42P10|PGRST204|dedupe_key/.test(String(res.body || ''))) {
+      const semChave = JSON.stringify(users.map((u) => {
+        const { dedupe_key: _ignorada, ...resto } = conteudo;
+        return { destinatario_id: u.id, ...resto };
+      }));
+      res = await httpRequest(
+        `${SUPABASE_URL}/rest/v1/notificacoes`,
+        {
+          method: 'POST',
+          headers: { ...postHeaders, 'Content-Length': Buffer.byteLength(semChave), 'Prefer': 'return=minimal' },
+          timeoutMs: 5000,
+        },
+        semChave,
+      );
+    }
+    if (res.statusCode >= 400) {
+      throw new Error(`POST notificacoes ${res.statusCode}: ${String(res.body || '').substring(0, 200)}`);
+    }
+
+    log('INFO', 'reuniao_fora_pipeline_avisada', {
+      leadId: lead.id,
+      situacao: diag.situacao,
+      etapa: diag.etapa,
+      origem,
+      destinatarios: users.length,
+    });
+    return true;
+  } catch (err) {
+    log('WARN', 'reuniao_fora_pipeline_aviso_falhou', { leadId: lead?.id, origem, error: err.message });
+    return false;
+  }
 };
 
 // ─── Resync de reunião REMARCADA ──────────────────────────────
@@ -823,7 +1002,7 @@ const reconciliarEventos = async (diasAtras = 3, diasFrente = 60) => {
   const timeMax = new Date(Date.now() + diasFrente * 86400000).toISOString();
   const events = await getEventsInWindow(timeMin, timeMax);
 
-  const resumo = { total: events.length, vinculados: 0, ressincronizados: 0, sem_lead: 0 };
+  const resumo = { total: events.length, vinculados: 0, ressincronizados: 0, sem_lead: 0, fora_do_pipeline: 0 };
 
   for (const event of events) {
     const emails = (event.attendees || []).map((a) => a.email?.toLowerCase()).filter(Boolean);
@@ -848,8 +1027,13 @@ const reconciliarEventos = async (diasAtras = 3, diasFrente = 60) => {
       }
       // CAS: se outra execução marcou no meio, não conta duas vezes.
       if (!(await markMeetingScheduled(lead.id))) continue;
-      await moveDealToReuniao(lead.id, event);
+      const movido = await moveDealToReuniao(lead.id, event);
       resumo.vinculados++;
+      // T14: push perdido + lead fora do pipeline = o CEO não recebeu NADA
+      // (nem o WhatsApp "Nova reunião"). Aviso só no sininho — interno.
+      if (!movido && (await avisarReuniaoForaDoPipeline(lead, event, 'reconcile'))) {
+        resumo.fora_do_pipeline++;
+      }
       log('INFO', 'reconcile_linked', {
         eventId: event.id,
         athlete: lead.athlete_name,
@@ -1046,9 +1230,12 @@ functions.http('calendarWebhook', async (req, res) => {
       }
 
       // 2. Mover deal no pipeline
+      // movido: true = foi para reuniao_marcada; false = sem deal em
+      // lead/contato_feito (pode estar FORA do pipeline — ver 4b); null = erro.
+      let movido = null;
       try {
-        const moved = await moveDealToReuniao(lead.id, event);
-        log('INFO', moved ? 'deal_moved' : 'no_deal_found', { leadId: lead.id });
+        movido = await moveDealToReuniao(lead.id, event);
+        log('INFO', movido ? 'deal_moved' : 'no_deal_found', { leadId: lead.id });
       } catch (err) {
         log('WARN', 'deal_move_error', { error: err.message });
       }
@@ -1118,6 +1305,14 @@ functions.http('calendarWebhook', async (req, res) => {
           lead,
           acoes: acoesRun,
         });
+      }
+
+      // 4b. Lead fora do pipeline → aviso in-app ao CEO/CTO (T14). Fica DEPOIS
+      //     da confirmação (nunca atrasa o WhatsApp do lead) e FORA do toggle
+      //     confirmacao_reuniao (é visibilidade interna, não mensagem). Nunca
+      //     cria deal, nunca muda classe/aprovação, nunca escreve ao lead.
+      if (movido !== true) {
+        await avisarReuniaoForaDoPipeline(lead, event, 'webhook');
       }
 
       // 5. Sync Sheets

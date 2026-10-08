@@ -222,6 +222,10 @@ const es: Translations = {
     errors: {
       "Nome é obrigatório": "El nombre es obligatorio",
       "Data de nascimento é obrigatória": "La fecha de nacimiento es obligatoria",
+      "Data de nascimento inválida": "Fecha de nacimiento inválida",
+      "A data de nascimento não pode ser no futuro": "La fecha de nacimiento no puede ser futura",
+      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Verifique el año de nacimiento del atleta — la fecha elegida es de este año",
+      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "La fecha de nacimiento no coincide con el grado elegido — verifique el año de nacimiento del atleta (no el del responsable)",
       "WhatsApp é obrigatório": "El WhatsApp es obligatorio",
       "Série é obrigatória": "El grado es obligatorio",
       "Escola é obrigatória": "La escuela es obligatoria",
