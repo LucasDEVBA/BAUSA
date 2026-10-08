@@ -39,6 +39,10 @@ import { uploadDocumento } from "@/lib/upload";
 interface DealContratoTabProps {
   dealId: string;
   atletaId?: string;
+  /** Contrato criado/refeito ou pagamento confirmado: o valor, o plano e o
+   *  sinal do deal mudaram. Quem busca o deal no cliente (/leads,
+   *  /remarketing) rebusca — o revalidatePath só repinta o /pipeline. */
+  onAtualizado?: () => void;
 }
 
 type PlanoKey = "journey" | "legacy" | "start";
@@ -63,7 +67,7 @@ function isOverdue(vencimento: string): boolean {
   return new Date(vencimento).getTime() < Date.now();
 }
 
-export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
+export function DealContratoTab({ dealId, atletaId, onAtualizado }: DealContratoTabProps) {
   const [contrato, setContrato] = useState<ContratoFinanceiro | null>(null);
   const [parcelas, setParcelas] = useState<Parcela[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,6 +169,7 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
         celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.contrato_criado);
         setShowCreateForm(false);
         await fetchData();
+        onAtualizado?.();
       } else {
         toast.error(result.error ?? "Erro ao criar contrato");
       }
@@ -182,6 +187,7 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
         toast.success("Contrato descartado — crie o novo com as condições negociadas.");
         setShowCreateForm(true);
         await fetchData();
+        onAtualizado?.();
       } else {
         toast.error(result.error ?? "Erro ao refazer contrato");
       }
@@ -195,6 +201,7 @@ export function DealContratoTab({ dealId, atletaId }: DealContratoTabProps) {
         toast.success("Pagamento confirmado");
         celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.pagamento_confirmado);
         await fetchData();
+        onAtualizado?.();
       } else {
         toast.error(result.error ?? "Erro ao confirmar pagamento");
       }

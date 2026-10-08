@@ -51,6 +51,8 @@ export interface AgendaEvento {
   reuniaoLink: string | null;
   etapa: DealStage | null;
   valorEstimado: number | null;
+  /** "estimado" ganha "≈" (T3) — mesmo valor do card do /pipeline. */
+  valorOrigem?: "contratado" | "negociado" | "estimado" | null;
   atletaId: string | null;
   nome: string;
   esporte: string | null;
@@ -360,7 +362,8 @@ export function AgendaClient({
               eventosDoDia.map((e) => {
                 const c = e.classificacao ? CLASSIF[e.classificacao] : null;
                 const stage = e.etapa ? DEAL_STAGE_CONFIG[e.etapa] : null;
-                const valor = fmtValor(e.valorEstimado);
+                const valorFmt = fmtValor(e.valorEstimado);
+                const valor = valorFmt && e.valorOrigem === "estimado" ? `≈ ${valorFmt}` : valorFmt;
                 return (
                   <div key={e.eventId ?? e.dealId} className="rounded-xl border border-border bg-card p-3">
                     <div className="flex items-start justify-between gap-2">

@@ -30,6 +30,8 @@ interface PipelineColumnProps {
   onSortChange: (stage: DealStage, mode: PipelineSortMode) => void;
   /** Excluir o lead direto do card (soft delete em cascata, com confirmação). */
   onExcluirDeal?: (deal: Deal) => void;
+  /** Clique no valor do card (T3) — ausente = valor só leitura. */
+  onValorClick?: (deal: Deal) => void;
 }
 
 function fmtCompact(value: number): string {
@@ -51,10 +53,17 @@ export function PipelineColumn({
   sort,
   onSortChange,
   onExcluirDeal,
+  onValorClick,
 }: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const config = stageConfig[stage];
+  // deal_value_brl já é o valor resolvido (contrato > negociado > estimado)
   const totalValue = deals.reduce((sum, d) => sum + d.deal_value_brl, 0);
+  const qtdEstimados = deals.filter((d) => d.valor_origem === "estimado").length;
+  const tituloTotal =
+    qtdEstimados > 0
+      ? `Soma da coluna — ${qtdEstimados} de ${deals.length} por estimativa da faixa`
+      : "Soma da coluna (contratos e valores negociados)";
 
   return (
     <div
@@ -125,7 +134,8 @@ export function PipelineColumn({
         </button>
         <div className="flex shrink-0 items-center gap-1">
           {totalValue > 0 && (
-            <span className="text-[10px] tabular-nums text-muted-foreground">
+            <span className="text-[10px] tabular-nums text-muted-foreground" title={tituloTotal}>
+              {qtdEstimados > 0 ? "≈ " : ""}
               {fmtCompact(totalValue)}
             </span>
           )}
@@ -152,6 +162,7 @@ export function PipelineColumn({
               deal={deal}
               onClick={() => onDealClick(deal)}
               onExcluir={onExcluirDeal ? () => onExcluirDeal(deal) : undefined}
+              onValorClick={onValorClick ? () => onValorClick(deal) : undefined}
             />
           ))
         )}

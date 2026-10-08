@@ -69,8 +69,11 @@ test('deal: customizar valor grava justificativa + flag (coluna criada na 202609
   const dealsSrc2 = ler('apps', 'crm', 'src', 'lib', 'actions', 'deals.ts');
   const fn = dealsSrc2.slice(dealsSrc2.indexOf('export async function customizarValorDeal'));
   assert.match(fn, /flag_valores_customizados: true/, 'flag de customização sumiu');
-  assert.match(fn, /justificativa_customizacao: justificativa/, 'justificativa deixou de ser gravada no deal');
-  assert.match(fn, /if \(!justificativa\.trim\(\)\)/, 'justificativa deixou de ser obrigatória');
+  // T3 (2026-10-08): validação migrou para zod (customizarValorSchema) — a
+  // justificativa continua obrigatória (trim + min 1) e gravada no deal.
+  assert.match(fn, /justificativa_customizacao: dados\.justificativa/, 'justificativa deixou de ser gravada no deal');
+  assert.match(dealsSrc2, /justificativa: z\s*\.string\(\)\s*\.trim\(\)\s*\.min\(1, "Justificativa obrigatória\."\)/,
+    'justificativa deixou de ser obrigatória');
   const mig = ler('supabase', 'migrations', '20260911120000_deals_justificativa_customizacao.sql');
   assert.match(mig, /ADD COLUMN IF NOT EXISTS justificativa_customizacao TEXT/,
     'migration da coluna do deal sumiu — o PATCH voltaria a quebrar (bug 2026-09-11)');

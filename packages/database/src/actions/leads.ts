@@ -1,25 +1,54 @@
 import { createAuditedSupabaseClient } from "../client/audit";
 import { getUserPapel } from "../auth";
 
-function mapInvestmentToEnum(range: string | null): string {
-  if (!range) return "ate_20k";
-  const lower = range.toLowerCase();
-  if (lower.includes("40") || lower.includes("50") || lower.includes("70") || lower.includes("over")) return "40k_mais";
-  if (lower.includes("30")) return "30k_40k";
-  if (lower.includes("20")) return "20k_30k";
-  return "ate_20k";
-}
+// Faixa de investimento (T4, 2026-10-08) — cópia do bloco de
+// apps/crm/src/lib/faixa-investimento.ts (pacote não importa de apps/).
+// Match EXATO; paridade travada por tests/faixa-investimento-invariants.test.js.
+type FaixaInvestimento = "ate_20k" | "20k_30k" | "30k_40k" | "40k_mais";
+type MapaCodigoFaixa = Readonly<Record<string, FaixaInvestimento>>;
+type MapaValorFaixa = Readonly<Record<FaixaInvestimento, number>>;
+type NormalizarCodigoFn = (range: string | null | undefined) => string;
+type MapearFaixaFn = (range: string | null | undefined) => FaixaInvestimento;
+type MapearValorFn = (range: string | null | undefined) => number;
 
-function mapInvestmentToValor(range: string | null): number {
-  const mapped = mapInvestmentToEnum(range);
-  const valores: Record<string, number> = {
-    "40k_mais": 32000,
-    "30k_40k": 28000,
-    "20k_30k": 22000,
-    "ate_20k": 16000,
-  };
-  return valores[mapped] || 16000;
-}
+// @guard-js:inicio faixa-investimento
+const FAIXA_INVESTIMENTO_PADRAO: FaixaInvestimento = "ate_20k";
+
+const FAIXA_POR_CODIGO: MapaCodigoFaixa = {
+  "15k-20k": "ate_20k",
+  "20k-30k": "20k_30k",
+  "30k-40k": "30k_40k",
+  "40k-50k": "40k_mais",
+  "50k-70k": "40k_mais",
+  "over-70k": "40k_mais",
+  "abaixo-15k": "ate_20k",
+  "acima-50k": "40k_mais",
+};
+
+const VALOR_ESTIMADO_POR_FAIXA: MapaValorFaixa = {
+  ate_20k: 16000,
+  "20k_30k": 22000,
+  "30k_40k": 28000,
+  "40k_mais": 32000,
+};
+
+const normalizarCodigoFaixa: NormalizarCodigoFn = (range) =>
+  String(range ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/\s+/g, "");
+
+const mapInvestmentToEnum: MapearFaixaFn = (range) => {
+  const codigo = normalizarCodigoFaixa(range);
+  return Object.prototype.hasOwnProperty.call(FAIXA_POR_CODIGO, codigo)
+    ? FAIXA_POR_CODIGO[codigo]
+    : FAIXA_INVESTIMENTO_PADRAO;
+};
+
+const mapInvestmentToValor: MapearValorFn = (range) =>
+  VALOR_ESTIMADO_POR_FAIXA[mapInvestmentToEnum(range)];
+// @guard-js:fim faixa-investimento
 
 function mapClassificacao(cls: string | null): "hot" | "warm" | "cold" {
   if (!cls) return "cold";

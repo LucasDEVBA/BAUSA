@@ -8,6 +8,11 @@ import { createAdminClient, hasServiceKey } from "@/lib/supabase-admin";
 import { getUserPapel } from "@/lib/auth";
 import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 import { excluirLead } from "@/lib/actions/leads-excluir";
+import {
+  faixaInvestimentoConhecida,
+  mapInvestmentToEnum,
+  mapInvestmentToValor,
+} from "@/lib/faixa-investimento";
 import { registrarEventoGamificacao, type ResultadoGamificacao } from "@/lib/gamificacao";
 import {
   DETALHE_REVISAO_PAGINA,
@@ -18,26 +23,6 @@ import {
   paginacaoSegura,
   type ResultadoPaginaRevisao,
 } from "@/lib/revisao-leads";
-
-function mapInvestmentToEnum(range: string | null): string {
-  if (!range) return "ate_20k";
-  const lower = range.toLowerCase();
-  if (lower.includes("40") || lower.includes("50") || lower.includes("70") || lower.includes("over")) return "40k_mais";
-  if (lower.includes("30")) return "30k_40k";
-  if (lower.includes("20")) return "20k_30k";
-  return "ate_20k";
-}
-
-function mapInvestmentToValor(range: string | null): number {
-  const mapped = mapInvestmentToEnum(range);
-  const valores: Record<string, number> = {
-    "40k_mais": 32000,
-    "30k_40k": 28000,
-    "20k_30k": 22000,
-    "ate_20k": 16000,
-  };
-  return valores[mapped] || 16000;
-}
 
 function mapClassificacao(cls: string | null): "hot" | "warm" | "cold" {
   if (!cls) return "cold";
@@ -201,6 +186,18 @@ async function promoverLeadCore(
       .single();
   }
 
+  // Faixa fora do dicionário cai no piso (ate_20k / R$ 16.000). Loga para um
+  // código novo do formulário não virar estimativa errada silenciosa (T4).
+  const investmentRange = (fs.investment_range as string | null) ?? null;
+  if (investmentRange && !faixaInvestimentoConhecida(investmentRange)) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      action: "faixa_investimento_desconhecida",
+      formSubmissionId: fsId,
+      investment_range: investmentRange.slice(0, 40),
+    }));
+  }
+
   // Atleta — inclui os campos da pré-qualificação Gemini (paridade com a CF)
   const classificacaoGemini = (fs.qualification_classification as string | null) ?? null;
   const { data: atleta, error: atletaError } = await supabase
@@ -225,7 +222,7 @@ async function promoverLeadCore(
       momento_inicio: "proximo_semestre",
       comprometimento: "medio",
       decisao_familiar: "em_discussao",
-      faixa_investimento: mapInvestmentToEnum(fs.investment_range as string | null),
+      faixa_investimento: mapInvestmentToEnum(investmentRange),
       lead_classificacao: mapClassificacao(classificacaoGemini),
       qualificado_gemini: classificacaoGemini === "QUENTE" || classificacaoGemini === "MORNO",
       classificacao_gemini: classificacaoGemini,
@@ -254,7 +251,7 @@ async function promoverLeadCore(
   const dealBase: Record<string, unknown> = {
     atleta_id: atletaId,
     responsavel_id: userData.user?.id,
-    valor_estimado: mapInvestmentToValor(fs.investment_range as string | null),
+    valor_estimado: mapInvestmentToValor(investmentRange),
     status_decisao_familia: "em_discussao",
     safra: "fall_2026",
     ...dealCamposPorTiming(timingStatus, probabilidadePorEtapa),

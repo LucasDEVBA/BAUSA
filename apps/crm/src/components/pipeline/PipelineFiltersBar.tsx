@@ -55,6 +55,7 @@ const PLANO_OPTIONS: Array<{ value: PipelineFiltersState["plano"]; label: string
   { value: "Legacy", label: "Legacy" },
   { value: "Journey", label: "Journey" },
   { value: "Start", label: "Start" },
+  { value: "Personalizado", label: "Personalizado" },
 ];
 
 export function emptyPipelineFilters(): PipelineFiltersState {

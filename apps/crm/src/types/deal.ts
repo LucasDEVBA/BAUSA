@@ -31,7 +31,16 @@ export type DealStage =
 /** Timing do lead (form_submissions.timing_status) — exibido como badge no card. */
 export type DealTimingStatus = "ideal" | "muito_cedo" | "tarde_demais";
 
-export type ProductTier = "Legacy" | "Journey" | "Start";
+export type ProductTier = "Legacy" | "Journey" | "Start" | "Personalizado";
+
+/**
+ * De onde vem o `deal_value_brl` exibido (T3, 2026-10-08) — precedência
+ * calculada NA LEITURA por lib/valor-deal.ts:
+ *   contratado = contratos_financeiros.valor_total (contrato vigente com plano)
+ *   negociado  = deals.valor_estimado com flag_valores_customizados (CEO, com justificativa)
+ *   estimado   = deals.valor_estimado automático (faixa de investimento do formulário)
+ */
+export type OrigemValorDeal = "contratado" | "negociado" | "estimado";
 
 export interface Deal {
   id: string;
@@ -42,7 +51,18 @@ export interface Deal {
   guardian_name: string;
   guardian_profession?: string;
   investment_range: string;
+  /** Valor EXIBIDO e somado em todo o Engine: contrato > negociado > estimado
+   *  (lib/valor-deal.ts). Nunca é gravado — derivado na leitura. */
   deal_value_brl: number;
+  /** Origem de `deal_value_brl` — controla o "≈ … · estimado" e o destino do
+   *  clique no valor (modal de customização × aba do contrato). */
+  valor_origem?: OrigemValorDeal;
+  /** deals.valor_estimado cru (estimativa da faixa OU valor negociado). */
+  valor_estimado_brl?: number;
+  /** Justificativa da customização do valor (deals.justificativa_customizacao). */
+  justificativa_valor?: string;
+  /** contratos_financeiros.id vigente (mesmo "aguardando plano"). */
+  contrato_id?: string;
   stage: DealStage;
   classification: LeadClassification;
   address_state?: string;
@@ -385,4 +405,5 @@ export const PRODUCT_TIER_STYLES: Record<ProductTier, { badge: string }> = {
   Legacy: { badge: "bg-plan-legacy/15 text-plan-legacy border border-plan-legacy/20" },
   Journey: { badge: "bg-plan-journey/15 text-plan-journey border border-plan-journey/20" },
   Start: { badge: "bg-secondary text-muted-foreground border border-border" },
+  Personalizado: { badge: "bg-sys-purple/12 text-sys-purple border border-sys-purple/20" },
 };

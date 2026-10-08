@@ -457,12 +457,15 @@ export default function NovoLeadPage() {
                   <Field label="Faixa de investimento anual (US$)" required>
                     <select className={selectClass} value={form.investment_range} onChange={(e) => update("investment_range", e.target.value)}>
                       <option value="">Selecionar...</option>
-                      <option value="abaixo_15k">Abaixo de US$ 15k</option>
-                      <option value="15k_20k">US$ 15k – 20k</option>
-                      <option value="20k_30k">US$ 20k – 30k</option>
-                      <option value="30k_40k">US$ 30k – 40k</option>
-                      <option value="40k_50k">US$ 40k – 50k</option>
-                      <option value="acima_50k">Acima de US$ 50k</option>
+                      {/* Mesmos códigos do formulário público (T4) — o mapeamento
+                          faixa→valor é exato por código (lib/faixa-investimento). */}
+                      <option value="abaixo-15k">Abaixo de US$ 15k</option>
+                      <option value="15k-20k">US$ 15k – 20k</option>
+                      <option value="20k-30k">US$ 20k – 30k</option>
+                      <option value="30k-40k">US$ 30k – 40k</option>
+                      <option value="40k-50k">US$ 40k – 50k</option>
+                      <option value="50k-70k">US$ 50k – 70k</option>
+                      <option value="over-70k">Acima de US$ 70k</option>
                     </select>
                   </Field>
                 </div>

@@ -57,22 +57,27 @@ import {
 } from "@/lib/etapas-deal";
 import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
 import { celebrar } from "@/lib/gamificacao-store";
-import { cn } from "@/lib/utils";
+import { cn, formatInvestmentRange } from "@/lib/utils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
-const INVESTMENT_LABELS: Record<string, string> = {
-  "15k-20k": "US$ 15–20 mil/ano (≈ R$ 7,5–10 mil/mês)",
-  "20k-30k": "US$ 20–30 mil/ano (≈ R$ 10–15 mil/mês)",
-  "30k-40k": "US$ 30–40 mil/ano (≈ R$ 15–20 mil/mês)",
-  "40k-50k": "US$ 40–50 mil/ano (≈ R$ 20–25 mil/mês)",
-  "50k-70k": "US$ 50–70 mil/ano (≈ R$ 25–35 mil/mês)",
-  "over-70k": "Acima de US$ 70 mil/ano (≈ R$ 35 mil+/mês)",
+// Só o equivalente mensal é local: o rótulo da faixa vem de formatInvestmentRange
+// (fonte única), que também conhece o código do cadastro manual (abaixo-15k).
+const EQUIVALENTE_MENSAL_BRL: Readonly<Record<string, string>> = {
+  "15k-20k": "≈ R$ 7,5–10 mil/mês",
+  "20k-30k": "≈ R$ 10–15 mil/mês",
+  "30k-40k": "≈ R$ 15–20 mil/mês",
+  "40k-50k": "≈ R$ 20–25 mil/mês",
+  "50k-70k": "≈ R$ 25–35 mil/mês",
+  "over-70k": "≈ R$ 35 mil+/mês",
 };
 
 function investmentLabel(range: string | null): string {
   if (!range) return "—";
-  return INVESTMENT_LABELS[range] ?? range;
+  const mensal = Object.prototype.hasOwnProperty.call(EQUIVALENTE_MENSAL_BRL, range)
+    ? EQUIVALENTE_MENSAL_BRL[range]
+    : null;
+  return mensal ? `${formatInvestmentRange(range)} (${mensal})` : formatInvestmentRange(range);
 }
 
 function instagramInfo(value: string | null): { handle: string; url: string } | null {

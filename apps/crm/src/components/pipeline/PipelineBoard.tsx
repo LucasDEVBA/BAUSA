@@ -21,7 +21,9 @@ import {
 } from "@/lib/etapas-deal";
 import { PipelineColumn } from "./PipelineColumn";
 import { DealCard } from "./DealCard";
-import { DealDetailModal } from "./DealDetailModal";
+import { DealDetailModal, type DealDetailSection } from "./DealDetailModal";
+import { CustomizarValorModal } from "./CustomizarValorModal";
+import { explicarOrigemValor } from "@/lib/valor-deal";
 import {
   PipelineFiltersBar,
   emptyPipelineFilters,
@@ -79,6 +81,8 @@ interface PipelineBoardProps {
   probabilidadePorEtapa?: Record<string, number>;
   /** Só nível CEO edita colunas (o board é read-only para os demais). */
   podeEditarColunas?: boolean;
+  /** Só nível CEO edita o valor do deal pelo card (customizarValorDeal exige ceo). */
+  podeEditarValor?: boolean;
   /** Leads na fila de aprovação — primeira coluna do board (sem deal ainda). */
   leadsPendentes?: PaginaRevisao<LeadPendenteCard>;
   /** FRIOs recentes p/ revisão — coluna própria, read-only + resgate. */
@@ -153,6 +157,7 @@ export function PipelineBoard({
   stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
   probabilidadePorEtapa = {},
   podeEditarColunas = false,
+  podeEditarValor = false,
   leadsPendentes = PAGINA_VAZIA,
   leadsFrios = PAGINA_VAZIA,
   leadsIncompletos = PAGINA_VAZIA,
@@ -164,7 +169,22 @@ export function PipelineBoard({
   // customizar o valor (router.refresh → initialDeals novos) repinta o modal
   // na hora, sem fechar e reabrir (2026-09-11).
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
-  const setSelectedDeal = (deal: Deal | null) => setSelectedDealId(deal?.id ?? null);
+  // Seção em que o modal abre (clique no valor de deal COM contrato → aba do
+  // contrato). Clique comum no card abre na Visão Executiva (padrão).
+  const [secaoInicialDeal, setSecaoInicialDeal] = useState<DealDetailSection | undefined>(undefined);
+  const setSelectedDeal = (deal: Deal | null, secao?: DealDetailSection) => {
+    setSecaoInicialDeal(secao);
+    setSelectedDealId(deal?.id ?? null);
+  };
+  // Valor em edição pelo card (T3) — derivado por id, como o deal aberto.
+  const [valorEmEdicaoId, setValorEmEdicaoId] = useState<string | null>(null);
+  const abrirValorDoDeal = (deal: Deal) => {
+    if (deal.valor_origem === "contratado") {
+      setSelectedDeal(deal, "financeiro");
+      return;
+    }
+    setValorEmEdicaoId(deal.id);
+  };
   // Reconcilia com o servidor: quando a page revalida (ex.: vincular reunião
   // move o deal de etapa), a verdade do servidor vence a cópia local — sem
   // isto o card fica na coluna antiga até um F5 (CEO reportou, 2026-08-26).
@@ -341,6 +361,9 @@ export function PipelineBoard({
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
   const selectedDeal = selectedDealId
     ? (deals.find((d) => d.id === selectedDealId) ?? null)
+    : null;
+  const valorEmEdicao = valorEmEdicaoId
+    ? (deals.find((d) => d.id === valorEmEdicaoId) ?? null)
     : null;
 
   // Transform SÓ de render, aplicado coluna a coluna dentro do agrupamento.
@@ -676,6 +699,7 @@ export function PipelineBoard({
                 sort={sortMap[stage] ?? DEFAULT_PIPELINE_SORT}
                 onSortChange={handleColumnSortChange}
                 onExcluirDeal={podeEditarColunas ? setDealParaExcluir : undefined}
+                onValorClick={podeEditarValor ? abrirValorDoDeal : undefined}
               />
             ))}
             {podeEditarColunas && (
@@ -856,6 +880,27 @@ export function PipelineBoard({
           deal={selectedDeal}
           onClose={() => setSelectedDeal(null)}
           stageConfig={stageConfig}
+          initialSection={secaoInicialDeal}
+          podeEditarValor={podeEditarValor}
+        />
+      )}
+
+      {/* Valor do deal direto do card (T3): estimado/negociado → customização
+          com justificativa (Regra 3). Contrato → recusa e abre a aba dele. */}
+      {valorEmEdicao && (
+        <CustomizarValorModal
+          key={valorEmEdicao.id}
+          dealId={valorEmEdicao.id}
+          athleteName={valorEmEdicao.athlete_name}
+          valorAtual={valorEmEdicao.deal_value_brl}
+          jaCustomizado={valorEmEdicao.flag_valores_customizados}
+          origem={valorEmEdicao.valor_origem}
+          explicacaoOrigem={explicarOrigemValor(valorEmEdicao)}
+          onClose={() => setValorEmEdicaoId(null)}
+          onTemContrato={() => {
+            setValorEmEdicaoId(null);
+            setSelectedDeal(valorEmEdicao, "financeiro");
+          }}
         />
       )}
 
