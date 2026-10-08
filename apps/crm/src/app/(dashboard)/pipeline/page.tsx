@@ -9,6 +9,8 @@ import { getEtapasDealConfigOverrides, getProbabilidadePorEtapa } from "@/lib/ac
 import { getUserPapel } from "@/lib/auth";
 import { listarLeadsFriosCards, listarLeadsIncompletosCards, listarLeadsPendentesCards } from "@/lib/actions/leads";
 import { mergeDealStageConfig } from "@/lib/etapas-deal";
+import { paginaRevisaoDe } from "@/lib/revisao-leads";
+import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 import {
   computarPrioridades,
   type AlvoPrioridade,
@@ -222,14 +224,16 @@ export default async function PipelinePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Overrides de apresentação das etapas (CEO) em paralelo com os deals
+  // Deals paginados em blocos de 1000 (max_rows do PostgREST): sem isso o
+  // board cortaria em silêncio os deals menos recentes ao passar de 1000.
   const [etapasOverrides, probabilidadePorEtapa, papel, leadsPendentes, leadsFrios, leadsIncompletos, { data: rows }] = await Promise.all([
     getEtapasDealConfigOverrides(),
     getProbabilidadePorEtapa(),
     getUserPapel(),
-    listarLeadsPendentesCards(),
-    listarLeadsFriosCards(),
-    listarLeadsIncompletosCards(),
-    supabase
+    listarLeadsPendentesCards().then(paginaRevisaoDe),
+    listarLeadsFriosCards().then(paginaRevisaoDe),
+    listarLeadsIncompletosCards().then(paginaRevisaoDe),
+    buscarTodasAsPaginas((de, ate) => supabase
     .from("deals")
     .select(`
       id, etapa, valor_estimado, next_action, data_proxima_acao,
@@ -264,7 +268,9 @@ export default async function PipelinePage() {
       )
     `)
     .is("deleted_at", null)
-    .order("updated_at", { ascending: false }),
+    .order("updated_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(de, ate)),
   ]);
 
   const stageConfig = mergeDealStageConfig(etapasOverrides);
