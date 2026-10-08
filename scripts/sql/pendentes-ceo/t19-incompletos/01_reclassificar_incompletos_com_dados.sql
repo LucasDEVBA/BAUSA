@@ -1,6 +1,6 @@
 -- ════════════════════════════════════════════════════════════════════════
 -- SCRIPT DE DADOS (NÃO é migration) — T19: INCOMPLETO com dados → FRIO
--- Destino no repo: scripts/dados/2026-10-08-t19-reclassificar-incompletos.sql
+-- Arquivo: scripts/sql/pendentes-ceo/t19-incompletos/ (termina em ROLLBACK — PLANO §5).
 -- ⛔ SÓ RODAR COM AUTORIZAÇÃO EXPLÍCITA DO CEO (pergunta 4b dos vídeos 28/09).
 -- ⛔ PRÉ-REQUISITO: a CF qualify-lead com o gate determinístico do T19 já
 --    está em PRD (senão um retry/requalify recria INCOMPLETO com dados).
@@ -88,7 +88,6 @@ WHERE fs.deleted_at IS NULL
   -- AND fs.submitted_at >= now() - interval '90 days'
 ;
 -- Esperado: UPDATE 85 (ou 41 na variante). Diferente disso → ROLLBACK;
-COMMIT;
 
 -- ─── 3) CONFERÊNCIA ─────────────────────────────────────────────────────
 -- (a) zero INCOMPLETO com dados completos e sem decisão humana
@@ -113,3 +112,10 @@ SELECT count(*) AS deve_ser_zero_qualificado
 FROM public.form_submissions
 WHERE sinais_alerta @> '["reclassificado INCOMPLETO→FRIO (T19, out/2026): profissão e faixa presentes — script autorizado pelo CEO"]'::jsonb
   AND (qualified IS TRUE OR aprovacao_status IS NOT NULL);
+
+-- ─── FIM — padrão PLANO.md §5 ────────────────────────────────────────────
+-- A conferência acima roda DENTRO da transação aberta no passo de execução.
+-- Este arquivo termina em ROLLBACK de propósito: rodar inteiro NÃO persiste.
+-- Trocar por COMMIT somente com a autorização explícita do CEO (pergunta 4b),
+-- depois de conferir o "UPDATE n" e a conferência.
+ROLLBACK;

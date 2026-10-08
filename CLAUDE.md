@@ -119,7 +119,7 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | `functions/process-followup-whatsapp/` | `followup-scheduler` | `followup-scheduler-uat` | Cloud Scheduler (1x/hora) | Follow-ups 48h e 7 dias **só timing ideal** (fallback sem agendamento) |
 | `functions/process-scheduled-followups/` | `process-scheduled-followups` | `process-scheduled-followups-uat` | Cloud Scheduler (diário 08:00 BRT) | Retomada `scheduled_return` em novembro p/ leads `muito_cedo` |
 | `functions/retry-qualification/` | `retry-qualification` | `retry-qualification-uat` | Cloud Scheduler (diário) + HTTP `lead_id` | Reprocessa qualificação Gemini pendente/falha (também usado p/ recuperar lead órfão) |
-| `functions/calendar-webhook/` | `calendar-webhook` | `calendar-webhook-uat` | Google Calendar Push Notification | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO |
+| `functions/calendar-webhook/` | `calendar-webhook` | `calendar-webhook-uat` | Google Calendar Push Notification | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO. **T14:** reunião de lead SEM deal (ou com deal parado em perdido/aguardando_timing/projeto_futuro) gera aviso in-app `reuniao_fora_pipeline` para CEO/CTO (só interno, best-effort, idempotente por CAS + `notificacoes.dedupe_key`, só a instância de PRD grava; link `/leads?lead=<id>`). Check `reuniao_sem_deal` no `monitor-health`. Guard: `tests/calendar-reuniao-fora-pipeline.test.js` |
 | `functions/renew-calendar-watch/` | `renew-calendar-watch` | `renew-calendar-watch-uat` | Cloud Scheduler (cada 6 dias) | Renova watch channel do Google Calendar |
 | `functions/automation-engine/` | `automation-engine` | `automation-engine-uat` | Cloud Scheduler (1x/hora, min 30) | Engine das automações do BAU Engine (`/automacoes`): materializa gatilhos de tempo + executa runs (tarefa/notificação/WhatsApp/deal/IA) com CAS e retry. Ação `ia_prompt` (Gemini resiliente, teto 10/tick, resultado SÓ interno — notificação/tarefa) requer `GEMINI_API_KEY` (config manual). Guards CI: `tests/automation-engine-eligibility.test.js` + `tests/automation-engine-ia.test.js` |
 | `functions/meeting-transcripts/` | `meeting-transcripts` | `meeting-transcripts-uat` | Cloud Scheduler (a cada 2h, min 15) | Captura a transcrição nativa do Google Meet: acha o Doc anexado ao evento do Calendar (`deals.google_calendar_event_id`), exporta via Drive API (`drive.readonly`), resume via Gemini (opcional) e grava em `reunioes_transcricoes` (idempotente por `UNIQUE(google_event_id)`). Exibida no detalhe do lead/deal no Engine |
@@ -320,7 +320,7 @@ adversarial na faixa do meio. Guard: `tests/qualificacao-v2-invariants.test.js`.
 | MORNO | corte_frio ≤ score < corte_quente (passa por auditoria adversarial) |
 | FRIO | score < corte_frio (default 40) — pessoa real, baixa plausibilidade |
 | INVALIDO | dado sujo (regex em código = gate duro) ou injeção de prompt |
-| INCOMPLETO | profissão/faixa ausentes |
+| INCOMPLETO | profissão/faixa ausentes — decidido em CÓDIGO (T19), não pelo modelo |
 
 - **INVALIDO/INCOMPLETO nunca são "qualificados"** (`qualified` = só QUENTE/
   MORNO) e ficam fora de pipeline/outreach (schedulers filtram IN (QUENTE,MORNO)).
@@ -336,6 +336,18 @@ adversarial na faixa do meio. Guard: `tests/qualificacao-v2-invariants.test.js`.
   Os CORTES mandam na faixa — funil ajustável sem mexer em prompt.
 - Dados do lead entram sanitizados entre `<dados_lead>` (anti-injeção;
   tentativa de instrução → INVALIDO).
+- **Gate de completude em código (T19, 2026-10-08):** profissão (1º ou 2º
+  responsável, ≥2 letras) + faixa (um dos 6 códigos) presentes → nunca
+  INCOMPLETO (INCOMPLETO do modelo vira FRIO com teto `corte_frio − 1` e
+  `sinal_alerta`); ausentes → sempre INCOMPLETO (INVALIDO precede). Aplicado
+  antes e depois da 2ª passagem; 2ª passagem INCOMPLETO é descartada. Resposta
+  sem o campo `classificacao` → `qualification_pending` + retry (nunca classe
+  inventada).
+- **Idade incoerente com a série (T23) é ALERTA, nunca INVALIDO:** o modelo
+  recebe `idade_atleta: não informado` e o código grava o `sinal_alerta`.
+  Tabela série → idade em 3 lugares travados por guard
+  (`tests/nascimento-serie-paridade.test.js`): formulário, `qualify-lead` e
+  (PR-09) banco.
 - **Requalificação em massa**: `retry-qualification` modo
   `{mode:'requalify', cutoff:ISO, limit}` — cursor por `qualified_at`,
   retomável; decisão humana (aprovado/reprovado) NUNCA sobrescrita.
@@ -552,7 +564,7 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | `estrategia_escolas` | Match por par atleta-escola | match_score, resultado |
 | `historico_contatos_escola` | Timeline contatos com escolas | tipo, resumo |
 | `tarefas` | Tarefas com prioridade | prazo, prioridade, criada_automaticamente |
-| `notificacoes` | Notificações in-app | severidade, lida, espelhada ao CEO |
+| `notificacoes` | Notificações in-app | severidade, lida, espelhada ao CEO; `dedupe_key` + UNIQUE(destinatario_id, dedupe_key) — aviso com chave aparece 1× para CEO/CTO |
 | `documentos_atleta` | Checklist de documentos | status workflow (5 etapas) |
 | `faq_artigos` | Base de conhecimento (10 seed) | categoria, acessos |
 | `indicacoes` | Programa de indicação | recompensa_devida, recompensa_entregue |

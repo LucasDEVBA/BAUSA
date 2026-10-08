@@ -9,7 +9,7 @@
  * PARIDADE (guard tests/nascimento-serie-paridade.test.js): a tabela
  * série → faixa de idade é IGUAL em
  *   - functions/qualify-lead/index.js (FAIXA_IDADE_POR_SERIE)
- *   - supabase/migrations/20261008180300_* (public.fs_faixa_idade_serie)
+ *   - supabase/migrations/*_form_submissions_validar_nascimento.sql (public.fs_faixa_idade_serie)
  * As MENSAGENS (PT) são também as chaves de tradução em form.errors (en/es)
  * e as mensagens que o banco devolve no envio direto.
  */

@@ -1,6 +1,6 @@
 -- ════════════════════════════════════════════════════════════════════════
 -- SCRIPT DE DADOS (NÃO é migration) — T23: datas de nascimento ruins
--- Destino no repo: scripts/dados/2026-10-08-t23-datas-nascimento.sql
+-- Arquivo: scripts/sql/pendentes-ceo/t23-nascimento/ (termina em ROLLBACK — PLANO §5).
 -- Parte A = relatório SOMENTE LEITURA (roda a qualquer momento).
 -- Parte B = correção de UM lead — ⛔ só com a data REAL confirmada pela
 --   família/CEO (pergunta 3b: Samuel) e autorização explícita.
@@ -11,7 +11,7 @@
 -- ════════════════════════════════════════════════════════════════════════
 
 -- ─── A) RELATÓRIO (leitura) ─────────────────────────────────────────────
--- Requer a migration 20261008180300 (PR 2) (funções fs_*). Antes dela, use o CASE
+-- Requer a migration *_form_submissions_validar_nascimento (PR 2) (funções fs_*). Antes dela, use o CASE
 -- da função fs_faixa_idade_serie inline.
 SELECT
   public.fs_motivo_nascimento_invalido(fs.birth_date, fs.school_year, fs.submitted_at::date) AS motivo,
@@ -68,10 +68,16 @@ SELECT (SELECT count(*) FROM fs_upd) AS form_submissions_atualizados,
        (SELECT count(*) FROM at_upd) AS atletas_atualizados;
 -- Esperado: 1 e (0 ou 1 — 0 quando o lead ainda não tem atleta, ex.: Samuel pendente).
 -- Diferente disso → ROLLBACK;
-COMMIT;
 
 -- Conferência: o motivo do lead corrigido deve ser NULL.
 -- SELECT public.fs_motivo_nascimento_invalido(birth_date, school_year, submitted_at::date)
 -- FROM public.form_submissions WHERE id = '<lead_id>';
 -- Opcional: requalificar o lead (retry-qualification com {"lead_id": "<id>"}) —
 -- decisão humana (aprovado/reprovado) nunca é sobrescrita.
+
+-- ─── FIM — padrão PLANO.md §5 ────────────────────────────────────────────
+-- A conferência acima roda DENTRO da transação aberta no passo de execução.
+-- Este arquivo termina em ROLLBACK de propósito: rodar inteiro NÃO persiste.
+-- Trocar por COMMIT somente com a autorização explícita do CEO (pergunta 3b),
+-- depois de conferir o "UPDATE n" e a conferência.
+ROLLBACK;
