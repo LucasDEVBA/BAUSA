@@ -493,7 +493,8 @@ badge.variant: "danger" | "warning" | "success" | "neutral"
 ### Testes de componente (Vitest + RTL + jest-axe)
 
 - Rodar: `pnpm --filter @bolsa-atleta/engine test` (ou `test:watch`). CI: job **Component Tests CRM**.
-- Arquivo `src/**/*.test.tsx` ao lado do componente (ex.: `components/ui/Button.test.tsx`), ambiente jsdom.
+- Arquivo `src/**/*.test.tsx` ao lado do componente (ex.: `components/ui/Button.test.tsx`), ambiente jsdom. Teste de função pura sem JSX pode ser `src/**/*.test.ts` (também roda).
+- `vitest.setup.ts` repõe o que o RTL só faz sozinho com globais: `cleanup` entre testes e `IS_REACT_ACT_ENVIRONMENT = true` (sem ele o aviso "not wrapped in act(...)" some). Guard: `src/test/vitest-setup.test.ts`.
 - Importe `describe/it/expect/vi` **de `"vitest"`** — não há globais (o `tsc --noEmit` e o `next build` checam os testes).
 - Interação via `userEvent.setup()` + `await user.type/click` (nunca `fireEvent` para digitação).
 - Acessibilidade: `expect(await axe(container)).toHaveNoViolations()` (matcher registrado em `vitest.setup.ts`; contraste de cor não é checado no jsdom).

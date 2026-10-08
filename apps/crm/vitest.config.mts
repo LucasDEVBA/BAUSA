@@ -10,7 +10,9 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.tsx"],
+    // .ts também: o tsc e o next build já checam esses arquivos, então um
+    // teste de função pura fora do include passaria verde sem nunca rodar.
+    include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./vitest.setup.ts"],
     // Sem globais: os testes importam describe/it/expect de "vitest", e o
     // `tsc --noEmit`/`next build` não precisam conhecer tipos globais de teste.
