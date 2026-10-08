@@ -1,4 +1,5 @@
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { type createServerSupabaseClient } from "@/lib/supabase-server";
+import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 
 // ════════════════════════════════════════════════════════════════════════
 // Prioridade interna P1/P2 por ENGAJAMENTO (v1 — régua explicável e ajustável).
@@ -192,12 +193,19 @@ export async function computarPrioridades(
     }
   }
 
-  const { data, error } = await supabase
-    .from("whatsapp_mensagens")
-    .select("from_me, phone, momment, created_at")
-    .eq("is_grupo", false)
-    .order("created_at", { ascending: false })
-    .limit(FETCH_LIMIT);
+  // .limit(20000) sozinho era teto falso: o PostgREST corta em 1000 (max_rows)
+  // e a prioridade via só as ~1000 mensagens mais recentes (2.880 1:1 em 08/10).
+  const { data, error } = await buscarTodasAsPaginas<MsgRow>(
+    (de, ate) =>
+      supabase
+        .from("whatsapp_mensagens")
+        .select("from_me, phone, momment, created_at")
+        .eq("is_grupo", false)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(de, ate),
+    { teto: FETCH_LIMIT },
+  );
 
   if (error) {
     // Fail-open: prioridade é camada de exibição — sem dados, sem badge.

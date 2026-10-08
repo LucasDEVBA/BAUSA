@@ -139,6 +139,13 @@ function Campo({ label, children, wide }: { label: string; children: React.React
   );
 }
 
+type PaginaDetalhe = { success: true; leads: LeadPendenteAprovacao[]; total: number; proximoOffset: number };
+
+/** Revisão de Frios/Incompletos vem paginada (T7); fila e muito cedo, não. */
+function ehPaginaDetalhe(r: { success: true; leads: LeadPendenteAprovacao[] }): r is PaginaDetalhe {
+  return "proximoOffset" in r;
+}
+
 // ─── Modal ───────────────────────────────────────────────────────────────
 // Renderizado via PORTAL no <body>: os pontos de entrada vivem dentro de
 // containers com backdrop-filter/sticky (header liquid-glass do War Room e o
@@ -152,7 +159,8 @@ export function AprovacaoLeadsModal({
   modo = "aprovacao",
 }: {
   onClose: () => void;
-  onDecidido: () => void;
+  /** Lead decidido/resgatado/ativado (id) — o board tira o card da coluna. */
+  onDecidido: (leadId: string) => void;
   /** Abre já com este lead selecionado (clique no card do Kanban). */
   leadIdInicial?: string;
   /** "frios": revisão de leads FRIO — mesmo dossiê/abas; ação = resgatar p/ fila.
@@ -166,6 +174,11 @@ export function AprovacaoLeadsModal({
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [leads, setLeads] = useState<LeadPendenteAprovacao[]>([]);
+  // Revisão de Frios/Incompletos é PAGINADA (T7): total real do banco +
+  // "Carregar mais". null = modo sem paginação (fila de aprovação/muito cedo).
+  const [total, setTotal] = useState<number | null>(null);
+  const [proximoOffset, setProximoOffset] = useState(0);
+  const [carregandoMais, setCarregandoMais] = useState(false);
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [reprovando, setReprovando] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -183,30 +196,70 @@ export function AprovacaoLeadsModal({
   useEffect(() => {
     let ativo = true;
     (async () => {
-      const res =
-        modo === "frios"
-          ? await listarLeadsFriosDetalhe()
-          : modo === "incompletos"
-            ? await listarLeadsIncompletosDetalhe()
-            : modo === "muito_cedo"
-              ? await listarLeadsMuitoCedoDetalhe()
-              : await listarLeadsPendentesAprovacao();
-      if (!ativo) return;
-      if (res.success) {
-        setLeads(res.leads);
-        const alvo = leadIdInicial && res.leads.some((l) => l.id === leadIdInicial)
-          ? leadIdInicial
-          : (res.leads[0]?.id ?? null);
-        setSelecionadoId(alvo);
-      } else {
-        setErro(res.error);
+      try {
+        // garantirId: o card clicado pode ter vindo do "Mostrar mais" da
+        // coluna (além da 1ª página) — o modal abre SEMPRE no lead certo.
+        const paginada = modo === "frios" || modo === "incompletos";
+        const res = paginada
+          ? modo === "frios"
+            ? await listarLeadsFriosDetalhe({ garantirId: leadIdInicial })
+            : await listarLeadsIncompletosDetalhe({ garantirId: leadIdInicial })
+          : modo === "muito_cedo"
+            ? await listarLeadsMuitoCedoDetalhe()
+            : await listarLeadsPendentesAprovacao();
+        if (!ativo) return;
+        if (res.success) {
+          setLeads(res.leads);
+          if (ehPaginaDetalhe(res)) {
+            setTotal(res.total);
+            setProximoOffset(res.proximoOffset);
+          }
+          const pedidoSumiu = Boolean(leadIdInicial) && !res.leads.some((l) => l.id === leadIdInicial);
+          if (pedidoSumiu) {
+            // Abrir OUTRO lead em silêncio levava o CEO a decidir sobre o lead errado.
+            toast.warning("Este lead não está mais nesta lista (já decidido?). Escolha outro na lista.");
+            setSelecionadoId(null);
+          } else {
+            setSelecionadoId(leadIdInicial || (res.leads[0]?.id ?? null));
+          }
+        } else {
+          setErro(res.error);
+        }
+      } catch {
+        if (ativo) setErro("Falha de rede ao carregar a revisão. Feche e tente de novo.");
+      } finally {
+        if (ativo) setCarregando(false);
       }
-      setCarregando(false);
     })();
     return () => {
       ativo = false;
     };
   }, [leadIdInicial, modo]);
+
+  const carregarMais = useCallback(async () => {
+    if (carregandoMais || (modo !== "frios" && modo !== "incompletos")) return;
+    setCarregandoMais(true);
+    try {
+      const res =
+        modo === "frios"
+          ? await listarLeadsFriosDetalhe({ offset: proximoOffset })
+          : await listarLeadsIncompletosDetalhe({ offset: proximoOffset });
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      setLeads((atuais) => {
+        const vistos = new Set(atuais.map((l) => l.id));
+        return [...atuais, ...res.leads.filter((l) => !vistos.has(l.id))];
+      });
+      setTotal(res.total);
+      setProximoOffset(res.proximoOffset);
+    } catch {
+      toast.error("Falha de rede ao carregar mais leads. Tente de novo.");
+    } finally {
+      setCarregandoMais(false);
+    }
+  }, [carregandoMais, modo, proximoOffset]);
 
   // Esc fecha + trava o scroll da página enquanto aberto
   useEffect(() => {
@@ -226,10 +279,13 @@ export function AprovacaoLeadsModal({
     (id: string) => {
       const proxima = leads.filter((l) => l.id !== id);
       setLeads(proxima);
+      setTotal((t) => (t === null ? t : Math.max(0, t - 1)));
+      // O decidido saiu do recorte no servidor: a próxima página começa 1 antes.
+      setProximoOffset((o) => Math.max(0, o - 1));
       setSelecionadoId((atual) => (atual === id ? (proxima[0]?.id ?? null) : atual));
       setReprovando(false);
       setMotivo("");
-      onDecidido();
+      onDecidido(id);
       router.refresh();
     },
     [leads, onDecidido, router],
@@ -373,9 +429,9 @@ export function AprovacaoLeadsModal({
                   {carregando
                     ? "Carregando fila…"
                     : modo === "frios"
-                      ? `${leads.length} lead(s) frios nos últimos 90 dias — fora do funil até você resgatar`
+                      ? `${total ?? leads.length} lead(s) frios nos últimos 90 dias — fora do funil até você resgatar`
                       : modo === "incompletos"
-                        ? `${leads.length} cadastro(s) sem os dados obrigatórios — complete na conversa e resgate quando fizer sentido`
+                        ? `${total ?? leads.length} cadastro(s) sem os dados obrigatórios — complete na conversa e resgate quando fizer sentido`
                         : modo === "muito_cedo"
                           ? `${leads.length} lead(s) aprovados em Aguardando timing — mensagens automáticas desligadas; o contato é seu`
                           : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
@@ -455,6 +511,17 @@ export function AprovacaoLeadsModal({
                       <p className="mt-0.5 text-[11px] text-label-tertiary">Recebido {fmtData(l.submitted_at)}</p>
                     </button>
                   ))}
+                  {total !== null && leads.length < total && (
+                    <button
+                      type="button"
+                      onClick={() => void carregarMais()}
+                      disabled={carregandoMais}
+                      className="flex w-full items-center justify-center gap-1.5 px-4 py-3 text-xs font-semibold text-primary transition-colors hover:bg-accent disabled:opacity-60"
+                    >
+                      {carregandoMais && <Loader2 aria-hidden className="size-3.5 animate-spin" />}
+                      {carregandoMais ? "Carregando…" : `Carregar mais (${total - leads.length} restantes)`}
+                    </button>
+                  )}
                 </div>
 
                 {/* Preview */}

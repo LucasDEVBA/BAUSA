@@ -6,6 +6,15 @@ import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
 import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 import { registrarEventoGamificacao } from "@/lib/gamificacao";
+import {
+  DETALHE_REVISAO_PAGINA,
+  FRIOS_REVISAO_DIAS,
+  INCOMPLETOS_REVISAO_DIAS,
+  PENDENTES_PAGINA,
+  REVISAO_PAGINA,
+  paginacaoSegura,
+  type ResultadoPaginaRevisao,
+} from "@/lib/revisao-leads";
 
 function mapInvestmentToEnum(range: string | null): string {
   if (!range) return "ate_20k";
@@ -422,11 +431,16 @@ export async function contarLeadsPendentesAprovacao(): Promise<number | null> {
 export interface LeadPendenteCard {
   id: string;
   athlete_name: string;
+  /** Busca do board casa também pelo responsável (T13). */
+  guardian_name: string | null;
   qualification_classification: string | null;
   city_state: string | null;
   position: string | null;
   timing_status: string | null;
   submitted_at: string;
+  /** Reunião detectada pelo Calendar: badge + topo da coluna (T13). */
+  meeting_scheduled: boolean | null;
+  meeting_scheduled_at: string | null;
 }
 
 /**
@@ -435,122 +449,173 @@ export interface LeadPendenteCard {
  * A coluna é alimentada pela FILA (form_submissions), não por deals: o deal só
  * nasce na aprovação. Assim o board mostra o funil inteiro sem que um lead
  * não-aprovado entre em métrica, automação ou outreach.
+ * Paginada (T7): o PostgREST corta em 1000 linhas em silêncio — a coluna
+ * mostra o total real (count exact) e carrega o resto sob demanda.
  */
-export async function listarLeadsPendentesCards(): Promise<LeadPendenteCard[]> {
-  if ((await getUserPapel()) !== "ceo") return [];
+export async function listarLeadsPendentesCards(
+  opts: { offset?: number; limite?: number } = {},
+): Promise<ResultadoPaginaRevisao<LeadPendenteCard>> {
+  if ((await getUserPapel()) !== "ceo") return { success: false, error: "Apenas CEO/CTO." };
+  // offset/limite vêm do client: inteiros e dentro dos limites (limite ≤ max_rows)
+  const { offset, limite } = paginacaoSegura(opts, PENDENTES_PAGINA);
   const supabase = await createAuditedSupabaseClient();
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from("form_submissions")
-    .select("id, athlete_name, qualification_classification, city_state, position, timing_status, submitted_at")
+    .select(
+      "id, athlete_name, guardian_name, qualification_classification, city_state, position, timing_status, submitted_at, meeting_scheduled, meeting_scheduled_at",
+      { count: "exact" },
+    )
     .is("deleted_at", null)
     .eq("aprovacao_status", "pendente")
     .in("qualification_classification", ["QUENTE", "MORNO"])
-    .order("submitted_at", { ascending: true });
-  if (error) return [];
-  return (data ?? []) as unknown as LeadPendenteCard[];
+    .order("meeting_scheduled", { ascending: false, nullsFirst: false })
+    .order("submitted_at", { ascending: true })
+    .order("id", { ascending: true })
+    .range(offset, offset + limite - 1);
+  if (error?.code === "PGRST103") return { success: true, itens: [], total: offset };
+  if (error) return { success: false, error: `Erro ao listar a fila: ${error.message}` };
+  return { success: true, itens: (data ?? []) as unknown as LeadPendenteCard[], total: count ?? 0 };
 }
 
 export interface LeadFrioCard {
   id: string;
   athlete_name: string;
+  guardian_name: string | null;
   city_state: string | null;
   position: string | null;
   score_financeiro: number | null;
   qualification_reason: string | null;
   submitted_at: string;
+  meeting_scheduled: boolean | null;
+  meeting_scheduled_at: string | null;
 }
 
-/** Janela da coluna Frios: só FRIOs recentes entram na revisão. */
-const FRIOS_REVISAO_DIAS = 90;
-const FRIOS_REVISAO_LIMITE = 80;
+const COLUNAS_CARD_REVISAO =
+  "id, athlete_name, guardian_name, city_state, position, score_financeiro, qualification_reason, submitted_at, meeting_scheduled, meeting_scheduled_at";
+
+type ClasseRevisao = "FRIO" | "INCOMPLETO";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Recorte das colunas de revisão (Frios/Incompletos) em
+ * public.vw_cadastros_situacao: classe + SEM decisão + janela + SEM deal
+ * ativo — tudo NO BANCO, antes do range (bug T7: o .limit(80) vinha antes do
+ * filtro de deal, feito no Node; 114 de 194 FRIOs sumiam do board).
+ * Reunião detectada primeiro (T13), depois o mais recente.
+ */
+// SÍNCRONA de propósito: o builder do PostgREST é "thenable" — devolvido por
+// uma função async, ele seria EXECUTADO no await (e o .range() sumiria).
+function consultarRevisao(
+  supabase: Awaited<ReturnType<typeof createAuditedSupabaseClient>>,
+  classe: ClasseRevisao,
+  dias: number,
+  colunas: string,
+  contar: boolean,
+) {
+  const corte = new Date(Date.now() - dias * 86400000).toISOString();
+  return supabase
+    .from("vw_cadastros_situacao")
+    .select(colunas, contar ? { count: "exact" } : undefined)
+    .eq("qualification_classification", classe)
+    .is("aprovacao_status", null)
+    .gte("submitted_at", corte)
+    .eq("tem_deal_ativo", false)
+    .order("meeting_scheduled", { ascending: false, nullsFirst: false })
+    .order("submitted_at", { ascending: false })
+    .order("id", { ascending: false });
+}
+
+async function paginaCardsRevisao<T>(
+  classe: ClasseRevisao,
+  dias: number,
+  opts: { offset?: number; limite?: number },
+): Promise<ResultadoPaginaRevisao<T>> {
+  // limite > página: o hook recarrega de uma vez o que o CEO já tinha aberto
+  // no "Mostrar mais" quando o board dá refresh (lista sempre = servidor).
+  const { offset: inicio, limite } = paginacaoSegura(opts, REVISAO_PAGINA);
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error, count } = await consultarRevisao(supabase, classe, dias, COLUNAS_CARD_REVISAO, true)
+    .range(inicio, inicio + limite - 1);
+  // Offset além do fim (cards decididos em outra aba): fim da lista, não erro.
+  if (error?.code === "PGRST103") return { success: true, itens: [], total: inicio };
+  if (error) return { success: false, error: `Erro ao listar ${classe === "FRIO" ? "frios" : "incompletos"}: ${error.message}` };
+  return { success: true, itens: (data ?? []) as unknown as T[], total: count ?? 0 };
+}
+
+/**
+ * Dossiê COMPLETO de uma página da revisão (modais Frios/Incompletos).
+ * 1) ids da página na view (mesmo recorte das colunas); 2) se o card clicado
+ * não está na página (veio de "Mostrar mais"), entra junto — o modal abre
+ * SEMPRE no lead certo; 3) colunas completas em form_submissions por id.
+ */
+async function paginaDetalheRevisao(
+  classe: ClasseRevisao,
+  dias: number,
+  opts: { offset?: number; garantirId?: string },
+): Promise<
+  | { success: true; leads: LeadPendenteAprovacao[]; total: number; proximoOffset: number }
+  | { success: false; error: string }
+> {
+  const { offset } = paginacaoSegura(opts, DETALHE_REVISAO_PAGINA);
+  // garantirId vem do client: só UUID chega ao filtro (senão é ignorado)
+  const garantirId =
+    typeof opts.garantirId === "string" && UUID_RE.test(opts.garantirId) ? opts.garantirId : undefined;
+  const supabase = await createAuditedSupabaseClient();
+  const { data, error, count } = await consultarRevisao(supabase, classe, dias, "id", true)
+    .range(offset, offset + DETALHE_REVISAO_PAGINA - 1);
+  if (error?.code === "PGRST103") return { success: true, leads: [], total: offset, proximoOffset: offset };
+  if (error) return { success: false, error: `Erro ao listar a revisão: ${error.message}` };
+  const idsPagina = ((data ?? []) as unknown as { id: string }[]).map((r) => r.id);
+  const ids = [...idsPagina];
+  if (garantirId && !ids.includes(garantirId)) {
+    const { data: alvo } = await consultarRevisao(supabase, classe, dias, "id", false)
+      .eq("id", garantirId)
+      .maybeSingle();
+    if (alvo) ids.unshift(garantirId);
+  }
+  if (ids.length === 0) return { success: true, leads: [], total: count ?? 0, proximoOffset: offset };
+  const { data: rows, error: errRows } = await supabase
+    .from("form_submissions")
+    .select(COLUNAS_FILA_APROVACAO)
+    .in("id", ids)
+    .is("deleted_at", null);
+  if (errRows) return { success: false, error: `Erro ao carregar o dossiê: ${errRows.message}` };
+  const porId = new Map(((rows ?? []) as unknown as LeadPendenteAprovacao[]).map((r) => [r.id, r]));
+  const leads = ids.map((id) => porId.get(id)).filter((l): l is LeadPendenteAprovacao => l !== undefined);
+  return { success: true, leads, total: count ?? leads.length, proximoOffset: offset + idsPagina.length };
+}
 
 /**
  * Cards da coluna "Frios — revisão" do Kanban (pedido do CEO, 2026-09-04):
  * FRIO deixava de aparecer em qualquer lugar do board; agora os últimos 90
  * dias ficam visíveis para revisão humana. SÓ leitura + resgate explícito —
  * FRIO continua fora de fila, pipeline, métricas e outreach (invariantes
- * intactos). Exclui quem já tem deal (rebaixados do mutirão vivem em Perdido).
+ * intactos). Exclui quem já tem deal (rebaixados do mutirão vivem em Perdido)
+ * — no BANCO, antes da paginação (T7).
  */
-export async function listarLeadsFriosCards(): Promise<LeadFrioCard[]> {
-  if ((await getUserPapel()) !== "ceo") return [];
-  const corte = new Date(Date.now() - FRIOS_REVISAO_DIAS * 86400000).toISOString();
-  const supabase = await createAuditedSupabaseClient();
-  const { data, error } = await supabase
-    .from("form_submissions")
-    .select(
-      "id, athlete_name, city_state, position, score_financeiro, qualification_reason, submitted_at, atletas(id, deals(id, deleted_at))",
-    )
-    .is("deleted_at", null)
-    .eq("qualification_classification", "FRIO")
-    .is("aprovacao_status", null)
-    .gte("submitted_at", corte)
-    .order("submitted_at", { ascending: false })
-    .limit(FRIOS_REVISAO_LIMITE);
-  if (error) return [];
-
-  // PostgREST: atletas.form_submission_id é UNIQUE → o embed volta como
-  // OBJETO (1:1), não array (incidente 2026-09-05: flatMap em objeto
-  // derrubou /pipeline em PRD; a anon key não lê atletas e mascarou o
-  // formato no teste). Normaliza os dois formatos, nas duas camadas.
-  type DealEmb = { id: string; deleted_at: string | null };
-  type AtletaEmb = { deals: DealEmb[] | DealEmb | null };
-  type Row = LeadFrioCard & { atletas: AtletaEmb[] | AtletaEmb | null };
-  const asArray = <T,>(v: T[] | T | null | undefined): T[] =>
-    Array.isArray(v) ? v : v ? [v] : [];
-  return ((data ?? []) as unknown as Row[])
-    .filter((row) => {
-      const deals = asArray(row.atletas).flatMap((a) => asArray(a.deals));
-      return !deals.some((d) => d.deleted_at === null);
-    })
-    .map((row) => ({
-      id: row.id,
-      athlete_name: row.athlete_name,
-      city_state: row.city_state,
-      position: row.position,
-      score_financeiro: row.score_financeiro,
-      qualification_reason: row.qualification_reason,
-      submitted_at: row.submitted_at,
-    }));
+export async function listarLeadsFriosCards(
+  opts: { offset?: number; limite?: number } = {},
+): Promise<ResultadoPaginaRevisao<LeadFrioCard>> {
+  if ((await getUserPapel()) !== "ceo") return { success: false, error: "Apenas CEO/CTO." };
+  return paginaCardsRevisao<LeadFrioCard>("FRIO", FRIOS_REVISAO_DIAS, opts ?? {});
 }
 
 /**
  * Dossiê COMPLETO dos frios elegíveis (mesmas colunas da fila de aprovação):
  * alimenta o modal em modo "frios" — clicar no card expande os dados com as
- * abas Conversa/E-mail. Mesmo recorte e mesma normalização de embed 1:1 do
- * listarLeadsFriosCards (incidente 2026-09-05).
+ * abas Conversa/E-mail. Mesmo recorte do listarLeadsFriosCards, paginado.
  */
-export async function listarLeadsFriosDetalhe(): Promise<
-  { success: true; leads: LeadPendenteAprovacao[] } | { success: false; error: string }
+export async function listarLeadsFriosDetalhe(
+  opts: { offset?: number; garantirId?: string } = {},
+): Promise<
+  | { success: true; leads: LeadPendenteAprovacao[]; total: number; proximoOffset: number }
+  | { success: false; error: string }
 > {
   if ((await getUserPapel()) !== "ceo") {
     return { success: false, error: "Apenas CEO/CTO podem revisar leads frios." };
   }
-  const corte = new Date(Date.now() - FRIOS_REVISAO_DIAS * 86400000).toISOString();
-  const supabase = await createAuditedSupabaseClient();
-  const { data, error } = await supabase
-    .from("form_submissions")
-    .select(`${COLUNAS_FILA_APROVACAO}, atletas(id, deals(id, deleted_at))`)
-    .is("deleted_at", null)
-    .eq("qualification_classification", "FRIO")
-    .is("aprovacao_status", null)
-    .gte("submitted_at", corte)
-    .order("submitted_at", { ascending: false })
-    .limit(FRIOS_REVISAO_LIMITE);
-  if (error) return { success: false, error: `Erro ao listar frios: ${error.message}` };
-
-  type DealEmb = { id: string; deleted_at: string | null };
-  type AtletaEmb = { deals: DealEmb[] | DealEmb | null };
-  type Row = LeadPendenteAprovacao & { atletas: AtletaEmb[] | AtletaEmb | null };
-  const asArr = <T,>(v: T[] | T | null | undefined): T[] =>
-    Array.isArray(v) ? v : v ? [v] : [];
-  const leads = ((data ?? []) as unknown as Row[])
-    .filter((row) => !asArr(row.atletas).flatMap((a) => asArr(a.deals)).some((d) => d.deleted_at === null))
-    .map((row) => {
-      const { atletas: _embed, ...rest } = row;
-      void _embed;
-      return rest as LeadPendenteAprovacao;
-    });
-  return { success: true, leads };
+  return paginaDetalheRevisao("FRIO", FRIOS_REVISAO_DIAS, opts ?? {});
 }
 
 /**
@@ -1249,91 +1314,38 @@ export async function reprovarFrio(
 export interface LeadIncompletoCard {
   id: string;
   athlete_name: string;
+  guardian_name: string | null;
   city_state: string | null;
   position: string | null;
   qualification_reason: string | null;
   submitted_at: string;
+  meeting_scheduled: boolean | null;
+  meeting_scheduled_at: string | null;
 }
 
-const INCOMPLETOS_REVISAO_DIAS = 90;
-const INCOMPLETOS_REVISAO_LIMITE = 80;
-
-export async function listarLeadsIncompletosCards(): Promise<LeadIncompletoCard[]> {
-  if ((await getUserPapel()) !== "ceo") return [];
-  const corte = new Date(Date.now() - INCOMPLETOS_REVISAO_DIAS * 86400000).toISOString();
-  const supabase = await createAuditedSupabaseClient();
-  const { data, error } = await supabase
-    .from("form_submissions")
-    .select(
-      "id, athlete_name, city_state, position, qualification_reason, submitted_at, atletas(id, deals(id, deleted_at))",
-    )
-    .is("deleted_at", null)
-    .eq("qualification_classification", "INCOMPLETO")
-    .is("aprovacao_status", null)
-    .gte("submitted_at", corte)
-    .order("submitted_at", { ascending: false })
-    .limit(INCOMPLETOS_REVISAO_LIMITE);
-  if (error) return [];
-
-  // Embed 1:1 pode voltar OBJETO (FK UNIQUE) — normalizar SEMPRE (incidente
-  // 2026-09-05). INCOMPLETO raramente tem deal, mas o resgate cria — e o
-  // lead resgatado não pode duplicar no board.
-  type DealEmb = { id: string; deleted_at: string | null };
-  type AtletaEmb = { deals: DealEmb[] | DealEmb | null };
-  type Row = LeadIncompletoCard & { atletas: AtletaEmb[] | AtletaEmb | null };
-  const asArray = <T,>(v: T[] | T | null | undefined): T[] =>
-    Array.isArray(v) ? v : v ? [v] : [];
-  return ((data ?? []) as unknown as Row[])
-    .filter((row) => {
-      const deals = asArray(row.atletas).flatMap((a) => asArray(a.deals));
-      return !deals.some((d) => d.deleted_at === null);
-    })
-    .map((row) => ({
-      id: row.id,
-      athlete_name: row.athlete_name,
-      city_state: row.city_state,
-      position: row.position,
-      qualification_reason: row.qualification_reason,
-      submitted_at: row.submitted_at,
-    }));
+export async function listarLeadsIncompletosCards(
+  opts: { offset?: number; limite?: number } = {},
+): Promise<ResultadoPaginaRevisao<LeadIncompletoCard>> {
+  if ((await getUserPapel()) !== "ceo") return { success: false, error: "Apenas CEO/CTO." };
+  // Mesmo recorte dos Frios (view: sem decisão + janela + sem deal ativo, no
+  // BANCO). O resgate cria deal — o lead resgatado não duplica no board.
+  return paginaCardsRevisao<LeadIncompletoCard>("INCOMPLETO", INCOMPLETOS_REVISAO_DIAS, opts ?? {});
 }
 
 /**
  * Dossiê COMPLETO dos incompletos elegíveis — alimenta o modal em modo
- * "incompletos" (mesmas abas Dossiê/Conversa/E-mail).
+ * "incompletos" (mesmas abas Dossiê/Conversa/E-mail), paginado.
  */
-export async function listarLeadsIncompletosDetalhe(): Promise<
-  { success: true; leads: LeadPendenteAprovacao[] } | { success: false; error: string }
+export async function listarLeadsIncompletosDetalhe(
+  opts: { offset?: number; garantirId?: string } = {},
+): Promise<
+  | { success: true; leads: LeadPendenteAprovacao[]; total: number; proximoOffset: number }
+  | { success: false; error: string }
 > {
   if ((await getUserPapel()) !== "ceo") {
     return { success: false, error: "Apenas CEO/CTO podem revisar leads incompletos." };
   }
-  const corte = new Date(Date.now() - INCOMPLETOS_REVISAO_DIAS * 86400000).toISOString();
-  const supabase = await createAuditedSupabaseClient();
-  const { data, error } = await supabase
-    .from("form_submissions")
-    .select(`${COLUNAS_FILA_APROVACAO}, atletas(id, deals(id, deleted_at))`)
-    .is("deleted_at", null)
-    .eq("qualification_classification", "INCOMPLETO")
-    .is("aprovacao_status", null)
-    .gte("submitted_at", corte)
-    .order("submitted_at", { ascending: false })
-    .limit(INCOMPLETOS_REVISAO_LIMITE);
-  if (error) return { success: false, error: `Erro ao listar incompletos: ${error.message}` };
-
-  type DealEmb = { id: string; deleted_at: string | null };
-  type AtletaEmb = { deals: DealEmb[] | DealEmb | null };
-  type Row = LeadPendenteAprovacao & { atletas: AtletaEmb[] | AtletaEmb | null };
-  const asArr = <T,>(v: T[] | T | null | undefined): T[] =>
-    Array.isArray(v) ? v : v ? [v] : [];
-  const leads = ((data ?? []) as unknown as Row[])
-    .filter((row) => !asArr(row.atletas).flatMap((a) => asArr(a.deals)).some((d) => d.deleted_at === null))
-    .map((row) => {
-      const { atletas: _embed, ...rest } = row;
-      void _embed;
-      return rest as LeadPendenteAprovacao;
-    });
-  return { success: true, leads };
+  return paginaDetalheRevisao("INCOMPLETO", INCOMPLETOS_REVISAO_DIAS, opts ?? {});
 }
 
 /**

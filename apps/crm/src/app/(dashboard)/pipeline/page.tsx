@@ -9,6 +9,8 @@ import { getEtapasDealConfigOverrides, getProbabilidadePorEtapa } from "@/lib/ac
 import { getUserPapel } from "@/lib/auth";
 import { listarLeadsFriosCards, listarLeadsIncompletosCards, listarLeadsPendentesCards } from "@/lib/actions/leads";
 import { mergeDealStageConfig } from "@/lib/etapas-deal";
+import { paginaRevisaoDe } from "@/lib/revisao-leads";
+import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 import {
   computarPrioridades,
   type AlvoPrioridade,
@@ -216,20 +218,38 @@ function mapDealRow(row: SupabaseDealRow, prioridades: Map<string, PrioridadeLea
   } as Deal & { _responsavelId?: string | null };
 }
 
+/**
+ * Os blocos de 1000 são paginados por chave IMUTÁVEL (created_at + id): com
+ * updated_at (mutável) um deal atualizado entre dois blocos sumia de um e
+ * repetia outro. A ordem de exibição de sempre (updated_at desc) volta aqui,
+ * em memória, e um id repetido na fronteira dos blocos entra uma vez só.
+ */
+function ordenarDealsDoBoard(rows: SupabaseDealRow[]): SupabaseDealRow[] {
+  const unicos = [...new Map(rows.map((r) => [r.id, r])).values()];
+  return unicos.sort((a, b) => {
+    const porData = Date.parse(b.updated_at) - Date.parse(a.updated_at);
+    if (porData !== 0) return porData;
+    if (a.updated_at !== b.updated_at) return a.updated_at < b.updated_at ? 1 : -1;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
+}
+
 export default async function PipelinePage() {
   const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
 
   // Overrides de apresentação das etapas (CEO) em paralelo com os deals
+  // Deals paginados em blocos de 1000 (max_rows do PostgREST): sem isso o
+  // board cortaria em silêncio os deals menos recentes ao passar de 1000.
   const [etapasOverrides, probabilidadePorEtapa, papel, leadsPendentes, leadsFrios, leadsIncompletos, { data: rows }] = await Promise.all([
     getEtapasDealConfigOverrides(),
     getProbabilidadePorEtapa(),
     getUserPapel(),
-    listarLeadsPendentesCards(),
-    listarLeadsFriosCards(),
-    listarLeadsIncompletosCards(),
-    supabase
+    listarLeadsPendentesCards().then(paginaRevisaoDe),
+    listarLeadsFriosCards().then(paginaRevisaoDe),
+    listarLeadsIncompletosCards().then(paginaRevisaoDe),
+    buscarTodasAsPaginas((de, ate) => supabase
     .from("deals")
     .select(`
       id, etapa, valor_estimado, next_action, data_proxima_acao,
@@ -264,7 +284,9 @@ export default async function PipelinePage() {
       )
     `)
     .is("deleted_at", null)
-    .order("updated_at", { ascending: false }),
+    .order("created_at", { ascending: false }) // imutável — ver ordenarDealsDoBoard
+    .order("id", { ascending: false })
+    .range(de, ate)),
   ]);
 
   const stageConfig = mergeDealStageConfig(etapasOverrides);
@@ -276,7 +298,7 @@ export default async function PipelinePage() {
   // é ÚNICA, na coluna "Aguardando aprovação" (AprovacaoColumn, alimentada
   // pela fila). Nada é movido nem perdido: ao re-aprovar, o deal reaparece
   // na etapa em que estava. Etapas finais nunca são suspensas (histórico).
-  const dealRows = todasDealRows.filter((row) => {
+  const dealRows = ordenarDealsDoBoard(todasDealRows).filter((row) => {
     if (row.etapa === "concluido" || row.etapa === "perdido") return true;
     return row.atleta?.form_submission?.aprovacao_status !== "pendente";
   });
@@ -395,8 +417,9 @@ export default async function PipelinePage() {
         }}
       />
 
-      {/* Kanban board */}
-      <div className="flex-1 overflow-hidden">
+      {/* Kanban board — coluna flex: filtros e faixa "Fora do pipeline" ocupam
+          altura e o Kanban (min-h-0 flex-1) encolhe, nunca é empurrado e cortado */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <PipelineBoard
           deals={deals}
           currentUserId={user?.id}

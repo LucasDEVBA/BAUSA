@@ -1,38 +1,58 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
   type ColumnDef,
   type SortingState,
+  type Updater,
   flexRender,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, MessageCircle, Check, Calendar, Send, Clock, AlertTriangle, X, Users, EyeOff, Trash2 } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MessageCircle, Check, Calendar, Send, Clock, AlertTriangle, Users, EyeOff, Trash2, Loader2 } from "lucide-react";
 import { type Lead, type LeadClassification } from "@/types/lead";
 import { excluirLead } from "@/lib/actions/leads-excluir";
+import {
+  BUSCA_LEADS_MAX,
+  BUSCA_LEADS_MIN,
+  ORDENS_LEADS,
+  POR_PAGINA_LEADS,
+  urlFiltrosLeads,
+  type ClasseFiltroLeads,
+  type FiltrosLeads,
+  type OrdemLeads,
+} from "@/lib/leads-filtros";
+import { type LeadLinha } from "@/lib/leads-mapper";
+import { normalizarTermoBusca } from "@/lib/revisao-leads";
+import { DossieLeadView, useDossieLead } from "./DossieLead";
 // Type-only (statement inteiro é elidido no build): a lib é server-side.
 import type { PrioridadeLead } from "@/lib/prioridade-engajamento";
 import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
 import { Badge } from "@/components/ui";
 import { LeadStatusBadge } from "./LeadStatusBadge";
-import { LeadOrDealSheet } from "./LeadOrDealSheet";
-import { formatRelativeTime, formatInvestmentRange, formatPhone } from "@/lib/utils";
+import { formatRelativeTime, formatInvestmentRange } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface LeadsTableProps {
-  leads: Lead[];
+  /** UMA página do servidor (T8) — busca/filtro/ordem/paginação vivem na URL. */
+  linhas: LeadLinha[];
+  /** Total real do filtro atual (count exact). */
+  total: number;
+  filtros: FiltrosLeads;
   /** Prioridade P1/P2 por engajamento, keyed por form_submission_id — só
    *  leads aprovados QUENTE/MORNO têm entrada; sem entrada = sem badge. */
   prioridades?: Record<string, PrioridadeLead>;
+  /** Aviso do servidor (ex.: ordenação por prioridade só cobre aprovados). */
+  aviso?: string | null;
+  /** Deep-link ?atleta=<id>: dossiê já carregado pelo servidor, abre 1 vez. */
+  leadInicial?: Lead | null;
 }
 
-const CLASSIFICATION_FILTERS: Array<{ label: string; value: LeadClassification | "ALL" }> = [
+const BUSCA_DEBOUNCE_MS = 300;
+
+const CLASSIFICATION_FILTERS: Array<{ label: string; value: ClasseFiltroLeads }> = [
   { label: "Todos", value: "ALL" },
   { label: "Quente", value: "QUENTE" },
   { label: "Morno", value: "MORNO" },
@@ -48,36 +68,67 @@ function SortIcon({ isSorted }: { isSorted: false | "asc" | "desc" }) {
   return <ArrowUpDown className="h-3 w-3 opacity-40" />;
 }
 
-export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
-  const searchParams = useSearchParams();
-  const atletaParam = searchParams.get("atleta");
-  const qParam = searchParams.get("q") ?? "";
-
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "submitted_at", desc: true },
-  ]);
-  // ?q= pré-filtra a tabela (ex.: link vindo das Execuções por nome).
-  const [globalFilter, setGlobalFilter] = useState(qParam);
-  const [classificationFilter, setClassificationFilter] = useState<LeadClassification | "ALL">("ALL");
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, leadInicial = null }: LeadsTableProps) {
+  const router = useRouter();
+  const [navegando, startNavegar] = useTransition();
   // Confirmação de exclusão fora das colunas memoizadas (closure stale) —
   // dentro da coluna só vive o setter, que é estável.
-  const [leadParaExcluir, setLeadParaExcluir] = useState<Lead | null>(null);
+  const [leadParaExcluir, setLeadParaExcluir] = useState<LeadLinha | null>(null);
   const [excluindo, startExcluir] = useTransition();
-  const router = useRouter();
+  // Dossiê sob demanda (a lista só tem o resumo). ?atleta= já chega aberto.
+  const dossie = useDossieLead(leadInicial);
 
-  // ?atleta=<id> abre direto o detalhe do lead correspondente (deep-link das
-  // Execuções). Casa pelo atleta do pipeline. Auto-abre UMA vez por valor de
-  // param — se o usuário fechar o sheet, um re-render dos `leads` não reabre.
-  const atletaAbertoRef = useRef<string | null>(null);
+  // Filtros que a tela DEVE ter: os da URL ou, com navegação em curso, os do
+  // último pedido. O servidor leva 0,5–1,5 s; um clique em "Quente" seguido
+  // do timer da busca partia do `filtros` velho e desfazia o "Quente".
+  const alvoRef = useRef(filtros);
   useEffect(() => {
-    if (!atletaParam || atletaAbertoRef.current === atletaParam) return;
-    const found = leads.find((l) => l.pipeline_atleta_id === atletaParam);
-    if (found) {
-      atletaAbertoRef.current = atletaParam;
-      setSelectedLead(found);
-    }
-  }, [atletaParam, leads]);
+    if (!navegando) alvoRef.current = filtros;
+  }, [filtros, navegando]);
+  const navegar = (patch: Partial<FiltrosLeads>) => {
+    const proximo: FiltrosLeads = { ...alvoRef.current, ...patch, atleta: null };
+    alvoRef.current = proximo;
+    startNavegar(() => router.replace(urlFiltrosLeads(proximo), { scroll: false }));
+  };
+
+  // Busca: digita → 300 ms → URL (?q=) → servidor. Menos de 2 caracteres
+  // úteis não filtra (mas apagar tudo limpa).
+  const [busca, setBusca] = useState(filtros.q);
+  const [qAnterior, setQAnterior] = useState(filtros.q);
+  // Termos que ESTE campo mandou e cuja navegação ainda não voltou. A
+  // navegação é assíncrona: quando ?q=joao chega, o CEO pode já ter digitado
+  // "joao s" — a resposta do próprio campo não pode apagar o que veio depois.
+  const [qPendentes, setQPendentes] = useState<readonly string[]>([]);
+  if (filtros.q !== qAnterior) {
+    setQAnterior(filtros.q);
+    const minha = qPendentes.indexOf(filtros.q);
+    // Resposta da própria busca: consome (e as mais antigas, já superadas).
+    if (minha >= 0) setQPendentes(qPendentes.slice(minha + 1));
+    // URL mudou POR FORA (voltar do navegador, link, menu): o campo acompanha.
+    else setBusca(filtros.q);
+  }
+  useEffect(() => {
+    const termo = busca.trim();
+    if (termo === filtros.q) return;
+    const util = normalizarTermoBusca(termo).replace(/[^a-z0-9]/g, "").length;
+    if (termo !== "" && util < BUSCA_LEADS_MIN) return;
+    const t = setTimeout(() => {
+      setQPendentes((atuais) => [...atuais.slice(-9), termo]);
+      navegar({ q: termo, pagina: 1 });
+    }, BUSCA_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- navegar parte do alvoRef (filtros atuais/pedidos); re-disparar só quando o texto muda
+  }, [busca, filtros.q]);
+
+  const sorting: SortingState = [{ id: filtros.ordem, desc: filtros.dir === "desc" }];
+  const onSortingChange = (updater: Updater<SortingState>) => {
+    const proximo = typeof updater === "function" ? updater(sorting) : updater;
+    const primeiro = proximo[0];
+    const ordem = (ORDENS_LEADS as readonly string[]).includes(primeiro?.id ?? "")
+      ? (primeiro?.id as OrdemLeads)
+      : "submitted_at";
+    navegar({ ordem, dir: primeiro ? (primeiro.desc ? "desc" : "asc") : "desc", pagina: 1 });
+  };
   const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(new Set());
   const [linkedSiblings, setLinkedSiblings] = useState<Set<string>>(() => {
     if (typeof window !== "undefined") {
@@ -90,12 +141,7 @@ export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
   });
   const [openDuplicatePopover, setOpenDuplicatePopover] = useState<string | null>(null);
 
-  const filteredLeads = useMemo(() => {
-    if (classificationFilter === "ALL") return leads;
-    return leads.filter((l) => l.qualification_classification === classificationFilter);
-  }, [leads, classificationFilter]);
-
-  const columns = useMemo<ColumnDef<Lead>[]>(
+  const columns = useMemo<ColumnDef<LeadLinha>[]>(
     () => [
       {
         accessorKey: "athlete_name",
@@ -199,6 +245,8 @@ export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
       {
         id: "prioridade",
         header: "Prioridade",
+        // 1º clique = P1 no topo (a ordem é calculada no servidor)
+        sortDescFirst: true,
         accessorFn: (row) => prioridades?.[row.id]?.nivel ?? "",
         cell: ({ row }) => {
           const p = prioridades?.[row.original.id];
@@ -373,6 +421,8 @@ export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
       {
         accessorKey: "submitted_at",
         header: "Recebido",
+        // Data: 1º clique vindo de outra coluna = mais recentes primeiro
+        sortDescFirst: true,
         cell: ({ getValue }) => (
           <span className="text-xs text-muted-foreground">
             {formatRelativeTime(getValue() as string)}
@@ -404,43 +454,57 @@ export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
     [prioridades]
   );
 
+  const totalPaginas = Math.max(1, Math.ceil(total / filtros.porPagina));
+  // Paginação, ordenação e filtro são do SERVIDOR (T8): a tabela só desenha
+  // a página recebida — nada de getPaginationRowModel no navegador.
   const table = useReactTable({
-    data: filteredLeads,
+    data: linhas,
     columns,
-    state: { sorting, globalFilter },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
+    state: {
+      sorting,
+      pagination: { pageIndex: filtros.pagina - 1, pageSize: filtros.porPagina },
+    },
+    manualPagination: true,
+    manualSorting: true,
+    manualFiltering: true,
+    // Ordem vive na URL e sempre existe (padrão Recebido ↓): "remover" a
+    // ordenação devolvia o mesmo padrão e o clique em "Recebido" não fazia nada.
+    enableSortingRemoval: false,
+    pageCount: totalPaginas,
+    onSortingChange,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 10 } },
   });
+  const inicio = total === 0 ? 0 : (filtros.pagina - 1) * filtros.porPagina + 1;
+  const fim = Math.min(total, filtros.pagina * filtros.porPagina);
 
   return (
     <>
-      {/* Filtros */}
-      <div className="mb-4 flex items-center gap-3">
+      {/* Filtros (mobile: quebram linha; o segmentado rola por dentro) */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         {/* Search */}
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative w-full sm:w-auto sm:max-w-xs sm:flex-1">
+          <Search aria-hidden className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Buscar por nome, email..."
+            type="search"
+            value={busca}
+            maxLength={BUSCA_LEADS_MAX}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome, responsável, e-mail ou telefone…"
+            aria-label="Buscar leads por nome, responsável, e-mail ou telefone"
             className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-4 text-sm text-foreground placeholder:text-placeholder outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/30"
           />
         </div>
 
         {/* Filtro por classificação */}
-        <div className="flex rounded-md border border-border bg-card p-0.5">
+        <div className="flex max-w-full overflow-x-auto rounded-md border border-border bg-card p-0.5" role="group" aria-label="Filtrar por classificação">
           {CLASSIFICATION_FILTERS.map((filter) => (
             <button
               key={filter.value}
-              onClick={() => setClassificationFilter(filter.value)}
+              onClick={() => navegar({ classe: filter.value, pagina: 1 })}
+              aria-pressed={filtros.classe === filter.value}
               className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                classificationFilter === filter.value
+                "shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                filtros.classe === filter.value
                   ? "bg-primary/15 text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
@@ -450,14 +514,19 @@ export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
           ))}
         </div>
 
-        <div className="ml-auto text-xs text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} leads
+        <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
+          {navegando && <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin" />}
+          {total} {total === 1 ? "lead" : "leads"}
         </div>
       </div>
 
+      {aviso && (
+        <p className="mb-3 rounded-lg border border-sys-orange/25 bg-sys-orange/5 px-3 py-2 text-xs text-sys-orange">{aviso}</p>
+      )}
+
       {/* Tabela */}
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="overflow-x-auto">
+      <div className={cn("overflow-hidden rounded-xl border border-border bg-card transition-opacity", navegando && "opacity-60")}>
+        <div className="overflow-x-auto" aria-busy={navegando}>
           <table className="w-full table-fixed">
             <thead>
               <tr className="border-b border-border">
@@ -488,7 +557,7 @@ export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
               {table.getRowModel().rows.map((row, i) => (
                 <tr
                   key={row.id}
-                  onClick={() => setSelectedLead(row.original)}
+                  onClick={() => void dossie.abrir(row.original.id)}
                   className={cn(
                     "cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent",
                     i % 2 === 0 ? "" : "bg-fill-4"
@@ -511,7 +580,7 @@ export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
               {table.getRowModel().rows.length === 0 && (
                 <tr>
                   <td colSpan={columns.length} className="py-12 text-center text-sm text-muted-foreground">
-                    Nenhum lead encontrado
+                    {filtros.q || filtros.classe !== "ALL" ? "Nenhum lead encontrado com esses filtros" : "Nenhum lead encontrado"}
                   </td>
                 </tr>
               )}
@@ -519,39 +588,48 @@ export function LeadsTable({ leads, prioridades }: LeadsTableProps) {
           </table>
         </div>
 
-        {/* Paginação */}
-        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+        {/* Paginação (servidor): total real, primeira/última página alcançáveis */}
+        <nav aria-label="Paginação de leads" className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
           <p className="text-xs text-muted-foreground">
-            Página {table.getState().pagination.pageIndex + 1} de{" "}
-            {table.getPageCount()}
+            {total === 0 ? "Nenhum lead" : `Mostrando ${inicio}–${fim} de ${total}`} · Página {filtros.pagina} de {totalPaginas}
           </p>
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+            <label className="mr-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+              Por página
+              <select
+                value={filtros.porPagina}
+                onChange={(e) => navegar({ porPagina: Number(e.target.value), pagina: 1 })}
+                className="h-7 rounded-md border border-border bg-card px-1.5 text-xs text-foreground"
+              >
+                {POR_PAGINA_LEADS.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+            {[
+              { label: "Primeira página", icon: ChevronsLeft, pagina: 1, off: filtros.pagina <= 1 },
+              { label: "Página anterior", icon: ChevronLeft, pagina: filtros.pagina - 1, off: filtros.pagina <= 1 },
+              { label: "Próxima página", icon: ChevronRight, pagina: filtros.pagina + 1, off: filtros.pagina >= totalPaginas },
+              { label: "Última página", icon: ChevronsRight, pagina: totalPaginas, off: filtros.pagina >= totalPaginas },
+            ].map(({ label, icon: Icone, pagina, off }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => navegar({ pagina })}
+                disabled={off || navegando}
+                aria-label={label}
+                title={label}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Icone className="h-4 w-4" />
+              </button>
+            ))}
           </div>
-        </div>
+        </nav>
       </div>
 
-      {/* Full-screen Detail (mesmo padrão do /pipeline) */}
-      {selectedLead && (
-        <LeadOrDealSheet
-          key={selectedLead.id}
-          lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
-        />
-      )}
+      {/* Dossiê sob demanda (mesmo LeadOrDealSheet do /pipeline) */}
+      <DossieLeadView estado={dossie.estado} onClose={dossie.fechar} />
 
       {/* Confirmação de exclusão (soft delete) */}
       {leadParaExcluir && (

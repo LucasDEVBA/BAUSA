@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 import { nomeContatoResponsavel } from "@/lib/whatsapp-lead-lookup";
 
 // ════════════════════════════════════════════════════════════════════════
@@ -624,11 +625,18 @@ export async function fetchEstadosConversa(period: ConversaPeriod): Promise<Esta
       .or("texto.ilike.%bolsaatletausa.com/agendar%,texto.ilike.%bolsaatletausa.com/l/%")
       .order("created_at", { ascending: false })
       .limit(2_000),
-    supabase
-      .from("form_submissions")
-      .select("athlete_name, guardian_name, athlete_whatsapp, guardian_whatsapp, qualification_classification, meeting_scheduled")
-      .is("deleted_at", null)
-      .limit(3_000),
+    // .limit(3_000) era teto falso (max_rows=1000) e SEM ordem: acima de 1000
+    // cadastros vinha um subconjunto arbitrário e conversas ficavam sem nome
+    // (T8.4 — mesma classe do "não tá todos aqui").
+    buscarTodasAsPaginas((de, ate) =>
+      supabase
+        .from("form_submissions")
+        .select("athlete_name, guardian_name, athlete_whatsapp, guardian_whatsapp, qualification_classification, meeting_scheduled")
+        .is("deleted_at", null)
+        .order("submitted_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(de, ate),
+    ),
   ]);
   if (msgsRes.error || !msgsRes.data?.length) return vazio;
 

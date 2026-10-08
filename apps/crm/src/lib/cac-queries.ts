@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 import { dedupInvestimentos } from "@/lib/marketing-spend";
 
 // ════════════════════════════════════════════════════════════════════════
@@ -154,11 +155,17 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
       .select("mes, canal, valor_gasto, leads_gerados, source")
       .is("deleted_at", null)
       .gte("mes", startMonth),
-    supabase
-      .from("form_submissions")
-      .select("qualification_classification, utm_source")
-      .is("deleted_at", null)
-      .gte("submitted_at", startISO),
+    // Janela de até 12 meses ≈ base inteira: paginado acima do max_rows (T8.4)
+    buscarTodasAsPaginas((de, ate) =>
+      supabase
+        .from("form_submissions")
+        .select("qualification_classification, utm_source")
+        .is("deleted_at", null)
+        .gte("submitted_at", startISO)
+        .order("submitted_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(de, ate),
+    ),
     supabase
       .from("contratos_financeiros")
       .select("valor_total")
@@ -307,11 +314,16 @@ export async function fetchCampanhaMetrics(
       .select("data, campanha_id, campanha_nome, valor_gasto, impressoes, cliques")
       .is("deleted_at", null)
       .gte("data", startDate),
-    supabase
-      .from("form_submissions")
-      .select("utm_id, qualification_classification")
-      .is("deleted_at", null)
-      .gte("submitted_at", startISO),
+    buscarTodasAsPaginas((de, ate) =>
+      supabase
+        .from("form_submissions")
+        .select("utm_id, qualification_classification")
+        .is("deleted_at", null)
+        .gte("submitted_at", startISO)
+        .order("submitted_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(de, ate),
+    ),
     supabase
       .from("contratos_financeiros")
       .select("valor_total, deals(atletas(form_submissions(utm_id)))")

@@ -1,4 +1,5 @@
 import type { createServerSupabaseClient } from "@/lib/supabase-server";
+import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 
 type SupabaseServer = Awaited<ReturnType<typeof createServerSupabaseClient>>;
 
@@ -514,11 +515,17 @@ export interface FunilCampanha {
 }
 
 export async function fetchFunilPorCampanha(supabase: SupabaseServer): Promise<Map<string, FunilCampanha>> {
-  const { data, error } = await supabase
-    .from("form_submissions")
-    .select("utm_id, qualification_classification, meeting_scheduled, submitted_at")
-    .is("deleted_at", null)
-    .not("utm_id", "is", null);
+  // Todos os tempos: paginado acima do max_rows de 1000 (T8.4).
+  const { data, error } = await buscarTodasAsPaginas((de, ate) =>
+    supabase
+      .from("form_submissions")
+      .select("utm_id, qualification_classification, meeting_scheduled, submitted_at")
+      .is("deleted_at", null)
+      .not("utm_id", "is", null)
+      .order("submitted_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(de, ate),
+  );
   if (error) throw new MetaAdsError(`form_submissions: ${error.message}`);
 
   const corte30d = Date.now() - 30 * 86_400_000;

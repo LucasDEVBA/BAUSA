@@ -1,251 +1,69 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Flame, Thermometer, Snowflake, Clock, Users } from "lucide-react";
+import { Flame, Thermometer, Snowflake, Clock, Users, AlertTriangle } from "lucide-react";
+
 import { LeadsTable } from "@/components/leads/LeadsTable";
 import { LeadsExportButton } from "@/components/leads/LeadsExportButton";
 import { AprovacoesLeads } from "@/components/leads/AprovacoesLeads";
+import { EmptyState, PageHeader, StatCard } from "@/components/ui";
+import { requirePapel } from "@/lib/auth";
+import { parseFiltrosLeads } from "@/lib/leads-filtros";
 import {
-  computarPrioridades,
-  type AlvoPrioridade,
-  type PrioridadeLead,
-} from "@/lib/prioridade-engajamento";
-import { parseSinaisV2 } from "@/lib/classificador-v2";
+  carregarKpisLeads,
+  carregarPaginaLeads,
+  formSubmissionDoAtleta,
+  obterLeadDossieInterno,
+} from "@/lib/leads-lista";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { type Lead, type LeadClassification } from "@/types/lead";
-import { PageHeader, StatCard } from "@/components/ui";
+import { type Lead } from "@/types/lead";
 
 export const metadata: Metadata = {
   title: "Leads",
 };
 
-interface PipelineInfo {
-  atletaId: string;
-  dealId: string | undefined;
-  etapa: string | undefined;
-}
+const traco = (n: number | null): string | number => (n === null ? "—" : n);
+const pct = (parte: number | null, todo: number): string =>
+  parte === null ? "—" : `${Math.round((parte / todo) * 100)}%`;
 
-function mapFormSubmissionToLead(
-  row: Record<string, unknown>,
-  pipelineMap: Map<string, PipelineInfo>,
-): Lead {
-  const pipeline = pipelineMap.get(row.id as string);
-  return {
-    id: row.id as string,
-    submission_id: (row.submission_id as string) ?? null,
-    submitted_at: row.submitted_at as string,
-    updated_at: row.updated_at as string,
-    athlete_name: row.athlete_name as string,
-    email: row.email as string,
-    birth_date: (row.birth_date as string) ?? null,
-    age: null,
-    athlete_whatsapp: (row.guardian_whatsapp as string) ?? null,
-    position: (row.position as string) ?? null,
-    club_history: (row.club_history as string) ?? null,
-    achievements: (row.achievements as string) ?? null,
-    video_highlights: (row.video_link as string) ?? null,
-    instagram: (row.instagram as string) ?? null,
-    school_year: (row.school_year as string) ?? null,
-    current_school: (row.current_school as string) ?? null,
-    school_city_state: (row.city_state as string) ?? null,
-    education_model: null,
-    english_level: (row.english_level as string) ?? null,
-    academic_performance: null,
-    start_timing: null,
-    project_direction: null,
-    investment_range: (row.investment_range as string) ?? null,
-    behavioral_profile: null,
-    youth_commitment: null,
-    family_decision_structure: null,
-    guardian_name: (row.guardian_name as string) ?? null,
-    guardian_email: (row.guardian_email as string) ?? null,
-    guardian_whatsapp: (row.guardian_whatsapp as string) ?? null,
-    guardian_profession: (row.guardian_profession as string) ?? null,
-    address_cep: (row.address_cep as string) ?? null,
-    address_street: (row.address_street as string) ?? null,
-    address_number: (row.address_number as string) ?? null,
-    address_complement: (row.address_complement as string) ?? null,
-    address_neighborhood: (row.address_neighborhood as string) ?? null,
-    address_city: (row.address_city as string) ?? null,
-    address_state:
-      (row.address_state as string) ??
-      (row.city_state as string)?.split(" - ").pop()?.trim() ??
-      null,
-    status: (row.status as string) ?? "new",
-    notes: (row.notes as string) ?? null,
-    qualified: (row.qualified as boolean) ?? null,
-    qualification_classification: (row.qualification_classification as LeadClassification) ?? null,
-    qualification_reason: (row.qualification_reason as string) ?? null,
-    qualification_confidence: (row.qualification_confidence as string) ?? null,
-    qualified_at: (row.qualified_at as string) ?? null,
-    // Classificador v2 — NULL em leads pré-v2 (exibição degrada)
-    score_financeiro: typeof row.score_financeiro === "number" ? row.score_financeiro : null,
-    tier_profissao: (row.tier_profissao as string) ?? null,
-    sinais_reforco: parseSinaisV2(row.sinais_reforco),
-    sinais_alerta: parseSinaisV2(row.sinais_alerta),
-    prioridade_estrategica: (row.prioridade_estrategica as string) ?? null,
-    acao_recomendada: (row.acao_recomendada as string) ?? null,
-    whatsapp_sent_at: (row.whatsapp_sent_at as string) ?? null,
-    followup_1_sent_at: (row.followup_1_sent_at as string) ?? null,
-    followup_2_sent_at: (row.followup_2_sent_at as string) ?? null,
-    meeting_scheduled: (row.meeting_scheduled as boolean) ?? null,
-    meeting_scheduled_at: (row.meeting_scheduled_at as string) ?? null,
-    address_country: (row.address_country as string) ?? null,
-    utm_source: (row.utm_source as string) ?? null,
-    utm_medium: (row.utm_medium as string) ?? null,
-    utm_campaign: (row.utm_campaign as string) ?? null,
-    utm_content: (row.utm_content as string) ?? null,
-    utm_term: (row.utm_term as string) ?? null,
-    referrer_url: (row.referrer_url as string) ?? null,
-    landing_url: (row.landing_url as string) ?? null,
-    session_id: (row.session_id as string) ?? null,
-    cta_source: (row.cta_source as string) ?? null,
-    device_type: (row.device_type as string) ?? null,
-    form_started_at: (row.form_started_at as string) ?? null,
-    timing_status: (row.timing_status as string) ?? null,
-    scheduled_followup_at: (row.scheduled_followup_at as string) ?? null,
-    scheduled_followup_sent_at: (row.scheduled_followup_sent_at as string) ?? null,
-    is_in_pipeline: !!pipeline,
-    pipeline_stage: pipeline?.etapa ?? null,
-    pipeline_deal_id: pipeline?.dealId ?? null,
-    pipeline_atleta_id: pipeline?.atletaId ?? null,
-  };
-}
-
-export default async function LeadsPage() {
+/**
+ * /leads paginada NO SERVIDOR (T8). Antes: select("*") de form_submissions
+ * inteiro + atletas inteiro e tudo filtrado no navegador — o PostgREST corta
+ * em 1000 linhas em silêncio (909 ativos em 08/10, ~250 novos/mês).
+ * Agora: KPIs da base por head count; a tabela recebe UMA página (range +
+ * count exact) e a busca/filtro/ordem vivem na URL.
+ */
+export default async function LeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // Telefone/e-mail de lead só para nível CEO (o menu já escondia; agora a rota barra).
+  await requirePapel("ceo");
+  const filtros = parseFiltrosLeads(await searchParams);
   const supabase = await createServerSupabaseClient();
 
-  // Buscar todos os leads
-  const { data: rows } = await supabase
-    .from("form_submissions")
-    .select("*")
-    .is("deleted_at", null)
-    .order("submitted_at", { ascending: false });
-
-  // Buscar leads promovidos com etapa do deal + responsavel_id para siblings
-  const { data: promotedAtletas } = await supabase
-    .from("atletas")
-    .select("form_submission_id, id, nome_completo, esporte, responsavel_id, lead_classificacao, deals(id, etapa)")
-    .not("form_submission_id", "is", null)
-    .is("deleted_at", null);
-
-  // Montar mapa de pipeline
-  const pipelineMap = new Map<string, PipelineInfo>();
-  // Montar mapa responsavel -> atletas para siblings
-  const responsavelAtletasMap = new Map<string, { id: string; nome: string; esporte: string; formSubmissionId: string; classificacao: string | null; etapa: string | null }[]>();
-  for (const a of promotedAtletas ?? []) {
-    const deals = a.deals as Array<{ id: string; etapa: string }> | null;
-    const deal = deals?.[0];
-    const fsId = a.form_submission_id as string;
-    pipelineMap.set(fsId, {
-      atletaId: a.id as string,
-      dealId: deal?.id,
-      etapa: deal?.etapa,
-    });
-
-    const respId = a.responsavel_id as string;
-    if (respId) {
-      const existing = responsavelAtletasMap.get(respId) ?? [];
-      existing.push({
-        id: a.id as string,
-        nome: a.nome_completo as string,
-        esporte: (a.esporte as string) ?? "",
-        formSubmissionId: fsId,
-        classificacao: (a.lead_classificacao as string) ?? null,
-        etapa: deal?.etapa ?? null,
-      });
-      responsavelAtletasMap.set(respId, existing);
+  const carregarLeadInicial = async (): Promise<Lead | null> => {
+    if (!filtros.atleta) return null;
+    try {
+      const fsId = await formSubmissionDoAtleta(supabase, filtros.atleta);
+      return fsId ? await obterLeadDossieInterno(supabase, fsId) : null;
+    } catch (e) {
+      // Deep-link quebrado nunca derruba a lista.
+      console.error({ level: "error", action: "leads_deeplink_atleta", message: e instanceof Error ? e.message : String(e) });
+      return null;
     }
-  }
-  // Montar mapa formSubmissionId -> siblings
-  const siblingsMap = new Map<string, { id: string; nome: string; esporte?: string; classificacao?: string; etapa?: string }[]>();
-  for (const atletas of responsavelAtletasMap.values()) {
-    if (atletas.length > 1) {
-      for (const atleta of atletas) {
-        const siblings = atletas
-          .filter((a) => a.id !== atleta.id)
-          .map((a) => ({
-            id: a.id,
-            nome: a.nome,
-            esporte: a.esporte || undefined,
-            classificacao: a.classificacao || undefined,
-            etapa: a.etapa || undefined,
-          }));
-        siblingsMap.set(atleta.formSubmissionId, siblings);
-      }
-    }
-  }
+  };
 
-  // Prioridade P1/P2 por engajamento — SÓ leads aprovados e QUENTE/MORNO
-  // (camada de exibição; a classificação Gemini continua intocada).
-  const alvosPrioridade: AlvoPrioridade[] = (rows ?? [])
-    .filter((r) => {
-      const row = r as Record<string, unknown>;
-      return (
-        row.aprovacao_status === "aprovado" &&
-        (row.qualification_classification === "QUENTE" ||
-          row.qualification_classification === "MORNO")
-      );
-    })
-    .map((r) => {
-      const row = r as Record<string, unknown>;
-      const id = row.id as string;
-      return {
-        id,
-        athleteWhatsapp: (row.athlete_whatsapp as string) ?? null,
-        guardianWhatsapp: (row.guardian_whatsapp as string) ?? null,
-        etapaDeal: pipelineMap.get(id)?.etapa ?? null,
-      };
-    });
-  const prioridadesMap = await computarPrioridades(supabase, alvosPrioridade);
-  const prioridades: Record<string, PrioridadeLead> = Object.fromEntries(prioridadesMap);
+  const [kpis, pagina, leadInicial] = await Promise.all([
+    carregarKpisLeads(supabase),
+    carregarPaginaLeads(supabase, filtros),
+    carregarLeadInicial(),
+  ]);
 
-  const mappedLeads: Lead[] = (rows ?? []).map((row) =>
-    mapFormSubmissionToLead(row, pipelineMap),
-  );
-
-  // Deteccao de duplicatas por WhatsApp normalizado
-  const whatsappGroups = new Map<string, string[]>();
-  for (const lead of mappedLeads) {
-    const rawWhatsapp = lead.guardian_whatsapp;
-    if (!rawWhatsapp) continue;
-    const normalized = rawWhatsapp.replace(/\D/g, "");
-    if (normalized.length < 8) continue;
-    const existing = whatsappGroups.get(normalized);
-    if (existing) {
-      existing.push(lead.id);
-    } else {
-      whatsappGroups.set(normalized, [lead.id]);
-    }
-  }
-  const duplicateIds = new Set<string>();
-  for (const ids of whatsappGroups.values()) {
-    if (ids.length > 1) {
-      for (const id of ids) {
-        duplicateIds.add(id);
-      }
-    }
-  }
-  const leads = mappedLeads.map((lead) => ({
-    ...lead,
-    possible_duplicate: duplicateIds.has(lead.id),
-    siblings: siblingsMap.get(lead.id),
-  }));
-
-  const quente = leads.filter((l) => l.qualification_classification === "QUENTE").length;
-  const morno = leads.filter((l) => l.qualification_classification === "MORNO").length;
-  const frio = leads.filter((l) => l.qualification_classification === "FRIO").length;
-  const timingAlternativo = leads.filter(
-    (l) => l.timing_status === "muito_cedo" || l.timing_status === "tarde_demais"
-  ).length;
-
-  const totalClass = quente + morno + frio || 1;
-  const pendentesAprovacao = (rows ?? []).filter((r) => {
-    const row = r as Record<string, unknown>;
-    return (
-      row.aprovacao_status === "pendente" &&
-      (row.qualification_classification === "QUENTE" || row.qualification_classification === "MORNO")
-    );
-  }).length;
+  const qualificados =
+    kpis.quente !== null && kpis.morno !== null && kpis.frio !== null ? kpis.quente + kpis.morno + kpis.frio : null;
+  const totalClass = qualificados || 1;
+  const timingAlt = kpis.timingAlternativo ?? 0;
 
   return (
     <div className="space-y-5">
@@ -254,49 +72,60 @@ export default async function LeadsPage() {
         <PageHeader dense
           eyebrow="Comercial"
           title="Leads"
-          description={`${leads.length} leads recebidos${timingAlternativo > 0 ? ` · ${timingAlternativo} fora da janela ideal` : ""}`}
-          actions={<LeadsExportButton leads={leads} />}
+          description={`${traco(kpis.total)} leads recebidos${timingAlt > 0 ? ` · ${timingAlt} fora da janela ideal` : ""}`}
+          actions={<LeadsExportButton filtros={filtros} total={pagina.ok ? pagina.total : null} />}
           className="min-w-0 flex-1"
         />
         <Suspense fallback={null}>
-          <AprovacoesLeads count={pendentesAprovacao} />
+          <AprovacoesLeads count={kpis.pendentesAprovacao ?? 0} />
         </Suspense>
       </div>
 
-      {/* KPI strip */}
+      {/* KPI strip — base INTEIRA (não muda com a busca/filtro da tabela) */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Total de leads"
-          value={leads.length}
-          context={`${quente + morno + frio} qualificados`}
+          value={traco(kpis.total)}
+          context={`${traco(qualificados)} qualificados`}
           icon={Users}
           accent="brand"
         />
         <StatCard
           label="Quente"
-          value={quente}
-          context={`${Math.round((quente / totalClass) * 100)}% do qualificado`}
+          value={traco(kpis.quente)}
+          context={`${pct(kpis.quente, totalClass)} do qualificado`}
           icon={Flame}
           accent="green"
         />
         <StatCard
           label="Morno"
-          value={morno}
-          context={`${Math.round((morno / totalClass) * 100)}% do qualificado`}
+          value={traco(kpis.morno)}
+          context={`${pct(kpis.morno, totalClass)} do qualificado`}
           icon={Thermometer}
           accent="orange"
         />
         <StatCard
           label="Frio"
-          value={frio}
-          context={timingAlternativo > 0 ? `${timingAlternativo} timing alternativo` : `${Math.round((frio / totalClass) * 100)}% do qualificado`}
-          icon={timingAlternativo > 0 ? Clock : Snowflake}
+          value={traco(kpis.frio)}
+          context={timingAlt > 0 ? `${timingAlt} timing alternativo` : `${pct(kpis.frio, totalClass)} do qualificado`}
+          icon={timingAlt > 0 ? Clock : Snowflake}
           accent="blue"
         />
       </div>
 
       {/* Table */}
-      <LeadsTable leads={leads} prioridades={prioridades} />
+      {pagina.ok ? (
+        <LeadsTable
+          linhas={pagina.linhas}
+          total={pagina.total}
+          filtros={{ ...filtros, pagina: pagina.paginaEfetiva }}
+          prioridades={pagina.prioridades}
+          aviso={pagina.aviso}
+          leadInicial={leadInicial}
+        />
+      ) : (
+        <EmptyState icon={AlertTriangle} title="Erro ao carregar os leads" description={pagina.erro} />
+      )}
     </div>
   );
 }
