@@ -24,6 +24,7 @@ interface RespostaPagina<T> {
 }
 
 export interface ResultadoTodasPaginas<T> {
+  /** Com `error`, SEMPRE vazio: parcial calado é o "não tá todos aqui" de novo. */
   data: T[];
   error: ErroPostgrest | null;
   /** true = parou no teto: há mais linhas no banco do que as devolvidas. */
@@ -46,7 +47,14 @@ export async function buscarTodasAsPaginas<T>(
   for (let de = 0; de < teto; de += tamanho) {
     const ate = Math.min(de + tamanho, teto) - 1;
     const { data, error } = await montarPagina(de, ate);
-    if (error) return { data: linhas, error, truncado: false };
+    if (error) {
+      // Falha num bloco do meio NÃO devolve os blocos já lidos: quem ignora o
+      // erro mostraria um subconjunto com cara de base inteira (CAC inflado,
+      // gráfico sem os mais antigos). Sem a mensagem no log: um .or() de busca
+      // malformado ecoa o termo (e-mail/telefone).
+      console.error({ level: "error", action: "buscar_todas_as_paginas", de, code: error.code ?? null });
+      return { data: [], error, truncado: false };
+    }
     const pagina = data ?? [];
     linhas.push(...pagina);
     if (pagina.length < ate - de + 1) return { data: linhas, error: null, truncado: false };

@@ -214,10 +214,14 @@ export function AprovacaoLeadsModal({
             setTotal(res.total);
             setProximoOffset(res.proximoOffset);
           }
-          const alvo = leadIdInicial && res.leads.some((l) => l.id === leadIdInicial)
-            ? leadIdInicial
-            : (res.leads[0]?.id ?? null);
-          setSelecionadoId(alvo);
+          const pedidoSumiu = Boolean(leadIdInicial) && !res.leads.some((l) => l.id === leadIdInicial);
+          if (pedidoSumiu) {
+            // Abrir OUTRO lead em silêncio levava o CEO a decidir sobre o lead errado.
+            toast.warning("Este lead não está mais nesta lista (já decidido?). Escolha outro na lista.");
+            setSelecionadoId(null);
+          } else {
+            setSelecionadoId(leadIdInicial || (res.leads[0]?.id ?? null));
+          }
         } else {
           setErro(res.error);
         }

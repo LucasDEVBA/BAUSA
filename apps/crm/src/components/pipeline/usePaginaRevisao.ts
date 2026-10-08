@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { compararRevisao, type PaginaRevisao, type ResultadoPaginaRevisao } from "@/lib/revisao-leads";
+import {
+  compararRevisao,
+  planejarRecargaRevisao,
+  type PaginaRevisao,
+  type ResultadoPaginaRevisao,
+} from "@/lib/revisao-leads";
 
 interface ItemRevisao {
   id: string;
@@ -23,9 +28,11 @@ export interface EstadoPaginaRevisao<T> {
 }
 
 /** Recarga pós-refresh: o trecho que o CEO já tinha aberto no "Mostrar mais". */
-interface Recarga {
+interface Recarga<T> {
   offset: number;
   limite: number;
+  /** Página nova do servidor: vira o começo da lista quando a recarga voltar. */
+  pagina: T[];
 }
 
 const ERRO_REDE = "Falha de rede ao carregar mais leads. Tente de novo.";
@@ -42,13 +49,16 @@ function unir<T extends ItemRevisao>(base: T[], extra: T[], maisRecentePrimeiro:
  *
  * - offset = itens carregados: a lista é SEMPRE um prefixo do recorte do
  *   servidor (removidos saem dos dois lados) — ninguém é pulado.
- * - router.refresh() manda uma página inicial NOVA: a lista volta a ser essa
- *   página (nada de fundir cards antigos — um card que saiu do recorte por
- *   fora, ex. "Enviar p/ fila" na faixa, outra aba, Agenda, ficaria na tela
- *   E deslocaria o offset, pulando 1 card no próximo "Mostrar mais") e o
- *   trecho que já estava aberto é RECARREGADO do servidor numa requisição só
- *   (o CEO não perde o "Mostrar mais"). Ajuste de estado durante o render
- *   (padrão React p/ "props mudaram") + effect só para a busca.
+ * - router.refresh() manda uma página inicial NOVA. Sem nada aberto além
+ *   dela, a lista volta a ser essa página. Com "Mostrar mais" aberto, a lista
+ *   atual fica na tela (sem encolher, piscar nem perder a rolagem) até o
+ *   trecho aberto voltar do servidor numa requisição só; aí a lista é
+ *   TROCADA por página nova + trecho (nada de fundir cards antigos — um card
+ *   que saiu do recorte por fora ficaria na tela e deslocaria o offset).
+ * - O tamanho do trecho vem de `abertos`, não de itens.length: a ação de
+ *   coluna gera 2–3 payloads seguidos e o 2º não pode cancelar a recarga.
+ * Ajuste de estado durante o render (padrão React p/ "props mudaram") +
+ * effect só para a busca.
  */
 export function usePaginaRevisao<T extends ItemRevisao>(
   inicial: PaginaRevisao<T>,
@@ -61,25 +71,34 @@ export function usePaginaRevisao<T extends ItemRevisao>(
   const [erro, setErro] = useState<string | null>(inicial.erro);
   const [removidos, setRemovidos] = useState<ReadonlySet<string>>(new Set());
   const [carregandoMais, setCarregandoMais] = useState(false);
-  const [recarga, setRecarga] = useState<Recarga | null>(null);
+  const [recarga, setRecarga] = useState<Recarga<T> | null>(null);
+  const [abertos, setAbertos] = useState(inicial.itens.length);
 
   if (inicial !== base) {
-    const carregadosAntes = itens.length;
     setBase(inicial);
-    setItens(inicial.itens.filter((i) => !removidos.has(i.id)));
     setTotal(inicial.total);
     setErro(inicial.erro);
-    const faltam = Math.min(carregadosAntes, inicial.total) - inicial.itens.length;
-    setRecarga(faltam > 0 && inicial.erro === null ? { offset: inicial.itens.length, limite: faltam } : null);
+    if (abertos < inicial.itens.length) setAbertos(inicial.itens.length);
+    const plano = planejarRecargaRevisao(abertos, inicial.itens.length, inicial.total, inicial.erro !== null);
+    if (plano) {
+      setRecarga({ ...plano, pagina: inicial.itens });
+      // Trava o "Mostrar mais" enquanto a lista na tela ainda é a anterior.
+      setCarregandoMais(true);
+    } else {
+      setItens(inicial.itens.filter((i) => !removidos.has(i.id)));
+      // Recarga em curso descartada sem substituta: ninguém mais destrava.
+      if (recarga) setCarregandoMais(false);
+      setRecarga(null);
+    }
   }
 
-  // A action, o tamanho atual e os removidos são lidos fora do render.
+  // A action, a lista atual e os removidos são lidos fora do render.
   const carregarRef = useRef(carregar);
-  const offsetRef = useRef(itens.length);
+  const itensRef = useRef(itens);
   const removidosRef = useRef(removidos);
   useEffect(() => {
     carregarRef.current = carregar;
-    offsetRef.current = itens.length;
+    itensRef.current = itens;
     removidosRef.current = removidos;
   });
 
@@ -99,37 +118,55 @@ export function usePaginaRevisao<T extends ItemRevisao>(
     [maisRecentePrimeiro],
   );
 
+  const aplicarRecarga = useCallback(
+    (r: ResultadoPaginaRevisao<T> | null, pagina: T[]) => {
+      const fora = removidosRef.current;
+      const paginaAtual = pagina.filter((i) => !fora.has(i.id));
+      if (!r?.success) {
+        // Sem o trecho, a verdade do servidor é só a página nova.
+        const mensagem = r ? r.error : ERRO_REDE;
+        setItens(paginaAtual);
+        setErro(mensagem);
+        toast.error(mensagem);
+        return;
+      }
+      setErro(null);
+      setTotal(r.total);
+      setItens(unir(paginaAtual, r.itens.filter((i) => !fora.has(i.id)), maisRecentePrimeiro));
+    },
+    [maisRecentePrimeiro],
+  );
+
   // Recarga pós-refresh (fora do corpo síncrono do effect: setTimeout 0).
+  // Descartada (outro payload chegou) não destrava: quem a substituiu destrava.
   useEffect(() => {
     if (!recarga) return;
     let ativo = true;
     const t = setTimeout(async () => {
-      setCarregandoMais(true);
       try {
         const r = await carregarRef.current(recarga.offset, recarga.limite);
-        if (ativo) aplicar(r);
+        if (ativo) aplicarRecarga(r, recarga.pagina);
       } catch {
-        if (ativo) {
-          setErro(ERRO_REDE);
-          toast.error(ERRO_REDE);
-        }
+        if (ativo) aplicarRecarga(null, recarga.pagina);
       } finally {
-        // Sempre (mesmo descartada): nunca deixar o "Mostrar mais" travado.
-        setCarregandoMais(false);
+        if (ativo) setCarregandoMais(false);
       }
     }, 0);
     return () => {
       ativo = false;
       clearTimeout(t);
     };
-  }, [recarga, aplicar]);
+  }, [recarga, aplicarRecarga]);
 
   const carregarMais = useCallback(() => {
     if (carregandoMais) return;
     setCarregandoMais(true);
+    const offset = itensRef.current.length;
     void (async () => {
       try {
-        aplicar(await carregarRef.current(offsetRef.current));
+        const r = await carregarRef.current(offset);
+        if (r.success) setAbertos((a) => Math.max(a, offset + r.itens.length));
+        aplicar(r);
       } catch {
         setErro(ERRO_REDE);
         toast.error(ERRO_REDE);
@@ -140,6 +177,9 @@ export function usePaginaRevisao<T extends ItemRevisao>(
   }, [carregandoMais, aplicar]);
 
   const remover = useCallback((id: string) => {
+    // Só encolhe o trecho aberto se o card estava na tela (a faixa remove
+    // cards de páginas não carregadas — o trecho aberto continua igual).
+    if (itensRef.current.some((i) => i.id === id)) setAbertos((a) => Math.max(0, a - 1));
     setRemovidos((atual) => new Set(atual).add(id));
     setItens((atuais) => atuais.filter((i) => i.id !== id));
     setTotal((t) => Math.max(0, t - 1));

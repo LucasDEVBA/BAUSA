@@ -60,7 +60,8 @@ export type ResultadoPaginaLeads =
       linhas: LeadLinha[];
       total: number;
       prioridades: Record<string, PrioridadeLead>;
-      /** Página pedida além do fim → devolvemos a última (a URL é corrigida no client). */
+      /** Página pedida além do fim → devolvemos a última (a tabela mostra esta; a
+       *  URL antiga só muda na próxima navegação). */
       paginaEfetiva: number;
       aviso: string | null;
     }
@@ -128,11 +129,14 @@ async function carregarPorColuna(
   q = q.order("id", { ascending: false });
   const { data, error, count } = await q.range(de, de + f.porPagina - 1);
 
-  if (error?.code === "PGRST103" && pagina > 1) {
-    // Página além do fim (URL antiga, filtro mudou): volta para a última.
-    const { count: total } = await consultaFiltrada(supabase, "id", f, true).limit(1);
+  // Página além do fim (URL antiga, filtro mudou, último lead da página
+  // excluído): o PostgREST só dá 416/PGRST103 com offset > total — com
+  // offset == total volta 200 + [] e a tabela diria "Página 2 de 1".
+  const alemDoFim = pagina > 1 && (error?.code === "PGRST103" || (!error && (data?.length ?? 0) === 0));
+  if (alemDoFim) {
+    const total = error ? (await consultaFiltrada(supabase, "id", f, true).limit(1)).count : count;
     const ultima = Math.max(1, Math.ceil((total ?? 0) / f.porPagina));
-    return ultima < pagina ? carregarPorColuna(supabase, f, ultima) : { ok: false, erro: error.message };
+    if (ultima < pagina) return carregarPorColuna(supabase, f, ultima);
   }
   if (error) throw new Error(`vw_cadastros_situacao: ${error.message}`);
 

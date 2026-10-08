@@ -304,10 +304,63 @@ test('usePaginaRevisao: refresh volta à página do servidor e recarrega o trech
     'fundir cards antigos no refresh deixa card que saiu do recorte na tela e desloca o offset (pula 1 card)');
   assert.match(ramo, /setRecarga\(/, 'o trecho já aberto no "Mostrar mais" precisa ser recarregado do servidor');
   assert.match(hook, /carregarRef\.current\(recarga\.offset, recarga\.limite\)/);
+  // Revisão de código 08/10: a ação de coluna gera 2–3 payloads seguidos
+  // (revalidatePath + router.refresh). Medir o trecho pelo tamanho da lista
+  // (já encolhida pelo 1º payload) cancelava a recarga no 2º.
+  assert.match(ramo, /planejarRecargaRevisao\(abertos, inicial\.itens\.length, inicial\.total/,
+    'o trecho a recarregar tem que vir de `abertos` (o que o CEO abriu), não da lista atual');
+  assert.ok(!/carregadosAntes|=\s*itens\.length/.test(ramo), 'faltam calculado pelo tamanho atual da lista (cancela a recarga)');
+  const recarga = hook.slice(hook.indexOf('const aplicarRecarga'), hook.indexOf('// Recarga pós-refresh'));
+  assert.match(recarga, /setItens\(unir\(paginaAtual, /, 'recarga TROCA a lista por página nova + trecho (nunca funde cards velhos)');
+  assert.ok(!/setItens\(\(atuais\)/.test(recarga), 'recarga não pode fundir com a lista antiga');
   const faixa = crm('components', 'pipeline', 'ForaDoPipelineFaixa.tsx');
   assert.match(faixa, /onAtualizado\(item\)/, 'faixa precisa dizer QUAL lead saiu');
   assert.match(boardSrc, /item\.local\.tipo === "coluna_frios"\) frios\.remover\(item\.id\)/,
     '"Enviar p/ fila" pela faixa deixava o card na coluna Frios');
+});
+
+test('planejarRecargaRevisao: payloads em sequência não perdem o trecho aberto', () => {
+  const planejar = extrair('planejarRecargaRevisao', ['abertos', 'tamanhoPagina', 'totalServidor', 'comErro']);
+  // 192 frios, "Mostrar mais" 1× (192 abertos), resgata 1 da 2ª página → 191 abertos.
+  const abertos = 191;
+  const payload1 = planejar(abertos, 100, 191, false);
+  const payload2 = planejar(abertos, 100, 191, false); // router.refresh logo depois
+  assert.deepEqual(payload1, { offset: 100, limite: 91 });
+  assert.deepEqual(payload2, { offset: 100, limite: 91 }, 'o 2º payload cancelava a recarga (coluna voltava a 100)');
+  assert.equal(planejar(100, 100, 191, false), null, 'nada aberto além da página: sem recarga');
+  assert.deepEqual(planejar(300, 100, 150, false), { offset: 100, limite: 50 }, 'nunca pede além do total');
+  assert.equal(planejar(191, 0, 0, true), null, 'página com erro: sem recarga');
+});
+
+test('revisão de código 08/10: board, faixa, /leads e leituras completas', () => {
+  // Kanban encolhe com a faixa em vez de ser empurrado e cortado embaixo
+  assert.match(boardSrc, /className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-4"/);
+  assert.match(pipelinePageSrc, /<div className="flex min-h-0 flex-1 flex-col overflow-hidden">\s*<PipelineBoard/);
+  // B6: a faixa refaz a busca depois de QUALQUER decisão nos modais
+  assert.ok((boardSrc.match(/busca\.recarregar\(\);\s*router\.refresh\(\);/g) ?? []).length >= 4,
+    'decidir no modal deixava a faixa velha (2º clique abria outro lead)');
+  const modal = crm('components', 'leads', 'AprovacoesLeads.tsx');
+  assert.match(modal, /const pedidoSumiu = /, 'lead pedido que sumiu da lista não pode abrir OUTRO lead em silêncio');
+  const faixa = crm('components', 'pipeline', 'ForaDoPipelineFaixa.tsx');
+  assert.match(faixa, /<p role="status" aria-live="polite" className="sr-only">/, 'região viva da faixa tem que ficar sempre montada');
+  assert.match(boardSrc, /motivoForaDaTela=\{motivoForaDaTela\}/, 'faixa dizia "ainda não carregado" para card filtrado/visão Tabela');
+  // /leads
+  assert.match(tabelaSrc, /enableSortingRemoval: false/, 'clique em "Recebido" removia a ordem e voltava ao mesmo padrão');
+  assert.match(tabelaSrc, /\.\.\.alvoRef\.current, \.\.\.patch/, 'timer da busca partia de filtros velhos e desfazia a classe');
+  assert.match(tabelaSrc, /maxLength=\{BUSCA_LEADS_MAX\}/);
+  assert.match(crm('components', 'pipeline', 'PipelineFiltersBar.tsx'), /maxLength=\{BUSCA_PIPELINE_MAX\}/);
+  assert.match(crm('components', 'leads', 'DossieLead.tsx'), /ssr: false/,
+    'dossiê do deep-link ?atleta= renderizado no servidor (UTC) quebra a hidratação');
+  assert.match(listaSrc, /\(!error && \(data\?\.length \?\? 0\) === 0\)/, 'offset == total devolve [] (não 416): "Página 2 de 1"');
+  // Leituras completas: erro nunca vira parcial calado; deals paginados por chave imutável
+  assert.match(paginacaoSrc, /return \{ data: \[\], error, truncado: false \}/);
+  assert.ok(!/data: linhas, error, truncado/.test(paginacaoSrc), 'erro num bloco do meio devolvia os blocos já lidos');
+  assert.match(pipelinePageSrc, /\.order\("created_at", \{ ascending: false \}\)/, 'paginar deals por updated_at (mutável) pula/duplica');
+  assert.match(pipelinePageSrc, /ordenarDealsDoBoard\(todasDealRows\)/, 'ordem de exibição (updated_at desc) + dedupe por id');
+  // Export em massa de PII com trilha (quem/quantas linhas), sem o termo
+  const iniExp = buscaSrc.indexOf('action: "exportar_leads_csv",\n      usuarioId');
+  assert.ok(iniExp >= 0, 'export de leads sem trilha de quem exportou');
+  assert.ok(!/termo|f\.q[,\n]/.test(buscaSrc.slice(iniExp, iniExp + 250)), 'termo da busca não pode ir para o log do export');
 });
 
 test('/leads: campo de busca não é sobrescrito pela própria navegação', () => {

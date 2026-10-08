@@ -1,11 +1,20 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 
-import { LeadOrDealSheet } from "@/components/leads/LeadOrDealSheet";
 import { obterLeadDossie } from "@/lib/actions/leads-busca";
 import { type Lead } from "@/types/lead";
+
+// Só no navegador: o dossiê formata datas no fuso de quem vê e usa Date.now().
+// Com o deep-link ?atleta= ele nasce aberto e seria renderizado no servidor
+// (UTC) — texto diferente na hidratação. De quebra, os modais pesados saem do
+// bundle inicial de /leads e /pipeline.
+const LeadOrDealSheet = dynamic(
+  () => import("@/components/leads/LeadOrDealSheet").then((m) => m.LeadOrDealSheet),
+  { ssr: false, loading: () => <AbrindoDossie /> },
+);
 
 type EstadoDossie =
   | { status: "fechado" }
@@ -62,6 +71,11 @@ export function DossieLeadView({
   if (estado.status === "aberto") {
     return <LeadOrDealSheet key={estado.lead.id} lead={estado.lead} onClose={onClose} />;
   }
+  return <AbrindoDossie onClose={onClose} />;
+}
+
+/** Overlay "Abrindo dossiê…" (busca do lead e carga do módulo do modal). */
+function AbrindoDossie({ onClose }: { onClose?: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden />

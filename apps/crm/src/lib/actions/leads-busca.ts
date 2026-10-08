@@ -8,6 +8,7 @@ import { linhasParaExport, obterLeadDossieInterno } from "@/lib/leads-lista";
 import { mapLinhaListaLead } from "@/lib/leads-mapper";
 import {
   BUSCA_PIPELINE_LIMITE,
+  BUSCA_PIPELINE_MAX,
   BUSCA_PIPELINE_MIN,
   FRIOS_REVISAO_DIAS,
   INCOMPLETOS_REVISAO_DIAS,
@@ -58,7 +59,11 @@ export type ResultadoBuscaCadastros =
   | { success: true; itens: CadastroEncontrado[]; total: number }
   | { success: false; error: string };
 
-const termoSchema = z.string().trim().min(BUSCA_PIPELINE_MIN, "Digite ao menos 3 letras.").max(80);
+const termoSchema = z
+  .string()
+  .trim()
+  .min(BUSCA_PIPELINE_MIN, "Digite ao menos 3 letras.")
+  .max(BUSCA_PIPELINE_MAX, `Busca muito longa (máx. ${BUSCA_PIPELINE_MAX} caracteres).`);
 
 /**
  * Busca de apoio do Pipeline (T13): nome do atleta, responsáveis, e-mails e
@@ -144,7 +149,21 @@ export async function exportarLeadsCsv(
   });
   try {
     const supabase = await createAuditedSupabaseClient();
-    const { linhas, truncado } = await linhasParaExport(supabase, f);
+    const [usuario, { linhas, truncado }] = await Promise.all([
+      getSession().catch(() => null),
+      linhasParaExport(supabase, f),
+    ]);
+    // Exportação em massa de PII (e-mail): trilha de quem/quando/quantas
+    // linhas para responder a um incidente LGPD. Sem o termo da busca.
+    console.log({
+      level: "info",
+      action: "exportar_leads_csv",
+      usuarioId: usuario?.id ?? null,
+      linhas: linhas.length,
+      truncado,
+      classe: f.classe,
+      comBusca: f.q.length > 0,
+    });
     // Fuso de Brasília: o CSV antigo era gerado no navegador (BRT); no servidor
     // (UTC) um lead das 22h sairia com a data do dia seguinte.
     const data = (iso: string | null) =>

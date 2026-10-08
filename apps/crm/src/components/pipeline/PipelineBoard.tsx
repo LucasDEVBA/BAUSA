@@ -61,7 +61,7 @@ import {
 } from "@/lib/actions/leads";
 import { type CadastroEncontrado } from "@/lib/actions/leads-busca";
 import { normalizarTermoBusca, type PaginaRevisao } from "@/lib/revisao-leads";
-import { ForaDoPipelineFaixa, type ModoRevisao } from "./ForaDoPipelineFaixa";
+import { ForaDoPipelineFaixa, type ModoRevisao, type MotivoForaDaTela } from "./ForaDoPipelineFaixa";
 import { useBuscaCadastros } from "./useBuscaCadastros";
 import { usePaginaRevisao } from "./usePaginaRevisao";
 import { labelEtapa, type MoveDealAction } from "@/lib/move-deal-result";
@@ -291,6 +291,13 @@ export function PipelineBoard({
   }, [view, filteredDeals, pendentesFiltrados, friosFiltrados, incompletosFiltrados]);
   const estaVisivel = (item: CadastroEncontrado): boolean =>
     (item.deal_id !== null && idsVisiveis.deals.has(item.deal_id)) || idsVisiveis.cards.has(item.id);
+  // Card de revisão fora da tela: a faixa diz POR QUÊ (não carregado ≠ filtrado ≠ visão Tabela).
+  const idsCarregados = useMemo(
+    () => new Set([...pendentes.itens, ...frios.itens, ...incompletos.itens].map((l) => l.id)),
+    [pendentes.itens, frios.itens, incompletos.itens],
+  );
+  const motivoForaDaTela = (item: CadastroEncontrado): MotivoForaDaTela =>
+    view !== "kanban" ? "so_kanban" : idsCarregados.has(item.id) ? "filtrado" : "nao_carregado";
   const rotuloEtapa = (etapa: string): string =>
     isDealStage(etapa) ? stageConfig[etapa].label : labelEtapa(etapa);
   const abrirRevisao = (modo: ModoRevisao, leadId: string) => {
@@ -542,6 +549,7 @@ export function PipelineBoard({
         <ForaDoPipelineFaixa
           estado={busca.estado}
           estaVisivel={estaVisivel}
+          motivoForaDaTela={motivoForaDaTela}
           rotuloEtapa={rotuloEtapa}
           onAbrirDossie={(id) => void dossie.abrir(id)}
           onAbrirRevisao={abrirRevisao}
@@ -564,7 +572,7 @@ export function PipelineBoard({
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex h-full gap-3 overflow-x-auto pb-4">
+          <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-4">
             {/* Fila de aprovação: primeira coluna, antes de qualquer etapa —
                 o lead só vira deal (coluna seguinte) depois do OK do CEO. */}
             {podeEditarColunas && pendentesFiltrados.length > 0 && (
@@ -707,8 +715,10 @@ export function PipelineBoard({
           leadIdInicial={frioAberto}
           onClose={() => setFrioAberto(null)}
           onDecidido={(id) => {
-            // Decidido no modal sai da coluna mesmo se veio do "Mostrar mais"
+            // Decidido no modal sai da coluna mesmo se veio do "Mostrar mais";
+            // a faixa refaz a busca (senão oferece ação sobre lead já decidido).
             frios.remover(id);
+            busca.recarregar();
             router.refresh();
           }}
         />
@@ -722,6 +732,7 @@ export function PipelineBoard({
           onClose={() => setIncompletoAberto(null)}
           onDecidido={(id) => {
             incompletos.remover(id);
+            busca.recarregar();
             router.refresh();
           }}
         />
@@ -733,7 +744,10 @@ export function PipelineBoard({
           modo="muito_cedo"
           leadIdInicial={muitoCedoAberto}
           onClose={() => setMuitoCedoAberto(null)}
-          onDecidido={() => router.refresh()}
+          onDecidido={() => {
+            busca.recarregar();
+            router.refresh();
+          }}
         />
       )}
 
@@ -744,6 +758,7 @@ export function PipelineBoard({
           onClose={() => setLeadAprovacao(null)}
           onDecidido={(id) => {
             pendentes.remover(id);
+            busca.recarregar();
             router.refresh();
           }}
         />
@@ -772,7 +787,14 @@ export function PipelineBoard({
       )}
 
       {/* Dossiê aberto pela faixa "Fora do pipeline" (lead ou deal) */}
-      <DossieLeadView estado={dossie.estado} onClose={dossie.fechar} />
+      <DossieLeadView
+        estado={dossie.estado}
+        onClose={() => {
+          // O dossiê tem ações (mover etapa, aprovar…): a faixa não pode ficar velha.
+          dossie.fechar();
+          busca.recarregar();
+        }}
+      />
 
       {/* Modal central super-completo (CEO) */}
       {selectedDeal && (

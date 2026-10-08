@@ -53,8 +53,10 @@ export function RevisaoLista<T extends { id: string }>({
         <ListaVirtual itens={itens} renderItem={renderItem} rotulo={rotulo} scrollRef={scrollRef} />
       ) : (
         <ul aria-label={rotulo} className="flex flex-col gap-1.5">
-          {itens.map((item) => (
-            <li key={item.id}>{renderItem(item)}</li>
+          {itens.map((item, i) => (
+            <li key={item.id} aria-setsize={itens.length} aria-posinset={i + 1}>
+              {renderItem(item)}
+            </li>
           ))}
         </ul>
       )}
@@ -110,6 +112,9 @@ function ListaVirtual<T extends { id: string }>({
           <li
             key={linha.key}
             data-index={linha.index}
+            // Só ~20 <li> existem no DOM: tamanho e posição reais para o leitor de tela
+            aria-setsize={itens.length}
+            aria-posinset={linha.index + 1}
             ref={virtualizer.measureElement}
             className="absolute left-0 top-0 w-full"
             style={{ transform: `translateY(${linha.start}px)` }}

@@ -4,6 +4,7 @@ import { LayoutGrid, List, Search, X } from "lucide-react";
 import type { LeadClassification } from "@/types/lead";
 import type { ProductTier } from "@/types/deal";
 import { PipelineSortMenu, type PipelineSortMode } from "./PipelineSortMenu";
+import { BUSCA_PIPELINE_MAX } from "@/lib/revisao-leads";
 import { cn } from "@/lib/utils";
 
 export type PipelineView = "kanban" | "tabela";
@@ -125,6 +126,7 @@ export function PipelineFiltersBar({
         <input
           type="text"
           value={filters.search}
+          maxLength={BUSCA_PIPELINE_MAX}
           onChange={(e) =>
             onFiltersChange({ ...filters, search: e.target.value })
           }

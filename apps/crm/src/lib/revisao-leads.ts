@@ -23,6 +23,8 @@ export const PENDENTES_PAGINA = 200;
 export const VIRTUALIZAR_ACIMA = 100;
 /** Busca no servidor (faixa "Fora do pipeline"): mínimo de caracteres úteis. */
 export const BUSCA_PIPELINE_MIN = 3;
+/** Teto de caracteres da busca do Pipeline (o campo corta; a action valida igual). */
+export const BUSCA_PIPELINE_MAX = 80;
 /** Teto de resultados da busca no servidor (a faixa mostra "N de total"). */
 export const BUSCA_PIPELINE_LIMITE = 20;
 /** Debounce da busca no servidor. */
@@ -43,6 +45,26 @@ export interface PaginaRevisao<T> {
 
 export function paginaRevisaoDe<T>(r: ResultadoPaginaRevisao<T>): PaginaRevisao<T> {
   return r.success ? { itens: r.itens, total: r.total, erro: null } : { itens: [], total: 0, erro: r.error };
+}
+
+/**
+ * Depois de um refresh, que trecho além da página nova recarregar (T7).
+ * `abertos` = quantos cards do recorte o CEO JÁ abriu no "Mostrar mais" —
+ * nunca o tamanho atual da lista: uma ação de coluna gera payloads em
+ * sequência (revalidatePath da action + router.refresh), e medir pela lista
+ * já encolhida pelo 1º payload zerava a recarga no 2º (a coluna voltava a 100).
+ */
+export function planejarRecargaRevisao(
+  abertos: number,
+  tamanhoPagina: number,
+  totalServidor: number,
+  comErro: boolean,
+): { offset: number; limite: number } | null {
+  // guard:corpo-js-inicio
+  if (comErro) return null;
+  const faltam = Math.min(abertos, totalServidor) - tamanhoPagina;
+  return faltam > 0 ? { offset: tamanhoPagina, limite: faltam } : null;
+  // guard:corpo-js-fim
 }
 
 /** Página do dossiê dos modais de revisão (detalhe pesado → página menor). */

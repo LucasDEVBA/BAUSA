@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition } from "react";
+import { useEffect, useRef, useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   useReactTable,
@@ -14,6 +14,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, Che
 import { type Lead, type LeadClassification } from "@/types/lead";
 import { excluirLead } from "@/lib/actions/leads-excluir";
 import {
+  BUSCA_LEADS_MAX,
   BUSCA_LEADS_MIN,
   ORDENS_LEADS,
   POR_PAGINA_LEADS,
@@ -77,8 +78,16 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
   // Dossiê sob demanda (a lista só tem o resumo). ?atleta= já chega aberto.
   const dossie = useDossieLead(leadInicial);
 
+  // Filtros que a tela DEVE ter: os da URL ou, com navegação em curso, os do
+  // último pedido. O servidor leva 0,5–1,5 s; um clique em "Quente" seguido
+  // do timer da busca partia do `filtros` velho e desfazia o "Quente".
+  const alvoRef = useRef(filtros);
+  useEffect(() => {
+    if (!navegando) alvoRef.current = filtros;
+  }, [filtros, navegando]);
   const navegar = (patch: Partial<FiltrosLeads>) => {
-    const proximo: FiltrosLeads = { ...filtros, ...patch, atleta: null };
+    const proximo: FiltrosLeads = { ...alvoRef.current, ...patch, atleta: null };
+    alvoRef.current = proximo;
     startNavegar(() => router.replace(urlFiltrosLeads(proximo), { scroll: false }));
   };
 
@@ -108,7 +117,7 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
       navegar({ q: termo, pagina: 1 });
     }, BUSCA_DEBOUNCE_MS);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- navegar lê filtros atuais; re-disparar só quando o texto muda
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- navegar parte do alvoRef (filtros atuais/pedidos); re-disparar só quando o texto muda
   }, [busca, filtros.q]);
 
   const sorting: SortingState = [{ id: filtros.ordem, desc: filtros.dir === "desc" }];
@@ -412,6 +421,8 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
       {
         accessorKey: "submitted_at",
         header: "Recebido",
+        // Data: 1º clique vindo de outra coluna = mais recentes primeiro
+        sortDescFirst: true,
         cell: ({ getValue }) => (
           <span className="text-xs text-muted-foreground">
             {formatRelativeTime(getValue() as string)}
@@ -456,6 +467,9 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
+    // Ordem vive na URL e sempre existe (padrão Recebido ↓): "remover" a
+    // ordenação devolvia o mesmo padrão e o clique em "Recebido" não fazia nada.
+    enableSortingRemoval: false,
     pageCount: totalPaginas,
     onSortingChange,
     getCoreRowModel: getCoreRowModel(),
@@ -473,6 +487,7 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
           <input
             type="search"
             value={busca}
+            maxLength={BUSCA_LEADS_MAX}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por nome, responsável, e-mail ou telefone…"
             aria-label="Buscar leads por nome, responsável, e-mail ou telefone"

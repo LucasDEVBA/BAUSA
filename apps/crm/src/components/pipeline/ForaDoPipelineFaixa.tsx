@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { FileText, Loader2, RotateCw, SearchX, UserCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -8,17 +8,31 @@ import { Badge, type BadgeTone } from "@/components/ui";
 import { enviarFrioParaAprovacao, enviarIncompletoParaAprovacao } from "@/lib/actions/leads";
 import { type CadastroEncontrado } from "@/lib/actions/leads-busca";
 import { FRIOS_REVISAO_DIAS, type TipoLocalCadastro } from "@/lib/revisao-leads";
-import { cn } from "@/lib/utils";
 
 import { ReuniaoDetectadaBadge } from "./ReuniaoDetectadaBadge";
 import { type EstadoBuscaCadastros } from "./useBuscaCadastros";
 
 export type ModoRevisao = "aprovacao" | "frios" | "incompletos";
 
+/**
+ * Por que um card que TEM lugar numa coluna de revisão não está na tela:
+ * página ainda não carregada, carregado mas escondido pelos filtros (os cards
+ * de revisão não casam e-mail/telefone) ou visão Tabela (revisão só no Kanban).
+ */
+export type MotivoForaDaTela = "nao_carregado" | "filtrado" | "so_kanban";
+
+const TEXTO_MOTIVO: Record<MotivoForaDaTela, string> = {
+  nao_carregado: "ainda não carregado na coluna",
+  filtrado: "oculto pelos filtros — a coluna não busca e-mail/telefone",
+  so_kanban: "a coluna só aparece no Kanban",
+};
+
 interface ForaDoPipelineFaixaProps {
   estado: EstadoBuscaCadastros;
   /** O cadastro já aparece na tela agora (card carregado e não filtrado)? */
   estaVisivel: (item: CadastroEncontrado) => boolean;
+  /** Item de coluna de revisão fora da tela: por quê (sem a prop, texto neutro). */
+  motivoForaDaTela?: (item: CadastroEncontrado) => MotivoForaDaTela;
   rotuloEtapa: (etapa: string) => string;
   onAbrirDossie: (formSubmissionId: string) => void;
   onAbrirRevisao: (modo: ModoRevisao, formSubmissionId: string) => void;
@@ -49,19 +63,21 @@ const resumir = (texto: string | null, max = 110): string | null =>
 export function descreverLocal(
   c: CadastroEncontrado,
   rotuloEtapa: (etapa: string) => string,
+  motivo?: MotivoForaDaTela,
 ): { titulo: string; detalhe: string | null } {
   const classe = c.qualification_classification ?? "sem classe";
+  const porQue = motivo ? TEXTO_MOTIVO[motivo] : "fora da tela agora";
   const textos: Record<TipoLocalCadastro, { titulo: string; detalhe: string | null }> = {
     board_deal: {
       titulo: `No pipeline · ${rotuloEtapa(c.deal_etapa ?? "")}`,
       detalhe: c.deal_etapa === "projeto_futuro" ? "Na seção Leads Futuros, abaixo do board" : "Oculto pelos filtros atuais",
     },
     fora_kanban_cancelamento: { titulo: "Cancelamento solicitado", detalhe: "Sem coluna no Kanban — aparece na visão Tabela" },
-    coluna_aprovacao: { titulo: "Aguardando aprovação", detalhe: `Recebido em ${dataCurta(c.submitted_at)}` },
-    coluna_frios: { titulo: "Na coluna Frios", detalhe: `Frio de ${dataCurta(c.submitted_at)} — ainda não carregado` },
+    coluna_aprovacao: { titulo: "Aguardando aprovação", detalhe: `Recebido em ${dataCurta(c.submitted_at)} — ${porQue}` },
+    coluna_frios: { titulo: "Na coluna Frios", detalhe: `Frio de ${dataCurta(c.submitted_at)} — ${porQue}` },
     coluna_incompletos: {
       titulo: "Na coluna Incompletos",
-      detalhe: `Incompleto de ${dataCurta(c.submitted_at)} — ainda não carregado`,
+      detalhe: `Incompleto de ${dataCurta(c.submitted_at)} — ${porQue}`,
     },
     fora_perdido_timing: { titulo: "Perdido por timing", detalhe: "Tarde demais — perdidos por timing ficam fora do Kanban" },
     fora_deal_suspenso: { titulo: "Deal suspenso", detalhe: `Pendente com classe ${classe} — não entra na fila` },
@@ -92,6 +108,7 @@ export function descreverLocal(
 export function ForaDoPipelineFaixa({
   estado,
   estaVisivel,
+  motivoForaDaTela,
   rotuloEtapa,
   onAbrirDossie,
   onAbrirRevisao,
@@ -101,39 +118,9 @@ export function ForaDoPipelineFaixa({
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  if (estado.status === "inativa") return null;
-
-  if (estado.status === "carregando") {
-    return (
-      <p role="status" aria-live="polite" className="mb-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <Loader2 aria-hidden className="size-3 animate-spin" />
-        Procurando “{estado.termo}” em todos os cadastros…
-      </p>
-    );
-  }
-
-  if (estado.status === "erro") {
-    return (
-      <div role="alert" className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-sys-red/25 bg-sys-red/5 px-2.5 py-1.5 text-[11px] text-sys-red">
-        <SearchX aria-hidden className="size-3.5" />
-        Busca fora do board falhou: {estado.erro}
-        <button type="button" onClick={onTentarDeNovo} className="inline-flex items-center gap-1 font-semibold underline-offset-2 hover:underline">
-          <RotateCw aria-hidden className="size-3" /> Tentar de novo
-        </button>
-      </div>
-    );
-  }
-
-  const naoVisiveis = estado.itens.filter((i) => !estaVisivel(i));
+  const naoVisiveis = estado.status === "ok" ? estado.itens.filter((i) => !estaVisivel(i)) : [];
   const fora = naoVisiveis.filter((i) => !i.local.noBoard);
   const noBoardOcultos = naoVisiveis.filter((i) => i.local.noBoard);
-  if (naoVisiveis.length === 0) {
-    return estado.total === 0 ? (
-      <p role="status" aria-live="polite" className="mb-2 text-[11px] text-muted-foreground">
-        Nenhum cadastro encontrado para “{estado.termo}”.
-      </p>
-    ) : null;
-  }
 
   const enviarParaFila = (item: CadastroEncontrado) => {
     setEnviandoId(item.id);
@@ -160,7 +147,7 @@ export function ForaDoPipelineFaixa({
   };
 
   const linha = (item: CadastroEncontrado) => {
-    const { titulo, detalhe } = descreverLocal(item, rotuloEtapa);
+    const { titulo, detalhe } = descreverLocal(item, rotuloEtapa, motivoForaDaTela?.(item));
     const tipo = item.local.tipo;
     const podeEnviarFila =
       item.aprovacao_status === null &&
@@ -232,29 +219,72 @@ export function ForaDoPipelineFaixa({
     );
   };
 
-  return (
-    <section
-      aria-labelledby="fora-pipeline-titulo"
-      className="mb-3 rounded-xl border border-sys-orange/25 bg-sys-orange/5 p-2.5"
-    >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5" aria-live="polite">
-        <h2 id="fora-pipeline-titulo" className="text-xs font-semibold text-foreground">
-          Fora do pipeline ({fora.length})
-        </h2>
-        {noBoardOcultos.length > 0 && (
-          <span className="text-[11px] text-muted-foreground">
-            · {noBoardOcultos.length} no board, mas fora da tela
-          </span>
-        )}
-        {estado.total > estado.itens.length && (
-          <span className="text-[11px] text-muted-foreground sm:ml-auto">
-            Mostrando {estado.itens.length} de {estado.total} resultados — refine a busca
-          </span>
-        )}
+  let visual: ReactNode = null;
+  if (estado.status === "carregando") {
+    visual = (
+      <p className="mb-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <Loader2 aria-hidden className="size-3 animate-spin" />
+        Procurando “{estado.termo}” em todos os cadastros…
+      </p>
+    );
+  } else if (estado.status === "erro") {
+    visual = (
+      <div role="alert" className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-sys-red/25 bg-sys-red/5 px-2.5 py-1.5 text-[11px] text-sys-red">
+        <SearchX aria-hidden className="size-3.5" />
+        Busca fora do board falhou: {estado.erro}
+        <button type="button" onClick={onTentarDeNovo} className="inline-flex items-center gap-1 font-semibold underline-offset-2 hover:underline">
+          <RotateCw aria-hidden className="size-3" /> Tentar de novo
+        </button>
       </div>
-      <ul className={cn("mt-2 max-h-64 space-y-1.5 overflow-y-auto")} aria-label={`Resultados para “${estado.termo}”`}>
-        {[...fora, ...noBoardOcultos].map(linha)}
-      </ul>
-    </section>
+    );
+  } else if (estado.status === "ok" && naoVisiveis.length === 0 && estado.total === 0) {
+    visual = <p className="mb-2 text-[11px] text-muted-foreground">Nenhum cadastro encontrado para “{estado.termo}”.</p>;
+  } else if (estado.status === "ok" && naoVisiveis.length > 0) {
+    visual = (
+      <section
+        aria-labelledby="fora-pipeline-titulo"
+        className="mb-3 shrink-0 rounded-xl border border-sys-orange/25 bg-sys-orange/5 p-2.5"
+      >
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <h2 id="fora-pipeline-titulo" className="text-xs font-semibold text-foreground">
+            Fora do pipeline ({fora.length})
+          </h2>
+          {noBoardOcultos.length > 0 && (
+            <span className="text-[11px] text-muted-foreground">
+              · {noBoardOcultos.length} no board, mas fora da tela
+            </span>
+          )}
+          {estado.total > estado.itens.length && (
+            <span className="text-[11px] text-muted-foreground sm:ml-auto">
+              Mostrando {estado.itens.length} de {estado.total} resultados — refine a busca
+            </span>
+          )}
+        </div>
+        {/* Altura contida: a faixa divide a altura com o board, que encolhe (não é cortado) */}
+        <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto" aria-label={`Resultados para “${estado.termo}”`}>
+          {[...fora, ...noBoardOcultos].map(linha)}
+        </ul>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      {/* Região viva SEMPRE montada: região que já nasce com o texto não é
+          anunciada de forma confiável (VoiceOver/NVDA) — só o texto troca. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {textoAnuncio(estado, fora.length, noBoardOcultos.length, naoVisiveis.length)}
+      </p>
+      {visual}
+    </>
   );
+}
+
+/** O que o leitor de tela ouve a cada busca (o erro é anunciado pelo role="alert"). */
+function textoAnuncio(estado: EstadoBuscaCadastros, fora: number, ocultos: number, naoVisiveis: number): string {
+  if (estado.status === "carregando") return `Procurando “${estado.termo}” em todos os cadastros…`;
+  if (estado.status !== "ok") return "";
+  if (estado.total === 0) return `Nenhum cadastro encontrado para “${estado.termo}”.`;
+  if (naoVisiveis === 0) return `Os resultados para “${estado.termo}” já estão na tela.`;
+  return `${fora} fora do pipeline${ocultos > 0 ? `, ${ocultos} no board mas fora da tela` : ""}.`;
 }
