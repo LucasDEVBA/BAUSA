@@ -268,11 +268,29 @@ test('pipeline: faixa só para CEO, busca por responsável, colunas paginadas', 
   for (const fn of ['listarLeadsPendentesCards', 'listarLeadsFriosCards', 'listarLeadsIncompletosCards']) {
     assert.match(boardSrc, new RegExp(`usePaginaRevisao\\([^)]*\\(offset, limite\\) => ${fn}\\(\\{ offset, limite \\}\\)`), `${fn} sem paginação`);
   }
+  // Integração 08/10 (contrato B4): um átomo só — antes eram 6 cópias com textos divergentes.
+  const atomo = crm('components', 'pipeline', 'ReuniaoDetectadaBadge.tsx');
+  assert.match(atomo, /Reunião detectada/, 'rótulo do átomo mudou');
+  assert.match(atomo, /timeZone: "America\/Sao_Paulo"/, 'data do badge tem que ser absoluta no fuso de Brasília (hidratação)');
+  assert.ok(!/formatRelativeTime/.test(atomo), 'data relativa no badge muda entre SSR e hidratação');
+  assert.match(atomo, /semDeal \? " — o lead ainda não tem deal no pipeline" : ""/,
+    '"sem deal" só pode aparecer onde quem usa garante que não há deal');
   for (const arq of ['FriosColumn.tsx', 'IncompletosColumn.tsx', 'AprovacaoColumn.tsx']) {
     const src = crm('components', 'pipeline', arq);
     assert.match(src, /lead\.meeting_scheduled && \(/, `${arq}: badge de reunião sumiu`);
-    assert.match(src, /Reunião detectada/, `${arq}: rótulo do badge mudou`);
+    assert.match(src, /<ReuniaoDetectadaBadge\b/, `${arq}: badge local em vez do átomo único`);
+    assert.ok(!/>\s*Reunião detectada\s*</.test(src), `${arq}: cópia local do badge voltou`);
   }
+  // 29 dos 93 pendentes têm deal: a fila nunca pode dizer "sem deal".
+  assert.ok(!/<ReuniaoDetectadaBadge[^>]*semDeal/.test(crm('components', 'pipeline', 'AprovacaoColumn.tsx')),
+    'Aguardando aprovação marcou "sem deal" (há pendente com deal)');
+  for (const arq of ['FriosColumn.tsx', 'IncompletosColumn.tsx']) {
+    assert.match(crm('components', 'pipeline', arq), /<ReuniaoDetectadaBadge[^>]*\bsemDeal\b/,
+      `${arq}: Frios/Incompletos só listam quem não tem deal ativo`);
+  }
+  const faixaSrc = crm('components', 'pipeline', 'ForaDoPipelineFaixa.tsx');
+  assert.match(faixaSrc, /<ReuniaoDetectadaBadge[^>]*semDeal=\{!item\.deal_id\}/,
+    'faixa: "sem deal" só para quem não tem deal ativo');
 });
 
 // ─── 7. Revisão 08/10: refresh nunca deixa card velho nem pula card ──────

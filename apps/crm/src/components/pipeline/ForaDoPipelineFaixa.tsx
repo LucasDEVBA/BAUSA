@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CalendarCheck, FileText, Loader2, RotateCw, SearchX, UserCheck, UserPlus } from "lucide-react";
+import { FileText, Loader2, RotateCw, SearchX, UserCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge, type BadgeTone } from "@/components/ui";
@@ -10,6 +10,7 @@ import { type CadastroEncontrado } from "@/lib/actions/leads-busca";
 import { FRIOS_REVISAO_DIAS, type TipoLocalCadastro } from "@/lib/revisao-leads";
 import { cn } from "@/lib/utils";
 
+import { ReuniaoDetectadaBadge } from "./ReuniaoDetectadaBadge";
 import { type EstadoBuscaCadastros } from "./useBuscaCadastros";
 
 export type ModoRevisao = "aprovacao" | "frios" | "incompletos";
@@ -179,10 +180,8 @@ export function ForaDoPipelineFaixa({
               {item.qualification_classification ?? "Sem classe"}
             </Badge>
             {item.meeting_scheduled && (
-              <Badge size="sm" tone="green" title={`Reunião detectada em ${dataCurta(item.meeting_scheduled_at)}`}>
-                <CalendarCheck aria-hidden className="size-2.5" />
-                Reunião detectada
-              </Badge>
+              // deal_id da view = deal ATIVO; só sem ele dá para afirmar "sem deal" (perdido por timing e suspenso têm deal).
+              <ReuniaoDetectadaBadge detectadaEm={item.meeting_scheduled_at} semDeal={!item.deal_id} />
             )}
           </div>
           {item.guardian_name && (

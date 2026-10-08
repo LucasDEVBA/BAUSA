@@ -1,10 +1,11 @@
 "use client";
 
-import { CalendarCheck, CalendarClock, Flame, Thermometer, UserCheck } from "lucide-react";
+import { CalendarClock, Flame, Thermometer, UserCheck } from "lucide-react";
 
 import type { LeadPendenteCard } from "@/lib/actions/leads";
-import { cn, formatDate, formatRelativeTime } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
+import { ReuniaoDetectadaBadge } from "./ReuniaoDetectadaBadge";
 import { RevisaoLista } from "./RevisaoLista";
 
 /**
@@ -91,13 +92,7 @@ export function AprovacaoColumn({
             </span>
           )}
           {lead.meeting_scheduled && (
-            <span
-              className="inline-flex items-center gap-0.5 rounded bg-sys-green/12 px-1 py-px text-[9px] font-medium text-sys-green"
-              title={lead.meeting_scheduled_at ? `Reunião detectada em ${formatDate(lead.meeting_scheduled_at)}` : "Reunião detectada"}
-            >
-              <CalendarCheck aria-hidden className="h-2 w-2" />
-              Reunião detectada
-            </span>
+            <ReuniaoDetectadaBadge variante="card" detectadaEm={lead.meeting_scheduled_at} />
           )}
           <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
             {formatRelativeTime(lead.submitted_at)}

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CalendarCheck, Loader2, Snowflake, UserPlus } from "lucide-react";
+import { Loader2, Snowflake, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { enviarFrioParaAprovacao, type LeadFrioCard } from "@/lib/actions/leads";
-import { cn, formatDate, formatRelativeTime } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
+import { ReuniaoDetectadaBadge } from "./ReuniaoDetectadaBadge";
 import { RevisaoLista } from "./RevisaoLista";
 
 /**
@@ -104,13 +105,7 @@ export function FriosColumn({
             FRIO{lead.score_financeiro != null ? ` · ${lead.score_financeiro}` : ""}
           </span>
           {lead.meeting_scheduled && (
-            <span
-              className="inline-flex items-center gap-0.5 rounded bg-sys-green/12 px-1 py-px text-[9px] font-medium text-sys-green"
-              title={lead.meeting_scheduled_at ? `Reunião detectada em ${formatDate(lead.meeting_scheduled_at)}` : "Reunião detectada"}
-            >
-              <CalendarCheck aria-hidden className="h-2 w-2" />
-              Reunião detectada
-            </span>
+            <ReuniaoDetectadaBadge variante="card" detectadaEm={lead.meeting_scheduled_at} semDeal />
           )}
           <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
             {formatRelativeTime(lead.submitted_at)}
