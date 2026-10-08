@@ -85,7 +85,10 @@ test('criar e reabrir usam a mesma ramificação por timing', () => {
 // ─── 2ª revisão (2026-10-05): reunião, muito_cedo e reversão honesta ─────
 
 test('reunião já detectada: convite inicial bloqueado no MESMO update da aprovação', () => {
-  const cas = aprovar.slice(aprovar.indexOf('const bloquearInicial'), aprovar.indexOf('.eq("aprovacao_status", "pendente")'));
+  // Ancorado DEPOIS do bloquearInicial: o fechamento dos FUs do "sem
+  // mensagem" (T12) tem o próprio CAS em pendente antes da promoção.
+  const iBloquear = aprovar.indexOf('const bloquearInicial');
+  const cas = aprovar.slice(iBloquear, aprovar.indexOf('.eq("aprovacao_status", "pendente")', iBloquear));
   assert.match(cas, /fsRow\.meeting_scheduled === true && !fsRow\.whatsapp_sent_at/,
     'gate da reunião detectada sumiu — família que já se reuniu receberia "agende sua reunião"');
   assert.match(cas, /aprovacao_status: "aprovado"[\s\S]*whatsapp_sent_at:/,

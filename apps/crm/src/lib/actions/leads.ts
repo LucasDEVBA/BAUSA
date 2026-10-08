@@ -7,6 +7,7 @@ import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { createAdminClient, hasServiceKey } from "@/lib/supabase-admin";
 import { getUserPapel } from "@/lib/auth";
 import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
+import { excluirLead } from "@/lib/actions/leads-excluir";
 import { registrarEventoGamificacao, type ResultadoGamificacao } from "@/lib/gamificacao";
 import {
   DETALHE_REVISAO_PAGINA,
@@ -974,7 +975,9 @@ export interface AprovarLeadOpcoes {
    * T12 — "Aprovar sem mensagem": o CEO já conversou com a família. Fecha o
    * ciclo automático INTEIRO (inicial + FU1 + FU2 e, se muito_cedo, a
    * retomada de novembro) no MESMO update atômico da aprovação e nunca re-arma
-   * a reativação. Lead/deal entram normalmente.
+   * a reativação. Lead com envio anterior: os FU1/FU2 em aberto fecham antes
+   * da promoção (o followup-scheduler não olha aprovacao_status). Lead/deal
+   * entram normalmente.
    */
   semMensagemAutomatica?: boolean;
 }
@@ -1022,6 +1025,45 @@ export async function aprovarLead(
     return { success: false, error: "Lead não está mais pendente (já decidido em outra aba?)." };
   }
   const semMensagem = opcoes?.semMensagemAutomatica === true;
+  // Carimbo "fechado sem envio": a data real (detecção/cadastro), mas NUNCA
+  // dentro das janelas dos checks de espelho (monitor-health 6h → alerta
+  // WhatsApp+e-mail; /observabilidade 48h). Lead recém-chegado aprovado sem
+  // mensagem com a data do cadastro viraria "envio sem espelho" falso.
+  const baseCicloMs = Date.parse(String(fsRow.meeting_scheduled_at ?? fsRow.submitted_at ?? ""));
+  const tetoCicloMs = Date.now() - IDADE_MIN_CARIMBO_SEM_ENVIO_MS;
+  const marcaCiclo = new Date(
+    Number.isFinite(baseCicloMs) ? Math.min(baseCicloMs, tetoCicloMs) : tetoCicloMs,
+  ).toISOString();
+
+  // "Sem mensagem" com histórico de envio (convite de um ciclo anterior, lead
+  // requalificado): o followup-scheduler NÃO olha aprovacao_status — FU1/FU2
+  // em aberto sairiam no próximo tick (já com o lead MORNO pendente, e com
+  // mais razão depois de aprovado). Fecha só os que ainda estão abertos.
+  // FU2 também: ele dispara com o FU1 preenchido.
+  const fecharFollowupsSemMensagem = semMensagem && Boolean(fsRow.whatsapp_sent_at);
+  const fecharFu1SemMensagem = fecharFollowupsSemMensagem && !fsRow.followup_1_sent_at;
+  const fecharFu2SemMensagem = fecharFollowupsSemMensagem && !fsRow.followup_2_sent_at;
+  if (fecharFu1SemMensagem || fecharFu2SemMensagem) {
+    // ANTES da promoção (lead ainda pendente): se qualquer passo seguinte
+    // falhar, o lead fica na fila sem FU nenhum a sair — a escolha "sem
+    // mensagem" do CEO vale desde o clique. Só FECHA (nunca abre envio); a
+    // reversão não os reabre. CAS: só lead ainda pendente e vivo.
+    const { error: fuErr } = await supabase
+      .from("form_submissions")
+      .update({
+        ...(fecharFu1SemMensagem ? { followup_1_sent_at: marcaCiclo } : {}),
+        ...(fecharFu2SemMensagem ? { followup_2_sent_at: marcaCiclo } : {}),
+      })
+      .eq("id", formSubmissionId)
+      .eq("aprovacao_status", "pendente")
+      .is("deleted_at", null);
+    if (fuErr) {
+      return {
+        success: false,
+        error: `Não foi possível fechar os follow-ups pendentes — nada foi aprovado: ${fuErr.message}`,
+      };
+    }
+  }
 
   // 1. Promoção primeiro (idempotente)
   const promocao = await promoverLeadCore(supabase, fsRow);
@@ -1045,15 +1087,6 @@ export async function aprovarLead(
   // automática — "sem mensagem" fecha ela junto (hoje o toggle já está off).
   const fecharRetomadaSemMensagem =
     semMensagem && fsRow.timing_status === "muito_cedo" && !fsRow.scheduled_followup_sent_at;
-  // Carimbo "fechado sem envio": a data real (detecção/cadastro), mas NUNCA
-  // dentro das janelas dos checks de espelho (monitor-health 6h → alerta
-  // WhatsApp+e-mail; /observabilidade 48h). Lead recém-chegado aprovado sem
-  // mensagem com a data do cadastro viraria "envio sem espelho" falso.
-  const baseCicloMs = Date.parse(String(fsRow.meeting_scheduled_at ?? fsRow.submitted_at ?? ""));
-  const tetoCicloMs = Date.now() - IDADE_MIN_CARIMBO_SEM_ENVIO_MS;
-  const marcaCiclo = new Date(
-    Number.isFinite(baseCicloMs) ? Math.min(baseCicloMs, tetoCicloMs) : tetoCicloMs,
-  ).toISOString();
   const { data: casRows, error: casError } = await supabase
     .from("form_submissions")
     .update({
@@ -1086,12 +1119,27 @@ export async function aprovarLead(
       .maybeSingle();
     if ((atual as { deleted_at?: string | null } | null)?.deleted_at) {
       // Excluído em outra aba DURANTE a aprovação: o promoverLeadCore pode ter
-      // criado atleta/deal para um lead excluído. excluir_lead é idempotente
-      // e recolhe esses vínculos.
+      // criado atleta/deal para um lead excluído — e eles não aparecem em
+      // tela nenhuma (board suspende lead pendente; /leads e a faixa filtram
+      // fs excluída). excluir_lead é idempotente: com a fs já excluída cai no
+      // caminho de reparo e recolhe esses vínculos aqui mesmo.
+      const reparo = await excluirLead(formSubmissionId);
+      if (!reparo.success) {
+        console.error({
+          level: "error",
+          action: "aprovar_lead_reparo_exclusao_falhou",
+          formSubmissionId,
+          error: reparo.error,
+        });
+        return {
+          success: false,
+          error: `O lead foi EXCLUÍDO em outra aba durante a aprovação e a remoção do atleta/deal criados agora falhou (${reparo.error.replace(/\.$/, "")}). Avise o suporte com o nome do atleta.`,
+        };
+      }
       return {
         success: false,
         error:
-          "O lead foi EXCLUÍDO em outra aba durante a aprovação — exclua de novo pelo card do pipeline para remover o atleta/deal criados.",
+          "O lead foi EXCLUÍDO em outra aba durante a aprovação — nada foi aprovado e o atleta/deal criados agora foram removidos.",
       };
     }
     if ((atual as { aprovacao_status?: string } | null)?.aprovacao_status === "aprovado") {
@@ -1132,8 +1180,14 @@ export async function aprovarLead(
         aprovacao_decidida_em: null,
         // desfaz também o carimbo anti-convite deste mesmo CAS
         ...(bloquearInicial ? { whatsapp_sent_at: null } : {}),
-        // e o fechamento do ciclo do "Aprovar sem mensagem" (lead volta à fila
-        // como estava; pendente nunca recebe mensagem)
+        // e o fechamento do ciclo do "Aprovar sem mensagem" (lead SEM envio
+        // volta à fila como estava: pendente sem whatsapp_sent_at não recebe
+        // nada — Bucket A/B exigem aprovado e o FU exige o envio inicial).
+        // Os FU1/FU2 fechados de lead COM histórico ficam fechados de
+        // propósito: o followup-scheduler não olha aprovacao_status, então
+        // reabri-los mandaria o follow-up que o CEO recusou com o lead ainda
+        // pendente. "Aprovar lead" depois, se o deal for rearmável, re-arma o
+        // ciclo (zera os FUs); senão nenhum FU "agende sua reunião" cabe.
         ...(fecharCicloSemMensagem
           ? { whatsapp_sent_at: null, followup_1_sent_at: null, followup_2_sent_at: null }
           : {}),
@@ -1200,8 +1254,11 @@ export async function aprovarLead(
   }
   if (fsRow.whatsapp_sent_at && garantia.rearmavel) {
     if (semMensagem) {
-      // T12: o CEO escolheu aprovar SEM mensagem — nem a reabertura sai.
-      aviso = "Aprovado sem mensagem automática: a reativação (reabertura) não foi re-armada.";
+      // T12: o CEO escolheu aprovar SEM mensagem — nem a reabertura sai (e os
+      // FU1/FU2 em aberto já foram fechados antes da promoção).
+      aviso = `Aprovado sem mensagem automática: a reativação (reabertura) não foi re-armada${
+        fecharFu1SemMensagem || fecharFu2SemMensagem ? " e os follow-ups pendentes foram fechados" : ""
+      }.`;
     } else {
       const { error: reativErr } = await supabase
         .from("form_submissions")
@@ -1290,8 +1347,11 @@ export async function reprovarLead(formSubmissionId: string, motivo?: string) {
 // pendente→aprovado, deal garantido/visível, bloqueio de convite com reunião,
 // gamificação. NUNCA grava 'aprovado' por conta própria: a elegibilidade dos
 // schedulers (QUENTE/MORNO + timing + aprovado) só nasce dentro do aprovarLead.
-// Se o aprovarLead falhar, o lead fica MORNO + pendente na fila — estado
-// seguro (pendente nunca recebe mensagem).
+// Se o aprovarLead falhar, o lead fica MORNO + pendente na fila: sem convite
+// inicial nem reabertura (Bucket A/B exigem aprovado). Ressalva: lead com
+// envio de ciclo anterior e FU em aberto é elegível ao followup-scheduler
+// (não olha aprovacao_status) — por isso o "sem mensagem" fecha os FUs antes
+// de promover e a reversão não os reabre.
 // Posição: ANTES de listarLeadsMuitoCedoDetalhe — o guard
 // pipeline-frios-colunas recorta leads.ts de ativarLeadMuitoCedo até o FIM.
 
@@ -1312,6 +1372,8 @@ export type AprovarDaRevisaoResultado =
       /** Chave da etapa do deal (o client traduz pelo stageConfig). */
       etapa: string | null;
       semMensagem: boolean;
+      /** Lead com envio de ciclo anterior: a 1ª mensagem é a REABERTURA, não o convite inicial. */
+      reativacao: boolean;
       dealReaberto: boolean;
       aviso: string | null;
       gamificacao: ResultadoGamificacao | null;
@@ -1473,10 +1535,15 @@ export async function aprovarLeadDaRevisao(
     revalidatePath("/pipeline");
     revalidatePath("/leads");
     if (status === "pendente" && !estadoDepois?.deleted_at) {
+      const falha = res.error.replace(/\.$/, "");
       return {
         success: false,
         estado: "na_fila",
-        error: `O lead foi para Aguardando aprovação (MORNO provisório), mas a aprovação falhou (${res.error.replace(/\.$/, "")}). Nenhuma mensagem sai enquanto estiver pendente — aprove por lá.`,
+        // A fila tem os dois botões: "Aprovar lead" de lá LIBERA as mensagens —
+        // quem escolheu "sem mensagem" precisa saber qual apertar.
+        error: semMensagem
+          ? `O lead foi para Aguardando aprovação (MORNO provisório), mas a aprovação falhou (${falha}). Para manter SEM mensagem, aprove por lá em "Aprovar sem mensagem" — "Aprovar lead" na fila libera as mensagens automáticas.`
+          : `O lead foi para Aguardando aprovação (MORNO provisório), mas a aprovação falhou (${falha}). Aprove por lá.`,
       };
     }
     // Só é "inalterado" se o lead VOLTOU à revisão (requalificação devolveu a
@@ -1507,6 +1574,7 @@ export async function aprovarLeadDaRevisao(
     dealId: res.dealId,
     etapa: res.etapa ?? null,
     semMensagem,
+    reativacao: res.reativacao ?? false,
     dealReaberto: res.dealReaberto ?? false,
     aviso: res.aviso ?? null,
     gamificacao: res.gamificacao,

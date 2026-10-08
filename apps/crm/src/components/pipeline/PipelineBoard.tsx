@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -176,6 +176,36 @@ export function PipelineBoard({
   // confirmação fora do card, setter estável dentro do render.
   const [dealParaExcluir, setDealParaExcluir] = useState<Deal | null>(null);
   const [excluindoLead, startExcluirLead] = useTransition();
+  const cancelarExclusaoRef = useRef<HTMLButtonElement>(null);
+  const confirmarExclusaoRef = useRef<HTMLButtonElement>(null);
+  // Esc e Tab no WINDOW: com o foco fora do diálogo (clique no texto, botão
+  // desabilitado durante a exclusão) o onKeyDown do próprio diálogo não
+  // dispara — o Esc morria e o Tab andava pelo board atrás do overlay.
+  useEffect(() => {
+    if (!dealParaExcluir) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!excluindoLead) setDealParaExcluir(null);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      const botoes = [cancelarExclusaoRef.current, confirmarExclusaoRef.current].filter(
+        (b): b is HTMLButtonElement => b !== null && !b.disabled,
+      );
+      if (botoes.length === 0) return;
+      const atual = botoes.findIndex((b) => b === document.activeElement);
+      const proximo = e.shiftKey ? (atual <= 0 ? botoes.length - 1 : atual - 1) : (atual + 1) % botoes.length;
+      botoes[proximo].focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dealParaExcluir, excluindoLead]);
+  // Exclusão que falha mantém o diálogo aberto: o botão clicado ficou
+  // desabilitado e o foco caiu no body — devolve ao Cancelar.
+  useEffect(() => {
+    if (dealParaExcluir && !excluindoLead) cancelarExclusaoRef.current?.focus();
+  }, [dealParaExcluir, excluindoLead]);
   // Ganho fechado: a shortlist de escolas é o 1º entregável da jornada da
   // família, então o modal abre logo após o move (que já aconteceu).
   const [ganho, setGanho] = useState<GanhoPendente | null>(null);
@@ -842,9 +872,6 @@ export function PipelineBoard({
             aria-describedby="excluir-deal-descricao"
             className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if (e.key === "Escape" && !excluindoLead) setDealParaExcluir(null);
-            }}
           >
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sys-red/10">
@@ -864,6 +891,7 @@ export function PipelineBoard({
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
+                ref={cancelarExclusaoRef}
                 autoFocus
                 onClick={() => setDealParaExcluir(null)}
                 disabled={excluindoLead}
@@ -872,6 +900,7 @@ export function PipelineBoard({
                 Cancelar
               </button>
               <button
+                ref={confirmarExclusaoRef}
                 onClick={() => {
                   const alvo = dealParaExcluir;
                   startExcluirLead(async () => {

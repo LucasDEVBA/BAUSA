@@ -12,12 +12,15 @@
 //   2. Origem só FRIO ou INCOMPLETO (nunca INVALIDO/QUENTE/MORNO); gate CEO.
 //   3. "Aprovar sem mensagem" fecha inicial+FU1+FU2 no MESMO update do CAS de
 //      aprovação (sem janela) e nunca re-arma a reativação; a reversão (deal
-//      não garantido) desfaz o carimbo junto.
+//      não garantido) desfaz o carimbo junto. Lead COM envio anterior: os
+//      FU1/FU2 em aberto fecham ANTES da promoção (o followup-scheduler não
+//      olha aprovacao_status) e a reversão não os reabre.
 //   4. Lead excluído nunca é aprovado.
 //   5. Posição no arquivo: antes de listarLeadsMuitoCedoDetalhe (o guard
 //      pipeline-frios-colunas recorta de ativarLeadMuitoCedo até o FIM).
 //   6. UI: Frios/Incompletos ganham "Aprovar lead" + "Aprovar sem mensagem";
-//      Muito cedo e a fila de aprovação ficam iguais.
+//      a fila de aprovação ganha "Aprovar sem mensagem" (é para lá que vai o
+//      lead cuja aprovação direta falhou); Muito cedo fica igual.
 //   7. Faixa "Fora do pipeline" (T13, PLANO L2): FRIO/INCOMPLETO fora da
 //      janela, sem decisão e sem deal → "Revisar e aprovar" abre o mesmo modal
 //      (garantirId sem janela); decidir chama onAtualizado(item) e não
@@ -42,6 +45,13 @@ const fatiar = (inicio, fim) => {
 };
 const nova = fatiar(INICIO_NOVA, 'export async function');
 const aprovar = fatiar('export async function aprovarLead(', 'export async function reprovarLead');
+// CAS da aprovação (pendente → aprovado). Ancorado DEPOIS do bloquearInicial:
+// o fechamento dos FUs do "sem mensagem" tem o próprio CAS em pendente antes.
+const casAprovacao = () => {
+  const i = aprovar.indexOf('const bloquearInicial');
+  assert.ok(i >= 0, 'bloquearInicial sumiu do aprovarLead');
+  return aprovar.slice(i, aprovar.indexOf('.eq("aprovacao_status", "pendente")', i));
+};
 
 test('posição: depois do aprovarLead original e antes da revisão Muito cedo', () => {
   const iOriginal = src.indexOf('export async function aprovarLead(');
@@ -81,7 +91,7 @@ test('action: nunca grava aprovado/whatsapp/timing por conta própria; delega ao
 });
 
 test('aprovarLead: "sem mensagem" fecha o ciclo no MESMO update do CAS', () => {
-  const cas = aprovar.slice(aprovar.indexOf('const bloquearInicial'), aprovar.indexOf('.eq("aprovacao_status", "pendente")'));
+  const cas = casAprovacao();
   assert.match(cas, /const fecharCicloSemMensagem = semMensagem && !fsRow\.whatsapp_sent_at;/,
     'fechamento do ciclo só para lead sem histórico');
   assert.match(cas, /aprovacao_status: "aprovado"[\s\S]*fecharCicloSemMensagem\s*\?\s*\{ whatsapp_sent_at: marcaCiclo, followup_1_sent_at: marcaCiclo, followup_2_sent_at: marcaCiclo \}/,
@@ -109,7 +119,7 @@ test('aprovarLead: "sem mensagem" nunca re-arma a reativação; reversão desfaz
     'carimbo pós-garantia rodaria em lead já carimbado (aviso falso de falha)');
 });
 
-test('UI: Frios/Incompletos com Aprovar + Aprovar sem mensagem; Muito cedo e fila intactos', () => {
+test('UI: Frios/Incompletos com Aprovar + Aprovar sem mensagem; Muito cedo intacto; fila mantém Aprovar lead', () => {
   assert.match(ui, /aprovarLeadDaRevisao\(lead\.id, origem, \{ semMensagemAutomatica: semMensagem \}\)/,
     'modal não chama a action nova');
   // Recortes ANCORADOS no rodapé (o header também tem `modo === "muito_cedo" ? (`).
@@ -131,8 +141,10 @@ test('UI: Frios/Incompletos com Aprovar + Aprovar sem mensagem; Muito cedo e fil
   // Toasts com o rótulo da coluna, nunca o enum (B8) — inclusive o aviso do aprovarLead
   const handler = ui.slice(ui.indexOf('const handleAprovarRevisao = '), ui.indexOf('const handleResgatar = '));
   assert.match(handler, /deal em \$\{rotuloEtapa\(res\.etapa\)\}/, 'toast de sucesso com a chave do enum');
-  assert.match(handler, /res\.aviso\.replaceAll\(`"\$\{etapa\}"`, `"\$\{rotuloEtapa\(etapa\)\}"`\)/,
+  assert.match(handler, /toast\.warning\(avisoComRotulo\(res\.aviso, res\.etapa\)\)/,
     'aviso do aprovarLead mostraria "reuniao_marcada" em vez do nome da coluna');
+  assert.match(ui, /aviso\.replaceAll\(`"\$\{etapa\}"`, `"\$\{rotuloEtapa\(etapa\)\}"`\)/,
+    'tradução do aviso (chave do enum → rótulo da coluna) sumiu');
   assert.match(handler, /catch \{[\s\S]*?router\.refresh\(\);/, 'falha de rede ao aprovar sem recarregar o estado real');
 });
 
@@ -145,8 +157,9 @@ test('carimbo "sem envio" nunca cai na janela dos checks de espelho (alerta fals
   const m = src.match(/const IDADE_MIN_CARIMBO_SEM_ENVIO_MS = (\d+) \* 60 \* 60 \* 1000;/);
   assert.ok(m, 'idade mínima do carimbo sem envio sumiu');
   assert.ok(Number(m[1]) > 48, 'idade mínima precisa passar da janela de 48h do /observabilidade');
-  const cas = aprovar.slice(aprovar.indexOf('const bloquearInicial'), aprovar.indexOf('.eq("aprovacao_status", "pendente")'));
-  assert.match(cas, /Math\.min\(baseCicloMs, tetoCicloMs\)/, 'marcaCiclo deixou de ser limitada pela idade mínima');
+  assert.match(aprovar, /Math\.min\(baseCicloMs, tetoCicloMs\)/, 'marcaCiclo deixou de ser limitada pela idade mínima');
+  assert.ok(!/followup_[12]_sent_at: (?!marcaCiclo|null|marca\b)/.test(aprovar.slice(0, aprovar.indexOf('const dealId = garantia.dealId'))),
+    'carimbo "sem envio" com data fora da marcaCiclo (cairia na janela do monitor)');
 });
 
 test('UI: no celular o painel do dossiê encolhe (rodapé de decisão visível)', () => {
@@ -216,4 +229,81 @@ test('garantirId: lead da faixa entra no modal SEM a janela, mas com classe/sem 
   const remover = ui.slice(ui.indexOf('const removerDaFila = useCallback('), ui.indexOf('const handleAprovar = '));
   assert.match(remover, /if \(!foraDoRecorte\.has\(id\)\) \{\s*setTotal\(/, 'decidir o lead da faixa descontaria do total da coluna');
   assert.match(ui, /carregadosNoRecorte < total/, '"Carregar mais" sumiria com 1 lead da janela por carregar');
+});
+
+// ─── Correção pós-revisão (08/10): "sem mensagem" vale em TODOS os caminhos ──
+
+test('aprovarLead: "sem mensagem" com envio anterior fecha FU1/FU2 em aberto ANTES de promover', () => {
+  // process-followup-whatsapp filtra classe/timing/whatsapp_sent_at/FU, mas
+  // NÃO aprovacao_status: lead requalificado com convite antigo e FU aberto
+  // receberia o FU "agende sua reunião" assim que virasse MORNO.
+  assert.match(aprovar, /const fecharFollowupsSemMensagem = semMensagem && Boolean\(fsRow\.whatsapp_sent_at\);/,
+    '"sem mensagem" com histórico deixou de fechar os follow-ups');
+  assert.match(aprovar, /const fecharFu1SemMensagem = fecharFollowupsSemMensagem && !fsRow\.followup_1_sent_at;/);
+  assert.match(aprovar, /const fecharFu2SemMensagem = fecharFollowupsSemMensagem && !fsRow\.followup_2_sent_at;/,
+    'FU2 dispara com o FU1 preenchido — precisa fechar também');
+  const iFecha = aprovar.indexOf('if (fecharFu1SemMensagem || fecharFu2SemMensagem) {');
+  const iPromove = aprovar.indexOf('await promoverLeadCore(');
+  assert.ok(iFecha > 0 && iPromove > iFecha, 'fechar os FUs DEPOIS da promoção deixa o lead pendente com FU aberto se algo falhar');
+  const bloco = aprovar.slice(iFecha, iPromove);
+  assert.match(bloco, /fecharFu1SemMensagem \? \{ followup_1_sent_at: marcaCiclo \}/);
+  assert.match(bloco, /fecharFu2SemMensagem \? \{ followup_2_sent_at: marcaCiclo \}/);
+  assert.match(bloco, /\.eq\("aprovacao_status", "pendente"\)\s*\.is\("deleted_at", null\)/,
+    'fechamento dos FUs sem CAS (lead decidido/excluído em outra aba)');
+  assert.match(bloco, /success: false/, 'falha ao fechar os FUs não pode seguir aprovando');
+  assert.ok(!/whatsapp_sent_at:|aprovacao_status: "aprovado"/.test(bloco), 'o pré-fechamento só fecha FUs');
+  // A reversão (deal não garantido) NÃO reabre: pendente com envio anterior é
+  // elegível ao FU — reabrir mandaria o que o CEO recusou.
+  const ramo = aprovar.slice(aprovar.indexOf('if (!garantia.ok)'), aprovar.indexOf('const dealId = garantia.dealId'));
+  assert.ok(!/fecharFu[12]SemMensagem|fecharFollowupsSemMensagem/.test(ramo), 'reversão reabriria os FUs fechados');
+});
+
+test('aprovarLead: lead excluído em outra aba DURANTE a aprovação tem os vínculos recolhidos', () => {
+  const ramo = aprovar.slice(aprovar.indexOf('?.deleted_at) {'), aprovar.indexOf('?.aprovacao_status === "aprovado"'));
+  assert.match(ramo, /await excluirLead\(formSubmissionId\)/,
+    'atleta/deal criados pela promoção ficariam órfãos (o card que a mensagem mandava usar não existe)');
+  assert.ok(!/pelo card do pipeline/.test(ramo), 'instrução para um card que não aparece em tela nenhuma');
+  assert.match(src, /import \{ excluirLead \} from "@\/lib\/actions\/leads-excluir";/);
+});
+
+test('aprovarLeadDaRevisao: falha com "sem mensagem" aponta o botão certo da fila', () => {
+  const naFila = nova.slice(nova.indexOf('estado: "na_fila"'), nova.indexOf('Só é "inalterado"'));
+  assert.match(naFila, /semMensagem\s*\?[\s\S]*"Aprovar sem mensagem"[\s\S]*"Aprovar lead" na fila libera as mensagens/,
+    'na fila, "Aprovar lead" dispararia o que o CEO recusou');
+  assert.ok(!/Nenhuma mensagem sai enquanto estiver pendente/.test(nova),
+    'promessa falsa: pendente com envio anterior é elegível ao follow-up');
+  assert.match(nova, /reativacao: res\.reativacao \?\? false/, 'UI não distinguiria convite inicial de reabertura');
+});
+
+test('UI: fila com "Aprovar sem mensagem"; toasts dizem o envio REAL', () => {
+  const iFila = ui.indexOf(') : reprovando ? (', ui.indexOf(') : modo === "muito_cedo" ? ('));
+  const rodapeFila = ui.slice(iFila);
+  assert.match(rodapeFila, /onClick=\{\(\) => handleAprovar\(selecionado, true\)\}/, 'fila sem "Aprovar sem mensagem"');
+  assert.match(rodapeFila, /Aprovar sem mensagem/);
+  const handlerFila = ui.slice(ui.indexOf('const handleAprovar = '), ui.indexOf('const handleAprovarRevisao = '));
+  assert.match(handlerFila, /aprovarLead\(lead\.id, semMensagem \? \{ semMensagemAutomatica: true \} : undefined\)/);
+  const handler = ui.slice(ui.indexOf('const handleAprovarRevisao = '), ui.indexOf('const handleResgatar = '));
+  assert.match(handler, /res\.reativacao\s*\?\s*"Já houve contato: sai a mensagem de reabertura/,
+    'toast prometia convite inicial para quem recebe a reabertura');
+  assert.match(handler, /res\.etapa \? `deal em \$\{rotuloEtapa\(res\.etapa\)\}` : "entrou no pipeline"/,
+    'sem etapa o toast dizia "deal em o pipeline"');
+});
+
+test('UI: decisão não apaga leads do "Carregar mais"; explicação visível no celular', () => {
+  const remover = ui.slice(ui.indexOf('const removerDaFila = useCallback('), ui.indexOf('const rotuloEtapa = '));
+  assert.match(remover, /setLeads\(\(atuais\) => atuais\.filter\(\(l\) => l\.id !== id\)\)/,
+    'lista do clique (closure velha) apagaria a página carregada durante a decisão');
+  assert.match(ui, /disabled=\{carregandoMais \|\| pending\}/, '"Carregar mais" ativo durante a decisão');
+  const iRevisao = ui.indexOf(') : modo === "frios" || modo === "incompletos" ? (');
+  const rodape = ui.slice(iRevisao, ui.indexOf(') : modo === "muito_cedo" ? (', iRevisao));
+  assert.match(rodape, /<span className="sm:hidden">[\s\S]*?Sem mensagem[\s\S]*?Enviar p\/ fila[\s\S]*?<\/span>/,
+    'no celular a diferença entre os botões ficava só no title (não aparece no toque)');
+});
+
+test('UI: diálogos de exclusão — Esc/Tab no window e foco de volta após falha', () => {
+  for (const [nome, arq] of [['LeadsTable', ler('apps', 'crm', 'src', 'components', 'leads', 'LeadsTable.tsx')], ['PipelineBoard', board]]) {
+    assert.match(arq, /window\.addEventListener\("keydown", onKeyDown\);/, `${nome}: Esc só funcionava com foco dentro do diálogo`);
+    assert.match(arq, /if \(e\.key !== "Tab"\) return;\s*e\.preventDefault\(\);/, `${nome}: Tab escapava para a tela atrás do overlay`);
+    assert.match(arq, /cancelarExclusaoRef\.current\?\.focus\(\)/, `${nome}: falha deixava o foco no body`);
+  }
 });
