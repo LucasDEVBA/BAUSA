@@ -57,6 +57,34 @@ jobs:
         run: npx tsc --noEmit
 
   # ══════════════════════════════════════════════
+  # 2b. Component Tests — Vitest + RTL + jest-axe
+  #     (apps/crm; jsdom, sem rede nem banco)
+  # ══════════════════════════════════════════════
+  component-tests-crm:
+    name: Component Tests CRM
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: deps-${{ hashFiles('pnpm-lock.yaml') }}
+      # Com o cache restaurado é só verificação (~1s); se o cache sumir,
+      # instala do lockfile em vez de rodar o Vitest sem node_modules.
+      - run: pnpm install --frozen-lockfile
+      - name: Vitest
+        run: pnpm --filter @bolsa-atleta/engine test
+
+  # ══════════════════════════════════════════════
   # 3. Lint — ESLint
   # ══════════════════════════════════════════════
   lint-crm:
@@ -283,6 +311,7 @@ jobs:
     name: CI Passed
     needs:
       - typecheck-crm
+      - component-tests-crm
       - lint-crm
       - lint-web
       - build-crm
