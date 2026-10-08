@@ -9,7 +9,9 @@ import { fetchDeal } from "@/lib/deal-fetch";
 // ════════════════════════════════════════════════════════════════════════
 // Abre o DealDetailSheet completo a partir de um dealId — usado na lista de
 // leads da tela /remarketing. Reusa o mesmo sheet do Pipeline/Leads (DRY),
-// buscando o deal sob demanda (client-side) ao clicar no lead.
+// buscando o deal sob demanda (client-side) ao clicar no lead. Depois de
+// editar o valor, `versao` dispara nova busca (o router.refresh não repinta
+// um deal buscado no cliente).
 //
 // O componente é remontado por dealId (key no pai), então o estado começa
 // limpo a cada abertura — não precisamos resetar estado de forma síncrona
@@ -24,6 +26,7 @@ interface RemarketingLeadSheetProps {
 export function RemarketingLeadSheet({ dealId, onClose }: RemarketingLeadSheetProps) {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [erro, setErro] = useState(false);
+  const [versao, setVersao] = useState(0);
 
   useEffect(() => {
     if (!dealId) return;
@@ -40,12 +43,19 @@ export function RemarketingLeadSheet({ dealId, onClose }: RemarketingLeadSheetPr
     return () => {
       cancelled = true;
     };
-  }, [dealId]);
+  }, [dealId, versao]);
 
   if (!dealId) return null;
 
   if (deal) {
-    return <DealDetailSheet key={deal.id} deal={deal} onClose={onClose} />;
+    return (
+      <DealDetailSheet
+        key={deal.id}
+        deal={deal}
+        onClose={onClose}
+        onDealAtualizado={() => setVersao((v) => v + 1)}
+      />
+    );
   }
 
   // dealId informado mas deal não encontrado (ex.: removido) — fecha silenciosamente.

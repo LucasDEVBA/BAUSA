@@ -15,8 +15,12 @@ import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
   ROTULO_ORIGEM_VALOR,
+  contratoAguardandoPlano,
   explicarOrigemValor,
   formatarValorDeal,
+  sinalPagoAntesDoPlano,
+  textoPrevisaoDoSinal,
+  textoSinalAntesDoPlano,
 } from "@/lib/valor-deal";
 
 /** Timing fora da janela ideal — badge lateral (a coluna aguardando_timing
@@ -49,9 +53,25 @@ interface DealCardProps {
   onValorClick?: () => void;
 }
 
-/** "≈ R$ 22.000 estimado" / "R$ 24.000 negociado" / "R$ 26.000" (contrato). */
+/** "≈ R$ 22.000 estimado" / "R$ 24.000 negociado" / "R$ 26.000" (contrato).
+ *  Sinal pago antes do plano (T11): "Sinal R$ X pago · total a definir" com a
+ *  previsão embaixo — o número somado na coluna continua sendo deal_value_brl. */
 function ValorDoCard({ deal }: { deal: Deal }) {
   const origem = deal.valor_origem ?? "estimado";
+  const sinalAntesDoPlano = sinalPagoAntesDoPlano(deal);
+  if (sinalAntesDoPlano !== null) {
+    const previsao = textoPrevisaoDoSinal(deal);
+    return (
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-[11px] font-semibold tabular-nums text-sys-green">
+          {textoSinalAntesDoPlano(sinalAntesDoPlano)}
+        </span>
+        {previsao && (
+          <span className="truncate text-[9px] tabular-nums text-muted-foreground">{previsao}</span>
+        )}
+      </span>
+    );
+  }
   return (
     <>
       <span
@@ -76,12 +96,20 @@ function ValorDoCard({ deal }: { deal: Deal }) {
   );
 }
 
+// O nome acessível começa pelo texto VISÍVEL (WCAG 2.5.3): quem usa comando
+// de voz fala o que vê no card.
 function rotuloAcessivelValor(deal: Deal): string {
-  if (!(deal.deal_value_brl > 0)) return "Sem valor. Definir valor negociado";
-  const valor = `R$ ${Math.round(deal.deal_value_brl).toLocaleString("pt-BR")}`;
-  if (deal.valor_origem === "contratado") return `Valor do contrato ${valor}. Abrir contrato`;
-  if (deal.valor_origem === "negociado") return `Valor negociado ${valor}. Editar valor`;
-  return `Valor estimado ${valor}. Definir valor negociado`;
+  const sinalAntesDoPlano = sinalPagoAntesDoPlano(deal);
+  if (sinalAntesDoPlano !== null) {
+    const previsao = textoPrevisaoDoSinal(deal);
+    return `${textoSinalAntesDoPlano(sinalAntesDoPlano)}${previsao ? `, ${previsao}` : ""} — definir valor negociado`;
+  }
+  const origem = deal.valor_origem ?? "estimado";
+  const valor = formatarValorDeal(deal.deal_value_brl, origem);
+  if (!(deal.deal_value_brl > 0)) return `${valor} — definir valor negociado`;
+  if (origem === "contratado") return `${valor} — valor do contrato, abrir contrato`;
+  if (origem === "negociado") return `${valor} negociado — editar valor`;
+  return `${valor} estimado — definir valor negociado`;
 }
 
 export function DealCard({
@@ -113,6 +141,9 @@ export function DealCard({
     : null;
   const isQualified = deal.qualificado_gemini === true;
   const sinalRecebido = deal.signal_value_brl ?? 0;
+  const aguardandoPlano = contratoAguardandoPlano(deal);
+  // Com o sinal antes do plano, ele já é o texto principal da linha do valor.
+  const sinalNoValor = sinalPagoAntesDoPlano(deal) !== null;
 
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = deal.next_action_date && deal.next_action_date < today;
@@ -200,6 +231,18 @@ export function DealCard({
             {deal.product_tier}
           </span>
         )}
+        {aguardandoPlano && (
+          <span
+            className="shrink-0 rounded-sm border border-border bg-secondary px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
+            title={
+              sinalRecebido > 0
+                ? "Sinal registrado — plano ainda não escolhido"
+                : "Contrato aguardando a escolha do plano"
+            }
+          >
+            A definir
+          </span>
+        )}
       </div>
 
       {/* Linha 3: valor (contrato > negociado > estimado) + tempo na etapa.
@@ -246,21 +289,24 @@ export function DealCard({
         </p>
       )}
 
-      {/* Sinal recebido (soma das parcelas de entrada RECEBIDAS — T3). Em
-          qualquer etapa: o sinal pode chegar antes do plano (T11). */}
-      {sinalRecebido > 0 && deal.deal_value_brl > 0 && (
+      {/* Sinal recebido (soma das parcelas de entrada RECEBIDAS — T3). O texto
+          não depende do valor (lead sem faixa também paga sinal); só a barra
+          precisa de um total para comparar. */}
+      {sinalRecebido > 0 && !sinalNoValor && (
         <div className="mt-1.5">
           <p className="text-[9px] tabular-nums text-sys-green">
             Sinal R$ {Math.round(sinalRecebido).toLocaleString("pt-BR")}
           </p>
-          <div aria-hidden className="mt-0.5 h-0.5 w-full overflow-hidden rounded-full bg-secondary">
-            <div
-              className="h-full rounded-full bg-sys-green"
-              style={{
-                width: `${Math.min(100, Math.round((sinalRecebido / deal.deal_value_brl) * 100))}%`,
-              }}
-            />
-          </div>
+          {deal.deal_value_brl > 0 && (
+            <div aria-hidden className="mt-0.5 h-0.5 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-sys-green"
+                style={{
+                  width: `${Math.min(100, Math.round((sinalRecebido / deal.deal_value_brl) * 100))}%`,
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 

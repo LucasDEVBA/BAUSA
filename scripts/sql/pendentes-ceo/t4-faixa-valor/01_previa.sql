@@ -7,6 +7,11 @@
 --   15k-20k→ate_20k/16000 · 20k-30k→20k_30k/22000 · 30k-40k→30k_40k/28000
 --   40k-50k|50k-70k|over-70k→40k_mais/32000 · abaixo-15k→ate_20k · acima-50k→40k_mais
 -- Normalização do código = trim + lower + "_"→"-" + sem espaços.
+--
+-- São TRÊS blocos: rode cada SELECT separado (o SQL editor do Supabase só
+-- mostra o resultado do último). O "delta_pipeline_ativo" do 1º bloco usa
+-- outra regra de "ativo" (inclui lead pendente de aprovação); o número que vai
+-- na mensagem ao CEO é o do 3º bloco, que reproduz o topo do /pipeline.
 -- ═══════════════════════════════════════════════════════════════════════
 
 WITH mapa(codigo, faixa) AS (
@@ -71,3 +76,28 @@ WHERE a.deleted_at IS NULL
   AND a.faixa_investimento IS DISTINCT FROM m.faixa
 GROUP BY 1, 2, 3
 ORDER BY 3, 1;
+
+-- Topo do /pipeline ("Total em pipeline") — mesma regra do page.tsx
+-- (activeDeals): fora concluído/perdido e fora deal de lead pendente de
+-- aprovação. hoje = valor_estimado cru; apos_deploy_t3 = contrato vence
+-- estimativa (código do T3 no ar); apos_02 = depois do backfill B1.
+WITH d AS (
+  SELECT d.id, d.etapa::text AS etapa, d.valor_estimado AS v, d.flag_valores_customizados AS f,
+         fs.investment_range AS ir, fs.aprovacao_status AS ap,
+         (SELECT c.valor_total FROM public.contratos_financeiros c
+           WHERE c.deal_id = d.id AND c.deleted_at IS NULL AND c.plano IS NOT NULL AND c.valor_total > 0) AS vt
+  FROM public.deals d
+  LEFT JOIN public.atletas a ON a.id = d.atleta_id
+  LEFT JOIN public.form_submissions fs ON fs.id = a.form_submission_id
+  WHERE d.deleted_at IS NULL
+), topo AS (
+  SELECT * FROM d WHERE etapa NOT IN ('concluido','perdido') AND ap IS DISTINCT FROM 'pendente'
+)
+SELECT count(*) AS deals_no_topo,
+       sum(v) AS hoje,
+       sum(coalesce(vt, v)) AS apos_deploy_t3,
+       sum(CASE WHEN vt IS NOT NULL THEN vt
+                WHEN NOT f AND ((ir='15k-20k' AND v=22000) OR (ir='20k-30k' AND v=28000) OR (ir='30k-40k' AND v=32000))
+                  THEN CASE ir WHEN '15k-20k' THEN 16000 WHEN '20k-30k' THEN 22000 ELSE 28000 END
+                ELSE v END) AS apos_02
+FROM topo;

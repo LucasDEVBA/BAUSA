@@ -386,7 +386,12 @@ export async function customizarValorDeal(
     .is("deleted_at", null)
     .maybeSingle();
   if (contratoErr) {
-    console.error("[customizarValorDeal] leitura do contrato falhou", { dealId, message: contratoErr.message });
+    console.error(JSON.stringify({
+      level: "error",
+      action: "customizar_valor_deal_contrato_falhou",
+      dealId: dados.dealId,
+      message: contratoErr.message,
+    }));
     return { success: false, code: "ERRO", error: "Não foi possível conferir o contrato. Tente de novo." };
   }
   const contratoRow = contrato as { plano: string | null; valor_total: number | string | null } | null;
@@ -410,8 +415,13 @@ export async function customizarValorDeal(
     .select("id");
 
   if (error) {
-    console.error("[customizarValorDeal] update falhou", { dealId, message: error.message });
-    return { success: false, code: "ERRO", error: error.message };
+    console.error(JSON.stringify({
+      level: "error",
+      action: "customizar_valor_deal_update_falhou",
+      dealId: dados.dealId,
+      message: error.message,
+    }));
+    return { success: false, code: "ERRO", error: "Não foi possível salvar o valor. Tente de novo." };
   }
   if (!atualizados || atualizados.length === 0) {
     return { success: false, code: "NAO_ENCONTRADO", error: "Deal não encontrado (excluído?)." };

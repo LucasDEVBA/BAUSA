@@ -62,6 +62,9 @@ interface DealDetailSheetProps {
   onClose: () => void;
   /** Config de exibição das etapas (rótulos/cores) — default estático. Não altera gates de moverDeal. */
   stageConfig?: DealStageConfigMap;
+  /** Chamado após salvar o valor: quem busca o deal no cliente (/remarketing,
+   *  /leads) não é repintado pelo router.refresh e precisa rebuscar. */
+  onDealAtualizado?: () => void;
 }
 
 type TabId = "resumo" | "conversa" | "reuniao" | "dados" | "historico" | "notas" | "documentos" | "contrato";
@@ -522,6 +525,7 @@ export function DealDetailSheet({
   deal,
   onClose,
   stageConfig: stageConfigMap = DEFAULT_DEAL_STAGE_DISPLAY,
+  onDealAtualizado,
 }: DealDetailSheetProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -980,6 +984,7 @@ export function DealDetailSheet({
                   jaCustomizado={deal.flag_valores_customizados}
                   origem={deal.valor_origem}
                   explicacaoOrigem={explicarOrigemValor(deal)}
+                  onSaved={onDealAtualizado}
                   onTemContrato={() => {
                     setShowCustomizarValor(false);
                     setActiveTab("contrato");

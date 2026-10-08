@@ -19,6 +19,10 @@
 //      deal COM contrato é recusado (deal e contrato nunca divergem).
 //   6. Todo consumidor de valor do deal usa o resolver (nada de
 //      Number(d.valor_estimado) somado direto).
+//   7. Sinal pago antes do plano (T11, contrato B3 do PLANO): o card mostra
+//      "Sinal R$ X pago · total a definir" + badge "A definir"; o texto do
+//      sinal não some quando o valor é 0; a coluna soma o valor resolvido.
+//   8. Embed com hint de FK explícito (PGRST201 silencioso derruba a tela).
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -42,8 +46,8 @@ const blocoGuardJs = (arquivo, nome) => {
 
 const ARQ = 'apps/crm/src/lib/valor-deal.ts';
 // eslint-disable-next-line no-new-func
-const { resolverValorDealCore } = new Function(
-  `${blocoGuardJs(ARQ, 'valor-deal')}\nreturn { resolverValorDealCore };`,
+const { resolverValorDealCore, contratoAguardandoPlano, sinalPagoAntesDoPlano } = new Function(
+  `${blocoGuardJs(ARQ, 'valor-deal')}\nreturn { resolverValorDealCore, contratoAguardandoPlano, sinalPagoAntesDoPlano };`,
 )();
 
 // Espelho de PLANO_VALORES (types/crm.ts) — conferido abaixo contra o fonte.
@@ -170,6 +174,87 @@ test('valor_estimado nulo/inválido → 0 estimado (nunca NaN)', () => {
     assert.equal(r.valor, 0);
     assert.equal(r.origem, 'estimado', 'flag sem valor não vira "negociado R$ 0"');
   }
+});
+
+test('sinal antes do plano (T11): regra do card executada sobre o deal já resolvido', () => {
+  // Mesmo caminho do board: resolver → campos do Deal → regra do card.
+  const campos = (deal) => {
+    const r = resolver(deal);
+    return { contrato_id: r.contratoId ?? undefined, product_tier: r.plano ?? undefined, signal_value_brl: r.sinalRecebido ?? undefined };
+  };
+  const aguardando = campos({
+    valor_estimado: 22000,
+    flag_valores_customizados: false,
+    contrato: contratoJourney({ plano: null, valor_total: 4500, parcelas: [parcela('entrada', 'recebido', 4500)] }),
+  });
+  assert.equal(contratoAguardandoPlano(aguardando), true);
+  assert.equal(sinalPagoAntesDoPlano(aguardando), 4500);
+
+  // Lead sem faixa (valor 0) que pagou o sinal: o texto do sinal NÃO some.
+  const semFaixa = campos({
+    valor_estimado: null,
+    contrato: contratoJourney({ plano: null, valor_total: 3000, parcelas: [parcela('entrada', 'recebido', 3000)] }),
+  });
+  assert.equal(resolver({ valor_estimado: null, contrato: contratoJourney({ plano: null, valor_total: 3000 }) }).valor, 0);
+  assert.equal(sinalPagoAntesDoPlano(semFaixa), 3000);
+
+  // Contrato sem plano e sem sinal recebido: badge "A definir", sem texto de sinal.
+  const semSinal = campos({
+    valor_estimado: 22000,
+    contrato: contratoJourney({ plano: null, valor_total: null, parcelas: [parcela('entrada', 'previsto', 4500)] }),
+  });
+  assert.equal(contratoAguardandoPlano(semSinal), true);
+  assert.equal(sinalPagoAntesDoPlano(semSinal), null);
+
+  // Contrato com plano (sinal normal) e deal sem contrato: regra não se aplica.
+  const comPlano = campos({ valor_estimado: 28000, contrato: contratoJourney() });
+  assert.deepEqual([contratoAguardandoPlano(comPlano), sinalPagoAntesDoPlano(comPlano)], [false, null]);
+  const semContrato = campos({ valor_estimado: 22000, contrato: null });
+  assert.deepEqual([contratoAguardandoPlano(semContrato), sinalPagoAntesDoPlano(semContrato)], [false, null]);
+});
+
+test('card do T11: "Sinal R$ X pago · total a definir", previsão secundária e badge "A definir"', () => {
+  const vd = ler(ARQ);
+  assert.match(vd, /`Sinal \$\{brl\(sinal\)\} pago · total a definir`/, 'texto do sinal antes do plano mudou');
+  assert.match(vd, /`previsão \$\{formatarValorDeal\(/, 'linha de previsão deixou de usar o valor resolvido');
+
+  const card = ler('apps', 'crm', 'src', 'components', 'pipeline', 'DealCard.tsx');
+  const valorDoCard = card.slice(card.indexOf('function ValorDoCard'), card.indexOf('function rotuloAcessivelValor'));
+  assert.match(valorDoCard, /sinalPagoAntesDoPlano\(deal\)/, 'card não aplica a regra do sinal antes do plano');
+  assert.match(valorDoCard, /textoSinalAntesDoPlano\(/, 'card não mostra "Sinal R$ X pago · total a definir"');
+  assert.match(valorDoCard, /textoPrevisaoDoSinal\(deal\)/, 'card perdeu a linha de previsão');
+  assert.match(card, /\{aguardandoPlano && \([\s\S]{0,500}uppercase[\s\S]{0,300}A definir/, 'badge "A definir" do contrato sem plano sumiu');
+  assert.match(card, /const aguardandoPlano = contratoAguardandoPlano\(deal\)/);
+  // O TEXTO do sinal não depende do valor (só a barra depende) — revisão R7.
+  assert.doesNotMatch(card, /sinalRecebido > 0 && deal\.deal_value_brl > 0/, 'texto do sinal voltou a sumir quando o valor é 0');
+  // O número SOMADO na coluna segue o resolver (deal_value_brl), nunca o sinal.
+  const coluna = ler('apps', 'crm', 'src', 'components', 'pipeline', 'PipelineColumn.tsx');
+  assert.doesNotMatch(coluna, /signal_value_brl/, 'total da coluna passou a somar o sinal em vez do valor resolvido');
+});
+
+test('embed com hint de FK explícito (PGRST201 silencioso derrubou 6 telas)', () => {
+  const vd = ler(ARQ);
+  const embed = (nome) => {
+    const m = vd.match(new RegExp(`export const ${nome} =\\s*"([^"]+)"`));
+    assert.ok(m, `${nome} sumiu`);
+    return m[1];
+  };
+  for (const nome of ['EMBED_CONTRATO_VALOR', 'EMBED_CONTRATO_VALOR_LEVE']) {
+    assert.match(embed(nome), /^contrato:contratos_financeiros!contratos_financeiros_deal_id_fkey\(/, `${nome}: hint da FK deal→contrato sumiu`);
+  }
+  assert.match(embed('EMBED_CONTRATO_VALOR'), /parcelas!parcelas_contrato_id_fkey\(/, 'hint da FK contrato→parcelas sumiu');
+});
+
+test('deal buscado no cliente é rebuscado após salvar o valor (/leads e /remarketing)', () => {
+  const sheet = ler('apps', 'crm', 'src', 'components', 'pipeline', 'DealDetailSheet.tsx');
+  assert.match(sheet, /onSaved=\{onDealAtualizado\}/, 'DealDetailSheet não avisa quem buscou o deal');
+  const modal = ler('apps', 'crm', 'src', 'components', 'pipeline', 'DealDetailModal.tsx');
+  assert.match(modal, /<DealDetailSheet[\s\S]{0,300}onDealAtualizado=\{onDealAtualizado\}/, 'editor lateral do detalhe não repassa o aviso');
+  const rmkt = ler('apps', 'crm', 'src', 'components', 'remarketing', 'RemarketingLeadSheet.tsx');
+  assert.match(rmkt, /\[dealId, versao\]/, '/remarketing não rebusca o deal');
+  assert.match(rmkt, /onDealAtualizado=\{\(\) => setVersao\(/, '/remarketing não incrementa a versão após salvar');
+  const leads = ler('apps', 'crm', 'src', 'components', 'leads', 'LeadOrDealSheet.tsx');
+  assert.match(leads, /onDealAtualizado=\{\(\) => setVersao\(/, '/leads não rebusca o deal');
 });
 
 // ─── Consumidores ────────────────────────────────────────────────

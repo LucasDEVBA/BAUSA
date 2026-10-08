@@ -77,6 +77,7 @@ export function VisaoExecutivaPanel({
       value={formatarValorDeal(deal.deal_value_brl, origem)}
       tone={origem === "negociado" ? "orange" : "default"}
       hint={hintValor}
+      as={podeEditarValor ? "span" : "div"}
     />
   );
   const diasEtapa = diasEntre(deal.stage_updated_at);

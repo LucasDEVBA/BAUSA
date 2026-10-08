@@ -82,6 +82,11 @@ type ResolverCoreFn = (deal: DealValorEntrada, tabela: TabelaPlanos) => ValorDea
 type ListaTexto = readonly string[];
 type MapaTier = Readonly<Record<string, ProductTier>>;
 
+/** Campos JÁ resolvidos do deal que a exibição do sinal antes do plano lê. */
+export type DealPlanoSinal = Pick<Deal, "contrato_id" | "product_tier" | "signal_value_brl">;
+type AguardandoPlanoFn = (deal: DealPlanoSinal) => boolean;
+type SinalAntesDoPlanoFn = (deal: DealPlanoSinal) => number | null;
+
 // @guard-js:inicio valor-deal
 // JS puro daqui até o marcador de fim (o guard remove `: Alias` e executa).
 const PLANOS_COM_VALOR: ListaTexto = ["start", "journey", "legacy", "personalizado"];
@@ -169,15 +174,34 @@ const resolverValorDealCore: ResolverCoreFn = (deal, tabela) => {
     descontoPct: null,
   };
 };
+
+// Contrato vigente sem plano definido (T11): o resolver não o trata como
+// "contratado", então product_tier fica vazio mas contrato_id existe.
+export const contratoAguardandoPlano: AguardandoPlanoFn = (deal) =>
+  Boolean(deal.contrato_id) && !deal.product_tier;
+
+// Sinal já recebido com o plano ainda em aberto: o card mostra o SINAL como
+// número principal (o total ainda não existe) e a previsão como linha
+// secundária. Não depende de deal_value_brl > 0 — lead sem faixa também paga sinal.
+export const sinalPagoAntesDoPlano: SinalAntesDoPlanoFn = (deal) => {
+  const sinal = numeroOuNull(deal.signal_value_brl) ?? 0;
+  return contratoAguardandoPlano(deal) && sinal > 0 ? sinal : null;
+};
 // @guard-js:fim valor-deal
+
+// Hints de FK explícitos: sem eles o PostgREST adivinha a relação e, quando
+// surge uma 2ª FK entre as mesmas tabelas (ex.: contrato_eventos do T9/T11),
+// devolve PGRST201 e a tela inteira cai em silêncio (já aconteceu com
+// atletas→responsaveis). O hint não muda a cardinalidade: deal_id é UNIQUE,
+// então o contrato continua chegando como OBJETO.
 
 /** Embed completo (pipeline, detalhe): contrato + parcelas p/ sinal/saldo. */
 export const EMBED_CONTRATO_VALOR =
-  "contrato:contratos_financeiros(id, plano, valor_total, forma_pagamento_plano, deleted_at, parcelas(tipo, status, valor, deleted_at))";
+  "contrato:contratos_financeiros!contratos_financeiros_deal_id_fkey(id, plano, valor_total, forma_pagamento_plano, deleted_at, parcelas!parcelas_contrato_id_fkey(tipo, status, valor, deleted_at))";
 
 /** Embed leve (agregados: War Room, relatórios, agenda, famílias). */
 export const EMBED_CONTRATO_VALOR_LEVE =
-  "contrato:contratos_financeiros(id, plano, valor_total, forma_pagamento_plano, deleted_at)";
+  "contrato:contratos_financeiros!contratos_financeiros_deal_id_fkey(id, plano, valor_total, forma_pagamento_plano, deleted_at)";
 
 export function resolverValorDeal(deal: DealValorEntrada): ValorDealResolvido {
   return resolverValorDealCore(deal, PLANO_VALORES);
@@ -234,24 +258,48 @@ export function formatarValorDeal(valor: number, origem: OrigemValorDeal | undef
   return origem === "estimado" || origem === undefined ? `≈ ${brl(valor)}` : brl(valor);
 }
 
+/** Texto principal do card quando o sinal veio antes do plano (T11). */
+export function textoSinalAntesDoPlano(sinal: number): string {
+  return `Sinal ${brl(sinal)} pago · total a definir`;
+}
+
+/** Linha secundária do card no mesmo caso: a previsão que segue somada na
+ *  coluna/métricas. null quando não há previsão (deal sem faixa). */
+export function textoPrevisaoDoSinal(
+  deal: Pick<Deal, "deal_value_brl" | "valor_origem">,
+): string | null {
+  if (!(deal.deal_value_brl > 0)) return null;
+  const origem = deal.valor_origem ?? "estimado";
+  return `previsão ${formatarValorDeal(deal.deal_value_brl, origem)} ${ROTULO_ORIGEM_VALOR[origem]}`;
+}
+
 /** Texto do tooltip/hint que explica a origem (mesma frase em todo o Engine). */
 export function explicarOrigemValor(
   deal: Pick<
     Deal,
-    "valor_origem" | "product_tier" | "investment_range" | "justificativa_valor" | "deal_value_brl"
+    | "valor_origem"
+    | "product_tier"
+    | "investment_range"
+    | "justificativa_valor"
+    | "deal_value_brl"
+    | "contrato_id"
   >,
 ): string {
+  // Contrato sem plano (sinal antes do plano — T11) ainda não define o total.
+  const situacaoContrato = contratoAguardandoPlano({ ...deal, signal_value_brl: undefined })
+    ? "Contrato aguardando a escolha do plano"
+    : "Ainda sem contrato";
   switch (deal.valor_origem) {
     case "contratado":
       return `Valor do contrato${deal.product_tier ? ` (${deal.product_tier})` : ""}. Para alterar, edite o contrato (aba Financeiro do deal).`;
     case "negociado":
-      return `Valor negociado${deal.justificativa_valor ? `: ${deal.justificativa_valor}` : ""}. Registrado no histórico (audit).`;
+      return `Valor negociado${deal.justificativa_valor ? `: ${deal.justificativa_valor}` : ""}. Registrado no histórico (audit).${deal.contrato_id ? ` ${situacaoContrato}.` : ""}`;
     default: {
       if (!(deal.deal_value_brl > 0)) {
-        return "Sem estimativa: o lead não tem faixa de investimento. Defina o valor negociado.";
+        return `Sem estimativa: o lead não tem faixa de investimento. ${situacaoContrato}. Defina o valor negociado.`;
       }
       const faixa = deal.investment_range ? formatInvestmentRange(deal.investment_range) : null;
-      return `Estimativa automática pela faixa de investimento do formulário${faixa ? ` (${faixa})` : ""}. Ainda sem contrato e sem valor negociado.`;
+      return `Estimativa automática pela faixa de investimento do formulário${faixa ? ` (${faixa})` : ""}. ${situacaoContrato} e sem valor negociado.`;
     }
   }
 }

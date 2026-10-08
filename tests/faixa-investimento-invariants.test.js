@@ -152,3 +152,13 @@ test('ninguém volta a mapear por substring nem reimplementa a função', () => 
   // CF: código desconhecido é logado (não some em silêncio)
   assert.match(ler(ARQ_CF), /faixa_investimento_desconhecida/, 'CF parou de logar faixa desconhecida');
 });
+
+test('rótulo da faixa: telas usam formatInvestmentRange (conhece o código do cadastro manual)', () => {
+  // A fila de aprovação tinha dicionário próprio sem 'abaixo-15k' e mostrava o
+  // código cru do lead manual (revisão R8 do T4).
+  const utils = ler('apps', 'crm', 'src', 'lib', 'utils.ts');
+  assert.match(utils, /"abaixo-15k":\s*"Abaixo de US\$ 15k\/ano"/, 'formatInvestmentRange perdeu o rótulo do cadastro manual');
+  const aprov = ler('apps', 'crm', 'src', 'components', 'leads', 'AprovacoesLeads.tsx');
+  assert.doesNotMatch(aprov, /INVESTMENT_LABELS/, 'AprovacoesLeads voltou a ter dicionário próprio de faixa');
+  assert.match(aprov, /formatInvestmentRange\(range\)/, 'AprovacoesLeads deixou de usar formatInvestmentRange');
+});

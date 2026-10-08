@@ -2,7 +2,7 @@
 
 import { ExportCSVButton } from "@/components/shared/ExportCSVButton";
 import { type Deal } from "@/types/deal";
-import { ROTULO_ORIGEM_VALOR } from "@/lib/valor-deal";
+import { ROTULO_ORIGEM_VALOR, contratoAguardandoPlano } from "@/lib/valor-deal";
 import {
   DEFAULT_DEAL_STAGE_DISPLAY,
   type DealStageConfigMap,
@@ -42,7 +42,7 @@ export function PipelineExportButton({
       : "",
     new Date(deal.created_at).toLocaleDateString("pt-BR"),
     ROTULO_ORIGEM_VALOR[deal.valor_origem ?? "estimado"],
-    deal.product_tier ?? "",
+    deal.product_tier ?? (contratoAguardandoPlano(deal) ? "Aguardando plano" : ""),
   ]);
 
   return (

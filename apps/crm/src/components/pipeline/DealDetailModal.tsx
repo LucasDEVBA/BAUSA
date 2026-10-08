@@ -385,6 +385,7 @@ export function DealDetailModal({
           onClose();
         }}
         stageConfig={stageConfig}
+        onDealAtualizado={onDealAtualizado}
       />
     );
   }
