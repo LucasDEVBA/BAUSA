@@ -81,8 +81,11 @@ jobs:
       # Com o cache restaurado é só verificação (~1s); se o cache sumir,
       # instala do lockfile em vez de rodar o Vitest sem node_modules.
       - run: pnpm install --frozen-lockfile
+      # `pnpm --filter … test` sai com 0 quando o filtro não casa ou o script
+      # some (0 testes e job verde); rodar no diretório dá "Missing script" = 1.
       - name: Vitest
-        run: pnpm --filter @bolsa-atleta/engine test
+        working-directory: apps/crm
+        run: pnpm run test
 
   # ══════════════════════════════════════════════
   # 3. Lint — ESLint
