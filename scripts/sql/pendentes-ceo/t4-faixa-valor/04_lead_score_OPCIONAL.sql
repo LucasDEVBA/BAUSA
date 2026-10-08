@@ -17,6 +17,8 @@
 --
 -- Efeito colateral a apresentar ao CEO: o segmento "alto_score_sem_followup"
 -- passa a ter leads (só afeta disparos que o próprio CEO iniciar).
+-- Reversão: 05_reverter.sql com o marcador deste script. Para desfazer o 02
+-- depois deste, reverter os DOIS juntos (o 05 bloqueia reverter só o 02).
 -- Termina em ROLLBACK.
 -- ═══════════════════════════════════════════════════════════════════════
 

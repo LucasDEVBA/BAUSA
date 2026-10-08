@@ -162,3 +162,27 @@ test('rótulo da faixa: telas usam formatInvestmentRange (conhece o código do c
   assert.doesNotMatch(aprov, /INVESTMENT_LABELS/, 'AprovacoesLeads voltou a ter dicionário próprio de faixa');
   assert.match(aprov, /formatInvestmentRange\(range\)/, 'AprovacoesLeads deixou de usar formatInvestmentRange');
 });
+
+// Scripts do backfill (escrita em PRD só com autorização do CEO): nenhum pode
+// commitar por engano, e a reversão tem de desfazer CAMPO a CAMPO — o 02
+// (faixa) e o 04 (score) mexem nos mesmos atletas; reverter pela linha de
+// audit mais recente pulava a faixa e a conferência dizia "revertida".
+test('scripts do T4: terminam em ROLLBACK e a reversão é por campo', () => {
+  const dir = path.join(raiz, 'scripts', 'sql', 'pendentes-ceo', 't4-faixa-valor');
+  for (const nome of fs.readdirSync(dir).filter((n) => n.endsWith('.sql'))) {
+    const sql = fs.readFileSync(path.join(dir, nome), 'utf8');
+    assert.doesNotMatch(sql, /^\s*COMMIT\s*;/im, `${nome}: COMMIT no arquivo — só o operador troca, com autorização`);
+    if (/^\s*BEGIN\s*;/im.test(sql)) {
+      assert.match(sql, /^\s*ROLLBACK\s*;[^\n]*\s*$/im, `${nome}: transação sem ROLLBACK no fim`);
+    }
+  }
+  const rev = fs.readFileSync(path.join(dir, '05_reverter.sql'), 'utf8');
+  assert.match(rev, /unnest\(l\.campos_alterados\)/, '05: reversão deixou de ser por campo');
+  assert.match(rev, /PARTITION BY tabela, registro_id, campo/, '05: valor a restaurar não é escolhido por (registro, campo)');
+  assert.doesNotMatch(rev, /DISTINCT ON \(l\.tabela, l\.registro_id\)/, '05: voltou a pegar só a linha de audit mais recente do registro');
+  assert.match(rev, /RAISE EXCEPTION 'T4: o score do 04 ainda está aplicado/, '05: reverter o 02 com o score do 04 aplicado deixou de ser bloqueado');
+  // Um INSERT por marcador: descomentar uma linha não pode quebrar a sintaxe.
+  const linhasMarcador = rev.split('\n').filter((l) => /INSERT INTO _t4r_marcadores/.test(l));
+  assert.equal(linhasMarcador.length, 3, '05: marcadores 02/03/04 devem ser 3 INSERTs independentes');
+  for (const l of linhasMarcador) assert.match(l, /VALUES \('script:t4-[a-z-]+', \d\);/, `05: marcador fora do formato "1 INSERT completo por linha": ${l.trim()}`);
+});
