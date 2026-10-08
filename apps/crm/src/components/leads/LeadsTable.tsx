@@ -75,6 +75,36 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
   // dentro da coluna só vive o setter, que é estável.
   const [leadParaExcluir, setLeadParaExcluir] = useState<LeadLinha | null>(null);
   const [excluindo, startExcluir] = useTransition();
+  const cancelarExclusaoRef = useRef<HTMLButtonElement>(null);
+  const confirmarExclusaoRef = useRef<HTMLButtonElement>(null);
+  // Esc e Tab no WINDOW: com o foco fora do diálogo (clique no texto, botão
+  // desabilitado durante a exclusão) o onKeyDown do próprio diálogo não
+  // dispara — o Esc morria e o Tab andava pela tabela atrás do overlay.
+  useEffect(() => {
+    if (!leadParaExcluir) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!excluindo) setLeadParaExcluir(null);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      const botoes = [cancelarExclusaoRef.current, confirmarExclusaoRef.current].filter(
+        (b): b is HTMLButtonElement => b !== null && !b.disabled,
+      );
+      if (botoes.length === 0) return;
+      const atual = botoes.findIndex((b) => b === document.activeElement);
+      const proximo = e.shiftKey ? (atual <= 0 ? botoes.length - 1 : atual - 1) : (atual + 1) % botoes.length;
+      botoes[proximo].focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [leadParaExcluir, excluindo]);
+  // Exclusão que falha mantém o diálogo aberto: o botão clicado ficou
+  // desabilitado e o foco caiu no body — devolve ao Cancelar.
+  useEffect(() => {
+    if (leadParaExcluir && !excluindo) cancelarExclusaoRef.current?.focus();
+  }, [leadParaExcluir, excluindo]);
   // Dossiê sob demanda (a lista só tem o resumo). ?atleta= já chega aberto.
   const dossie = useDossieLead(leadInicial);
 
@@ -641,6 +671,7 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="excluir-lead-titulo"
+            aria-describedby="excluir-lead-descricao"
             className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
@@ -652,15 +683,18 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
                 <h2 id="excluir-lead-titulo" className="text-sm font-semibold text-foreground">
                   Excluir {leadParaExcluir.athlete_name}?
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p id="excluir-lead-descricao" className="mt-1 text-xs text-muted-foreground">
                   O lead sai das listas, do pipeline e de todas as mensagens
-                  automáticas. Nada é apagado de verdade — a exclusão é
-                  reversível pelo suporte.
+                  automáticas. Tarefas abertas são canceladas e grupos de
+                  WhatsApp desvinculados (a conversa fica). Nada é apagado de
+                  verdade — a exclusão é reversível pelo suporte.
                 </p>
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
+                ref={cancelarExclusaoRef}
+                autoFocus
                 onClick={() => setLeadParaExcluir(null)}
                 disabled={excluindo}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
@@ -668,18 +702,22 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
                 Cancelar
               </button>
               <button
+                ref={confirmarExclusaoRef}
                 onClick={() => {
                   const lead = leadParaExcluir;
                   startExcluir(async () => {
                     const r = await excluirLead(lead.id);
-                    if (r.success) {
-                      toast.success(`Lead ${lead.athlete_name} excluído.`);
-                      if ("aviso" in r && r.aviso) toast.warning(r.aviso);
-                      setLeadParaExcluir(null);
-                      router.refresh();
-                    } else {
-                      toast.error(r.error ?? "Erro ao excluir.");
+                    // Falha = NADA mudou (função atômica): modal aberto, linha fica.
+                    if (!r.success) {
+                      toast.error(r.error);
+                      return;
                     }
+                    setLeadParaExcluir(null);
+                    toast.success(
+                      r.jaExcluido ? `Exclusão de ${lead.athlete_name} concluída.` : `Lead ${lead.athlete_name} excluído.`,
+                    );
+                    if (r.aviso) toast.warning(r.aviso);
+                    router.refresh();
                   });
                 }}
                 disabled={excluindo}

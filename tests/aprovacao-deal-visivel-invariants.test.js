@@ -28,12 +28,14 @@ const path = require('node:path');
 const src = fs.readFileSync(
   path.join(__dirname, '..', 'apps', 'crm', 'src', 'lib', 'actions', 'leads.ts'), 'utf8');
 
+// '(' no fim: 'aprovarLead' é prefixo de 'aprovarLeadDaRevisao' (T12) — o
+// recorte precisa ancorar na função ORIGINAL, não na primeira ocorrência.
 const aprovar = src.slice(
-  src.indexOf('export async function aprovarLead'),
+  src.indexOf('export async function aprovarLead('),
   src.indexOf('export async function reprovarLead'));
 const helper = src.slice(
   src.indexOf('async function garantirDealAtivoNaAprovacao'),
-  src.indexOf('export async function aprovarLead'));
+  src.indexOf('export async function aprovarLead('));
 
 test('garantia do deal fica entre o CAS e o re-arme da reativação', () => {
   const iCas = aprovar.indexOf('aprovacao_status: "aprovado"');
@@ -83,7 +85,10 @@ test('criar e reabrir usam a mesma ramificação por timing', () => {
 // ─── 2ª revisão (2026-10-05): reunião, muito_cedo e reversão honesta ─────
 
 test('reunião já detectada: convite inicial bloqueado no MESMO update da aprovação', () => {
-  const cas = aprovar.slice(aprovar.indexOf('const bloquearInicial'), aprovar.indexOf('.eq("aprovacao_status", "pendente")'));
+  // Ancorado DEPOIS do bloquearInicial: o fechamento dos FUs do "sem
+  // mensagem" (T12) tem o próprio CAS em pendente antes da promoção.
+  const iBloquear = aprovar.indexOf('const bloquearInicial');
+  const cas = aprovar.slice(iBloquear, aprovar.indexOf('.eq("aprovacao_status", "pendente")', iBloquear));
   assert.match(cas, /fsRow\.meeting_scheduled === true && !fsRow\.whatsapp_sent_at/,
     'gate da reunião detectada sumiu — família que já se reuniu receberia "agende sua reunião"');
   assert.match(cas, /aprovacao_status: "aprovado"[\s\S]*whatsapp_sent_at:/,

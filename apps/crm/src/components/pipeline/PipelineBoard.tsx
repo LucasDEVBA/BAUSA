@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -176,6 +176,36 @@ export function PipelineBoard({
   // confirmação fora do card, setter estável dentro do render.
   const [dealParaExcluir, setDealParaExcluir] = useState<Deal | null>(null);
   const [excluindoLead, startExcluirLead] = useTransition();
+  const cancelarExclusaoRef = useRef<HTMLButtonElement>(null);
+  const confirmarExclusaoRef = useRef<HTMLButtonElement>(null);
+  // Esc e Tab no WINDOW: com o foco fora do diálogo (clique no texto, botão
+  // desabilitado durante a exclusão) o onKeyDown do próprio diálogo não
+  // dispara — o Esc morria e o Tab andava pelo board atrás do overlay.
+  useEffect(() => {
+    if (!dealParaExcluir) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!excluindoLead) setDealParaExcluir(null);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      const botoes = [cancelarExclusaoRef.current, confirmarExclusaoRef.current].filter(
+        (b): b is HTMLButtonElement => b !== null && !b.disabled,
+      );
+      if (botoes.length === 0) return;
+      const atual = botoes.findIndex((b) => b === document.activeElement);
+      const proximo = e.shiftKey ? (atual <= 0 ? botoes.length - 1 : atual - 1) : (atual + 1) % botoes.length;
+      botoes[proximo].focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dealParaExcluir, excluindoLead]);
+  // Exclusão que falha mantém o diálogo aberto: o botão clicado ficou
+  // desabilitado e o foco caiu no body — devolve ao Cancelar.
+  useEffect(() => {
+    if (dealParaExcluir && !excluindoLead) cancelarExclusaoRef.current?.focus();
+  }, [dealParaExcluir, excluindoLead]);
   // Ganho fechado: a shortlist de escolas é o 1º entregável da jornada da
   // família, então o modal abre logo após o move (que já aconteceu).
   const [ganho, setGanho] = useState<GanhoPendente | null>(null);
@@ -300,7 +330,8 @@ export function PipelineBoard({
     view !== "kanban" ? "so_kanban" : idsCarregados.has(item.id) ? "filtrado" : "nao_carregado";
   const rotuloEtapa = (etapa: string): string =>
     isDealStage(etapa) ? stageConfig[etapa].label : labelEtapa(etapa);
-  const abrirRevisao = (modo: ModoRevisao, leadId: string) => {
+  const abrirRevisao = (modo: ModoRevisao, leadId: string, aoDecidir?: () => void) => {
+    setRevisaoForaDaColuna(aoDecidir ? { id: leadId, aoDecidir } : null);
     if (modo === "aprovacao") setLeadAprovacao(leadId);
     else if (modo === "frios") setFrioAberto(leadId);
     else setIncompletoAberto(leadId);
@@ -363,6 +394,10 @@ export function PipelineBoard({
   const [novaColunaAberta, setNovaColunaAberta] = useState(false);
   const [frioAberto, setFrioAberto] = useState<string | null>(null);
   const [incompletoAberto, setIncompletoAberto] = useState<string | null>(null);
+  // Lead aberto pela faixa FORA da coluna (FRIO/INCOMPLETO além da janela):
+  // decidido no modal, a faixa atualiza — tirar "da coluna" descontaria do
+  // total um lead que nunca contou nela.
+  const [revisaoForaDaColuna, setRevisaoForaDaColuna] = useState<{ id: string; aoDecidir: () => void } | null>(null);
   const [muitoCedoAberto, setMuitoCedoAberto] = useState<string | null>(null);
   const [leadAprovacao, setLeadAprovacao] = useState<string | null>(null);
   const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
@@ -554,8 +589,10 @@ export function PipelineBoard({
           onAbrirDossie={(id) => void dossie.abrir(id)}
           onAbrirRevisao={abrirRevisao}
           onAtualizado={(item) => {
-            // "Enviar p/ fila" pela faixa: o card sai da coluna de revisão na
-            // hora (mesmo de página não carregada — desconta do total).
+            // "Enviar p/ fila" pela faixa (ou decisão no modal de um lead fora
+            // da janela): o card sai da coluna de revisão na hora (mesmo de
+            // página não carregada — desconta do total); fora da coluna, só
+            // refaz a busca e o board.
             if (item.local.tipo === "coluna_frios") frios.remover(item.id);
             else if (item.local.tipo === "coluna_incompletos") incompletos.remover(item.id);
             busca.recarregar();
@@ -638,7 +675,7 @@ export function PipelineBoard({
                 arrastandoColuna={arrastandoColuna}
                 sort={sortMap[stage] ?? DEFAULT_PIPELINE_SORT}
                 onSortChange={handleColumnSortChange}
-                onExcluirDeal={setDealParaExcluir}
+                onExcluirDeal={podeEditarColunas ? setDealParaExcluir : undefined}
               />
             ))}
             {podeEditarColunas && (
@@ -712,9 +749,17 @@ export function PipelineBoard({
       {frioAberto && (
         <AprovacaoLeadsModal
           modo="frios"
+          stageConfig={stageConfig}
           leadIdInicial={frioAberto}
-          onClose={() => setFrioAberto(null)}
+          onClose={() => {
+            setFrioAberto(null);
+            setRevisaoForaDaColuna(null);
+          }}
           onDecidido={(id) => {
+            if (revisaoForaDaColuna?.id === id) {
+              revisaoForaDaColuna.aoDecidir();
+              return;
+            }
             // Decidido no modal sai da coluna mesmo se veio do "Mostrar mais";
             // a faixa refaz a busca (senão oferece ação sobre lead já decidido).
             frios.remover(id);
@@ -728,9 +773,17 @@ export function PipelineBoard({
       {incompletoAberto && (
         <AprovacaoLeadsModal
           modo="incompletos"
+          stageConfig={stageConfig}
           leadIdInicial={incompletoAberto}
-          onClose={() => setIncompletoAberto(null)}
+          onClose={() => {
+            setIncompletoAberto(null);
+            setRevisaoForaDaColuna(null);
+          }}
           onDecidido={(id) => {
+            if (revisaoForaDaColuna?.id === id) {
+              revisaoForaDaColuna.aoDecidir();
+              return;
+            }
             incompletos.remover(id);
             busca.recarregar();
             router.refresh();
@@ -816,6 +869,7 @@ export function PipelineBoard({
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="excluir-deal-titulo"
+            aria-describedby="excluir-deal-descricao"
             className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
@@ -827,15 +881,18 @@ export function PipelineBoard({
                 <h2 id="excluir-deal-titulo" className="text-sm font-semibold text-foreground">
                   Excluir {dealParaExcluir.athlete_name}?
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p id="excluir-deal-descricao" className="mt-1 text-xs text-muted-foreground">
                   Exclui o lead inteiro: some do pipeline, das listas e de
-                  todas as mensagens automáticas. Nada é apagado de verdade —
-                  reversível pelo suporte.
+                  todas as mensagens automáticas. Tarefas abertas são
+                  canceladas e grupos de WhatsApp desvinculados (a conversa
+                  fica). Nada é apagado de verdade — reversível pelo suporte.
                 </p>
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
+                ref={cancelarExclusaoRef}
+                autoFocus
                 onClick={() => setDealParaExcluir(null)}
                 disabled={excluindoLead}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
@@ -843,17 +900,31 @@ export function PipelineBoard({
                 Cancelar
               </button>
               <button
+                ref={confirmarExclusaoRef}
                 onClick={() => {
                   const alvo = dealParaExcluir;
                   startExcluirLead(async () => {
                     const r = await excluirLeadPorDeal(alvo.id);
-                    if (r.success) {
-                      toast.success(`Lead ${alvo.athlete_name} excluído.`);
-                      setDealParaExcluir(null);
-                      router.refresh();
-                    } else {
-                      toast.error(r.error ?? "Erro ao excluir.");
+                    // Falha = NADA mudou (função atômica): modal aberto, card fica.
+                    if (!r.success) {
+                      toast.error(r.error);
+                      return;
                     }
+                    // O card só sai com a exclusão do deal CONFIRMADA pelo banco.
+                    if (r.dealAlvoExcluido !== true) {
+                      toast.error("A exclusão não confirmou a saída deste deal — o card continua. Recarregue a página e tente de novo.");
+                      router.refresh();
+                      return;
+                    }
+                    setDeals((prev) => prev.filter((d) => d.id !== alvo.id));
+                    setDealParaExcluir(null);
+                    toast.success(
+                      r.jaExcluido
+                        ? `Exclusão de ${alvo.athlete_name} concluída.`
+                        : `Lead ${alvo.athlete_name} excluído.`,
+                    );
+                    if (r.aviso) toast.warning(r.aviso);
+                    router.refresh();
                   });
                 }}
                 disabled={excluindoLead}
