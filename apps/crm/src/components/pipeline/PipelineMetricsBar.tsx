@@ -71,7 +71,13 @@ function Chip({
       <div className="min-w-0">
         <p className="truncate text-xs text-muted-foreground">{label}</p>
         <p className={cn("text-sm font-bold", t.value)}>{value}</p>
-        {hint && <p className="truncate text-[10px] text-muted-foreground">{hint}</p>}
+        {/* Quebra em vez de truncar: o hint é a transparência do total (T3) e
+            em 375px o chip tem ~100px de texto — truncado, perdia o sentido. */}
+        {hint && (
+          <p className="text-[10px] leading-tight text-muted-foreground" title={hint}>
+            {hint}
+          </p>
+        )}
       </div>
     </div>
   );

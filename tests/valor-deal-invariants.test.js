@@ -23,6 +23,10 @@
 //      "Sinal R$ X pago · total a definir" + badge "A definir"; o texto do
 //      sinal não some quando o valor é 0; a coluna soma o valor resolvido.
 //   8. Embed com hint de FK explícito (PGRST201 silencioso derruba a tela).
+//   9. Deal buscado no cliente (/leads, /remarketing) é rebuscado depois de
+//      salvar o valor E depois de mudar contrato/pagamento.
+//  10. Modal de valor: Esc fecha só ele (abre dentro do detalhe do deal),
+//      foco preso, corpo rolável e os mesmos limites do servidor no campo.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -255,6 +259,34 @@ test('deal buscado no cliente é rebuscado após salvar o valor (/leads e /remar
   assert.match(rmkt, /onDealAtualizado=\{\(\) => setVersao\(/, '/remarketing não incrementa a versão após salvar');
   const leads = ler('apps', 'crm', 'src', 'components', 'leads', 'LeadOrDealSheet.tsx');
   assert.match(leads, /onDealAtualizado=\{\(\) => setVersao\(/, '/leads não rebusca o deal');
+});
+
+test('contrato criado/refeito ou pagamento confirmado também rebusca o deal (/leads e /remarketing)', () => {
+  // revalidatePath só repinta o /pipeline; quem buscou o deal no cliente
+  // seguia com valor estimado e sinal vazio depois de criar o contrato.
+  const tab = ler('apps', 'crm', 'src', 'components', 'pipeline', 'DealContratoTab.tsx');
+  assert.match(tab, /onAtualizado\?: \(\) => void/, 'DealContratoTab perdeu o aviso de atualização');
+  assert.match(tab, /onAtualizado\?\.\(\)/, 'DealContratoTab não avisa após mudar contrato/pagamento');
+  for (const arq of ['DealDetailModal.tsx', 'DealDetailSheet.tsx']) {
+    const src = ler('apps', 'crm', 'src', 'components', 'pipeline', arq);
+    assert.match(src, /<DealContratoTab[\s\S]{0,200}onAtualizado=\{onDealAtualizado\}/, `${arq}: aba do contrato não repassa o aviso`);
+  }
+});
+
+test('modal de valor: Esc fecha só ele, foco preso, limites do servidor no campo', () => {
+  const modal = ler('apps', 'crm', 'src', 'components', 'pipeline', 'CustomizarValorModal.tsx');
+  // Aberto dentro do DealDetailModal (Esc em bolha no window): sem captura +
+  // stopImmediatePropagation, um Esc fechava o detalhe do deal inteiro.
+  assert.match(modal, /addEventListener\("keydown", handler, true\)/, 'Esc do modal de valor voltou a ser ouvido em bolha');
+  assert.match(modal, /e\.stopImmediatePropagation\(\);\s*onClose\(\)/, 'Esc do modal de valor volta a fechar o detalhe junto');
+  assert.match(modal, /prenderFoco\(e, painelRef\.current\)/, 'Tab voltou a escapar para o board atrás do overlay');
+  assert.match(modal, /max-h-\[calc\(100dvh/, 'modal sem altura máxima: rodapé sai da tela com justificativa longa');
+  assert.match(modal, /overflow-y-auto/, 'corpo do modal de valor não rola');
+  assert.match(modal, /maxLength=\{JUSTIFICATIVA_VALOR_MAX\}/, 'justificativa sem o limite do servidor');
+  assert.match(modal, /valor > VALOR_DEAL_MAXIMO/, 'valor acima do teto não é barrado no campo');
+  const acao = ler('apps', 'crm', 'src', 'lib', 'actions', 'deals.ts');
+  assert.match(acao, /\.max\(VALOR_DEAL_MAXIMO,/, 'servidor deixou de usar o teto compartilhado');
+  assert.match(acao, /\.max\(JUSTIFICATIVA_VALOR_MAX,/, 'servidor deixou de usar o limite compartilhado da justificativa');
 });
 
 // ─── Consumidores ────────────────────────────────────────────────

@@ -241,6 +241,13 @@ export function camposValorDeal(deal: DealValorEntrada): CamposValorDeal {
   };
 }
 
+// ─── Limites da customização (servidor E modal) ──────────────────
+// Teto de sanidade: digitação errada (zero a mais) não vira R$ 10M no
+// pipeline. Contratos reais ficam entre R$ 16k e R$ 60k. Fica aqui (e não em
+// actions/deals.ts, "use server") para o modal espelhar a mesma regra.
+export const VALOR_DEAL_MAXIMO = 1_000_000;
+export const JUSTIFICATIVA_VALOR_MAX = 1000;
+
 // ─── Apresentação ────────────────────────────────────────────────
 
 export const ROTULO_ORIGEM_VALOR: Readonly<Record<OrigemValorDeal, string>> = {
@@ -291,7 +298,7 @@ export function explicarOrigemValor(
     : "Ainda sem contrato";
   switch (deal.valor_origem) {
     case "contratado":
-      return `Valor do contrato${deal.product_tier ? ` (${deal.product_tier})` : ""}. Para alterar, edite o contrato (aba Financeiro do deal).`;
+      return `Valor do contrato${deal.product_tier ? ` (${deal.product_tier})` : ""}: vem do contrato do deal (veja a aba do contrato).`;
     case "negociado":
       return `Valor negociado${deal.justificativa_valor ? `: ${deal.justificativa_valor}` : ""}. Registrado no histórico (audit).${deal.contrato_id ? ` ${situacaoContrato}.` : ""}`;
     default: {

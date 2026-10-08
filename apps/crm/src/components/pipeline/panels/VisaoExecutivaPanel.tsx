@@ -64,7 +64,7 @@ export function VisaoExecutivaPanel({
   const hintValor =
     origem === "contratado"
       ? deal.product_tier
-        ? `Plano ${deal.product_tier}${podeEditarValor ? " · editar no contrato" : ""}`
+        ? `Plano ${deal.product_tier}${podeEditarValor ? " · ver contrato" : ""}`
         : "Do contrato"
       : origem === "negociado"
         ? "Com justificativa no histórico"

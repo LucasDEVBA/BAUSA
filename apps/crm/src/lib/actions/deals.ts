@@ -12,6 +12,7 @@ import {
 } from "@/lib/move-deal-result";
 import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 import { registrarEventoGamificacao } from "@/lib/gamificacao";
+import { JUSTIFICATIVA_VALOR_MAX, VALOR_DEAL_MAXIMO } from "@/lib/valor-deal";
 
 // Destinos que nunca pontuam XP mesmo com ordem maior: perdas e
 // estacionamentos têm ordem alta em ETAPA_ORDEM mas não são progresso.
@@ -321,11 +322,6 @@ export async function moverDeal(
   return okMove(dealId, novaEtapa, gamificacao);
 }
 
-// Teto de sanidade: digitação errada (zero a mais) não vira R$ 10M no
-// pipeline. Contratos reais ficam entre R$ 16k e R$ 60k.
-const VALOR_DEAL_MAXIMO = 1_000_000;
-const JUSTIFICATIVA_MAX = 1000;
-
 const customizarValorSchema = z.object({
   dealId: z.string().trim().min(1, "Deal inválido."),
   // Zod 4: z.number() já rejeita NaN/Infinity
@@ -337,7 +333,7 @@ const customizarValorSchema = z.object({
     .string()
     .trim()
     .min(1, "Justificativa obrigatória.")
-    .max(JUSTIFICATIVA_MAX, `Justificativa com no máximo ${JUSTIFICATIVA_MAX} caracteres.`),
+    .max(JUSTIFICATIVA_VALOR_MAX, `Justificativa com no máximo ${JUSTIFICATIVA_VALOR_MAX} caracteres.`),
 });
 
 export type CustomizarValorErro =
@@ -399,7 +395,7 @@ export async function customizarValorDeal(
     return {
       success: false,
       code: "TEM_CONTRATO",
-      error: "Este deal tem contrato: o valor vem do contrato. Edite na aba Financeiro.",
+      error: "Este deal tem contrato: o valor vem do contrato (veja a aba do contrato).",
     };
   }
 

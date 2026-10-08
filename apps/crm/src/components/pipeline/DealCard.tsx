@@ -63,7 +63,9 @@ function ValorDoCard({ deal }: { deal: Deal }) {
     const previsao = textoPrevisaoDoSinal(deal);
     return (
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-[11px] font-semibold tabular-nums text-sys-green">
+        {/* 2 linhas, não truncate: "total a definir" é o critério do T11 e
+            não cabe em 1 linha ao lado do tempo na etapa (coluna de 252px). */}
+        <span className="line-clamp-2 text-[11px] font-semibold leading-tight tabular-nums text-sys-green">
           {textoSinalAntesDoPlano(sinalAntesDoPlano)}
         </span>
         {previsao && (

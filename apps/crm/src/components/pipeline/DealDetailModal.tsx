@@ -613,7 +613,11 @@ export function DealDetailModal({
               )}
               {section === "atribuicao" && <AtribuicaoSection deal={deal} />}
               {section === "financeiro" && (
-                <DealContratoTab dealId={deal.id} atletaId={deal.atleta_id} />
+                <DealContratoTab
+                  dealId={deal.id}
+                  atletaId={deal.atleta_id}
+                  onAtualizado={onDealAtualizado}
+                />
               )}
               {section === "documentos" &&
                 (deal.atleta_id ? (

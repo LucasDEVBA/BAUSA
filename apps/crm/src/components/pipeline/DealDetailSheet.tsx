@@ -963,7 +963,7 @@ export function DealDetailSheet({
                       onClick={() => setActiveTab("contrato")}
                       className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/15"
                     >
-                      Editar no contrato
+                      Ver contrato
                     </button>
                   ) : (
                     <button
@@ -1598,7 +1598,11 @@ export function DealDetailSheet({
 
           {/* TAB: CONTRATO */}
           {activeTab === "contrato" && (
-            <DealContratoTab dealId={deal.id} atletaId={deal.atleta_id} />
+            <DealContratoTab
+              dealId={deal.id}
+              atletaId={deal.atleta_id}
+              onAtualizado={onDealAtualizado}
+            />
           )}
         </div>
 
