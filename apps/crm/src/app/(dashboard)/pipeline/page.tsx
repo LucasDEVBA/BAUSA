@@ -4,11 +4,19 @@ import { PipelineExportButton } from "@/components/pipeline/PipelineExportButton
 import { FutureLeadsSection } from "@/components/pipeline/FutureLeadsSection";
 import { PageHeader } from "@/components/ui";
 import { parseSinaisV2 } from "@/lib/classificador-v2";
+import { rotuloFaixaInvestimento } from "@/lib/faixa-investimento";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getEtapasDealConfigOverrides, getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 import { getUserPapel } from "@/lib/auth";
 import { listarLeadsFriosCards, listarLeadsIncompletosCards, listarLeadsPendentesCards } from "@/lib/actions/leads";
 import { mergeDealStageConfig } from "@/lib/etapas-deal";
+import { paginaRevisaoDe } from "@/lib/revisao-leads";
+import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
+import {
+  EMBED_CONTRATO_VALOR,
+  camposValorDeal,
+  type ContratoValorEmbed,
+} from "@/lib/valor-deal";
 import {
   computarPrioridades,
   type AlvoPrioridade,
@@ -22,17 +30,6 @@ function mapClassificacao(cls: string | null): LeadClassification {
   if (cls === "hot") return "QUENTE";
   if (cls === "warm") return "MORNO";
   return "FRIO";
-}
-
-function mapInvestmentRange(faixa: string | null): string {
-  if (!faixa) return "";
-  const map: Record<string, string> = {
-    "40k_mais": "40k-50k",
-    "30k_40k": "30k-40k",
-    "20k_30k": "20k-30k",
-    "ate_20k": "15k-20k",
-  };
-  return map[faixa] ?? faixa;
 }
 
 interface SupabaseDealRow {
@@ -57,6 +54,9 @@ interface SupabaseDealRow {
   projeto_futuro_data_reativacao: string | null;
   deleted_at: string | null;
   flag_valores_customizados: boolean;
+  justificativa_customizacao: string | null;
+  // FK deal_id UNIQUE ⇒ OBJETO ou null (nunca array) — normalizado no resolver
+  contrato: ContratoValorEmbed | ContratoValorEmbed[] | null;
   reuniao_agendada_at: string | null;
   reuniao_link: string | null;
   reuniao_data: string | null;
@@ -108,6 +108,8 @@ interface SupabaseDealRow {
       guardian_name: string | null;
       guardian_profession: string | null;
       guardian_email: string | null;
+      // Código respondido no formulário (15k-20k…) — exibição da faixa
+      investment_range: string | null;
       timing_status: string | null;
       // Fila de aprovação: deal de lead PENDENTE fica suspenso do board
       aprovacao_status: string | null;
@@ -132,8 +134,14 @@ function mapDealRow(row: SupabaseDealRow, prioridades: Map<string, PrioridadeLea
     athlete_position: atleta?.posicao ?? undefined,
     guardian_name: fs?.guardian_name ?? "",
     guardian_profession: fs?.guardian_profession ?? undefined,
-    investment_range: mapInvestmentRange(atleta?.faixa_investimento ?? null),
-    deal_value_brl: row.valor_estimado ?? 0,
+    // Faixa exibida = resposta REAL do formulário; o enum do atleta (que o
+    // mapeamento antigo inflava) só como fallback de deal sem formulário.
+    investment_range:
+      fs?.investment_range ?? rotuloFaixaInvestimento(atleta?.faixa_investimento) ?? "",
+    // Valor exibido: contrato > negociado > estimado (lib/valor-deal) —
+    // preenche também plano, sinal recebido, saldo e desconto.
+    ...camposValorDeal(row),
+    justificativa_valor: row.justificativa_customizacao ?? undefined,
     stage: row.etapa as DealStage,
     classification: mapClassificacao(atleta?.lead_classificacao ?? null),
     address_state: atleta?.cidade_estado?.split(" - ").pop()?.trim() ?? undefined,
@@ -216,20 +224,38 @@ function mapDealRow(row: SupabaseDealRow, prioridades: Map<string, PrioridadeLea
   } as Deal & { _responsavelId?: string | null };
 }
 
+/**
+ * Os blocos de 1000 são paginados por chave IMUTÁVEL (created_at + id): com
+ * updated_at (mutável) um deal atualizado entre dois blocos sumia de um e
+ * repetia outro. A ordem de exibição de sempre (updated_at desc) volta aqui,
+ * em memória, e um id repetido na fronteira dos blocos entra uma vez só.
+ */
+function ordenarDealsDoBoard(rows: SupabaseDealRow[]): SupabaseDealRow[] {
+  const unicos = [...new Map(rows.map((r) => [r.id, r])).values()];
+  return unicos.sort((a, b) => {
+    const porData = Date.parse(b.updated_at) - Date.parse(a.updated_at);
+    if (porData !== 0) return porData;
+    if (a.updated_at !== b.updated_at) return a.updated_at < b.updated_at ? 1 : -1;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
+}
+
 export default async function PipelinePage() {
   const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
 
   // Overrides de apresentação das etapas (CEO) em paralelo com os deals
+  // Deals paginados em blocos de 1000 (max_rows do PostgREST): sem isso o
+  // board cortaria em silêncio os deals menos recentes ao passar de 1000.
   const [etapasOverrides, probabilidadePorEtapa, papel, leadsPendentes, leadsFrios, leadsIncompletos, { data: rows }] = await Promise.all([
     getEtapasDealConfigOverrides(),
     getProbabilidadePorEtapa(),
     getUserPapel(),
-    listarLeadsPendentesCards(),
-    listarLeadsFriosCards(),
-    listarLeadsIncompletosCards(),
-    supabase
+    listarLeadsPendentesCards().then(paginaRevisaoDe),
+    listarLeadsFriosCards().then(paginaRevisaoDe),
+    listarLeadsIncompletosCards().then(paginaRevisaoDe),
+    buscarTodasAsPaginas((de, ate) => supabase
     .from("deals")
     .select(`
       id, etapa, valor_estimado, next_action, data_proxima_acao,
@@ -239,8 +265,9 @@ export default async function PipelinePage() {
       contrato_assinado_at, sinal_pago_at,
       pode_reativar, data_reativacao,
       projeto_futuro_ano, projeto_futuro_data_reativacao,
-      deleted_at, flag_valores_customizados,
+      deleted_at, flag_valores_customizados, justificativa_customizacao,
       reuniao_agendada_at, reuniao_link, reuniao_data,
+      ${EMBED_CONTRATO_VALOR},
       atleta:atletas(
         id, nome_completo, posicao, esporte, serie_escolar,
         lead_classificacao, whatsapp, faixa_investimento, cidade_estado,
@@ -256,7 +283,7 @@ export default async function PipelinePage() {
           submitted_at, whatsapp_sent_at, followup_1_sent_at,
           followup_2_sent_at, meeting_scheduled, meeting_scheduled_at,
           qualification_reason, qualification_confidence, qualified_at,
-          guardian_name, guardian_profession, guardian_email,
+          guardian_name, guardian_profession, guardian_email, investment_range,
           timing_status, aprovacao_status, score_financeiro, tier_profissao,
           sinais_reforco, sinais_alerta, prioridade_estrategica,
           acao_recomendada
@@ -264,7 +291,9 @@ export default async function PipelinePage() {
       )
     `)
     .is("deleted_at", null)
-    .order("updated_at", { ascending: false }),
+    .order("created_at", { ascending: false }) // imutável — ver ordenarDealsDoBoard
+    .order("id", { ascending: false })
+    .range(de, ate)),
   ]);
 
   const stageConfig = mergeDealStageConfig(etapasOverrides);
@@ -276,7 +305,7 @@ export default async function PipelinePage() {
   // é ÚNICA, na coluna "Aguardando aprovação" (AprovacaoColumn, alimentada
   // pela fila). Nada é movido nem perdido: ao re-aprovar, o deal reaparece
   // na etapa em que estava. Etapas finais nunca são suspensas (histórico).
-  const dealRows = todasDealRows.filter((row) => {
+  const dealRows = ordenarDealsDoBoard(todasDealRows).filter((row) => {
     if (row.etapa === "concluido" || row.etapa === "perdido") return true;
     return row.atleta?.form_submission?.aprovacao_status !== "pendente";
   });
@@ -368,6 +397,8 @@ export default async function PipelinePage() {
   const acoesAtrasadas = activeDeals.filter(
     (d) => d.next_action_date && new Date(d.next_action_date).getTime() < now,
   ).length;
+  // Transparência do total: quantos ativos ainda somam ESTIMATIVA da faixa
+  const ativosComValorEstimado = activeDeals.filter((d) => d.valor_origem === "estimado").length;
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -392,17 +423,20 @@ export default async function PipelinePage() {
           perdidos,
           leadsNovos,
           acoesAtrasadas,
+          ativosComValorEstimado,
         }}
       />
 
-      {/* Kanban board */}
-      <div className="flex-1 overflow-hidden">
+      {/* Kanban board — coluna flex: filtros e faixa "Fora do pipeline" ocupam
+          altura e o Kanban (min-h-0 flex-1) encolhe, nunca é empurrado e cortado */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <PipelineBoard
           deals={deals}
           currentUserId={user?.id}
           stageConfig={stageConfig}
           probabilidadePorEtapa={probabilidadePorEtapa}
           podeEditarColunas={papel === "ceo"}
+          podeEditarValor={papel === "ceo"}
           leadsPendentes={leadsPendentes}
           leadsFrios={leadsFrios}
           leadsIncompletos={leadsIncompletos}

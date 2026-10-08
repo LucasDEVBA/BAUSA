@@ -14,6 +14,7 @@ import {
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
 import { cn } from "@/lib/utils";
+import { ROTULO_ORIGEM_VALOR, explicarOrigemValor } from "@/lib/valor-deal";
 
 interface Props {
   deals: Deal[];
@@ -231,8 +232,20 @@ export function PipelineTableView({
                       <span className="truncate">{stageCfg.shortLabel}</span>
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right text-xs tabular-nums text-foreground">
+                  <td
+                    className={cn(
+                      "px-3 py-2 text-right text-xs tabular-nums",
+                      d.valor_origem === "estimado" ? "text-muted-foreground" : "text-foreground",
+                    )}
+                    title={explicarOrigemValor(d)}
+                  >
+                    {d.valor_origem === "estimado" ? "≈ " : ""}
                     {fmtBRL(d.deal_value_brl)}
+                    {d.valor_origem && d.valor_origem !== "contratado" && (
+                      <span className="block text-[9px] leading-none text-muted-foreground">
+                        {ROTULO_ORIGEM_VALOR[d.valor_origem]}
+                      </span>
+                    )}
                   </td>
                   <td
                     className="px-3 py-2 text-right text-xs tabular-nums"

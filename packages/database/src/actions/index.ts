@@ -1,7 +1,6 @@
 export * from "./leads";
 export * from "./deals";
 export * from "./financeiro";
-export * from "./escolas";
 export * from "./experiencia";
 export * from "./configuracoes";
 export * from "./documentos";

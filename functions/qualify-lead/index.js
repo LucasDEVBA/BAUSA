@@ -971,20 +971,55 @@ const updateSheets = async (email, athleteName, qualification) => {
 };
 
 // ─── Mapeamentos para auto-promoção CRM ──────────────────────
-const mapInvestmentToEnum = (range) => {
-  if (!range) return 'ate_20k';
-  const lower = range.toLowerCase();
-  if (lower.includes('40') || lower.includes('50') || lower.includes('70') || lower.includes('over')) return '40k_mais';
-  if (lower.includes('30')) return '30k_40k';
-  if (lower.includes('20')) return '20k_30k';
-  return 'ate_20k';
+// Faixa de investimento (T4, 2026-10-08): match EXATO pelo código do
+// formulário. A versão antiga casava substring ("40" antes de "30"/"20") e
+// jogava o TETO de cada faixa na faixa de cima ('15k-20k' → 20k_30k/R$ 22.000).
+// Cópia JS da fonte única do Engine (apps/crm/src/lib/faixa-investimento.ts):
+// a CF é deployada isolada e não importa de fora da pasta. Paridade de
+// comportamento travada por tests/faixa-investimento-invariants.test.js.
+// @guard-js:inicio faixa-investimento
+const FAIXA_INVESTIMENTO_PADRAO = 'ate_20k';
+
+const FAIXA_POR_CODIGO = {
+  // Formulário público (apps/web FormsPage — step 11)
+  '15k-20k': 'ate_20k',
+  '20k-30k': '20k_30k',
+  '30k-40k': '30k_40k',
+  '40k-50k': '40k_mais',
+  '50k-70k': '40k_mais',
+  'over-70k': '40k_mais',
+  // Cadastro manual do Engine (/leads/novo), inclusive legado com "_"
+  'abaixo-15k': 'ate_20k',
+  'acima-50k': '40k_mais',
 };
 
-const mapInvestmentToValor = (range) => {
-  const mapped = mapInvestmentToEnum(range);
-  const valores = { '40k_mais': 32000, '30k_40k': 28000, '20k_30k': 22000, 'ate_20k': 16000 };
-  return valores[mapped] || 16000;
+const VALOR_ESTIMADO_POR_FAIXA = {
+  ate_20k: 16000,
+  '20k_30k': 22000,
+  '30k_40k': 28000,
+  '40k_mais': 32000,
 };
+
+const normalizarCodigoFaixa = (range) =>
+  String(range ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, '-')
+    .replace(/\s+/g, '');
+
+const faixaInvestimentoConhecida = (range) =>
+  Object.prototype.hasOwnProperty.call(FAIXA_POR_CODIGO, normalizarCodigoFaixa(range));
+
+const mapInvestmentToEnum = (range) => {
+  const codigo = normalizarCodigoFaixa(range);
+  return Object.prototype.hasOwnProperty.call(FAIXA_POR_CODIGO, codigo)
+    ? FAIXA_POR_CODIGO[codigo]
+    : FAIXA_INVESTIMENTO_PADRAO;
+};
+
+const mapInvestmentToValor = (range) =>
+  VALOR_ESTIMADO_POR_FAIXA[mapInvestmentToEnum(range)];
+// @guard-js:fim faixa-investimento
 
 const mapClassificacao = (cls) => {
   if (cls === 'QUENTE') return 'hot';
@@ -1167,6 +1202,15 @@ const autoPromoteToCRM = async (data, classification, reason, confidence, timing
     }
     responsavelId = newResp[0].id;
     log('INFO', 'crm_responsavel_created', { submissionId, responsavelId, enderecoId: enderecoId || null });
+  }
+
+  // Faixa fora do dicionário cai no piso (ate_20k/R$ 16.000) — loga para um
+  // código novo do formulário não virar estimativa errada silenciosa (T4).
+  if (data.investment_range && !faixaInvestimentoConhecida(data.investment_range)) {
+    log('WARN', 'faixa_investimento_desconhecida', {
+      submissionId,
+      investment_range: String(data.investment_range).slice(0, 40),
+    });
   }
 
   // Step C: Criar atleta (sem endereco_id — endereço pertence ao responsável)

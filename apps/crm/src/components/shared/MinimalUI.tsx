@@ -156,29 +156,34 @@ export function MinimalStat({
   value,
   tone,
   hint,
+  as = "div",
 }: {
   label: string;
   value: string | number;
   tone?: StatTone;
   hint?: string;
+  /** "span" quando o stat fica DENTRO de um <button> (div/p ali é HTML inválido). */
+  as?: "div" | "span";
 }) {
+  const Raiz = as;
+  const Linha = as === "span" ? "span" : "p";
   return (
-    <div className="rounded-md bg-secondary/40 px-2.5 py-1.5">
-      <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
+    <Raiz className="block rounded-md bg-secondary/40 px-2.5 py-1.5">
+      <Linha className="block text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
         {label}
-      </p>
-      <p
+      </Linha>
+      <Linha
         className={cn(
-          "mt-0.5 text-sm font-semibold tabular-nums leading-tight",
+          "mt-0.5 block text-sm font-semibold tabular-nums leading-tight",
           TONE_TEXT[tone ?? "default"],
         )}
       >
         {value}
-      </p>
+      </Linha>
       {hint && (
-        <p className="text-[9px] text-muted-foreground">{hint}</p>
+        <Linha className="block text-[9px] text-muted-foreground">{hint}</Linha>
       )}
-    </div>
+    </Raiz>
   );
 }
 

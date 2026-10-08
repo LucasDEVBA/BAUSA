@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   BadgeCheck,
   Ban,
+  BellOff,
   CalendarClock,
   Check,
   ExternalLink,
@@ -33,6 +34,7 @@ import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 import { EmailsLeadSection } from "@/components/emails/EmailsLeadSection";
 import {
   aprovarLead,
+  aprovarLeadDaRevisao,
   ativarLeadMuitoCedo,
   contarLeadsPendentesAprovacao,
   enviarFrioParaAprovacao,
@@ -44,26 +46,38 @@ import {
   reprovarFrio,
   reprovarIncompleto,
   reprovarLead,
+  type AprovarDaRevisaoResultado,
   type LeadPendenteAprovacao,
+  type ResultadoDetalheRevisao,
 } from "@/lib/actions/leads";
+import {
+  DEFAULT_DEAL_STAGE_DISPLAY,
+  isDealStage,
+  type DealStageConfigMap,
+} from "@/lib/etapas-deal";
 import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
 import { celebrar } from "@/lib/gamificacao-store";
-import { cn } from "@/lib/utils";
+import { cn, formatInvestmentRange } from "@/lib/utils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
-const INVESTMENT_LABELS: Record<string, string> = {
-  "15k-20k": "US$ 15–20 mil/ano (≈ R$ 7,5–10 mil/mês)",
-  "20k-30k": "US$ 20–30 mil/ano (≈ R$ 10–15 mil/mês)",
-  "30k-40k": "US$ 30–40 mil/ano (≈ R$ 15–20 mil/mês)",
-  "40k-50k": "US$ 40–50 mil/ano (≈ R$ 20–25 mil/mês)",
-  "50k-70k": "US$ 50–70 mil/ano (≈ R$ 25–35 mil/mês)",
-  "over-70k": "Acima de US$ 70 mil/ano (≈ R$ 35 mil+/mês)",
+// Só o equivalente mensal é local: o rótulo da faixa vem de formatInvestmentRange
+// (fonte única), que também conhece o código do cadastro manual (abaixo-15k).
+const EQUIVALENTE_MENSAL_BRL: Readonly<Record<string, string>> = {
+  "15k-20k": "≈ R$ 7,5–10 mil/mês",
+  "20k-30k": "≈ R$ 10–15 mil/mês",
+  "30k-40k": "≈ R$ 15–20 mil/mês",
+  "40k-50k": "≈ R$ 20–25 mil/mês",
+  "50k-70k": "≈ R$ 25–35 mil/mês",
+  "over-70k": "≈ R$ 35 mil+/mês",
 };
 
 function investmentLabel(range: string | null): string {
   if (!range) return "—";
-  return INVESTMENT_LABELS[range] ?? range;
+  const mensal = Object.prototype.hasOwnProperty.call(EQUIVALENTE_MENSAL_BRL, range)
+    ? EQUIVALENTE_MENSAL_BRL[range]
+    : null;
+  return mensal ? `${formatInvestmentRange(range)} (${mensal})` : formatInvestmentRange(range);
 }
 
 function instagramInfo(value: string | null): { handle: string; url: string } | null {
@@ -139,6 +153,13 @@ function Campo({ label, children, wide }: { label: string; children: React.React
   );
 }
 
+type PaginaDetalhe = Extract<ResultadoDetalheRevisao, { success: true }>;
+
+/** Revisão de Frios/Incompletos vem paginada (T7); fila e muito cedo, não. */
+function ehPaginaDetalhe(r: { success: true; leads: LeadPendenteAprovacao[] }): r is PaginaDetalhe {
+  return "proximoOffset" in r;
+}
+
 // ─── Modal ───────────────────────────────────────────────────────────────
 // Renderizado via PORTAL no <body>: os pontos de entrada vivem dentro de
 // containers com backdrop-filter/sticky (header liquid-glass do War Room e o
@@ -150,9 +171,11 @@ export function AprovacaoLeadsModal({
   onDecidido,
   leadIdInicial,
   modo = "aprovacao",
+  stageConfig,
 }: {
   onClose: () => void;
-  onDecidido: () => void;
+  /** Lead decidido/resgatado/ativado (id) — o board tira o card da coluna. */
+  onDecidido: (leadId: string) => void;
   /** Abre já com este lead selecionado (clique no card do Kanban). */
   leadIdInicial?: string;
   /** "frios": revisão de leads FRIO — mesmo dossiê/abas; ação = resgatar p/ fila.
@@ -161,15 +184,27 @@ export function AprovacaoLeadsModal({
    *  "muito_cedo": revisão dos aprovados estacionados em Aguardando timing
    *  (mensagens automáticas desligadas); ação = ativar agora no funil. */
   modo?: "aprovacao" | "frios" | "incompletos" | "muito_cedo";
+  /** Rótulos configurados das colunas (toasts mostram "Reunião marcada", não o enum). */
+  stageConfig?: DealStageConfigMap;
 }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [leads, setLeads] = useState<LeadPendenteAprovacao[]>([]);
+  // Revisão de Frios/Incompletos é PAGINADA (T7): total real do banco +
+  // "Carregar mais". null = modo sem paginação (fila de aprovação/muito cedo).
+  const [total, setTotal] = useState<number | null>(null);
+  const [proximoOffset, setProximoOffset] = useState(0);
+  // Lead aberto pela faixa "Fora do pipeline" além da janela da revisão: está
+  // na lista, mas não no recorte da coluna (não conta no total nem no offset).
+  const [foraDoRecorte, setForaDoRecorte] = useState<ReadonlySet<string>>(() => new Set());
+  const [carregandoMais, setCarregandoMais] = useState(false);
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [reprovando, setReprovando] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [pending, startTransition] = useTransition();
+  // Qual botão do rodapé disparou a ação (spinner no botão certo).
+  const [acaoEmCurso, setAcaoEmCurso] = useState<"aprovar" | "aprovar_sem_msg" | "resgatar" | null>(null);
   // Abas do preview: dossiê (decisão), conversa (WhatsApp atleta+responsável)
   // e e-mail — o CEO fala com o lead SEM sair da fila de aprovação. A aba
   // fica "grudada" ao trocar de lead (revisar conversas em sequência).
@@ -179,34 +214,78 @@ export function AprovacaoLeadsModal({
     () => leads.find((l) => l.id === selecionadoId) ?? null,
     [leads, selecionadoId],
   );
+  // "Carregar mais" mede só o recorte da coluna: o lead da faixa (fora da
+  // janela) contado aqui escondia o botão com 1 lead da janela por carregar.
+  const carregadosNoRecorte = leads.reduce((n, l) => (foraDoRecorte.has(l.id) ? n : n + 1), 0);
 
   useEffect(() => {
     let ativo = true;
     (async () => {
-      const res =
-        modo === "frios"
-          ? await listarLeadsFriosDetalhe()
-          : modo === "incompletos"
-            ? await listarLeadsIncompletosDetalhe()
-            : modo === "muito_cedo"
-              ? await listarLeadsMuitoCedoDetalhe()
-              : await listarLeadsPendentesAprovacao();
-      if (!ativo) return;
-      if (res.success) {
-        setLeads(res.leads);
-        const alvo = leadIdInicial && res.leads.some((l) => l.id === leadIdInicial)
-          ? leadIdInicial
-          : (res.leads[0]?.id ?? null);
-        setSelecionadoId(alvo);
-      } else {
-        setErro(res.error);
+      try {
+        // garantirId: o card clicado pode ter vindo do "Mostrar mais" da
+        // coluna (além da 1ª página) — o modal abre SEMPRE no lead certo.
+        const paginada = modo === "frios" || modo === "incompletos";
+        const res = paginada
+          ? modo === "frios"
+            ? await listarLeadsFriosDetalhe({ garantirId: leadIdInicial })
+            : await listarLeadsIncompletosDetalhe({ garantirId: leadIdInicial })
+          : modo === "muito_cedo"
+            ? await listarLeadsMuitoCedoDetalhe()
+            : await listarLeadsPendentesAprovacao();
+        if (!ativo) return;
+        if (res.success) {
+          setLeads(res.leads);
+          if (ehPaginaDetalhe(res)) {
+            setTotal(res.total);
+            setProximoOffset(res.proximoOffset);
+            setForaDoRecorte(new Set(res.foraDoRecorte));
+          }
+          const pedidoSumiu = Boolean(leadIdInicial) && !res.leads.some((l) => l.id === leadIdInicial);
+          if (pedidoSumiu) {
+            // Abrir OUTRO lead em silêncio levava o CEO a decidir sobre o lead errado.
+            toast.warning("Este lead não está mais nesta lista (já decidido?). Escolha outro na lista.");
+            setSelecionadoId(null);
+          } else {
+            setSelecionadoId(leadIdInicial || (res.leads[0]?.id ?? null));
+          }
+        } else {
+          setErro(res.error);
+        }
+      } catch {
+        if (ativo) setErro("Falha de rede ao carregar a revisão. Feche e tente de novo.");
+      } finally {
+        if (ativo) setCarregando(false);
       }
-      setCarregando(false);
     })();
     return () => {
       ativo = false;
     };
   }, [leadIdInicial, modo]);
+
+  const carregarMais = useCallback(async () => {
+    if (carregandoMais || (modo !== "frios" && modo !== "incompletos")) return;
+    setCarregandoMais(true);
+    try {
+      const res =
+        modo === "frios"
+          ? await listarLeadsFriosDetalhe({ offset: proximoOffset })
+          : await listarLeadsIncompletosDetalhe({ offset: proximoOffset });
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      setLeads((atuais) => {
+        const vistos = new Set(atuais.map((l) => l.id));
+        return [...atuais, ...res.leads.filter((l) => !vistos.has(l.id))];
+      });
+      setTotal(res.total);
+      setProximoOffset(res.proximoOffset);
+    } catch {
+      toast.error("Falha de rede ao carregar mais leads. Tente de novo.");
+    } finally {
+      setCarregandoMais(false);
+    }
+  }, [carregandoMais, modo, proximoOffset]);
 
   // Esc fecha + trava o scroll da página enquanto aberto
   useEffect(() => {
@@ -224,26 +303,61 @@ export function AprovacaoLeadsModal({
 
   const removerDaFila = useCallback(
     (id: string) => {
-      const proxima = leads.filter((l) => l.id !== id);
-      setLeads(proxima);
-      setSelecionadoId((atual) => (atual === id ? (proxima[0]?.id ?? null) : atual));
+      // Funcional: a decisão leva segundos e um "Carregar mais" que terminou
+      // nesse meio-tempo já anexou leads — filtrar a lista do clique os
+      // apagaria com o offset já adiante (página inalcançável).
+      setLeads((atuais) => atuais.filter((l) => l.id !== id));
+      if (!foraDoRecorte.has(id)) {
+        setTotal((t) => (t === null ? t : Math.max(0, t - 1)));
+        // O decidido saiu do recorte no servidor: a próxima página começa 1 antes.
+        setProximoOffset((o) => Math.max(0, o - 1));
+      }
+      // Próximo = 1º da lista que não é o decidido (anexos vão para o fim,
+      // então a lista do clique basta para escolher).
+      const proximoId = leads.find((l) => l.id !== id)?.id ?? null;
+      setSelecionadoId((atual) => (atual === id ? proximoId : atual));
       setReprovando(false);
       setMotivo("");
-      onDecidido();
+      onDecidido(id);
       router.refresh();
     },
-    [leads, onDecidido, router],
+    [leads, foraDoRecorte, onDecidido, router],
   );
 
-  const handleAprovar = (lead: LeadPendenteAprovacao) => {
+  const rotuloEtapa = (etapa: string): string => {
+    const mapa = stageConfig ?? DEFAULT_DEAL_STAGE_DISPLAY;
+    return isDealStage(etapa) ? mapa[etapa].label : etapa;
+  };
+
+  // O aviso do aprovarLead cita a etapa pela chave do enum (ex.: "reuniao_marcada")
+  // até o T17 traduzir no servidor — o CEO lê o nome da coluna.
+  const avisoComRotulo = (aviso: string, etapa: string | null | undefined): string =>
+    etapa ? aviso.replaceAll(`"${etapa}"`, `"${rotuloEtapa(etapa)}"`) : aviso;
+
+  // Fila de aprovação. "Sem mensagem" também existe aqui: é para onde vai o
+  // lead cuja aprovação direta na revisão falhou — sem o botão, a única saída
+  // seria "Aprovar lead", que dispara justamente o que o CEO recusou.
+  const handleAprovar = (lead: LeadPendenteAprovacao, semMensagem = false) => {
+    setAcaoEmCurso(semMensagem ? "aprovar_sem_msg" : "aprovar");
     startTransition(async () => {
-      const res = await aprovarLead(lead.id);
+      let res: Awaited<ReturnType<typeof aprovarLead>>;
+      try {
+        res = await aprovarLead(lead.id, semMensagem ? { semMensagemAutomatica: true } : undefined);
+      } catch {
+        setAcaoEmCurso(null);
+        toast.error("Falha de rede ao aprovar — recarregando para mostrar onde o lead ficou. Confira antes de tentar de novo.");
+        router.refresh();
+        return;
+      }
+      setAcaoEmCurso(null);
       if (res.success) {
-        if ("aviso" in res && res.aviso) {
-          toast.warning(res.aviso);
+        if (res.aviso) {
+          toast.warning(avisoComRotulo(res.aviso, res.etapa));
+        } else if (semMensagem) {
+          toast.success(`${lead.athlete_name} aprovado sem mensagem automática — entrou no pipeline.`);
         } else {
           toast.success(
-            "dealReaberto" in res && res.dealReaberto
+            res.dealReaberto
               ? `${lead.athlete_name} aprovado — deal antigo reaberto no pipeline.`
               : `${lead.athlete_name} aprovado — entrou no pipeline.`,
           );
@@ -256,12 +370,56 @@ export function AprovacaoLeadsModal({
     });
   };
 
+  // T12: aprovar direto na revisão (Frios/Incompletos) — mesmo caminho da fila.
+  const handleAprovarRevisao = (lead: LeadPendenteAprovacao, semMensagem: boolean) => {
+    if (modo !== "frios" && modo !== "incompletos") return;
+    const origem = modo === "frios" ? "FRIO" : "INCOMPLETO";
+    setAcaoEmCurso(semMensagem ? "aprovar_sem_msg" : "aprovar");
+    startTransition(async () => {
+      let res: AprovarDaRevisaoResultado;
+      try {
+        res = await aprovarLeadDaRevisao(lead.id, origem, { semMensagemAutomatica: semMensagem });
+      } catch {
+        // A resposta se perdeu, mas o servidor pode ter decidido: reler antes de agir de novo.
+        setAcaoEmCurso(null);
+        toast.error("Falha de rede ao aprovar — recarregando para mostrar onde o lead ficou. Confira antes de tentar de novo.");
+        router.refresh();
+        return;
+      }
+      setAcaoEmCurso(null);
+      if (res.success) {
+        // Sem etapa = outra aba venceu a aprovação; "deal em o pipeline" não é português.
+        const onde = res.etapa ? `deal em ${rotuloEtapa(res.etapa)}` : "entrou no pipeline";
+        toast.success(`${lead.athlete_name} aprovado — ${onde}.`, {
+          description: res.semMensagem
+            ? "Sem mensagem automática: nada será enviado (inicial, follow-ups, reabertura e retomada de novembro)."
+            : res.reativacao
+              ? "Já houve contato: sai a mensagem de reabertura no próximo ciclo horário e, depois dela, os follow-ups."
+              : "Mensagens seguem a regra da fila: convite inicial pelo agendador horário (22h após a qualificação) se o timing for ideal e não houver reunião.",
+        });
+        if (res.aviso) toast.warning(avisoComRotulo(res.aviso, res.etapa));
+        celebrar(res.gamificacao, GAMIFICACAO_TIPO_LABEL.lead_aprovado);
+        removerDaFila(lead.id);
+        return;
+      }
+      if (res.estado === "inalterado") {
+        toast.error(res.error);
+        return;
+      }
+      // na_fila / atencao: o lead saiu da revisão — o board mostra onde ficou.
+      toast.error(res.error, { duration: res.estado === "atencao" ? 30000 : 12000 });
+      removerDaFila(lead.id);
+    });
+  };
+
   const handleResgatar = (lead: LeadPendenteAprovacao) => {
+    setAcaoEmCurso("resgatar");
     startTransition(async () => {
       const res =
         modo === "incompletos"
           ? await enviarIncompletoParaAprovacao(lead.id)
           : await enviarFrioParaAprovacao(lead.id);
+      setAcaoEmCurso(null);
       if (res.success) {
         toast.success(`${lead.athlete_name} enviado para a fila de aprovação`, {
           description: "Entrou como MORNO provisório — nada é enviado sem aprovar.",
@@ -373,9 +531,9 @@ export function AprovacaoLeadsModal({
                   {carregando
                     ? "Carregando fila…"
                     : modo === "frios"
-                      ? `${leads.length} lead(s) frios nos últimos 90 dias — fora do funil até você resgatar`
+                      ? `${total ?? leads.length} lead(s) frios nos últimos 90 dias — fora do funil até você resgatar`
                       : modo === "incompletos"
-                        ? `${leads.length} cadastro(s) sem os dados obrigatórios — complete na conversa e resgate quando fizer sentido`
+                        ? `${total ?? leads.length} cadastro(s) sem os dados obrigatórios — complete na conversa e resgate quando fizer sentido`
                         : modo === "muito_cedo"
                           ? `${leads.length} lead(s) aprovados em Aguardando timing — mensagens automáticas desligadas; o contato é seu`
                           : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
@@ -387,8 +545,8 @@ export function AprovacaoLeadsModal({
             </Button>
           </div>
 
-          {/* Body */}
-          <div className="flex min-h-0 flex-1">
+          {/* Body — em < md a lista vira faixa rolável no topo (375px) */}
+          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             {carregando ? (
               <div className="flex-1 space-y-3 p-6">
                 <Skeleton className="h-14 w-full" />
@@ -415,7 +573,7 @@ export function AprovacaoLeadsModal({
             ) : (
               <>
                 {/* Lista */}
-                <div className="w-[300px] shrink-0 overflow-y-auto border-r border-border">
+                <div className="max-h-[28%] w-full shrink-0 overflow-y-auto border-b border-border md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
                   {leads.map((l) => (
                     <button
                       key={l.id}
@@ -455,11 +613,25 @@ export function AprovacaoLeadsModal({
                       <p className="mt-0.5 text-[11px] text-label-tertiary">Recebido {fmtData(l.submitted_at)}</p>
                     </button>
                   ))}
+                  {total !== null && carregadosNoRecorte < total && (
+                    <button
+                      type="button"
+                      onClick={() => void carregarMais()}
+                      // Durante uma decisão a lista ainda vai perder o decidido.
+                      disabled={carregandoMais || pending}
+                      className="flex w-full items-center justify-center gap-1.5 px-4 py-3 text-xs font-semibold text-primary transition-colors hover:bg-accent disabled:opacity-60"
+                    >
+                      {carregandoMais && <Loader2 aria-hidden className="size-3.5 animate-spin" />}
+                      {carregandoMais ? "Carregando…" : `Carregar mais (${total - carregadosNoRecorte} restantes)`}
+                    </button>
+                  )}
                 </div>
 
                 {/* Preview */}
                 {selecionado && (
-                  <div className="flex min-w-0 flex-1 flex-col">
+                  // min-h-0: em < md o corpo vira coluna — sem ele o painel cresce
+                  // até o conteúdo e o rodapé de decisão é cortado (overflow-hidden).
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                     <div className="shrink-0 border-b border-border/60 px-5 py-2.5">
                       <BrandTabs
                         ariaLabel="Seções do lead"
@@ -693,23 +865,56 @@ export function AprovacaoLeadsModal({
                           </div>
                         </div>
                       ) : modo === "frios" || modo === "incompletos" ? (
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs text-muted-foreground">
-                            Resgatar manda para a fila de aprovação como MORNO provisório. Reprovar encerra: fora da revisão, sem mensagens.
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          {/* No celular o rodapé disputa altura com o dossiê: versão curta,
+                              mas a diferença entre os botões fica VISÍVEL (title não aparece no toque). */}
+                          <p className="text-xs text-muted-foreground lg:max-w-md">
+                            <span className="sm:hidden">
+                              <span className="font-semibold text-foreground">Aprovar</span> libera o WhatsApp
+                              automático · <span className="font-semibold text-foreground">Sem mensagem</span> não envia
+                              nada · <span className="font-semibold text-foreground">Enviar p/ fila</span> só resgata.
+                            </span>
+                            <span className="hidden sm:inline">
+                              <span className="font-semibold text-foreground">Aprovar</span> cria atleta + deal (MORNO
+                              provisório) e libera o WhatsApp automático como na fila: convite inicial pelo agendador
+                              horário (regra das 22h) ou, se já houve contato, a mensagem de reabertura.{" "}
+                              <span className="font-semibold text-foreground">Sem mensagem</span> aprova sem disparar
+                              nada (para quem você já conversou). Enviar p/ fila só resgata, sem decidir.
+                            </span>
                           </p>
-                          <div className="flex shrink-0 items-center gap-2">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={pending}
+                              onClick={() => handleResgatar(selecionado)}
+                              title="Resgatar para Aguardando aprovação (MORNO provisório) sem decidir agora"
+                            >
+                              {pending && acaoEmCurso === "resgatar" ? <Loader2 className="animate-spin" /> : <UserPlus />}
+                              Enviar p/ fila
+                            </Button>
                             <Button variant="secondary" size="md" disabled={pending} onClick={() => setReprovando(true)}>
                               <Ban className="text-destructive" />
                               Reprovar
                             </Button>
                             <Button
+                              variant="secondary"
+                              size="md"
+                              disabled={pending}
+                              onClick={() => handleAprovarRevisao(selecionado, true)}
+                              title="Aprova e entra no pipeline sem nenhuma mensagem automática"
+                            >
+                              {pending && acaoEmCurso === "aprovar_sem_msg" ? <Loader2 className="animate-spin" /> : <BellOff />}
+                              Aprovar sem mensagem
+                            </Button>
+                            <Button
                               variant="primary"
                               size="md"
                               disabled={pending}
-                              onClick={() => handleResgatar(selecionado)}
+                              onClick={() => handleAprovarRevisao(selecionado, false)}
                             >
-                              {pending ? <Loader2 className="animate-spin" /> : <UserPlus />}
-                              Enviar p/ fila
+                              {pending && acaoEmCurso === "aprovar" ? <Loader2 className="animate-spin" /> : <Check />}
+                              Aprovar lead
                             </Button>
                           </div>
                         </div>
@@ -754,17 +959,28 @@ export function AprovacaoLeadsModal({
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs text-muted-foreground">
-                            Aprovar cria atleta + deal e libera o WhatsApp automático. Reprovar encerra: sem pipeline, sem mensagens.
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <p className="text-xs text-muted-foreground lg:max-w-md">
+                            Aprovar cria atleta + deal e libera o WhatsApp automático.{" "}
+                            <span className="font-semibold text-foreground">Sem mensagem</span> aprova sem disparar nada
+                            (para quem você já conversou). Reprovar encerra: sem pipeline, sem mensagens.
                           </p>
-                          <div className="flex shrink-0 items-center gap-2">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                             <Button variant="secondary" size="md" disabled={pending} onClick={() => setReprovando(true)}>
                               <Ban className="text-destructive" />
                               Reprovar
                             </Button>
+                            <Button
+                              variant="secondary"
+                              size="md"
+                              disabled={pending}
+                              onClick={() => handleAprovar(selecionado, true)}
+                            >
+                              {pending && acaoEmCurso === "aprovar_sem_msg" ? <Loader2 className="animate-spin" /> : <BellOff />}
+                              Aprovar sem mensagem
+                            </Button>
                             <Button variant="primary" size="md" disabled={pending} onClick={() => handleAprovar(selecionado)}>
-                              {pending ? <Loader2 className="animate-spin" /> : <Check />}
+                              {pending && acaoEmCurso === "aprovar" ? <Loader2 className="animate-spin" /> : <Check />}
                               Aprovar lead
                             </Button>
                           </div>

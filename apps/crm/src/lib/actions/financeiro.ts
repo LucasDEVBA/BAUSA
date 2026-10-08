@@ -197,6 +197,11 @@ export async function criarContrato(dealId: string, dados: {
     id: contrato.id,
   });
 
+  // Card/coluna/métricas do /pipeline leem o valor do contrato (T3): revalidar
+  // repinta o board atrás do modal sem F5.
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/pipeline");
+
   return { success: true, contratoId: contrato.id, gamificacao };
 }
 
@@ -251,6 +256,10 @@ export async function confirmarPagamento(parcelaId: string, dados?: { comprovant
       }
     }
   }
+
+  // Sinal recebido e saldo a receber aparecem no card do /pipeline (T3).
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/pipeline");
 
   return { success: true, gamificacao };
 }

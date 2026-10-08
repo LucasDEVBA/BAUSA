@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -12,15 +12,18 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { type Deal, type DealStage } from "@/types/deal";
+import { PIPELINE_STAGE_ORDER, type Deal, type DealStage } from "@/types/deal";
 import {
   DEFAULT_DEAL_STAGE_DISPLAY,
+  isDealStage,
   orderedKanbanStages,
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
 import { PipelineColumn } from "./PipelineColumn";
 import { DealCard } from "./DealCard";
-import { DealDetailModal } from "./DealDetailModal";
+import { DealDetailModal, type DealDetailSection } from "./DealDetailModal";
+import { CustomizarValorModal } from "./CustomizarValorModal";
+import { explicarOrigemValor } from "@/lib/valor-deal";
 import {
   PipelineFiltersBar,
   emptyPipelineFilters,
@@ -49,7 +52,20 @@ import { FriosColumn } from "./FriosColumn";
 import { IncompletosColumn } from "./IncompletosColumn";
 import { NovaColunaModal } from "./NovaColunaModal";
 import { AprovacaoLeadsModal } from "@/components/leads/AprovacoesLeads";
-import type { LeadFrioCard, LeadIncompletoCard, LeadPendenteCard } from "@/lib/actions/leads";
+import { DossieLeadView, useDossieLead } from "@/components/leads/DossieLead";
+import {
+  listarLeadsFriosCards,
+  listarLeadsIncompletosCards,
+  listarLeadsPendentesCards,
+  type LeadFrioCard,
+  type LeadIncompletoCard,
+  type LeadPendenteCard,
+} from "@/lib/actions/leads";
+import { type CadastroEncontrado } from "@/lib/actions/leads-busca";
+import { normalizarTermoBusca, type PaginaRevisao } from "@/lib/revisao-leads";
+import { ForaDoPipelineFaixa, type ModoRevisao, type MotivoForaDaTela } from "./ForaDoPipelineFaixa";
+import { useBuscaCadastros } from "./useBuscaCadastros";
+import { usePaginaRevisao } from "./usePaginaRevisao";
 import { labelEtapa, type MoveDealAction } from "@/lib/move-deal-result";
 import { excluirLeadPorDeal } from "@/lib/actions/leads-excluir";
 import { Plus, Trash2 } from "lucide-react";
@@ -65,12 +81,26 @@ interface PipelineBoardProps {
   probabilidadePorEtapa?: Record<string, number>;
   /** Só nível CEO edita colunas (o board é read-only para os demais). */
   podeEditarColunas?: boolean;
+  /** Só nível CEO edita o valor do deal pelo card (customizarValorDeal exige ceo). */
+  podeEditarValor?: boolean;
   /** Leads na fila de aprovação — primeira coluna do board (sem deal ainda). */
-  leadsPendentes?: LeadPendenteCard[];
+  leadsPendentes?: PaginaRevisao<LeadPendenteCard>;
   /** FRIOs recentes p/ revisão — coluna própria, read-only + resgate. */
-  leadsFrios?: LeadFrioCard[];
+  leadsFrios?: PaginaRevisao<LeadFrioCard>;
   /** INCOMPLETOs recentes p/ revisão — coluna própria, read-only + resgate. */
-  leadsIncompletos?: LeadIncompletoCard[];
+  leadsIncompletos?: PaginaRevisao<LeadIncompletoCard>;
+}
+
+const PAGINA_VAZIA = { itens: [], total: 0, erro: null };
+
+/**
+ * Busca local sem acento e por palavras (T13): "joao silva" acha
+ * "João da Silva". Mesma normalização da busca no servidor.
+ */
+function casaBusca(termoNormalizado: string, ...campos: Array<string | null | undefined>): boolean {
+  if (!termoNormalizado) return true;
+  const hay = normalizarTermoBusca(campos.filter(Boolean).join(" "));
+  return termoNormalizado.split(" ").every((t) => hay.includes(t));
 }
 
 function getDealsByStage(deals: Deal[]) {
@@ -96,7 +126,7 @@ function applyFilters(
   f: PipelineFiltersState,
   currentUserId?: string,
 ): Deal[] {
-  const search = f.search.trim().toLowerCase();
+  const search = normalizarTermoBusca(f.search);
   const NOW = Date.now();
   return deals.filter((d) => {
     if (f.filterMode === "meus" && currentUserId && d.responsavel_id !== currentUserId)
@@ -116,10 +146,7 @@ function applyFilters(
       const isAtrasado = stageDays > 14 || (acaoAtraso != null && acaoAtraso > 0) || !d.next_action;
       if (!isAtrasado) return false;
     }
-    if (search) {
-      const hay = `${d.athlete_name} ${d.guardian_name ?? ""} ${d.esporte ?? ""}`.toLowerCase();
-      if (!hay.includes(search)) return false;
-    }
+    if (!casaBusca(search, d.athlete_name, d.guardian_name, d.esporte, d.email, d.guardian_email)) return false;
     return true;
   });
 }
@@ -130,9 +157,10 @@ export function PipelineBoard({
   stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
   probabilidadePorEtapa = {},
   podeEditarColunas = false,
-  leadsPendentes = [],
-  leadsFrios = [],
-  leadsIncompletos = [],
+  podeEditarValor = false,
+  leadsPendentes = PAGINA_VAZIA,
+  leadsFrios = PAGINA_VAZIA,
+  leadsIncompletos = PAGINA_VAZIA,
 }: PipelineBoardProps) {
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
@@ -141,7 +169,22 @@ export function PipelineBoard({
   // customizar o valor (router.refresh → initialDeals novos) repinta o modal
   // na hora, sem fechar e reabrir (2026-09-11).
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
-  const setSelectedDeal = (deal: Deal | null) => setSelectedDealId(deal?.id ?? null);
+  // Seção em que o modal abre (clique no valor de deal COM contrato → aba do
+  // contrato). Clique comum no card abre na Visão Executiva (padrão).
+  const [secaoInicialDeal, setSecaoInicialDeal] = useState<DealDetailSection | undefined>(undefined);
+  const setSelectedDeal = (deal: Deal | null, secao?: DealDetailSection) => {
+    setSecaoInicialDeal(secao);
+    setSelectedDealId(deal?.id ?? null);
+  };
+  // Valor em edição pelo card (T3) — derivado por id, como o deal aberto.
+  const [valorEmEdicaoId, setValorEmEdicaoId] = useState<string | null>(null);
+  const abrirValorDoDeal = (deal: Deal) => {
+    if (deal.valor_origem === "contratado") {
+      setSelectedDeal(deal, "financeiro");
+      return;
+    }
+    setValorEmEdicaoId(deal.id);
+  };
   // Reconcilia com o servidor: quando a page revalida (ex.: vincular reunião
   // move o deal de etapa), a verdade do servidor vence a cópia local — sem
   // isto o card fica na coluna antiga até um F5 (CEO reportou, 2026-08-26).
@@ -153,6 +196,36 @@ export function PipelineBoard({
   // confirmação fora do card, setter estável dentro do render.
   const [dealParaExcluir, setDealParaExcluir] = useState<Deal | null>(null);
   const [excluindoLead, startExcluirLead] = useTransition();
+  const cancelarExclusaoRef = useRef<HTMLButtonElement>(null);
+  const confirmarExclusaoRef = useRef<HTMLButtonElement>(null);
+  // Esc e Tab no WINDOW: com o foco fora do diálogo (clique no texto, botão
+  // desabilitado durante a exclusão) o onKeyDown do próprio diálogo não
+  // dispara — o Esc morria e o Tab andava pelo board atrás do overlay.
+  useEffect(() => {
+    if (!dealParaExcluir) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!excluindoLead) setDealParaExcluir(null);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      const botoes = [cancelarExclusaoRef.current, confirmarExclusaoRef.current].filter(
+        (b): b is HTMLButtonElement => b !== null && !b.disabled,
+      );
+      if (botoes.length === 0) return;
+      const atual = botoes.findIndex((b) => b === document.activeElement);
+      const proximo = e.shiftKey ? (atual <= 0 ? botoes.length - 1 : atual - 1) : (atual + 1) % botoes.length;
+      botoes[proximo].focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dealParaExcluir, excluindoLead]);
+  // Exclusão que falha mantém o diálogo aberto: o botão clicado ficou
+  // desabilitado e o foco caiu no body — devolve ao Cancelar.
+  useEffect(() => {
+    if (dealParaExcluir && !excluindoLead) cancelarExclusaoRef.current?.focus();
+  }, [dealParaExcluir, excluindoLead]);
   // Ganho fechado: a shortlist de escolas é o 1º entregável da jornada da
   // família, então o modal abre logo após o move (que já aconteceu).
   const [ganho, setGanho] = useState<GanhoPendente | null>(null);
@@ -207,41 +280,90 @@ export function PipelineBoard({
     [deals, filters, currentUserId],
   );
 
+  // Colunas de revisão PAGINADAS (T7): total real do banco + "Mostrar mais".
+  const pendentes = usePaginaRevisao(
+    leadsPendentes,
+    (offset, limite) => listarLeadsPendentesCards({ offset, limite }),
+    false,
+  );
+  const frios = usePaginaRevisao(leadsFrios, (offset, limite) => listarLeadsFriosCards({ offset, limite }), true);
+  const incompletos = usePaginaRevisao(
+    leadsIncompletos,
+    (offset, limite) => listarLeadsIncompletosCards({ offset, limite }),
+    true,
+  );
+
   // Filtros também valem para as colunas de revisão (pedido do CEO,
-  // 2026-09-23): busca casa por nome/posição/cidade; classificação casa com a
-  // classe do card (Frios = FRIO, Incompletos = nenhuma das três); plano e
-  // "com atraso" são conceitos de DEAL — qualquer um ativo esvazia as
-  // revisões. Coluna sem card filtrado simplesmente não renderiza.
+  // 2026-09-23): busca casa por nome do atleta, do RESPONSÁVEL (T13),
+  // posição e cidade, sem acento; classificação casa com a classe do card
+  // (Frios = FRIO, Incompletos = nenhuma das três); plano e "com atraso" são
+  // conceitos de DEAL — qualquer um ativo esvazia as revisões. Coluna sem
+  // card filtrado simplesmente não renderiza.
   const applyFiltersLeadCard = (
-    card: { athlete_name: string; position: string | null; city_state: string | null },
+    card: { athlete_name: string; guardian_name: string | null; position: string | null; city_state: string | null },
     classe: string | null,
     f: PipelineFiltersState,
   ): boolean => {
     if (f.plano !== "TODOS" || f.comAtraso) return false;
     if (f.classificacao !== "TODAS" && classe !== f.classificacao) return false;
-    const search = f.search.trim().toLowerCase();
-    if (search) {
-      const hay = `${card.athlete_name} ${card.position ?? ""} ${card.city_state ?? ""}`.toLowerCase();
-      if (!hay.includes(search)) return false;
-    }
-    return true;
+    return casaBusca(normalizarTermoBusca(f.search), card.athlete_name, card.guardian_name, card.position, card.city_state);
   };
   const pendentesFiltrados = useMemo(
-    () => leadsPendentes.filter((l) => applyFiltersLeadCard(l, l.qualification_classification, filters)),
-    [leadsPendentes, filters],
+    () => pendentes.itens.filter((l) => applyFiltersLeadCard(l, l.qualification_classification, filters)),
+    [pendentes.itens, filters],
   );
   const friosFiltrados = useMemo(
-    () => leadsFrios.filter((l) => applyFiltersLeadCard(l, "FRIO", filters)),
-    [leadsFrios, filters],
+    () => frios.itens.filter((l) => applyFiltersLeadCard(l, "FRIO", filters)),
+    [frios.itens, filters],
   );
   const incompletosFiltrados = useMemo(
-    () => leadsIncompletos.filter((l) => applyFiltersLeadCard(l, "INCOMPLETO", filters)),
-    [leadsIncompletos, filters],
+    () => incompletos.itens.filter((l) => applyFiltersLeadCard(l, "INCOMPLETO", filters)),
+    [incompletos.itens, filters],
   );
+
+  // Busca de apoio no SERVIDOR (T13): acha quem não está na tela e diz onde
+  // está. Só CEO/CTO (podeEditarColunas = nível CEO); a action também barra.
+  const busca = useBuscaCadastros(filters.search, podeEditarColunas);
+  const dossie = useDossieLead();
+  const idsVisiveis = useMemo(() => {
+    // Tabela mostra todos os deals filtrados; o Kanban só as etapas do board
+    // (+ projeto_futuro na seção Leads Futuros). Revisões existem só no Kanban.
+    const etapasNaTela = new Set<string>([...PIPELINE_STAGE_ORDER, "projeto_futuro"]);
+    const deals = new Set(
+      filteredDeals.filter((d) => view === "tabela" || etapasNaTela.has(d.stage)).map((d) => d.id),
+    );
+    const cards = new Set(
+      view === "kanban"
+        ? [...pendentesFiltrados, ...friosFiltrados, ...incompletosFiltrados].map((l) => l.id)
+        : [],
+    );
+    return { deals, cards };
+  }, [view, filteredDeals, pendentesFiltrados, friosFiltrados, incompletosFiltrados]);
+  const estaVisivel = (item: CadastroEncontrado): boolean =>
+    (item.deal_id !== null && idsVisiveis.deals.has(item.deal_id)) || idsVisiveis.cards.has(item.id);
+  // Card de revisão fora da tela: a faixa diz POR QUÊ (não carregado ≠ filtrado ≠ visão Tabela).
+  const idsCarregados = useMemo(
+    () => new Set([...pendentes.itens, ...frios.itens, ...incompletos.itens].map((l) => l.id)),
+    [pendentes.itens, frios.itens, incompletos.itens],
+  );
+  const motivoForaDaTela = (item: CadastroEncontrado): MotivoForaDaTela =>
+    view !== "kanban" ? "so_kanban" : idsCarregados.has(item.id) ? "filtrado" : "nao_carregado";
+  const rotuloEtapa = (etapa: string): string =>
+    isDealStage(etapa) ? stageConfig[etapa].label : labelEtapa(etapa);
+  const abrirRevisao = (modo: ModoRevisao, leadId: string, aoDecidir?: () => void) => {
+    setRevisaoForaDaColuna(aoDecidir ? { id: leadId, aoDecidir } : null);
+    if (modo === "aprovacao") setLeadAprovacao(leadId);
+    else if (modo === "frios") setFrioAberto(leadId);
+    else setIncompletoAberto(leadId);
+  };
+  const errosRevisao = [pendentes.erro, frios.erro, incompletos.erro].filter((e): e is string => e !== null);
 
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
   const selectedDeal = selectedDealId
     ? (deals.find((d) => d.id === selectedDealId) ?? null)
+    : null;
+  const valorEmEdicao = valorEmEdicaoId
+    ? (deals.find((d) => d.id === valorEmEdicaoId) ?? null)
     : null;
 
   // Transform SÓ de render, aplicado coluna a coluna dentro do agrupamento.
@@ -295,6 +417,10 @@ export function PipelineBoard({
   const [novaColunaAberta, setNovaColunaAberta] = useState(false);
   const [frioAberto, setFrioAberto] = useState<string | null>(null);
   const [incompletoAberto, setIncompletoAberto] = useState<string | null>(null);
+  // Lead aberto pela faixa FORA da coluna (FRIO/INCOMPLETO além da janela):
+  // decidido no modal, a faixa atualiza — tirar "da coluna" descontaria do
+  // total um lead que nunca contou nela.
+  const [revisaoForaDaColuna, setRevisaoForaDaColuna] = useState<{ id: string; aoDecidir: () => void } | null>(null);
   const [muitoCedoAberto, setMuitoCedoAberto] = useState<string | null>(null);
   const [leadAprovacao, setLeadAprovacao] = useState<string | null>(null);
   const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
@@ -470,6 +596,35 @@ export function PipelineBoard({
         onSortTodasChange={handleSortTodasChange}
       />
 
+      {podeEditarColunas && errosRevisao.length > 0 && (
+        <p role="alert" className="mb-2 rounded-lg border border-sys-red/25 bg-sys-red/5 px-2.5 py-1.5 text-[11px] text-sys-red">
+          Parte das colunas de revisão não carregou ({errosRevisao[0]}). Recarregue a página — nenhum lead foi alterado.
+        </p>
+      )}
+
+      {/* Busca no servidor: quem não está na tela e por quê (T13) */}
+      {podeEditarColunas && (
+        <ForaDoPipelineFaixa
+          estado={busca.estado}
+          estaVisivel={estaVisivel}
+          motivoForaDaTela={motivoForaDaTela}
+          rotuloEtapa={rotuloEtapa}
+          onAbrirDossie={(id) => void dossie.abrir(id)}
+          onAbrirRevisao={abrirRevisao}
+          onAtualizado={(item) => {
+            // "Enviar p/ fila" pela faixa (ou decisão no modal de um lead fora
+            // da janela): o card sai da coluna de revisão na hora (mesmo de
+            // página não carregada — desconta do total); fora da coluna, só
+            // refaz a busca e o board.
+            if (item.local.tipo === "coluna_frios") frios.remover(item.id);
+            else if (item.local.tipo === "coluna_incompletos") incompletos.remover(item.id);
+            busca.recarregar();
+            router.refresh();
+          }}
+          onTentarDeNovo={busca.recarregar}
+        />
+      )}
+
       {view === "kanban" ? (
         <DndContext
           sensors={sensors}
@@ -477,17 +632,31 @@ export function PipelineBoard({
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex h-full gap-3 overflow-x-auto pb-4">
+          <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-4">
             {/* Fila de aprovação: primeira coluna, antes de qualquer etapa —
                 o lead só vira deal (coluna seguinte) depois do OK do CEO. */}
             {podeEditarColunas && pendentesFiltrados.length > 0 && (
-              <AprovacaoColumn leads={pendentesFiltrados} onLeadClick={setLeadAprovacao} />
+              <AprovacaoColumn
+                leads={pendentesFiltrados}
+                total={pendentes.total}
+                maisRestantes={Math.max(0, pendentes.total - pendentes.itens.length)}
+                carregandoMais={pendentes.carregandoMais}
+                onCarregarMais={pendentes.carregarMais}
+                onLeadClick={setLeadAprovacao}
+              />
             )}
             {/* Frios p/ revisão: visível, mas fora de métrica/automação/outreach */}
             {podeEditarColunas && friosFiltrados.length > 0 && (
               <FriosColumn
                 leads={friosFiltrados}
-                onResgatado={() => router.refresh()}
+                total={frios.total}
+                maisRestantes={Math.max(0, frios.total - frios.itens.length)}
+                carregandoMais={frios.carregandoMais}
+                onCarregarMais={frios.carregarMais}
+                onResgatado={(id) => {
+                  frios.remover(id);
+                  router.refresh();
+                }}
                 onLeadClick={setFrioAberto}
               />
             )}
@@ -495,7 +664,14 @@ export function PipelineBoard({
             {podeEditarColunas && incompletosFiltrados.length > 0 && (
               <IncompletosColumn
                 leads={incompletosFiltrados}
-                onResgatado={() => router.refresh()}
+                total={incompletos.total}
+                maisRestantes={Math.max(0, incompletos.total - incompletos.itens.length)}
+                carregandoMais={incompletos.carregandoMais}
+                onCarregarMais={incompletos.carregarMais}
+                onResgatado={(id) => {
+                  incompletos.remover(id);
+                  router.refresh();
+                }}
                 onLeadClick={setIncompletoAberto}
               />
             )}
@@ -522,7 +698,8 @@ export function PipelineBoard({
                 arrastandoColuna={arrastandoColuna}
                 sort={sortMap[stage] ?? DEFAULT_PIPELINE_SORT}
                 onSortChange={handleColumnSortChange}
-                onExcluirDeal={setDealParaExcluir}
+                onExcluirDeal={podeEditarColunas ? setDealParaExcluir : undefined}
+                onValorClick={podeEditarValor ? abrirValorDoDeal : undefined}
               />
             ))}
             {podeEditarColunas && (
@@ -596,9 +773,23 @@ export function PipelineBoard({
       {frioAberto && (
         <AprovacaoLeadsModal
           modo="frios"
+          stageConfig={stageConfig}
           leadIdInicial={frioAberto}
-          onClose={() => setFrioAberto(null)}
-          onDecidido={() => router.refresh()}
+          onClose={() => {
+            setFrioAberto(null);
+            setRevisaoForaDaColuna(null);
+          }}
+          onDecidido={(id) => {
+            if (revisaoForaDaColuna?.id === id) {
+              revisaoForaDaColuna.aoDecidir();
+              return;
+            }
+            // Decidido no modal sai da coluna mesmo se veio do "Mostrar mais";
+            // a faixa refaz a busca (senão oferece ação sobre lead já decidido).
+            frios.remover(id);
+            busca.recarregar();
+            router.refresh();
+          }}
         />
       )}
 
@@ -606,9 +797,21 @@ export function PipelineBoard({
       {incompletoAberto && (
         <AprovacaoLeadsModal
           modo="incompletos"
+          stageConfig={stageConfig}
           leadIdInicial={incompletoAberto}
-          onClose={() => setIncompletoAberto(null)}
-          onDecidido={() => router.refresh()}
+          onClose={() => {
+            setIncompletoAberto(null);
+            setRevisaoForaDaColuna(null);
+          }}
+          onDecidido={(id) => {
+            if (revisaoForaDaColuna?.id === id) {
+              revisaoForaDaColuna.aoDecidir();
+              return;
+            }
+            incompletos.remover(id);
+            busca.recarregar();
+            router.refresh();
+          }}
         />
       )}
 
@@ -618,7 +821,10 @@ export function PipelineBoard({
           modo="muito_cedo"
           leadIdInicial={muitoCedoAberto}
           onClose={() => setMuitoCedoAberto(null)}
-          onDecidido={() => router.refresh()}
+          onDecidido={() => {
+            busca.recarregar();
+            router.refresh();
+          }}
         />
       )}
 
@@ -627,7 +833,11 @@ export function PipelineBoard({
         <AprovacaoLeadsModal
           leadIdInicial={leadAprovacao}
           onClose={() => setLeadAprovacao(null)}
-          onDecidido={() => router.refresh()}
+          onDecidido={(id) => {
+            pendentes.remover(id);
+            busca.recarregar();
+            router.refresh();
+          }}
         />
       )}
 
@@ -653,6 +863,16 @@ export function PipelineBoard({
         />
       )}
 
+      {/* Dossiê aberto pela faixa "Fora do pipeline" (lead ou deal) */}
+      <DossieLeadView
+        estado={dossie.estado}
+        onClose={() => {
+          // O dossiê tem ações (mover etapa, aprovar…): a faixa não pode ficar velha.
+          dossie.fechar();
+          busca.recarregar();
+        }}
+      />
+
       {/* Modal central super-completo (CEO) */}
       {selectedDeal && (
         <DealDetailModal
@@ -660,6 +880,27 @@ export function PipelineBoard({
           deal={selectedDeal}
           onClose={() => setSelectedDeal(null)}
           stageConfig={stageConfig}
+          initialSection={secaoInicialDeal}
+          podeEditarValor={podeEditarValor}
+        />
+      )}
+
+      {/* Valor do deal direto do card (T3): estimado/negociado → customização
+          com justificativa (Regra 3). Contrato → recusa e abre a aba dele. */}
+      {valorEmEdicao && (
+        <CustomizarValorModal
+          key={valorEmEdicao.id}
+          dealId={valorEmEdicao.id}
+          athleteName={valorEmEdicao.athlete_name}
+          valorAtual={valorEmEdicao.deal_value_brl}
+          jaCustomizado={valorEmEdicao.flag_valores_customizados}
+          origem={valorEmEdicao.valor_origem}
+          explicacaoOrigem={explicarOrigemValor(valorEmEdicao)}
+          onClose={() => setValorEmEdicaoId(null)}
+          onTemContrato={() => {
+            setValorEmEdicaoId(null);
+            setSelectedDeal(valorEmEdicao, "financeiro");
+          }}
         />
       )}
 
@@ -673,6 +914,7 @@ export function PipelineBoard({
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="excluir-deal-titulo"
+            aria-describedby="excluir-deal-descricao"
             className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
@@ -684,15 +926,18 @@ export function PipelineBoard({
                 <h2 id="excluir-deal-titulo" className="text-sm font-semibold text-foreground">
                   Excluir {dealParaExcluir.athlete_name}?
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p id="excluir-deal-descricao" className="mt-1 text-xs text-muted-foreground">
                   Exclui o lead inteiro: some do pipeline, das listas e de
-                  todas as mensagens automáticas. Nada é apagado de verdade —
-                  reversível pelo suporte.
+                  todas as mensagens automáticas. Tarefas abertas são
+                  canceladas e grupos de WhatsApp desvinculados (a conversa
+                  fica). Nada é apagado de verdade — reversível pelo suporte.
                 </p>
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
+                ref={cancelarExclusaoRef}
+                autoFocus
                 onClick={() => setDealParaExcluir(null)}
                 disabled={excluindoLead}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
@@ -700,17 +945,31 @@ export function PipelineBoard({
                 Cancelar
               </button>
               <button
+                ref={confirmarExclusaoRef}
                 onClick={() => {
                   const alvo = dealParaExcluir;
                   startExcluirLead(async () => {
                     const r = await excluirLeadPorDeal(alvo.id);
-                    if (r.success) {
-                      toast.success(`Lead ${alvo.athlete_name} excluído.`);
-                      setDealParaExcluir(null);
-                      router.refresh();
-                    } else {
-                      toast.error(r.error ?? "Erro ao excluir.");
+                    // Falha = NADA mudou (função atômica): modal aberto, card fica.
+                    if (!r.success) {
+                      toast.error(r.error);
+                      return;
                     }
+                    // O card só sai com a exclusão do deal CONFIRMADA pelo banco.
+                    if (r.dealAlvoExcluido !== true) {
+                      toast.error("A exclusão não confirmou a saída deste deal — o card continua. Recarregue a página e tente de novo.");
+                      router.refresh();
+                      return;
+                    }
+                    setDeals((prev) => prev.filter((d) => d.id !== alvo.id));
+                    setDealParaExcluir(null);
+                    toast.success(
+                      r.jaExcluido
+                        ? `Exclusão de ${alvo.athlete_name} concluída.`
+                        : `Lead ${alvo.athlete_name} excluído.`,
+                    );
+                    if (r.aviso) toast.warning(r.aviso);
+                    router.refresh();
                   });
                 }}
                 disabled={excluindoLead}

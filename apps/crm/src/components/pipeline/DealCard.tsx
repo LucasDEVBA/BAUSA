@@ -13,6 +13,15 @@ import {
 } from "@/lib/etapas-deal";
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import {
+  ROTULO_ORIGEM_VALOR,
+  contratoAguardandoPlano,
+  explicarOrigemValor,
+  formatarValorDeal,
+  sinalPagoAntesDoPlano,
+  textoPrevisaoDoSinal,
+  textoSinalAntesDoPlano,
+} from "@/lib/valor-deal";
 
 /** Timing fora da janela ideal — badge lateral (a coluna aguardando_timing
  *  saiu do board em 2026-08-11; o motivo continua visível no card). */
@@ -39,9 +48,80 @@ interface DealCardProps {
   stageConfig?: DealStageConfigMap;
   /** Excluir o LEAD inteiro (soft delete em cascata) direto do card. */
   onExcluir?: () => void;
+  /** Clique no VALOR (T3): sem contrato abre a customização; com contrato, a
+   *  aba do contrato. Ausente (sem permissão) = valor só leitura. */
+  onValorClick?: () => void;
 }
 
-export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, onExcluir }: DealCardProps) {
+/** "≈ R$ 22.000 estimado" / "R$ 24.000 negociado" / "R$ 26.000" (contrato).
+ *  Sinal pago antes do plano (T11): "Sinal R$ X pago · total a definir" com a
+ *  previsão embaixo — o número somado na coluna continua sendo deal_value_brl. */
+function ValorDoCard({ deal }: { deal: Deal }) {
+  const origem = deal.valor_origem ?? "estimado";
+  const sinalAntesDoPlano = sinalPagoAntesDoPlano(deal);
+  if (sinalAntesDoPlano !== null) {
+    const previsao = textoPrevisaoDoSinal(deal);
+    return (
+      <span className="flex min-w-0 flex-col">
+        {/* 2 linhas, não truncate: "total a definir" é o critério do T11 e
+            não cabe em 1 linha ao lado do tempo na etapa (coluna de 252px). */}
+        <span className="line-clamp-2 text-[11px] font-semibold leading-tight tabular-nums text-sys-green">
+          {textoSinalAntesDoPlano(sinalAntesDoPlano)}
+        </span>
+        {previsao && (
+          <span className="truncate text-[9px] tabular-nums text-muted-foreground">{previsao}</span>
+        )}
+      </span>
+    );
+  }
+  return (
+    <>
+      <span
+        className={cn(
+          "truncate text-[11px] font-semibold tabular-nums",
+          origem === "estimado" ? "text-muted-foreground" : "text-foreground",
+        )}
+      >
+        {formatarValorDeal(deal.deal_value_brl, origem)}
+      </span>
+      {origem !== "contratado" && (
+        <span
+          className={cn(
+            "shrink-0 text-[9px] font-medium",
+            origem === "negociado" ? "text-sys-orange" : "text-muted-foreground",
+          )}
+        >
+          {ROTULO_ORIGEM_VALOR[origem]}
+        </span>
+      )}
+    </>
+  );
+}
+
+// O nome acessível começa pelo texto VISÍVEL (WCAG 2.5.3): quem usa comando
+// de voz fala o que vê no card.
+function rotuloAcessivelValor(deal: Deal): string {
+  const sinalAntesDoPlano = sinalPagoAntesDoPlano(deal);
+  if (sinalAntesDoPlano !== null) {
+    const previsao = textoPrevisaoDoSinal(deal);
+    return `${textoSinalAntesDoPlano(sinalAntesDoPlano)}${previsao ? `, ${previsao}` : ""} — definir valor negociado`;
+  }
+  const origem = deal.valor_origem ?? "estimado";
+  const valor = formatarValorDeal(deal.deal_value_brl, origem);
+  if (!(deal.deal_value_brl > 0)) return `${valor} — definir valor negociado`;
+  if (origem === "contratado") return `${valor} — valor do contrato, abrir contrato`;
+  if (origem === "negociado") return `${valor} negociado — editar valor`;
+  return `${valor} estimado — definir valor negociado`;
+}
+
+export function DealCard({
+  deal,
+  isDragging,
+  onClick,
+  stageConfig: configMap,
+  onExcluir,
+  onValorClick,
+}: DealCardProps) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: deal.id,
   });
@@ -62,6 +142,10 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, on
     ? PRODUCT_TIER_STYLES[deal.product_tier]
     : null;
   const isQualified = deal.qualificado_gemini === true;
+  const sinalRecebido = deal.signal_value_brl ?? 0;
+  const aguardandoPlano = contratoAguardandoPlano(deal);
+  // Com o sinal antes do plano, ele já é o texto principal da linha do valor.
+  const sinalNoValor = sinalPagoAntesDoPlano(deal) !== null;
 
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = deal.next_action_date && deal.next_action_date < today;
@@ -149,14 +233,44 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, on
             {deal.product_tier}
           </span>
         )}
+        {aguardandoPlano && (
+          <span
+            className="shrink-0 rounded-sm border border-border bg-secondary px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
+            title={
+              sinalRecebido > 0
+                ? "Sinal registrado — plano ainda não escolhido"
+                : "Contrato aguardando a escolha do plano"
+            }
+          >
+            A definir
+          </span>
+        )}
       </div>
 
-      {/* Linha 3: valor + estado */}
+      {/* Linha 3: valor (contrato > negociado > estimado) + tempo na etapa.
+          O botão do valor não dispara drag (pointerdown) nem o clique do card. */}
       <div className="mt-1.5 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold tabular-nums text-foreground">
-          R$ {deal.deal_value_brl.toLocaleString("pt-BR")}
-        </span>
-        <span className="flex items-center gap-1 text-[10px] tabular-nums text-muted-foreground">
+        {onValorClick ? (
+          <button
+            type="button"
+            draggable={false}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onValorClick();
+            }}
+            title={explicarOrigemValor(deal)}
+            aria-label={rotuloAcessivelValor(deal)}
+            className="-mx-1 flex min-w-0 items-baseline gap-1 rounded px-1 py-0.5 text-left transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ValorDoCard deal={deal} />
+          </button>
+        ) : (
+          <span className="flex min-w-0 items-baseline gap-1" title={explicarOrigemValor(deal)}>
+            <ValorDoCard deal={deal} />
+          </span>
+        )}
+        <span className="flex shrink-0 items-center gap-1 text-[10px] tabular-nums text-muted-foreground">
           <Clock className="h-2.5 w-2.5" />
           {timeInStage}
         </span>
@@ -177,19 +291,26 @@ export function DealCard({ deal, isDragging, onClick, stageConfig: configMap, on
         </p>
       )}
 
-      {/* Barra financeira (apenas em estágios pós-contrato) */}
-      {stageConfig.isFinancial &&
-        deal.signal_value_brl &&
-        deal.deal_value_brl > 0 && (
-          <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-secondary">
-            <div
-              className="h-full rounded-full bg-sys-green"
-              style={{
-                width: `${Math.round((deal.signal_value_brl / deal.deal_value_brl) * 100)}%`,
-              }}
-            />
-          </div>
-        )}
+      {/* Sinal recebido (soma das parcelas de entrada RECEBIDAS — T3). O texto
+          não depende do valor (lead sem faixa também paga sinal); só a barra
+          precisa de um total para comparar. */}
+      {sinalRecebido > 0 && !sinalNoValor && (
+        <div className="mt-1.5">
+          <p className="text-[9px] tabular-nums text-sys-green">
+            Sinal R$ {Math.round(sinalRecebido).toLocaleString("pt-BR")}
+          </p>
+          {deal.deal_value_brl > 0 && (
+            <div aria-hidden className="mt-0.5 h-0.5 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-sys-green"
+                style={{
+                  width: `${Math.min(100, Math.round((sinalRecebido / deal.deal_value_brl) * 100))}%`,
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Mini badges em rodapé (prioridade/timing/qualif/retroc) */}
       {(prioridade || timing || isQualified || deal.flag_retrocedido) && (

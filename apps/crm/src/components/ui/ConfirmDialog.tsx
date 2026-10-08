@@ -11,6 +11,7 @@ import {
 } from "react";
 import { AlertTriangle, HelpCircle } from "lucide-react";
 
+import { travarRolagem } from "@/lib/trava-rolagem";
 import { cn } from "@/lib/utils";
 import { Button } from "./Button";
 
@@ -104,15 +105,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   // Trava a rolagem do fundo enquanto aberto. O scroller do dashboard é o
   // <main> (não o <body>), então miramos ele — espelha o BuilderScreen no
   // elemento certo. No-op se não houver <main> (ex.: fora do layout).
+  // Trava com contador: sheets por baixo travam o MESMO <main> e podem
+  // fechar no mesmo commit que este diálogo.
   useEffect(() => {
     if (!pending) return;
     const scroller = document.querySelector("main");
     if (!scroller) return;
-    const anterior = scroller.style.overflow;
-    scroller.style.overflow = "hidden";
-    return () => {
-      scroller.style.overflow = anterior;
-    };
+    return travarRolagem(scroller);
   }, [pending]);
 
   return (

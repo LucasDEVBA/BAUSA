@@ -59,6 +59,8 @@ export function formatInvestmentRange(code: string): string {
     "40k-50k": "US$ 40k – 50k/ano",
     "50k-70k": "US$ 50k – 70k/ano",
     "over-70k": "Acima de US$ 70k/ano",
+    // Só no cadastro manual (/leads/novo) — o formulário público começa em 15k
+    "abaixo-15k": "Abaixo de US$ 15k/ano",
   };
   return map[code] ?? code;
 }

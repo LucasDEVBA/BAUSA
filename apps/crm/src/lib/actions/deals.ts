@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
 import { ETAPA_ORDEM, type StatusDeal } from "@/types/crm";
@@ -11,6 +12,7 @@ import {
 } from "@/lib/move-deal-result";
 import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
 import { registrarEventoGamificacao } from "@/lib/gamificacao";
+import { JUSTIFICATIVA_VALOR_MAX, VALOR_DEAL_MAXIMO } from "@/lib/valor-deal";
 
 // Destinos que nunca pontuam XP mesmo com ordem maior: perdas e
 // estacionamentos têm ordem alta em ETAPA_ORDEM mas não são progresso.
@@ -320,39 +322,108 @@ export async function moverDeal(
   return okMove(dealId, novaEtapa, gamificacao);
 }
 
+const customizarValorSchema = z.object({
+  dealId: z.string().trim().min(1, "Deal inválido."),
+  // Zod 4: z.number() já rejeita NaN/Infinity
+  novoValor: z
+    .number({ error: "Valor inválido." })
+    .positive("Valor deve ser maior que zero.")
+    .max(VALOR_DEAL_MAXIMO, "Valor acima do limite (R$ 1.000.000) — confira os dígitos."),
+  justificativa: z
+    .string()
+    .trim()
+    .min(1, "Justificativa obrigatória.")
+    .max(JUSTIFICATIVA_VALOR_MAX, `Justificativa com no máximo ${JUSTIFICATIVA_VALOR_MAX} caracteres.`),
+});
+
+export type CustomizarValorErro =
+  | "PERMISSAO"
+  | "VALIDACAO"
+  | "NAO_ENCONTRADO"
+  | "TEM_CONTRATO"
+  | "ERRO";
+
+export interface CustomizarValorResult {
+  success: boolean;
+  error?: string;
+  code?: CustomizarValorErro;
+}
+
+/**
+ * Valor NEGOCIADO do deal (sem contrato). Regra 3: justificativa obrigatória,
+ * gravada no deal + audit trail. Com contrato vigente o valor exibido É o do
+ * contrato (lib/valor-deal): customizar aqui criaria deal ≠ contrato, então
+ * recusa com TEM_CONTRATO e a UI leva à aba do contrato (T3/T9).
+ */
 export async function customizarValorDeal(
   dealId: string,
   novoValor: number,
   justificativa: string,
-) {
+): Promise<CustomizarValorResult> {
   const papel = await getUserPapel();
   if (papel !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode customizar valores." };
+    return { success: false, code: "PERMISSAO", error: "Apenas o CEO pode customizar valores." };
   }
 
-  if (!justificativa.trim()) {
-    return { success: false, error: "Justificativa obrigatoria." };
+  const parsed = customizarValorSchema.safeParse({ dealId, novoValor, justificativa });
+  if (!parsed.success) {
+    return { success: false, code: "VALIDACAO", error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
-
-  if (novoValor <= 0) {
-    return { success: false, error: "Valor deve ser maior que zero." };
-  }
+  const dados = parsed.data;
 
   const supabase = await createAuditedSupabaseClient();
 
-  const { error } = await supabase
-    .from("deals")
-    .update({
-      valor_estimado: novoValor,
-      flag_valores_customizados: true,
-      justificativa_customizacao: justificativa,
-    })
-    .eq("id", dealId);
-
-  if (error) {
-    return { success: false, error: error.message };
+  // Contrato vigente com plano e valor ⇒ o valor é do contrato. "Aguardando
+  // plano" (plano nulo / valor 0 — T11) não bloqueia: ainda é negociação.
+  const { data: contrato, error: contratoErr } = await supabase
+    .from("contratos_financeiros")
+    .select("id, plano, valor_total")
+    .eq("deal_id", dados.dealId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (contratoErr) {
+    console.error(JSON.stringify({
+      level: "error",
+      action: "customizar_valor_deal_contrato_falhou",
+      dealId: dados.dealId,
+      message: contratoErr.message,
+    }));
+    return { success: false, code: "ERRO", error: "Não foi possível conferir o contrato. Tente de novo." };
+  }
+  const contratoRow = contrato as { plano: string | null; valor_total: number | string | null } | null;
+  if (contratoRow?.plano && Number(contratoRow.valor_total) > 0) {
+    return {
+      success: false,
+      code: "TEM_CONTRATO",
+      error: "Este deal tem contrato: o valor vem do contrato (veja a aba do contrato).",
+    };
   }
 
+  const { data: atualizados, error } = await supabase
+    .from("deals")
+    .update({
+      valor_estimado: dados.novoValor,
+      flag_valores_customizados: true,
+      justificativa_customizacao: dados.justificativa,
+    })
+    .eq("id", dados.dealId)
+    .is("deleted_at", null)
+    .select("id");
+
+  if (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      action: "customizar_valor_deal_update_falhou",
+      dealId: dados.dealId,
+      message: error.message,
+    }));
+    return { success: false, code: "ERRO", error: "Não foi possível salvar o valor. Tente de novo." };
+  }
+  if (!atualizados || atualizados.length === 0) {
+    return { success: false, code: "NAO_ENCONTRADO", error: "Deal não encontrado (excluído?)." };
+  }
+
+  revalidatePath("/pipeline");
   return { success: true };
 }
 

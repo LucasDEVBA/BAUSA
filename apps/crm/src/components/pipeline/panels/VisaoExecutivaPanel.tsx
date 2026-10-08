@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Target,
   TrendingUp,
@@ -9,7 +10,9 @@ import {
   Sparkles,
 } from "lucide-react";
 import { type Deal, DEAL_STAGE_CONFIG } from "@/types/deal";
-import { cn } from "@/lib/utils";
+import { cn, formatInvestmentRange } from "@/lib/utils";
+import { explicarOrigemValor, formatarValorDeal } from "@/lib/valor-deal";
+import { CustomizarValorModal } from "@/components/pipeline/CustomizarValorModal";
 import {
   MinimalCard,
   MinimalField,
@@ -20,7 +23,19 @@ import { ClassificadorV2Resumo } from "@/components/leads/ClassificadorV2Resumo"
 
 interface Props {
   deal: Deal;
+  /** CEO edita o valor daqui (T3). Padrão: só leitura. */
+  podeEditarValor?: boolean;
+  /** Deal com contrato: o clique no valor leva à aba do contrato. */
+  onAbrirContrato?: () => void;
+  /** Após salvar o valor (quem busca o deal no cliente rebusca). */
+  onValorAtualizado?: () => void;
 }
+
+const LABEL_VALOR: Record<NonNullable<Deal["valor_origem"]>, string> = {
+  contratado: "Valor · contrato",
+  negociado: "Valor · negociado",
+  estimado: "Valor · estimado",
+};
 
 function fmtBRL(value: number | undefined): string {
   if (value == null) return "—";
@@ -37,8 +52,34 @@ function diasEntre(iso: string | undefined): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 }
 
-export function VisaoExecutivaPanel({ deal }: Props) {
+export function VisaoExecutivaPanel({
+  deal,
+  podeEditarValor = false,
+  onAbrirContrato,
+  onValorAtualizado,
+}: Props) {
+  const [customizando, setCustomizando] = useState(false);
   const stageCfg = DEAL_STAGE_CONFIG[deal.stage];
+  const origem = deal.valor_origem ?? "estimado";
+  const hintValor =
+    origem === "contratado"
+      ? deal.product_tier
+        ? `Plano ${deal.product_tier}${podeEditarValor ? " · ver contrato" : ""}`
+        : "Do contrato"
+      : origem === "negociado"
+        ? "Com justificativa no histórico"
+        : podeEditarValor
+          ? "Pela faixa · toque para ajustar"
+          : "Pela faixa do formulário";
+  const statValor = (
+    <MinimalStat
+      label={LABEL_VALOR[origem]}
+      value={formatarValorDeal(deal.deal_value_brl, origem)}
+      tone={origem === "negociado" ? "orange" : "default"}
+      hint={hintValor}
+      as={podeEditarValor ? "span" : "div"}
+    />
+  );
   const diasEtapa = diasEntre(deal.stage_updated_at);
   const diasCriacao = diasEntre(deal.created_at);
 
@@ -86,7 +127,21 @@ export function VisaoExecutivaPanel({ deal }: Props) {
     <div className="flex flex-col gap-3">
       {/* KPIs principais */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <MinimalStat label="Valor BRL" value={fmtBRL(deal.deal_value_brl)} />
+        {podeEditarValor ? (
+          <button
+            type="button"
+            onClick={() => (origem === "contratado" ? onAbrirContrato?.() : setCustomizando(true))}
+            title={explicarOrigemValor(deal)}
+            aria-label={`${LABEL_VALOR[origem]}: ${formatarValorDeal(deal.deal_value_brl, origem).replace("≈ ", "aproximadamente ")}. ${
+              origem === "contratado" ? "Abrir contrato" : "Editar valor"
+            }`}
+            className="rounded-md text-left transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {statValor}
+          </button>
+        ) : (
+          <div title={explicarOrigemValor(deal)}>{statValor}</div>
+        )}
         <MinimalStat
           label="Classificação"
           value={deal.classification ?? "—"}
@@ -144,7 +199,10 @@ export function VisaoExecutivaPanel({ deal }: Props) {
             }
           />
           <MinimalField label="Responsável" value={deal.consultant} />
-          <MinimalField label="Plano" value={deal.product_tier} />
+          <MinimalField
+            label="Plano"
+            value={deal.product_tier ?? (deal.contrato_id ? "Aguardando plano" : null)}
+          />
         </dl>
       </MinimalCard>
 
@@ -240,7 +298,10 @@ export function VisaoExecutivaPanel({ deal }: Props) {
           <MinimalField label="Esporte" value={deal.esporte} />
           <MinimalField label="Posição" value={deal.athlete_position} />
           <MinimalField label="Cidade/Estado" value={deal.cidade_estado} />
-          <MinimalField label="Investimento" value={deal.investment_range} />
+          <MinimalField
+            label="Investimento"
+            value={deal.investment_range ? formatInvestmentRange(deal.investment_range) : null}
+          />
           <MinimalField label="WhatsApp" value={deal.whatsapp} />
           <MinimalField
             label="E-mail responsável"
@@ -249,16 +310,16 @@ export function VisaoExecutivaPanel({ deal }: Props) {
         </dl>
       </MinimalCard>
 
-      {/* Stats financeiros (se houver) */}
-      {(deal.signal_value_brl || deal.remaining_value_brl) && (
+      {/* Stats financeiros — só com contrato (sinal recebido / saldo a receber) */}
+      {(deal.signal_value_brl != null || deal.remaining_value_brl != null) && (
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
           <MinimalStat
-            label="Sinal BRL"
+            label="Sinal recebido"
             value={fmtBRL(deal.signal_value_brl)}
             tone="green"
           />
           <MinimalStat
-            label="Saldo BRL"
+            label="Saldo a receber"
             value={fmtBRL(deal.remaining_value_brl)}
             tone="blue"
           />
@@ -274,6 +335,22 @@ export function VisaoExecutivaPanel({ deal }: Props) {
         </div>
       )}
 
+      {customizando && (
+        <CustomizarValorModal
+          dealId={deal.id}
+          athleteName={deal.athlete_name}
+          valorAtual={deal.deal_value_brl}
+          jaCustomizado={deal.flag_valores_customizados}
+          origem={deal.valor_origem}
+          explicacaoOrigem={explicarOrigemValor(deal)}
+          onClose={() => setCustomizando(false)}
+          onSaved={onValorAtualizado}
+          onTemContrato={() => {
+            setCustomizando(false);
+            onAbrirContrato?.();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { LayoutGrid, List, Search, X } from "lucide-react";
 import type { LeadClassification } from "@/types/lead";
 import type { ProductTier } from "@/types/deal";
 import { PipelineSortMenu, type PipelineSortMode } from "./PipelineSortMenu";
+import { BUSCA_PIPELINE_MAX } from "@/lib/revisao-leads";
 import { cn } from "@/lib/utils";
 
 export type PipelineView = "kanban" | "tabela";
@@ -54,6 +55,7 @@ const PLANO_OPTIONS: Array<{ value: PipelineFiltersState["plano"]; label: string
   { value: "Legacy", label: "Legacy" },
   { value: "Journey", label: "Journey" },
   { value: "Start", label: "Start" },
+  { value: "Personalizado", label: "Personalizado" },
 ];
 
 export function emptyPipelineFilters(): PipelineFiltersState {
@@ -120,20 +122,24 @@ export function PipelineFiltersBar({
   return (
     <div className="mb-3 flex flex-wrap items-center gap-1.5">
       {/* Busca */}
-      <div className="relative flex items-center">
-        <Search className="absolute left-2 h-3 w-3 text-muted-foreground" />
+      <div className="relative flex w-full items-center sm:w-auto">
+        <Search aria-hidden className="absolute left-2 h-3 w-3 text-muted-foreground" />
         <input
           type="text"
           value={filters.search}
+          maxLength={BUSCA_PIPELINE_MAX}
           onChange={(e) =>
             onFiltersChange({ ...filters, search: e.target.value })
           }
-          placeholder="Buscar…"
-          className="h-7 w-48 rounded-md border border-border bg-background pl-6 pr-6 text-[11px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/40"
+          placeholder="Buscar nome, responsável, e-mail…"
+          aria-label="Buscar no pipeline por atleta, responsável, e-mail ou telefone (busca também fora do board)"
+          className="h-7 w-full min-w-0 rounded-md sm:w-56 border border-border bg-background pl-6 pr-6 text-[11px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/40"
         />
         {filters.search && (
           <button
+            type="button"
             onClick={() => onFiltersChange({ ...filters, search: "" })}
+            aria-label="Limpar busca"
             className="absolute right-1 rounded p-0.5 text-muted-foreground hover:bg-secondary"
           >
             <X className="h-3 w-3" />

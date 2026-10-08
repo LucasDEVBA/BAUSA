@@ -21,12 +21,28 @@ const path = require('node:path');
 const raiz = path.join(__dirname, '..');
 const ler = (...p) => fs.readFileSync(path.join(raiz, ...p), 'utf8');
 
+// Migrations achadas pelo SUFIXO (PLANO.md §3): o timestamp pode ser
+// re-carimbado na hora do merge — `supabase db push` sem --include-all exige
+// versões crescentes — e o guard não pode depender do número.
+const lerMigration = (sufixo) => {
+  const dir = path.join(raiz, 'supabase', 'migrations');
+  const achadas = fs.readdirSync(dir).filter((n) => n.endsWith(sufixo));
+  if (achadas.length !== 1) {
+    throw new Error(`esperava exatamente 1 migration *${sufixo}, achei ${achadas.length}`);
+  }
+  return fs.readFileSync(path.join(dir, achadas[0]), 'utf8');
+};
+
+
 const migSrc = ler('supabase', 'migrations', '20260904120000_colunas_custom_frios_timing.sql');
 const leadsSrc = ler('apps', 'crm', 'src', 'lib', 'actions', 'leads.ts');
 const dealsSrc = ler('apps', 'crm', 'src', 'lib', 'actions', 'deals.ts');
 const etapasSrc = ler('apps', 'crm', 'src', 'lib', 'etapas-deal.ts');
 const etapasActionSrc = ler('apps', 'crm', 'src', 'lib', 'actions', 'etapas-pipeline.ts');
 const tiposDealSrc = ler('apps', 'crm', 'src', 'types', 'deal.ts');
+// T7 (2026-10-08): janelas e paginação das revisões moram no módulo comum.
+const revisaoSrc = ler('apps', 'crm', 'src', 'lib', 'revisao-leads.ts');
+const migVisibilidadeSrc = lerMigration('_vw_cadastros_situacao.sql');
 
 test('coluna Frios: FRIO continua fora da fila — resgate explícito e guardado', () => {
   // A fila NÃO relaxou o filtro de classe
@@ -43,15 +59,27 @@ test('coluna Frios: FRIO continua fora da fila — resgate explícito e guardado
   assert.match(fn, /\.is\("aprovacao_status", null\)/,
     'resgate não pode sobrescrever decisão humana');
   // Listagem: só FRIO sem decisão, janela recente, sem deal ativo
-  assert.match(leadsSrc, /FRIOS_REVISAO_DIAS = 90/, 'janela de revisão mudou');
-  assert.match(leadsSrc, /!deals\.some\(\(d\) => d\.deleted_at === null\)/,
+  assert.match(revisaoSrc, /export const FRIOS_REVISAO_DIAS = 90;/, 'janela de revisão mudou');
+  // T7 (2026-10-08): o filtro "sem deal ativo" é NO BANCO, ANTES do range —
+  // antes era no Node DEPOIS do .limit(80) e 114 de 194 FRIOs sumiam.
+  const consulta = leadsSrc.slice(
+    leadsSrc.indexOf('function consultarRevisao('),
+    leadsSrc.indexOf('async function paginaCardsRevisao'));
+  assert.match(consulta, /\.from\("vw_cadastros_situacao"\)/, 'revisão deixou de ler a view de situação');
+  assert.match(consulta, /\.is\("aprovacao_status", null\)/, 'lead decidido não pode voltar à revisão');
+  assert.match(consulta, /\.eq\("tem_deal_ativo", false\)/,
     'FRIO com deal ativo (rebaixados em Perdido) não pode duplicar no board');
+  assert.ok(!/\.limit\(/.test(consulta), 'limite antes do filtro de deal voltou (bug das 80)');
+  assert.match(migVisibilidadeSrc, /\(d\.deal_id IS NOT NULL\) AS tem_deal_ativo/, 'tem_deal_ativo mudou de semântica');
+  assert.match(migVisibilidadeSrc, /dl\.deleted_at IS NULL/, 'deal excluído não pode contar como ativo');
+  const frios = leadsSrc.slice(
+    leadsSrc.indexOf('export async function listarLeadsFriosCards'),
+    leadsSrc.indexOf('export async function listarLeadsFriosDetalhe'));
+  assert.match(frios, /paginaCardsRevisao<LeadFrioCard>\("FRIO", FRIOS_REVISAO_DIAS/, 'recorte de classe/janela dos Frios mudou');
   // Incidente 2026-09-05: o embed 1:1 de atletas volta OBJETO — flatMap em
-  // objeto derrubou /pipeline em PRD. A normalização é obrigatória.
+  // objeto derrubou /pipeline em PRD. Onde ainda há embed, normalizar sempre.
   assert.match(leadsSrc, /Array\.isArray\(v\) \? v : v \? \[v\] : \[\]/,
     'normalização objeto/array do embed sumiu — flatMap em objeto derruba a página');
-  assert.match(leadsSrc, /asArray\(row\.atletas\)\.flatMap\(\(a\) => asArray\(a\.deals\)\)/,
-    'as duas camadas do embed precisam ser normalizadas');
 });
 
 test('enum: seis slots custom adicionados de forma idempotente', () => {
@@ -184,10 +212,16 @@ test('incompletos: listagem tem recorte próprio e não duplica lead resgatado',
   const fn = leadsSrc.slice(
     leadsSrc.indexOf('export async function listarLeadsIncompletosCards'),
     leadsSrc.indexOf('export async function listarLeadsIncompletosDetalhe'));
-  assert.match(fn, /\.eq\("qualification_classification", "INCOMPLETO"\)/, 'recorte de classe sumiu');
-  assert.match(fn, /\.is\("aprovacao_status", null\)/, 'lead decidido não pode voltar à revisão');
-  assert.match(fn, /asArray\(row\.atletas\)\.flatMap/,
-    'normalização do embed 1:1 sumiu (classe do incidente 2026-09-05)');
+  assert.match(fn, /paginaCardsRevisao<LeadIncompletoCard>\("INCOMPLETO", INCOMPLETOS_REVISAO_DIAS/,
+    'recorte de classe/janela dos Incompletos mudou');
+  assert.match(revisaoSrc, /export const INCOMPLETOS_REVISAO_DIAS = 90;/, 'janela dos Incompletos mudou');
+  // classe + sem decisão + sem deal ativo vêm de consultarRevisao (mesmo
+  // recorte dos Frios, conferido no teste acima) — o resgate cria deal e o
+  // lead resgatado não pode duplicar no board.
+  const consulta = leadsSrc.slice(
+    leadsSrc.indexOf('function consultarRevisao('),
+    leadsSrc.indexOf('async function paginaCardsRevisao'));
+  assert.match(consulta, /\.eq\("qualification_classification", classe\)/, 'recorte de classe sumiu');
   const board2 = ler('apps', 'crm', 'src', 'components', 'pipeline', 'PipelineBoard.tsx');
   assert.match(board2, /modo="incompletos"/, 'modal em modo incompletos sumiu do board');
   assert.match(board2, /<IncompletosColumn/, 'coluna Incompletos sumiu do board');

@@ -1,5 +1,6 @@
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { EMBED_CONTRATO_VALOR_LEVE, valorExibidoDeal } from "@/lib/valor-deal";
 import { RelatoriosClient } from "./client";
 
 async function fetchReportData() {
@@ -8,7 +9,9 @@ async function fetchReportData() {
   // --- Comercial ---
   const { data: deals } = await supabase
     .from("deals")
-    .select("id, etapa, valor_estimado, created_at, safra, atleta:atletas(lead_classificacao, nome_completo)")
+    .select(
+      `id, etapa, valor_estimado, flag_valores_customizados, created_at, safra, atleta:atletas(lead_classificacao, nome_completo), ${EMBED_CONTRATO_VALOR_LEVE}`,
+    )
     .is("deleted_at", null);
 
   const allDeals = deals || [];
@@ -28,7 +31,7 @@ async function fetchReportData() {
   for (const d of allDeals) {
     if (!dealsByEtapa[d.etapa]) dealsByEtapa[d.etapa] = { count: 0, total: 0 };
     dealsByEtapa[d.etapa].count += 1;
-    dealsByEtapa[d.etapa].total += Number(d.valor_estimado) || 0;
+    dealsByEtapa[d.etapa].total += valorExibidoDeal(d);
   }
 
   // Deals by classification
@@ -192,7 +195,7 @@ async function fetchReportData() {
         d.etapa === "concluido"
     );
     const totalRevenue = safraDeals.reduce(
-      (s, d) => s + (Number(d.valor_estimado) || 0),
+      (s, d) => s + (valorExibidoDeal(d)),
       0
     );
     safraData[safra] = {

@@ -2,6 +2,11 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
 import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
 import { mergeJourneyConfig } from "@/lib/fases-familia";
+import {
+  EMBED_CONTRATO_VALOR_LEVE,
+  valorExibidoDeal,
+  type ContratoValorEmbed,
+} from "@/lib/valor-deal";
 import { FamiliasConsolidadasClient } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +59,8 @@ export default async function FamiliasPage() {
     atleta_id: string | null;
     etapa: string | null;
     valor_estimado: number | null;
+    flag_valores_customizados: boolean | null;
+    contrato: ContratoValorEmbed | ContratoValorEmbed[] | null;
   };
   type ResponsavelRow = {
     id: string;
@@ -133,7 +140,7 @@ export default async function FamiliasPage() {
   // ─── 4. Deals desses atletas (para etapa + valor) ──
   const { data: dealsData } = await supabase
     .from("deals")
-    .select("id, atleta_id, etapa, valor_estimado")
+    .select(`id, atleta_id, etapa, valor_estimado, flag_valores_customizados, ${EMBED_CONTRATO_VALOR_LEVE}`)
     .in("atleta_id", atletaIdsComExperiencia)
     .is("deleted_at", null);
   const deals = (dealsData ?? []) as DealRow[];
@@ -159,14 +166,15 @@ export default async function FamiliasPage() {
     const atletasMapped = atletasResp.map((a) => {
       const deal = dealByAtleta.get(a.id);
       const exp = expByAtleta.get(a.id);
+      // contrato > negociado > estimado (T3) — família pós-venda tem contrato
+      const valorDeal = deal ? valorExibidoDeal(deal) : 0;
       return {
         id: a.id,
         nome_completo: a.nome_completo ?? "Atleta",
         classificacao: a.lead_classificacao ?? null,
         etapa: deal?.etapa ?? null,
         lead_score: a.lead_score != null ? Number(a.lead_score) : null,
-        deal_valor:
-          deal?.valor_estimado != null ? Number(deal.valor_estimado) : null,
+        deal_valor: valorDeal > 0 ? valorDeal : null,
         experiencia_id: exp?.id ?? null,
         fase: exp?.fase ?? null,
         temperatura: exp?.temperatura ?? null,
