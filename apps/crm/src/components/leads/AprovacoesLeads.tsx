@@ -46,7 +46,9 @@ import {
   reprovarFrio,
   reprovarIncompleto,
   reprovarLead,
+  type AprovarDaRevisaoResultado,
   type LeadPendenteAprovacao,
+  type ResultadoDetalheRevisao,
 } from "@/lib/actions/leads";
 import {
   DEFAULT_DEAL_STAGE_DISPLAY,
@@ -146,7 +148,7 @@ function Campo({ label, children, wide }: { label: string; children: React.React
   );
 }
 
-type PaginaDetalhe = { success: true; leads: LeadPendenteAprovacao[]; total: number; proximoOffset: number };
+type PaginaDetalhe = Extract<ResultadoDetalheRevisao, { success: true }>;
 
 /** Revisão de Frios/Incompletos vem paginada (T7); fila e muito cedo, não. */
 function ehPaginaDetalhe(r: { success: true; leads: LeadPendenteAprovacao[] }): r is PaginaDetalhe {
@@ -188,6 +190,9 @@ export function AprovacaoLeadsModal({
   // "Carregar mais". null = modo sem paginação (fila de aprovação/muito cedo).
   const [total, setTotal] = useState<number | null>(null);
   const [proximoOffset, setProximoOffset] = useState(0);
+  // Lead aberto pela faixa "Fora do pipeline" além da janela da revisão: está
+  // na lista, mas não no recorte da coluna (não conta no total nem no offset).
+  const [foraDoRecorte, setForaDoRecorte] = useState<ReadonlySet<string>>(() => new Set());
   const [carregandoMais, setCarregandoMais] = useState(false);
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [reprovando, setReprovando] = useState(false);
@@ -204,6 +209,9 @@ export function AprovacaoLeadsModal({
     () => leads.find((l) => l.id === selecionadoId) ?? null,
     [leads, selecionadoId],
   );
+  // "Carregar mais" mede só o recorte da coluna: o lead da faixa (fora da
+  // janela) contado aqui escondia o botão com 1 lead da janela por carregar.
+  const carregadosNoRecorte = leads.reduce((n, l) => (foraDoRecorte.has(l.id) ? n : n + 1), 0);
 
   useEffect(() => {
     let ativo = true;
@@ -225,6 +233,7 @@ export function AprovacaoLeadsModal({
           if (ehPaginaDetalhe(res)) {
             setTotal(res.total);
             setProximoOffset(res.proximoOffset);
+            setForaDoRecorte(new Set(res.foraDoRecorte));
           }
           const pedidoSumiu = Boolean(leadIdInicial) && !res.leads.some((l) => l.id === leadIdInicial);
           if (pedidoSumiu) {
@@ -291,16 +300,18 @@ export function AprovacaoLeadsModal({
     (id: string) => {
       const proxima = leads.filter((l) => l.id !== id);
       setLeads(proxima);
-      setTotal((t) => (t === null ? t : Math.max(0, t - 1)));
-      // O decidido saiu do recorte no servidor: a próxima página começa 1 antes.
-      setProximoOffset((o) => Math.max(0, o - 1));
+      if (!foraDoRecorte.has(id)) {
+        setTotal((t) => (t === null ? t : Math.max(0, t - 1)));
+        // O decidido saiu do recorte no servidor: a próxima página começa 1 antes.
+        setProximoOffset((o) => Math.max(0, o - 1));
+      }
       setSelecionadoId((atual) => (atual === id ? (proxima[0]?.id ?? null) : atual));
       setReprovando(false);
       setMotivo("");
       onDecidido(id);
       router.refresh();
     },
-    [leads, onDecidido, router],
+    [leads, foraDoRecorte, onDecidido, router],
   );
 
   const handleAprovar = (lead: LeadPendenteAprovacao) => {
@@ -336,7 +347,16 @@ export function AprovacaoLeadsModal({
     const origem = modo === "frios" ? "FRIO" : "INCOMPLETO";
     setAcaoEmCurso(semMensagem ? "aprovar_sem_msg" : "aprovar");
     startTransition(async () => {
-      const res = await aprovarLeadDaRevisao(lead.id, origem, { semMensagemAutomatica: semMensagem });
+      let res: AprovarDaRevisaoResultado;
+      try {
+        res = await aprovarLeadDaRevisao(lead.id, origem, { semMensagemAutomatica: semMensagem });
+      } catch {
+        // A resposta se perdeu, mas o servidor pode ter decidido: reler antes de agir de novo.
+        setAcaoEmCurso(null);
+        toast.error("Falha de rede ao aprovar — recarregando para mostrar onde o lead ficou. Confira antes de tentar de novo.");
+        router.refresh();
+        return;
+      }
       setAcaoEmCurso(null);
       if (res.success) {
         toast.success(`${lead.athlete_name} aprovado — deal em ${rotuloEtapa(res.etapa)}.`, {
@@ -344,7 +364,12 @@ export function AprovacaoLeadsModal({
             ? "Sem mensagem automática: nada será enviado (inicial, follow-ups, reabertura e retomada de novembro)."
             : "Mensagens seguem a regra da fila: convite inicial pelo agendador horário (22h após a qualificação) se o timing for ideal e não houver reunião.",
         });
-        if (res.aviso) toast.warning(res.aviso);
+        if (res.aviso) {
+          // O aviso do aprovarLead cita a etapa pela chave do enum (ex.: "reuniao_marcada")
+          // até o T17 traduzir no servidor — o CEO lê o nome da coluna.
+          const etapa = res.etapa;
+          toast.warning(etapa ? res.aviso.replaceAll(`"${etapa}"`, `"${rotuloEtapa(etapa)}"`) : res.aviso);
+        }
         celebrar(res.gamificacao, GAMIFICACAO_TIPO_LABEL.lead_aprovado);
         removerDaFila(lead.id);
         return;
@@ -560,7 +585,7 @@ export function AprovacaoLeadsModal({
                       <p className="mt-0.5 text-[11px] text-label-tertiary">Recebido {fmtData(l.submitted_at)}</p>
                     </button>
                   ))}
-                  {total !== null && leads.length < total && (
+                  {total !== null && carregadosNoRecorte < total && (
                     <button
                       type="button"
                       onClick={() => void carregarMais()}
@@ -568,7 +593,7 @@ export function AprovacaoLeadsModal({
                       className="flex w-full items-center justify-center gap-1.5 px-4 py-3 text-xs font-semibold text-primary transition-colors hover:bg-accent disabled:opacity-60"
                     >
                       {carregandoMais && <Loader2 aria-hidden className="size-3.5 animate-spin" />}
-                      {carregandoMais ? "Carregando…" : `Carregar mais (${total - leads.length} restantes)`}
+                      {carregandoMais ? "Carregando…" : `Carregar mais (${total - carregadosNoRecorte} restantes)`}
                     </button>
                   )}
                 </div>

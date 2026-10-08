@@ -498,6 +498,7 @@ const COLUNAS_CARD_REVISAO =
 type ClasseRevisao = "FRIO" | "INCOMPLETO";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MS_POR_DIA = 86_400_000;
 
 /**
  * Recorte das colunas de revisão (Frios/Incompletos) em
@@ -505,24 +506,27 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * ativo — tudo NO BANCO, antes do range (bug T7: o .limit(80) vinha antes do
  * filtro de deal, feito no Node; 114 de 194 FRIOs sumiam do board).
  * Reunião detectada primeiro (T13), depois o mais recente.
+ * `dias = null` tira SÓ a janela (lead fora dela aberto pela faixa "Fora do
+ * pipeline"); classe + sem decisão + sem deal ativo continuam valendo.
  */
 // SÍNCRONA de propósito: o builder do PostgREST é "thenable" — devolvido por
 // uma função async, ele seria EXECUTADO no await (e o .range() sumiria).
 function consultarRevisao(
   supabase: Awaited<ReturnType<typeof createAuditedSupabaseClient>>,
   classe: ClasseRevisao,
-  dias: number,
+  dias: number | null,
   colunas: string,
   contar: boolean,
 ) {
-  const corte = new Date(Date.now() - dias * 86400000).toISOString();
-  return supabase
+  const recorte = supabase
     .from("vw_cadastros_situacao")
     .select(colunas, contar ? { count: "exact" } : undefined)
     .eq("qualification_classification", classe)
     .is("aprovacao_status", null)
-    .gte("submitted_at", corte)
-    .eq("tem_deal_ativo", false)
+    .eq("tem_deal_ativo", false);
+  const comJanela =
+    dias === null ? recorte : recorte.gte("submitted_at", new Date(Date.now() - dias * MS_POR_DIA).toISOString());
+  return comJanela
     .order("meeting_scheduled", { ascending: false, nullsFirst: false })
     .order("submitted_at", { ascending: false })
     .order("id", { ascending: false });
@@ -545,20 +549,31 @@ async function paginaCardsRevisao<T>(
   return { success: true, itens: (data ?? []) as unknown as T[], total: count ?? 0 };
 }
 
+export type ResultadoDetalheRevisao =
+  | {
+      success: true;
+      leads: LeadPendenteAprovacao[];
+      /** Total do recorte da coluna (com a janela de dias) — base do "Carregar mais". */
+      total: number;
+      proximoOffset: number;
+      /** Mostrados FORA do recorte (garantirId além da janela, aberto pela faixa
+       *  "Fora do pipeline"): não contam no total nem no offset. */
+      foraDoRecorte: string[];
+    }
+  | { success: false; error: string };
+
 /**
  * Dossiê COMPLETO de uma página da revisão (modais Frios/Incompletos).
  * 1) ids da página na view (mesmo recorte das colunas); 2) se o card clicado
- * não está na página (veio de "Mostrar mais"), entra junto — o modal abre
- * SEMPRE no lead certo; 3) colunas completas em form_submissions por id.
+ * não está na página (veio de "Mostrar mais" ou da faixa "Fora do pipeline"),
+ * entra junto — o modal abre SEMPRE no lead certo; 3) colunas completas em
+ * form_submissions por id.
  */
 async function paginaDetalheRevisao(
   classe: ClasseRevisao,
   dias: number,
   opts: { offset?: number; garantirId?: string },
-): Promise<
-  | { success: true; leads: LeadPendenteAprovacao[]; total: number; proximoOffset: number }
-  | { success: false; error: string }
-> {
+): Promise<ResultadoDetalheRevisao> {
   const { offset } = paginacaoSegura(opts, DETALHE_REVISAO_PAGINA);
   // garantirId vem do client: só UUID chega ao filtro (senão é ignorado)
   const garantirId =
@@ -566,17 +581,32 @@ async function paginaDetalheRevisao(
   const supabase = await createAuditedSupabaseClient();
   const { data, error, count } = await consultarRevisao(supabase, classe, dias, "id", true)
     .range(offset, offset + DETALHE_REVISAO_PAGINA - 1);
-  if (error?.code === "PGRST103") return { success: true, leads: [], total: offset, proximoOffset: offset };
+  if (error?.code === "PGRST103") {
+    return { success: true, leads: [], total: offset, proximoOffset: offset, foraDoRecorte: [] };
+  }
   if (error) return { success: false, error: `Erro ao listar a revisão: ${error.message}` };
   const idsPagina = ((data ?? []) as unknown as { id: string }[]).map((r) => r.id);
   const ids = [...idsPagina];
+  const foraDoRecorte: string[] = [];
   if (garantirId && !ids.includes(garantirId)) {
-    const { data: alvo } = await consultarRevisao(supabase, classe, dias, "id", false)
+    // SEM a janela (T13/T12): a faixa "Fora do pipeline" abre aqui o FRIO/
+    // INCOMPLETO de mais de N dias para aprovar direto. Classe, sem decisão e
+    // sem deal ativo continuam exigidos (e o CAS da aprovação reconfere).
+    const { data: alvo, error: errAlvo } = await consultarRevisao(supabase, classe, null, "id, submitted_at", false)
       .eq("id", garantirId)
       .maybeSingle();
-    if (alvo) ids.unshift(garantirId);
+    if (errAlvo) {
+      console.error({ level: "warn", action: "revisao_garantir_lead_falhou", classe, error: errAlvo.message });
+    }
+    const alvoRow = alvo as unknown as { id: string; submitted_at: string } | null;
+    if (alvoRow) {
+      ids.unshift(garantirId);
+      if (Date.parse(alvoRow.submitted_at) < Date.now() - dias * MS_POR_DIA) foraDoRecorte.push(garantirId);
+    }
   }
-  if (ids.length === 0) return { success: true, leads: [], total: count ?? 0, proximoOffset: offset };
+  if (ids.length === 0) {
+    return { success: true, leads: [], total: count ?? 0, proximoOffset: offset, foraDoRecorte };
+  }
   const { data: rows, error: errRows } = await supabase
     .from("form_submissions")
     .select(COLUNAS_FILA_APROVACAO)
@@ -585,7 +615,13 @@ async function paginaDetalheRevisao(
   if (errRows) return { success: false, error: `Erro ao carregar o dossiê: ${errRows.message}` };
   const porId = new Map(((rows ?? []) as unknown as LeadPendenteAprovacao[]).map((r) => [r.id, r]));
   const leads = ids.map((id) => porId.get(id)).filter((l): l is LeadPendenteAprovacao => l !== undefined);
-  return { success: true, leads, total: count ?? leads.length, proximoOffset: offset + idsPagina.length };
+  return {
+    success: true,
+    leads,
+    total: count ?? leads.length,
+    proximoOffset: offset + idsPagina.length,
+    foraDoRecorte,
+  };
 }
 
 /**
@@ -610,10 +646,7 @@ export async function listarLeadsFriosCards(
  */
 export async function listarLeadsFriosDetalhe(
   opts: { offset?: number; garantirId?: string } = {},
-): Promise<
-  | { success: true; leads: LeadPendenteAprovacao[]; total: number; proximoOffset: number }
-  | { success: false; error: string }
-> {
+): Promise<ResultadoDetalheRevisao> {
   if ((await getUserPapel()) !== "ceo") {
     return { success: false, error: "Apenas CEO/CTO podem revisar leads frios." };
   }
@@ -1650,10 +1683,7 @@ export async function listarLeadsIncompletosCards(
  */
 export async function listarLeadsIncompletosDetalhe(
   opts: { offset?: number; garantirId?: string } = {},
-): Promise<
-  | { success: true; leads: LeadPendenteAprovacao[]; total: number; proximoOffset: number }
-  | { success: false; error: string }
-> {
+): Promise<ResultadoDetalheRevisao> {
   if ((await getUserPapel()) !== "ceo") {
     return { success: false, error: "Apenas CEO/CTO podem revisar leads incompletos." };
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
-import { FileText, Loader2, RotateCw, SearchX, UserCheck, UserPlus } from "lucide-react";
+import { FileText, Loader2, RotateCw, SearchX, UserCheck, UserCog, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge, type BadgeTone } from "@/components/ui";
@@ -35,8 +35,13 @@ interface ForaDoPipelineFaixaProps {
   motivoForaDaTela?: (item: CadastroEncontrado) => MotivoForaDaTela;
   rotuloEtapa: (etapa: string) => string;
   onAbrirDossie: (formSubmissionId: string) => void;
-  onAbrirRevisao: (modo: ModoRevisao, formSubmissionId: string) => void;
-  /** Depois de uma ação (enviar p/ fila): tira o card da coluna, refaz a busca e o board. */
+  /**
+   * Abre o modal de revisão/fila no lead. `aoDecidir` (só para lead FORA da
+   * coluna): o board chama no lugar de tirar o card da coluna quando o lead é
+   * decidido no modal — ele nunca esteve (nem conta) na coluna.
+   */
+  onAbrirRevisao: (modo: ModoRevisao, formSubmissionId: string, aoDecidir?: () => void) => void;
+  /** Depois de QUALQUER escrita (enviar p/ fila, aprovar/reprovar na revisão): tira o card da coluna, refaz a busca e o board. */
   onAtualizado: (item: CadastroEncontrado) => void;
   onTentarDeNovo: () => void;
 }
@@ -149,12 +154,21 @@ export function ForaDoPipelineFaixa({
   const linha = (item: CadastroEncontrado) => {
     const { titulo, detalhe } = descreverLocal(item, rotuloEtapa, motivoForaDaTela?.(item));
     const tipo = item.local.tipo;
-    const podeEnviarFila =
+    // FRIO/INCOMPLETO sem decisão e sem deal ativo: pode ir p/ fila ou ser aprovado na revisão.
+    const revisavel =
       item.aprovacao_status === null &&
       (item.qualification_classification === "FRIO" || item.qualification_classification === "INCOMPLETO") &&
       !item.deal_id;
     const modoRevisao: ModoRevisao | null =
       tipo === "coluna_aprovacao" ? "aprovacao" : tipo === "coluna_frios" ? "frios" : tipo === "coluna_incompletos" ? "incompletos" : null;
+    // T13/T12: FRIO/INCOMPLETO além da janela não tem coluna — a revisão
+    // (Aprovar lead / Aprovar sem mensagem) abre direto nele pelo garantirId.
+    const modoForaDaJanela: ModoRevisao | null =
+      tipo === "fora_janela" && revisavel
+        ? item.qualification_classification === "INCOMPLETO"
+          ? "incompletos"
+          : "frios"
+        : null;
     return (
       <li
         key={item.id}
@@ -189,6 +203,16 @@ export function ForaDoPipelineFaixa({
               <UserCheck aria-hidden className="size-3" />
               {modoRevisao === "aprovacao" ? "Abrir na fila" : "Abrir na revisão"}
             </button>
+          ) : modoForaDaJanela ? (
+            <button
+              type="button"
+              onClick={() => onAbrirRevisao(modoForaDaJanela, item.id, () => onAtualizado(item))}
+              title="Abre o dossiê com Aprovar lead, Aprovar sem mensagem e Reprovar"
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card px-2 text-[11px] font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              <UserCog aria-hidden className="size-3" />
+              Revisar e aprovar
+            </button>
           ) : (
             <button
               type="button"
@@ -199,7 +223,7 @@ export function ForaDoPipelineFaixa({
               Abrir dossiê
             </button>
           )}
-          {podeEnviarFila && (
+          {revisavel && (
             <button
               type="button"
               onClick={() => enviarParaFila(item)}

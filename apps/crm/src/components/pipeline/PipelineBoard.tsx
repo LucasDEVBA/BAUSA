@@ -300,7 +300,8 @@ export function PipelineBoard({
     view !== "kanban" ? "so_kanban" : idsCarregados.has(item.id) ? "filtrado" : "nao_carregado";
   const rotuloEtapa = (etapa: string): string =>
     isDealStage(etapa) ? stageConfig[etapa].label : labelEtapa(etapa);
-  const abrirRevisao = (modo: ModoRevisao, leadId: string) => {
+  const abrirRevisao = (modo: ModoRevisao, leadId: string, aoDecidir?: () => void) => {
+    setRevisaoForaDaColuna(aoDecidir ? { id: leadId, aoDecidir } : null);
     if (modo === "aprovacao") setLeadAprovacao(leadId);
     else if (modo === "frios") setFrioAberto(leadId);
     else setIncompletoAberto(leadId);
@@ -363,6 +364,10 @@ export function PipelineBoard({
   const [novaColunaAberta, setNovaColunaAberta] = useState(false);
   const [frioAberto, setFrioAberto] = useState<string | null>(null);
   const [incompletoAberto, setIncompletoAberto] = useState<string | null>(null);
+  // Lead aberto pela faixa FORA da coluna (FRIO/INCOMPLETO além da janela):
+  // decidido no modal, a faixa atualiza — tirar "da coluna" descontaria do
+  // total um lead que nunca contou nela.
+  const [revisaoForaDaColuna, setRevisaoForaDaColuna] = useState<{ id: string; aoDecidir: () => void } | null>(null);
   const [muitoCedoAberto, setMuitoCedoAberto] = useState<string | null>(null);
   const [leadAprovacao, setLeadAprovacao] = useState<string | null>(null);
   const [arrastandoColuna, setArrastandoColuna] = useState<DealStage | null>(null);
@@ -554,8 +559,10 @@ export function PipelineBoard({
           onAbrirDossie={(id) => void dossie.abrir(id)}
           onAbrirRevisao={abrirRevisao}
           onAtualizado={(item) => {
-            // "Enviar p/ fila" pela faixa: o card sai da coluna de revisão na
-            // hora (mesmo de página não carregada — desconta do total).
+            // "Enviar p/ fila" pela faixa (ou decisão no modal de um lead fora
+            // da janela): o card sai da coluna de revisão na hora (mesmo de
+            // página não carregada — desconta do total); fora da coluna, só
+            // refaz a busca e o board.
             if (item.local.tipo === "coluna_frios") frios.remover(item.id);
             else if (item.local.tipo === "coluna_incompletos") incompletos.remover(item.id);
             busca.recarregar();
@@ -714,8 +721,15 @@ export function PipelineBoard({
           modo="frios"
           stageConfig={stageConfig}
           leadIdInicial={frioAberto}
-          onClose={() => setFrioAberto(null)}
+          onClose={() => {
+            setFrioAberto(null);
+            setRevisaoForaDaColuna(null);
+          }}
           onDecidido={(id) => {
+            if (revisaoForaDaColuna?.id === id) {
+              revisaoForaDaColuna.aoDecidir();
+              return;
+            }
             // Decidido no modal sai da coluna mesmo se veio do "Mostrar mais";
             // a faixa refaz a busca (senão oferece ação sobre lead já decidido).
             frios.remover(id);
@@ -731,8 +745,15 @@ export function PipelineBoard({
           modo="incompletos"
           stageConfig={stageConfig}
           leadIdInicial={incompletoAberto}
-          onClose={() => setIncompletoAberto(null)}
+          onClose={() => {
+            setIncompletoAberto(null);
+            setRevisaoForaDaColuna(null);
+          }}
           onDecidido={(id) => {
+            if (revisaoForaDaColuna?.id === id) {
+              revisaoForaDaColuna.aoDecidir();
+              return;
+            }
             incompletos.remover(id);
             busca.recarregar();
             router.refresh();
