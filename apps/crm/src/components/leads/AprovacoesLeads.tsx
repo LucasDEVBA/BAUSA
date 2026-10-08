@@ -7,7 +7,6 @@ import {
   BadgeCheck,
   Ban,
   BellOff,
-  CalendarCheck,
   CalendarClock,
   Check,
   ExternalLink,
@@ -33,6 +32,7 @@ import { Badge, BrandTabs, Button, EmptyState, Skeleton } from "@/components/ui"
 import { ClassificadorV2Resumo } from "@/components/leads/ClassificadorV2Resumo";
 import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 import { EmailsLeadSection } from "@/components/emails/EmailsLeadSection";
+import { ReuniaoDetectadaBadge } from "@/components/pipeline/ReuniaoDetectadaBadge";
 import {
   aprovarLead,
   aprovarLeadDaRevisao,
@@ -161,13 +161,6 @@ function ehPaginaDetalhe(r: { success: true; leads: LeadPendenteAprovacao[] }): 
   return "proximoOffset" in r;
 }
 
-// T14: o Calendar achou reunião deste lead e ele ainda não tem deal.
-function reuniaoTitulo(detectadaEm: string | null): string {
-  return detectadaEm
-    ? `Reunião detectada no Google Calendar em ${fmtData(detectadaEm)} — o lead ainda não tem deal no pipeline`
-    : "Reunião detectada no Google Calendar — o lead ainda não tem deal no pipeline";
-}
-
 // ─── Modal ───────────────────────────────────────────────────────────────
 // Renderizado via PORTAL no <body>: os pontos de entrada vivem dentro de
 // containers com backdrop-filter/sticky (header liquid-glass do War Room e o
@@ -225,6 +218,10 @@ export function AprovacaoLeadsModal({
   // "Carregar mais" mede só o recorte da coluna: o lead da faixa (fora da
   // janela) contado aqui escondia o botão com 1 lead da janela por carregar.
   const carregadosNoRecorte = leads.reduce((n, l) => (foraDoRecorte.has(l.id) ? n : n + 1), 0);
+  // "Sem deal" só onde o recorte GARANTE que não há deal ativo (contrato B4):
+  // Frios/Incompletos filtram tem_deal_ativo=false no banco; a fila tem
+  // pendente com deal e "Muito cedo" é justamente quem está em Aguardando timing.
+  const revisaoSemDeal = modo === "frios" || modo === "incompletos";
 
   useEffect(() => {
     let ativo = true;
@@ -621,10 +618,7 @@ export function AprovacaoLeadsModal({
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <p className="text-[11px] text-label-tertiary">Recebido {fmtData(l.submitted_at)}</p>
                         {l.meeting_scheduled === true && (
-                          <Badge size="sm" tone="green" title={reuniaoTitulo(l.meeting_scheduled_at)}>
-                            <CalendarCheck aria-hidden className="size-2.5" />
-                            Reunião detectada
-                          </Badge>
+                          <ReuniaoDetectadaBadge detectadaEm={l.meeting_scheduled_at} semDeal={revisaoSemDeal} />
                         )}
                       </div>
                     </button>
@@ -699,10 +693,10 @@ export function AprovacaoLeadsModal({
                             </Badge>
                           )}
                           {selecionado.meeting_scheduled === true && (
-                            <Badge tone="green" title={reuniaoTitulo(selecionado.meeting_scheduled_at)}>
-                              <CalendarCheck aria-hidden className="size-3" />
-                              Reunião detectada
-                            </Badge>
+                            <ReuniaoDetectadaBadge
+                              detectadaEm={selecionado.meeting_scheduled_at}
+                              semDeal={revisaoSemDeal}
+                            />
                           )}
                         </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">

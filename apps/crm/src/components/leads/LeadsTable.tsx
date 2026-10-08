@@ -10,7 +10,7 @@ import {
   type Updater,
   flexRender,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MessageCircle, Check, Calendar, CalendarCheck, Send, Clock, AlertTriangle, Users, EyeOff, Trash2, Loader2 } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MessageCircle, Check, Calendar, Send, Clock, AlertTriangle, Users, EyeOff, Trash2, Loader2 } from "lucide-react";
 import { type Lead, type LeadClassification } from "@/types/lead";
 import { excluirLead } from "@/lib/actions/leads-excluir";
 import {
@@ -30,6 +30,7 @@ import { DossieLeadView, useDossieLead } from "./DossieLead";
 import type { PrioridadeLead } from "@/lib/prioridade-engajamento";
 import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
 import { Badge } from "@/components/ui";
+import { ReuniaoDetectadaBadge } from "@/components/pipeline/ReuniaoDetectadaBadge";
 import { LeadStatusBadge } from "./LeadStatusBadge";
 import { formatRelativeTime, formatInvestmentRange } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -46,7 +47,8 @@ interface LeadsTableProps {
   prioridades?: Record<string, PrioridadeLead>;
   /** Aviso do servidor (ex.: ordenação por prioridade só cobre aprovados). */
   aviso?: string | null;
-  /** Deep-link ?atleta=<id>: dossiê já carregado pelo servidor, abre 1 vez. */
+  /** Deep-link ?atleta=<id> ou ?lead=<form_submission_id> (T14): dossiê já
+   *  carregado pelo servidor, abre 1 vez. */
   leadInicial?: Lead | null;
 }
 
@@ -105,7 +107,7 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
   useEffect(() => {
     if (leadParaExcluir && !excluindo) cancelarExclusaoRef.current?.focus();
   }, [leadParaExcluir, excluindo]);
-  // Dossiê sob demanda (a lista só tem o resumo). ?atleta= já chega aberto.
+  // Dossiê sob demanda (a lista só tem o resumo). ?atleta=/?lead= já chegam abertos.
   const dossie = useDossieLead(leadInicial);
 
   // Filtros que a tela DEVE ter: os da URL ou, com navegação em curso, os do
@@ -116,7 +118,7 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
     if (!navegando) alvoRef.current = filtros;
   }, [filtros, navegando]);
   const navegar = (patch: Partial<FiltrosLeads>) => {
-    const proximo: FiltrosLeads = { ...alvoRef.current, ...patch, atleta: null };
+    const proximo: FiltrosLeads = { ...alvoRef.current, ...patch, atleta: null, lead: null };
     alvoRef.current = proximo;
     startNavegar(() => router.replace(urlFiltrosLeads(proximo), { scroll: false }));
   };
@@ -404,13 +406,9 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
         cell: ({ row }) => {
           const lead = row.original;
           // T14: reunião detectada e nenhum deal = a reunião existe e o funil não sabe.
+          // pipeline_deal_id vem da view (só deal ATIVO) → aqui o "sem deal" é garantido.
           if (lead.meeting_scheduled === true && !lead.pipeline_deal_id) {
-            return (
-              <Badge size="sm" tone="green" title="Reunião detectada no Google Calendar — o lead não tem deal no pipeline">
-                <CalendarCheck aria-hidden className="size-2.5" />
-                Reunião detectada
-              </Badge>
-            );
+            return <ReuniaoDetectadaBadge detectadaEm={lead.meeting_scheduled_at} semDeal />;
           }
           if (!lead.is_in_pipeline) {
             return <span className="text-xs text-label-tertiary">—</span>;

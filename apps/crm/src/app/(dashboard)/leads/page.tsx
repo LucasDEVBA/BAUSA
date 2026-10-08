@@ -53,7 +53,11 @@ export default async function LeadsPage({
       return fsId ? await obterLeadDossieInterno(supabase, fsId) : null;
     } catch (e) {
       // Deep-link quebrado nunca derruba a lista.
-      console.error({ level: "error", action: "leads_deeplink_atleta", message: e instanceof Error ? e.message : String(e) });
+      console.error({
+        level: "error",
+        action: filtros.lead ? "leads_deeplink_lead" : "leads_deeplink_atleta",
+        message: e instanceof Error ? e.message : String(e),
+      });
       return null;
     }
   };

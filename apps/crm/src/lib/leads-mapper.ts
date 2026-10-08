@@ -28,6 +28,8 @@ export interface LeadLinha {
   address_state: string | null;
   school_city_state: string | null;
   meeting_scheduled: boolean | null;
+  /** Quando o Calendar detectou — data do badge "Reunião detectada" (T14). */
+  meeting_scheduled_at: string | null;
   whatsapp_sent_at: string | null;
   followup_1_sent_at: string | null;
   followup_2_sent_at: string | null;
@@ -47,7 +49,7 @@ export interface LeadLinha {
 /** Colunas de vw_cadastros_situacao lidas pela lista (sem telefone p/ o client). */
 export const COLUNAS_LISTA_LEADS =
   "id, athlete_name, email, qualification_classification, aprovacao_status, investment_range, " +
-  "position, address_state, city_state, meeting_scheduled, whatsapp_sent_at, followup_1_sent_at, " +
+  "position, address_state, city_state, meeting_scheduled, meeting_scheduled_at, whatsapp_sent_at, followup_1_sent_at, " +
   "followup_2_sent_at, utm_source, cta_source, device_type, submitted_at, timing_status, " +
   "atleta_id, responsavel_id, deal_id, deal_etapa, telefone_resp_digitos, athlete_whatsapp, guardian_whatsapp";
 
@@ -63,6 +65,7 @@ export interface LinhaListaView {
   address_state: string | null;
   city_state: string | null;
   meeting_scheduled: boolean | null;
+  meeting_scheduled_at: string | null;
   whatsapp_sent_at: string | null;
   followup_1_sent_at: string | null;
   followup_2_sent_at: string | null;
@@ -102,6 +105,7 @@ export function mapLinhaListaLead(row: LinhaListaView): LeadLinha {
     address_state: estadoDe(row.city_state, row.address_state),
     school_city_state: row.city_state,
     meeting_scheduled: row.meeting_scheduled,
+    meeting_scheduled_at: row.meeting_scheduled_at,
     whatsapp_sent_at: row.whatsapp_sent_at,
     followup_1_sent_at: row.followup_1_sent_at,
     followup_2_sent_at: row.followup_2_sent_at,

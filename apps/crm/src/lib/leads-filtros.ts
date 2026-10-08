@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ════════════════════════════════════════════════════════════════════════
 // Filtros da tela /leads (T8 — paginação no servidor).
-// Estado vive na URL (?q=&classe=&pagina=&porPagina=&ordem=&dir=&atleta=):
+// Estado vive na URL (?q=&classe=&pagina=&porPagina=&ordem=&dir=&atleta=&lead=):
 // link compartilhável, voltar do navegador funciona e o Server Component
 // é a única fonte dos dados. Módulo comum (client + server), sem imports
 // de servidor.

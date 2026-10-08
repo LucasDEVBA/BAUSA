@@ -155,3 +155,52 @@ test('sininho do CEO: aviso com dedupe_key aparece 1x (só a própria cópia), l
   assert.match(corpo, /dedupe_key\.is\.null,destinatario_id\.eq\.\$\{user\.id\}/, 'CEO voltaria a ver o aviso 2x');
   assert.match(corpo, /if \(papel !== "ceo"\) \{\s*\n\s*if \(user\) \{\s*\n\s*query = query\.eq\("destinatario_id", user\.id\);/, 'demais papéis: só as próprias');
 });
+
+// ─── Engine: o aviso leva a algum lugar e o lead aparece marcado ─────────
+
+const lerCrm = (...p) => fs.readFileSync(path.join(__dirname, '..', 'apps', 'crm', 'src', ...p), 'utf8');
+
+test('deep-link /leads?lead=<id> abre o dossiê de lead SEM atleta/deal e não gruda ao navegar', () => {
+  const filtros = lerCrm('lib', 'leads-filtros.ts');
+  assert.match(filtros, /lead: z\.preprocess\(primeiro, z\.uuid\(\)\)\.nullable\(\)\.catch\(null\)/,
+    '?lead= tem que aceitar só UUID (URL editada à mão cai no padrão)');
+  const url = filtros.slice(filtros.indexOf('export function urlFiltrosLeads'));
+  assert.ok(!/f\.lead/.test(url), 'o deep-link não pode grudar na URL ao paginar/filtrar');
+  const pagina = lerCrm('app', '(dashboard)', 'leads', 'page.tsx');
+  assert.match(pagina, /if \(filtros\.lead\) return await obterLeadDossieInterno\(supabase, filtros\.lead\);/,
+    'o link da notificação aponta para form_submission_id — não pode exigir atleta');
+  const tabela = lerCrm('components', 'leads', 'LeadsTable.tsx');
+  assert.match(tabela, /atleta: null, lead: null \}/, 'navegar na tabela tem que soltar os deep-links');
+});
+
+test('badge "Reunião detectada" do dossiê e do /leads vem do átomo único (contrato B4)', () => {
+  const modal = lerCrm('components', 'leads', 'AprovacoesLeads.tsx');
+  const tabela = lerCrm('components', 'leads', 'LeadsTable.tsx');
+  for (const [nome, src] of [['AprovacoesLeads', modal], ['LeadsTable', tabela]]) {
+    assert.match(src, /<ReuniaoDetectadaBadge\b/, `${nome}: badge local em vez do átomo`);
+    assert.ok(!/>\s*Reunião detectada\s*</.test(src), `${nome}: cópia local do badge voltou`);
+    assert.ok(!/reuniaoTitulo/.test(src), `${nome}: helper local de título voltou (texto divergente)`);
+  }
+  // Lista à esquerda + cabeçalho do dossiê.
+  assert.equal((modal.match(/<ReuniaoDetectadaBadge\b/g) || []).length, 2, 'badge na lista E no cabeçalho do dossiê');
+  // "Sem deal" só onde o recorte garante: a fila tem pendente com deal e
+  // "Muito cedo" é quem está em Aguardando timing (tem deal).
+  assert.match(modal, /const revisaoSemDeal = modo === "frios" \|\| modo === "incompletos";/,
+    'semDeal do modal só pode valer para Frios/Incompletos');
+  for (const m of modal.match(/<ReuniaoDetectadaBadge[\s\S]*?\/>/g) || []) {
+    assert.match(m, /semDeal=\{revisaoSemDeal\}/, 'badge do modal com semDeal fora da regra');
+  }
+  // /leads: só no ramo sem deal ativo (pipeline_deal_id vem da view).
+  assert.match(tabela,
+    /if \(lead\.meeting_scheduled === true && !lead\.pipeline_deal_id\) \{[\s\S]{0,200}?<ReuniaoDetectadaBadge detectadaEm=\{lead\.meeting_scheduled_at\} semDeal \/>/,
+    '/leads: badge "sem deal" fora do ramo sem deal ativo');
+  const leads = lerCrm('lib', 'actions', 'leads.ts');
+  assert.match(leads, /"submitted_at, meeting_scheduled, meeting_scheduled_at"/,
+    'fila/revisão deixaram de trazer a reunião detectada para o dossiê');
+});
+
+test('T19: modal de Incompletos não diz mais "sem os dados obrigatórios"', () => {
+  const modal = lerCrm('components', 'leads', 'AprovacoesLeads.tsx');
+  assert.ok(!/sem os dados obrigatórios/.test(modal), 'texto enganoso voltou (85/85 INCOMPLETO tinham os dados)');
+  assert.match(modal, /marcados como incompletos pelo classificador/);
+});
