@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
+import { createAdminClient, hasServiceKey } from "@/lib/supabase-admin";
 import { getUserPapel } from "@/lib/auth";
 import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
-import { registrarEventoGamificacao } from "@/lib/gamificacao";
+import { registrarEventoGamificacao, type ResultadoGamificacao } from "@/lib/gamificacao";
 import {
   DETALHE_REVISAO_PAGINA,
   FRIOS_REVISAO_DIAS,
@@ -931,7 +933,37 @@ async function garantirDealAtivoNaAprovacao(
   return resultado(String((novo as { id: string }).id), String(campos.etapa), false);
 }
 
-export async function aprovarLead(formSubmissionId: string) {
+/** Idade mínima do carimbo "fechado sem envio" (> janela de 48h do /observabilidade). */
+const IDADE_MIN_CARIMBO_SEM_ENVIO_MS = 72 * 60 * 60 * 1000;
+
+export interface AprovarLeadOpcoes {
+  /**
+   * T12 — "Aprovar sem mensagem": o CEO já conversou com a família. Fecha o
+   * ciclo automático INTEIRO (inicial + FU1 + FU2 e, se muito_cedo, a
+   * retomada de novembro) no MESMO update atômico da aprovação e nunca re-arma
+   * a reativação. Lead/deal entram normalmente.
+   */
+  semMensagemAutomatica?: boolean;
+}
+
+export type AprovarLeadResultado =
+  | { success: false; error: string }
+  | {
+      success: true;
+      atletaId: string;
+      dealId: string;
+      gamificacao: ResultadoGamificacao | null;
+      reativacao?: boolean;
+      dealReaberto?: boolean;
+      aviso?: string | null;
+      /** Etapa (chave do enum) em que o deal ficou — o client traduz o rótulo. */
+      etapa?: string;
+    };
+
+export async function aprovarLead(
+  formSubmissionId: string,
+  opcoes?: AprovarLeadOpcoes,
+): Promise<AprovarLeadResultado> {
   const papel = await getUserPapel();
   if (papel !== "ceo") {
     return { success: false, error: "Apenas CEO/CTO podem aprovar leads." };
@@ -950,9 +982,13 @@ export async function aprovarLead(formSubmissionId: string) {
     return { success: false, error: "Lead não encontrado." };
   }
   const fsRow = fs as Record<string, unknown>;
+  if (fsRow.deleted_at) {
+    return { success: false, error: "Lead excluído — não pode ser aprovado." };
+  }
   if (fsRow.aprovacao_status !== "pendente") {
     return { success: false, error: "Lead não está mais pendente (já decidido em outra aba?)." };
   }
+  const semMensagem = opcoes?.semMensagemAutomatica === true;
 
   // 1. Promoção primeiro (idempotente)
   const promocao = await promoverLeadCore(supabase, fsRow);
@@ -967,6 +1003,24 @@ export async function aprovarLead(formSubmissionId: string) {
   // envio; usa a data da detecção (antiga) para não acusar "envio sem
   // espelho" no monitor.
   const bloquearInicial = fsRow.meeting_scheduled === true && !fsRow.whatsapp_sent_at;
+  // T12 "Aprovar sem mensagem" (lead sem histórico de envio): fecha inicial +
+  // FU1 + FU2 no MESMO update do CAS — sem janela em que o lead fique
+  // aprovado e elegível ao disparo. Data antiga (detecção/cadastro) para não
+  // acusar "envio sem espelho" no monitor.
+  const fecharCicloSemMensagem = semMensagem && !fsRow.whatsapp_sent_at;
+  // muito_cedo: a retomada de novembro (scheduled_return) também é mensagem
+  // automática — "sem mensagem" fecha ela junto (hoje o toggle já está off).
+  const fecharRetomadaSemMensagem =
+    semMensagem && fsRow.timing_status === "muito_cedo" && !fsRow.scheduled_followup_sent_at;
+  // Carimbo "fechado sem envio": a data real (detecção/cadastro), mas NUNCA
+  // dentro das janelas dos checks de espelho (monitor-health 6h → alerta
+  // WhatsApp+e-mail; /observabilidade 48h). Lead recém-chegado aprovado sem
+  // mensagem com a data do cadastro viraria "envio sem espelho" falso.
+  const baseCicloMs = Date.parse(String(fsRow.meeting_scheduled_at ?? fsRow.submitted_at ?? ""));
+  const tetoCicloMs = Date.now() - IDADE_MIN_CARIMBO_SEM_ENVIO_MS;
+  const marcaCiclo = new Date(
+    Number.isFinite(baseCicloMs) ? Math.min(baseCicloMs, tetoCicloMs) : tetoCicloMs,
+  ).toISOString();
   const { data: casRows, error: casError } = await supabase
     .from("form_submissions")
     .update({
@@ -976,9 +1030,14 @@ export async function aprovarLead(formSubmissionId: string) {
       ...(bloquearInicial
         ? { whatsapp_sent_at: (fsRow.meeting_scheduled_at as string | null) ?? (fsRow.submitted_at as string) }
         : {}),
+      ...(fecharCicloSemMensagem
+        ? { whatsapp_sent_at: marcaCiclo, followup_1_sent_at: marcaCiclo, followup_2_sent_at: marcaCiclo }
+        : {}),
+      ...(fecharRetomadaSemMensagem ? { scheduled_followup_sent_at: marcaCiclo } : {}),
     })
     .eq("id", formSubmissionId)
     .eq("aprovacao_status", "pendente")
+    .is("deleted_at", null)
     .select("id");
 
   if (casError) {
@@ -989,9 +1048,19 @@ export async function aprovarLead(formSubmissionId: string) {
     // REPROVOU, o pipeline recém-criado contradiz a decisão — avisar o CEO.
     const { data: atual } = await supabase
       .from("form_submissions")
-      .select("aprovacao_status")
+      .select("aprovacao_status, deleted_at")
       .eq("id", formSubmissionId)
       .maybeSingle();
+    if ((atual as { deleted_at?: string | null } | null)?.deleted_at) {
+      // Excluído em outra aba DURANTE a aprovação: o promoverLeadCore pode ter
+      // criado atleta/deal para um lead excluído. excluir_lead é idempotente
+      // e recolhe esses vínculos.
+      return {
+        success: false,
+        error:
+          "O lead foi EXCLUÍDO em outra aba durante a aprovação — exclua de novo pelo card do pipeline para remover o atleta/deal criados.",
+      };
+    }
     if ((atual as { aprovacao_status?: string } | null)?.aprovacao_status === "aprovado") {
       revalidatePath("/leads");
       revalidatePath("/pipeline");
@@ -1030,6 +1099,12 @@ export async function aprovarLead(formSubmissionId: string) {
         aprovacao_decidida_em: null,
         // desfaz também o carimbo anti-convite deste mesmo CAS
         ...(bloquearInicial ? { whatsapp_sent_at: null } : {}),
+        // e o fechamento do ciclo do "Aprovar sem mensagem" (lead volta à fila
+        // como estava; pendente nunca recebe mensagem)
+        ...(fecharCicloSemMensagem
+          ? { whatsapp_sent_at: null, followup_1_sent_at: null, followup_2_sent_at: null }
+          : {}),
+        ...(fecharRetomadaSemMensagem ? { scheduled_followup_sent_at: null } : {}),
       })
       .eq("id", formSubmissionId)
       .eq("aprovacao_status", "aprovado");
@@ -1057,7 +1132,7 @@ export async function aprovarLead(formSubmissionId: string) {
   // envio: o convite inicial seria indevido. O CAS acima só sabia do flag do
   // formulário; este carimbo cobre o resto (CAS no próprio NULL, data antiga
   // para não acusar "envio sem espelho" no monitor).
-  if (!bloquearInicial && !fsRow.whatsapp_sent_at && garantia.semConviteInicial) {
+  if (!bloquearInicial && !fsRow.whatsapp_sent_at && garantia.semConviteInicial && !fecharCicloSemMensagem) {
     // Fecha o ciclo INTEIRO (inicial + FU1 + FU2): só carimbar o inicial
     // liberaria o FU1 "agende sua reunião" 48h depois — o followup-scheduler
     // não olha a etapa do deal.
@@ -1091,21 +1166,26 @@ export async function aprovarLead(formSubmissionId: string) {
     } — a reativação automática não foi disparada.`;
   }
   if (fsRow.whatsapp_sent_at && garantia.rearmavel) {
-    const { error: reativErr } = await supabase
-      .from("form_submissions")
-      .update({
-        reativacao_em: new Date().toISOString(),
-        whatsapp_sent_at: null,
-        followup_1_sent_at: null,
-        followup_2_sent_at: null,
-        meeting_scheduled: false,
-      })
-      .eq("id", formSubmissionId);
-    if (reativErr) {
-      console.error("[aprovarLead] re-arme de reativação falhou", reativErr.message);
-      aviso = "Aprovado, mas o re-arme da mensagem de reativação falhou — o lead não receberá a reabertura automática.";
+    if (semMensagem) {
+      // T12: o CEO escolheu aprovar SEM mensagem — nem a reabertura sai.
+      aviso = "Aprovado sem mensagem automática: a reativação (reabertura) não foi re-armada.";
     } else {
-      reativacao = true;
+      const { error: reativErr } = await supabase
+        .from("form_submissions")
+        .update({
+          reativacao_em: new Date().toISOString(),
+          whatsapp_sent_at: null,
+          followup_1_sent_at: null,
+          followup_2_sent_at: null,
+          meeting_scheduled: false,
+        })
+        .eq("id", formSubmissionId);
+      if (reativErr) {
+        console.error("[aprovarLead] re-arme de reativação falhou", reativErr.message);
+        aviso = "Aprovado, mas o re-arme da mensagem de reativação falhou — o lead não receberá a reabertura automática.";
+      } else {
+        reativacao = true;
+      }
     }
   }
 
@@ -1126,6 +1206,7 @@ export async function aprovarLead(formSubmissionId: string) {
     reativacao,
     dealReaberto: garantia.reaberto,
     aviso,
+    etapa: garantia.etapa,
   };
 }
 
@@ -1166,6 +1247,237 @@ export async function reprovarLead(formSubmissionId: string, motivo?: string) {
   revalidatePath("/leads");
   revalidatePath("/war-room");
   return { success: true, gamificacao };
+}
+
+// ─── Aprovação DIRETA na revisão de Frios/Incompletos (T12, CEO 2026-09-28) ──
+// "Não tem sentido revisar, ver que o perfil é qualificado e ter que enviar
+// pra fila pra aprovar em outro lugar." Um clique = o MESMO caminho de dois:
+// (1) o CAS do resgate (classe de origem + sem decisão → MORNO provisório +
+// pendente, motivo registrado) e (2) aprovarLead — promoção idempotente, CAS
+// pendente→aprovado, deal garantido/visível, bloqueio de convite com reunião,
+// gamificação. NUNCA grava 'aprovado' por conta própria: a elegibilidade dos
+// schedulers (QUENTE/MORNO + timing + aprovado) só nasce dentro do aprovarLead.
+// Se o aprovarLead falhar, o lead fica MORNO + pendente na fila — estado
+// seguro (pendente nunca recebe mensagem).
+// Posição: ANTES de listarLeadsMuitoCedoDetalhe — o guard
+// pipeline-frios-colunas recorta leads.ts de ativarLeadMuitoCedo até o FIM.
+
+const ORIGENS_REVISAO = ["FRIO", "INCOMPLETO"] as const;
+type OrigemRevisao = (typeof ORIGENS_REVISAO)[number];
+const ROTULO_REVISAO: Record<OrigemRevisao, string> = { FRIO: "Frios", INCOMPLETO: "Incompletos" };
+
+const aprovarDaRevisaoSchema = z.object({
+  leadId: z.string().uuid(),
+  origem: z.enum(ORIGENS_REVISAO),
+  semMensagemAutomatica: z.boolean().optional(),
+});
+
+export type AprovarDaRevisaoResultado =
+  | {
+      success: true;
+      dealId: string;
+      /** Chave da etapa do deal (o client traduz pelo stageConfig). */
+      etapa: string | null;
+      semMensagem: boolean;
+      dealReaberto: boolean;
+      aviso: string | null;
+      gamificacao: ResultadoGamificacao | null;
+    }
+  | {
+      success: false;
+      error: string;
+      /** inalterado = nada mudou · na_fila = ficou MORNO+pendente em Aguardando
+       *  aprovação · atencao = aprovado sem deal visível (reversão falhou). */
+      estado: "inalterado" | "na_fila" | "atencao";
+    };
+
+/** Trilha explícita (form_submissions não tem trigger de audit). Best-effort. */
+async function registrarAuditAprovacaoDaRevisao(params: {
+  leadId: string;
+  userId: string | null;
+  origem: OrigemRevisao;
+  score: number | null;
+  semMensagem: boolean;
+  dealId: string;
+  etapa: string | null;
+  motivo: string;
+}): Promise<void> {
+  if (!hasServiceKey()) {
+    console.error({ level: "warn", action: "aprovar_da_revisao_audit_indisponivel", leadId: params.leadId });
+    return;
+  }
+  try {
+    const admin = createAdminClient();
+    // Papel REAL (cto ≠ ceo na trilha — paridade com os triggers de audit).
+    let papelReal = "ceo";
+    if (params.userId) {
+      const { data: perfil } = await admin
+        .from("user_profiles")
+        .select("papel")
+        .eq("id", params.userId)
+        .maybeSingle();
+      papelReal = (perfil as { papel?: string } | null)?.papel ?? papelReal;
+    }
+    const { error } = await admin.from("audit_logs").insert({
+      tabela: "form_submissions",
+      registro_id: params.leadId,
+      operacao: "UPDATE",
+      dados_anteriores: {
+        qualification_classification: params.origem,
+        aprovacao_status: null,
+        score_financeiro: params.score,
+      },
+      dados_novos: {
+        qualification_classification: "MORNO",
+        aprovacao_status: "aprovado",
+        origem: `revisao_${params.origem.toLowerCase()}`,
+        sem_mensagem_automatica: params.semMensagem,
+        deal_id: params.dealId,
+        etapa: params.etapa,
+      },
+      campos_alterados: ["qualification_classification", "aprovacao_status"],
+      user_id: params.userId,
+      user_papel: papelReal,
+      justificativa: params.motivo,
+    });
+    if (error) {
+      console.error({ level: "warn", action: "aprovar_da_revisao_audit_falhou", leadId: params.leadId, error: error.message });
+    }
+  } catch (err) {
+    console.error({
+      level: "warn",
+      action: "aprovar_da_revisao_audit_falhou",
+      leadId: params.leadId,
+      error: err instanceof Error ? err.message : "unknown",
+    });
+  }
+}
+
+export async function aprovarLeadDaRevisao(
+  leadId: string,
+  origem: OrigemRevisao,
+  opcoes?: { semMensagemAutomatica?: boolean },
+): Promise<AprovarDaRevisaoResultado> {
+  if ((await getUserPapel()) !== "ceo") {
+    return { success: false, estado: "inalterado", error: "Apenas CEO/CTO podem aprovar leads." };
+  }
+  const parsed = aprovarDaRevisaoSchema.safeParse({
+    leadId,
+    origem,
+    semMensagemAutomatica: opcoes?.semMensagemAutomatica,
+  });
+  if (!parsed.success) {
+    return { success: false, estado: "inalterado", error: "Dados inválidos para aprovar." };
+  }
+  const semMensagem = parsed.data.semMensagemAutomatica === true;
+  const origemOk = parsed.data.origem;
+
+  const supabase = await createAuditedSupabaseClient();
+  const { data: userData } = await supabase.auth.getUser();
+
+  // Score só compõe o motivo (texto) — a decisão é do CAS abaixo.
+  const { data: atual, error: leituraErr } = await supabase
+    .from("form_submissions")
+    .select("score_financeiro")
+    .eq("id", parsed.data.leadId)
+    .maybeSingle();
+  if (leituraErr) {
+    return { success: false, estado: "inalterado", error: `Erro ao ler o lead: ${leituraErr.message}` };
+  }
+  const score = (atual as { score_financeiro: number | null } | null)?.score_financeiro ?? null;
+  const motivo =
+    `Aprovado direto na revisão de ${ROTULO_REVISAO[origemOk]} ` +
+    `(classe original ${origemOk}, score ${score ?? "—"}) — MORNO provisório` +
+    (semMensagem ? " · sem mensagem automática" : "");
+
+  // 1. CAS do resgate — MESMO filtro de enviarFrio/IncompletoParaAprovacao.
+  const { data: casRows, error: casErr } = await supabase
+    .from("form_submissions")
+    .update({
+      qualification_classification: "MORNO",
+      aprovacao_status: "pendente",
+      aprovacao_decidida_por: null,
+      aprovacao_decidida_em: null,
+      aprovacao_motivo: motivo,
+    })
+    .eq("id", parsed.data.leadId)
+    .eq("qualification_classification", origemOk)
+    .is("aprovacao_status", null)
+    .is("deleted_at", null)
+    .select("id");
+  if (casErr) return { success: false, estado: "inalterado", error: `Erro ao aprovar: ${casErr.message}` };
+  if (!casRows || casRows.length === 0) {
+    return {
+      success: false,
+      estado: "inalterado",
+      error: "Lead não está mais elegível (já revisado, excluído ou requalificado em outra aba).",
+    };
+  }
+
+  // 2. Aprovação pelo caminho ÚNICO.
+  const res = await aprovarLead(parsed.data.leadId, { semMensagemAutomatica: semMensagem });
+  if (!res.success) {
+    // 3. Relê o estado para contar a verdade ao CEO (não presumir).
+    const { data: depois } = await supabase
+      .from("form_submissions")
+      .select("aprovacao_status, qualification_classification, deleted_at")
+      .eq("id", parsed.data.leadId)
+      .maybeSingle();
+    const estadoDepois = depois as {
+      aprovacao_status: string | null;
+      qualification_classification: string | null;
+      deleted_at: string | null;
+    } | null;
+    const status = estadoDepois?.aprovacao_status ?? null;
+    console.error({
+      level: "error",
+      action: "aprovar_da_revisao_falhou",
+      leadId: parsed.data.leadId,
+      origem: origemOk,
+      statusDepois: status,
+      error: res.error,
+    });
+    revalidatePath("/pipeline");
+    revalidatePath("/leads");
+    if (status === "pendente" && !estadoDepois?.deleted_at) {
+      return {
+        success: false,
+        estado: "na_fila",
+        error: `O lead foi para Aguardando aprovação (MORNO provisório), mas a aprovação falhou (${res.error.replace(/\.$/, "")}). Nenhuma mensagem sai enquanto estiver pendente — aprove por lá.`,
+      };
+    }
+    // Só é "inalterado" se o lead VOLTOU à revisão (requalificação devolveu a
+    // classe de origem sem decisão). Qualquer outro estado (aprovado sem deal,
+    // reprovado/excluído em outra aba) saiu da revisão: atenção.
+    if (status === null && !estadoDepois?.deleted_at && estadoDepois?.qualification_classification === origemOk) {
+      return { success: false, estado: "inalterado", error: res.error };
+    }
+    return { success: false, estado: "atencao", error: res.error };
+  }
+
+  await registrarAuditAprovacaoDaRevisao({
+    leadId: parsed.data.leadId,
+    userId: userData.user?.id ?? null,
+    origem: origemOk,
+    score,
+    semMensagem,
+    dealId: res.dealId,
+    etapa: res.etapa ?? null,
+    motivo,
+  });
+
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  revalidatePath("/war-room");
+  return {
+    success: true,
+    dealId: res.dealId,
+    etapa: res.etapa ?? null,
+    semMensagem,
+    dealReaberto: res.dealReaberto ?? false,
+    aviso: res.aviso ?? null,
+    gamificacao: res.gamificacao,
+  };
 }
 
 // ─── Muito cedo — revisão (ordem do CEO, 2026-09-08) ─────────────────────────

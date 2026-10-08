@@ -792,6 +792,11 @@ const TEMPLATE_TIMING = {
 };
 
 const checkWhatsappEligibility = (submission, template) => {
+  // Invariante 0 (T1, 2026-10-08): lead EXCLUÍDO pelo CEO (soft delete) nunca
+  // recebe mensagem — nem por run materializado antes da exclusão/retry.
+  if (submission.deleted_at) {
+    return { eligible: false, reason: 'lead excluído (deleted_at)' };
+  }
   // Invariante 1: FRIO NUNCA recebe mensagem automática — nenhum template.
   const classificacao = submission.qualification_classification;
   if (!['QUENTE', 'MORNO'].includes(classificacao)) {
@@ -965,6 +970,12 @@ const executeAcao = async (acao, contexto, runId, tickState) => {
       return { tipo: acao.tipo, status: 'ignorado', detalhe: 'form_submission não encontrada' };
     }
 
+    // Lead excluído (soft delete) nunca recebe — mesma cláusula do template.
+    if (submission.deleted_at) {
+      log('INFO', 'whatsapp_custom_skip_excluido', { runId });
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'lead excluído (deleted_at)' };
+    }
+
     // INVARIANTE (guard de CI): FRIO NUNCA recebe mensagem automática —
     // nem texto custom. Mesma cláusula do checkWhatsappEligibility.
     const classificacao = submission.qualification_classification;
@@ -1065,6 +1076,12 @@ const executeAcao = async (acao, contexto, runId, tickState) => {
     const submission = submissions[0];
     if (!submission) {
       return { tipo: acao.tipo, status: 'ignorado', detalhe: 'form_submission não encontrada' };
+    }
+
+    // Lead excluído (soft delete) nunca recebe — mesma cláusula do WhatsApp.
+    if (submission.deleted_at) {
+      log('INFO', 'email_custom_skip_excluido', { runId });
+      return { tipo: acao.tipo, status: 'ignorado', detalhe: 'lead excluído (deleted_at)' };
     }
 
     // INVARIANTE (guard de CI): FRIO NUNCA recebe outreach automático —

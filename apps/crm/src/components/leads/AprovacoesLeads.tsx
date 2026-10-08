@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   BadgeCheck,
   Ban,
+  BellOff,
   CalendarClock,
   Check,
   ExternalLink,
@@ -33,6 +34,7 @@ import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 import { EmailsLeadSection } from "@/components/emails/EmailsLeadSection";
 import {
   aprovarLead,
+  aprovarLeadDaRevisao,
   ativarLeadMuitoCedo,
   contarLeadsPendentesAprovacao,
   enviarFrioParaAprovacao,
@@ -46,6 +48,11 @@ import {
   reprovarLead,
   type LeadPendenteAprovacao,
 } from "@/lib/actions/leads";
+import {
+  DEFAULT_DEAL_STAGE_DISPLAY,
+  isDealStage,
+  type DealStageConfigMap,
+} from "@/lib/etapas-deal";
 import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
 import { celebrar } from "@/lib/gamificacao-store";
 import { cn } from "@/lib/utils";
@@ -157,6 +164,7 @@ export function AprovacaoLeadsModal({
   onDecidido,
   leadIdInicial,
   modo = "aprovacao",
+  stageConfig,
 }: {
   onClose: () => void;
   /** Lead decidido/resgatado/ativado (id) — o board tira o card da coluna. */
@@ -169,6 +177,8 @@ export function AprovacaoLeadsModal({
    *  "muito_cedo": revisão dos aprovados estacionados em Aguardando timing
    *  (mensagens automáticas desligadas); ação = ativar agora no funil. */
   modo?: "aprovacao" | "frios" | "incompletos" | "muito_cedo";
+  /** Rótulos configurados das colunas (toasts mostram "Reunião marcada", não o enum). */
+  stageConfig?: DealStageConfigMap;
 }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
@@ -183,6 +193,8 @@ export function AprovacaoLeadsModal({
   const [reprovando, setReprovando] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [pending, startTransition] = useTransition();
+  // Qual botão do rodapé disparou a ação (spinner no botão certo).
+  const [acaoEmCurso, setAcaoEmCurso] = useState<"aprovar" | "aprovar_sem_msg" | "resgatar" | null>(null);
   // Abas do preview: dossiê (decisão), conversa (WhatsApp atleta+responsável)
   // e e-mail — o CEO fala com o lead SEM sair da fila de aprovação. A aba
   // fica "grudada" ao trocar de lead (revisar conversas em sequência).
@@ -312,12 +324,49 @@ export function AprovacaoLeadsModal({
     });
   };
 
+  const rotuloEtapa = (etapa: string | null): string => {
+    if (!etapa) return "o pipeline";
+    const mapa = stageConfig ?? DEFAULT_DEAL_STAGE_DISPLAY;
+    return isDealStage(etapa) ? mapa[etapa].label : etapa;
+  };
+
+  // T12: aprovar direto na revisão (Frios/Incompletos) — mesmo caminho da fila.
+  const handleAprovarRevisao = (lead: LeadPendenteAprovacao, semMensagem: boolean) => {
+    if (modo !== "frios" && modo !== "incompletos") return;
+    const origem = modo === "frios" ? "FRIO" : "INCOMPLETO";
+    setAcaoEmCurso(semMensagem ? "aprovar_sem_msg" : "aprovar");
+    startTransition(async () => {
+      const res = await aprovarLeadDaRevisao(lead.id, origem, { semMensagemAutomatica: semMensagem });
+      setAcaoEmCurso(null);
+      if (res.success) {
+        toast.success(`${lead.athlete_name} aprovado — deal em ${rotuloEtapa(res.etapa)}.`, {
+          description: res.semMensagem
+            ? "Sem mensagem automática: nada será enviado (inicial, follow-ups, reabertura e retomada de novembro)."
+            : "Mensagens seguem a regra da fila: convite inicial pelo agendador horário (22h após a qualificação) se o timing for ideal e não houver reunião.",
+        });
+        if (res.aviso) toast.warning(res.aviso);
+        celebrar(res.gamificacao, GAMIFICACAO_TIPO_LABEL.lead_aprovado);
+        removerDaFila(lead.id);
+        return;
+      }
+      if (res.estado === "inalterado") {
+        toast.error(res.error);
+        return;
+      }
+      // na_fila / atencao: o lead saiu da revisão — o board mostra onde ficou.
+      toast.error(res.error, { duration: res.estado === "atencao" ? 30000 : 12000 });
+      removerDaFila(lead.id);
+    });
+  };
+
   const handleResgatar = (lead: LeadPendenteAprovacao) => {
+    setAcaoEmCurso("resgatar");
     startTransition(async () => {
       const res =
         modo === "incompletos"
           ? await enviarIncompletoParaAprovacao(lead.id)
           : await enviarFrioParaAprovacao(lead.id);
+      setAcaoEmCurso(null);
       if (res.success) {
         toast.success(`${lead.athlete_name} enviado para a fila de aprovação`, {
           description: "Entrou como MORNO provisório — nada é enviado sem aprovar.",
@@ -443,8 +492,8 @@ export function AprovacaoLeadsModal({
             </Button>
           </div>
 
-          {/* Body */}
-          <div className="flex min-h-0 flex-1">
+          {/* Body — em < md a lista vira faixa rolável no topo (375px) */}
+          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             {carregando ? (
               <div className="flex-1 space-y-3 p-6">
                 <Skeleton className="h-14 w-full" />
@@ -471,7 +520,7 @@ export function AprovacaoLeadsModal({
             ) : (
               <>
                 {/* Lista */}
-                <div className="w-[300px] shrink-0 overflow-y-auto border-r border-border">
+                <div className="max-h-[28%] w-full shrink-0 overflow-y-auto border-b border-border md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
                   {leads.map((l) => (
                     <button
                       key={l.id}
@@ -526,7 +575,9 @@ export function AprovacaoLeadsModal({
 
                 {/* Preview */}
                 {selecionado && (
-                  <div className="flex min-w-0 flex-1 flex-col">
+                  // min-h-0: em < md o corpo vira coluna — sem ele o painel cresce
+                  // até o conteúdo e o rodapé de decisão é cortado (overflow-hidden).
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                     <div className="shrink-0 border-b border-border/60 px-5 py-2.5">
                       <BrandTabs
                         ariaLabel="Seções do lead"
@@ -760,23 +811,51 @@ export function AprovacaoLeadsModal({
                           </div>
                         </div>
                       ) : modo === "frios" || modo === "incompletos" ? (
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs text-muted-foreground">
-                            Resgatar manda para a fila de aprovação como MORNO provisório. Reprovar encerra: fora da revisão, sem mensagens.
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <p className="text-xs text-muted-foreground lg:max-w-md">
+                            <span className="font-semibold text-foreground">Aprovar</span> cria atleta + deal (MORNO
+                            provisório) e libera o WhatsApp automático como na fila — o convite inicial sai pelo
+                            agendador horário (regra das 22h), mesmo para cadastro antigo.
+                            {/* No celular o rodapé disputa altura com o dossiê: o resto vira tooltip dos botões. */}
+                            <span className="hidden sm:inline">
+                              {" "}
+                              <span className="font-semibold text-foreground">Sem mensagem</span> aprova sem disparar
+                              nada (para quem você já conversou). Enviar p/ fila só resgata, sem decidir.
+                            </span>
                           </p>
-                          <div className="flex shrink-0 items-center gap-2">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={pending}
+                              onClick={() => handleResgatar(selecionado)}
+                              title="Resgatar para Aguardando aprovação (MORNO provisório) sem decidir agora"
+                            >
+                              {pending && acaoEmCurso === "resgatar" ? <Loader2 className="animate-spin" /> : <UserPlus />}
+                              Enviar p/ fila
+                            </Button>
                             <Button variant="secondary" size="md" disabled={pending} onClick={() => setReprovando(true)}>
                               <Ban className="text-destructive" />
                               Reprovar
                             </Button>
                             <Button
+                              variant="secondary"
+                              size="md"
+                              disabled={pending}
+                              onClick={() => handleAprovarRevisao(selecionado, true)}
+                              title="Aprova e entra no pipeline sem nenhuma mensagem automática"
+                            >
+                              {pending && acaoEmCurso === "aprovar_sem_msg" ? <Loader2 className="animate-spin" /> : <BellOff />}
+                              Aprovar sem mensagem
+                            </Button>
+                            <Button
                               variant="primary"
                               size="md"
                               disabled={pending}
-                              onClick={() => handleResgatar(selecionado)}
+                              onClick={() => handleAprovarRevisao(selecionado, false)}
                             >
-                              {pending ? <Loader2 className="animate-spin" /> : <UserPlus />}
-                              Enviar p/ fila
+                              {pending && acaoEmCurso === "aprovar" ? <Loader2 className="animate-spin" /> : <Check />}
+                              Aprovar lead
                             </Button>
                           </div>
                         </div>

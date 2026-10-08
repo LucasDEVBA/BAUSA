@@ -7,143 +7,144 @@ import { getUserPapel } from "@/lib/auth";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 
 /**
- * Exclusão de lead = SOFT DELETE (form_submissions.deleted_at).
+ * Exclusão de lead = SOFT DELETE em cascata, ATÔMICA e IDEMPOTENTE, feita
+ * inteira pela função SQL public.excluir_lead (SECURITY DEFINER com gate
+ * CEO/CTO interno — migration *_excluir_lead_atomico.sql).
  *
- * A linha nunca é apagada — auditável e reversível (basta limpar a coluna).
- * A exclusão cascateia por soft delete para o atleta e os deals vinculados,
- * então o lead some das listas, do pipeline e de TODOS os schedulers de
- * mensagem (que filtram deleted_at IS NULL — guard
- * tests/scheduler-eligibility.test.js).
+ * Por que no banco (bug 2026-08-24 → 2026-10-08): a cascata rodava aqui com
+ * o client do usuário e a RLS de atletas/deals (SELECT USING deleted_at IS
+ * NULL) barrava o próprio UPDATE que preenche deleted_at (42501). O erro era
+ * engolido, a tela dizia "excluído" e a 2ª tentativa morria no CAS da
+ * form_submission ("Lead já estava excluído") — caso Vicente.
+ *
+ * Continua sendo soft delete: nada é apagado. O lead sai das listas, do
+ * pipeline e de TODOS os schedulers (deleted_at IS NULL — guard
+ * tests/scheduler-eligibility.test.js). Grupos de WhatsApp são
+ * desvinculados (nunca apagados) e tarefas abertas, canceladas.
  */
-export async function excluirLead(formSubmissionId: string) {
-  const papel = await getUserPapel();
-  if (papel !== "ceo") {
-    return { success: false, error: "Apenas CEO/CTO podem excluir leads." };
-  }
-  if (!z.string().uuid().safeParse(formSubmissionId).success) {
-    return { success: false, error: "Id inválido." };
-  }
 
-  const supabase = await createAuditedSupabaseClient();
-  const agora = new Date().toISOString();
+const idSchema = z.string().uuid();
 
-  // CAS: só um vencedor marca a exclusão (duas abas clicando juntas).
-  const { data: casRows, error: casError } = await supabase
-    .from("form_submissions")
-    .update({ deleted_at: agora })
-    .eq("id", formSubmissionId)
-    .is("deleted_at", null)
-    .select("id, athlete_name");
+/** Contrato da função SQL (jsonb) — validado, nunca confiado às cegas. */
+const respostaExclusaoSchema = z.discriminatedUnion("success", [
+  z.object({
+    success: z.literal(true),
+    ja_excluido: z.boolean(),
+    form_submission_id: z.string().uuid().nullable(),
+    atletas_excluidos: z.number().int().nonnegative(),
+    deals_excluidos: z.number().int().nonnegative(),
+    grupos_desvinculados: z.number().int().nonnegative(),
+    tarefas_canceladas: z.number().int().nonnegative(),
+    deal_alvo_excluido: z.boolean().nullable(),
+    aviso: z.string().nullable(),
+  }),
+  z.object({
+    success: z.literal(false),
+    code: z.string(),
+    error: z.string(),
+  }),
+]);
 
-  if (casError) {
-    return { success: false, error: `Erro ao excluir: ${casError.message}` };
-  }
-  if (!casRows || casRows.length === 0) {
-    return { success: false, error: "Lead já estava excluído (outra aba?)." };
-  }
+export type ExcluirLeadResult =
+  | {
+      success: true;
+      /** O lead já estava excluído antes desta chamada (outra aba / reparo). */
+      jaExcluido: boolean;
+      atletasExcluidos: number;
+      dealsExcluidos: number;
+      gruposDesvinculados: number;
+      tarefasCanceladas: number;
+      /** Exclusão pelo CARD: true = o deal clicado está confirmadamente fora. */
+      dealAlvoExcluido: boolean | null;
+      aviso: string | null;
+    }
+  | { success: false; error: string };
 
-  // Cascata: atleta + deals do lead também saem de circulação (soft delete).
-  // Falha aqui não desfaz a exclusão do lead — reporta para revisão manual.
-  const { data: atletas, error: atletasError } = await supabase
-    .from("atletas")
-    .select("id")
-    .eq("form_submission_id", formSubmissionId)
-    .is("deleted_at", null);
+const MSG_SEM_PERMISSAO = "Apenas CEO/CTO podem excluir leads.";
+/** SQLSTATE do RAISE da função (gate de papel) e do REVOKE (anon). */
+const SQLSTATE_PERMISSAO = "42501";
+/** PostgREST: função não encontrada (janela entre deploy do app e da migration). */
+const POSTGREST_FUNCAO_AUSENTE = "PGRST202";
 
-  let atletasExcluidos = 0;
-  let dealsExcluidos = 0;
-  if (!atletasError && atletas && atletas.length > 0) {
-    const atletaIds = atletas.map((a) => a.id);
-    const { data: dealsUpd } = await supabase
-      .from("deals")
-      .update({ deleted_at: agora })
-      .in("atleta_id", atletaIds)
-      .is("deleted_at", null)
-      .select("id");
-    dealsExcluidos = dealsUpd?.length ?? 0;
+type AlvoExclusao = { p_form_submission_id: string } | { p_deal_id: string };
 
-    const { data: atletasUpd, error: updError } = await supabase
-      .from("atletas")
-      .update({ deleted_at: agora })
-      .in("id", atletaIds)
-      .is("deleted_at", null)
-      .select("id");
-    if (updError) {
+async function executarExclusao(alvo: AlvoExclusao): Promise<ExcluirLeadResult> {
+  try {
+    const supabase = await createAuditedSupabaseClient();
+    const { data, error } = await supabase.rpc("excluir_lead", alvo);
+
+    if (error) {
+      console.error({ level: "error", action: "excluir_lead", alvo, code: error.code, message: error.message });
+      if (error.code === SQLSTATE_PERMISSAO) return { success: false, error: MSG_SEM_PERMISSAO };
+      if (error.code === POSTGREST_FUNCAO_AUSENTE) {
+        return {
+          success: false,
+          error: "Exclusão indisponível no momento (atualização do banco pendente). Tente de novo em alguns minutos.",
+        };
+      }
+      return { success: false, error: `Erro ao excluir — nada foi alterado: ${error.message}` };
+    }
+
+    const parsed = respostaExclusaoSchema.safeParse(data as unknown);
+    if (!parsed.success) {
+      console.error({ level: "error", action: "excluir_lead_resposta_invalida", alvo });
       return {
-        success: true,
-        atletasExcluidos: 0,
-        dealsExcluidos,
-        aviso: `Lead excluído, mas o atleta vinculado falhou: ${updError.message}`,
+        success: false,
+        error: "Resposta inesperada da exclusão — recarregue a página e confira o lead antes de tentar de novo.",
       };
     }
-    atletasExcluidos = atletasUpd?.length ?? 0;
-  }
+    const r = parsed.data;
+    if (!r.success) return { success: false, error: r.error };
 
-  revalidatePath("/leads");
-  revalidatePath("/pipeline");
-  revalidatePath("/war-room");
-  return { success: true, atletasExcluidos, dealsExcluidos };
+    console.log({
+      level: "info",
+      action: "excluir_lead",
+      alvo,
+      jaExcluido: r.ja_excluido,
+      atletas: r.atletas_excluidos,
+      deals: r.deals_excluidos,
+      grupos: r.grupos_desvinculados,
+      tarefas: r.tarefas_canceladas,
+    });
+    revalidatePath("/leads");
+    revalidatePath("/pipeline");
+    revalidatePath("/war-room");
+    return {
+      success: true,
+      jaExcluido: r.ja_excluido,
+      atletasExcluidos: r.atletas_excluidos,
+      dealsExcluidos: r.deals_excluidos,
+      gruposDesvinculados: r.grupos_desvinculados,
+      tarefasCanceladas: r.tarefas_canceladas,
+      dealAlvoExcluido: r.deal_alvo_excluido,
+      aviso: r.aviso,
+    };
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "excluir_lead_inesperado",
+      alvo,
+      error: err instanceof Error ? err.message : "unknown",
+    });
+    return { success: false, error: "Erro inesperado ao excluir — nada foi alterado. Tente de novo." };
+  }
+}
+
+/** Exclusão pela tabela de /leads (id da form_submission). */
+export async function excluirLead(formSubmissionId: string): Promise<ExcluirLeadResult> {
+  if ((await getUserPapel()) !== "ceo") return { success: false, error: MSG_SEM_PERMISSAO };
+  if (!idSchema.safeParse(formSubmissionId).success) return { success: false, error: "Id inválido." };
+  return executarExclusao({ p_form_submission_id: formSubmissionId });
 }
 
 /**
- * Exclusão a partir do CARD do pipeline: resolve deal → atleta →
- * form_submission e aplica o mesmo soft delete em cascata. Deal sem
- * form_submission (lead criado manualmente) exclui atleta + deals.
+ * Exclusão pelo CARD do pipeline (id do deal). A função resolve deal →
+ * atleta → form_submission no banco; lead sem form_submission (cadastro
+ * manual) exclui atleta + deals do mesmo jeito — antes esse caminho falhava
+ * em silêncio e devolvia sucesso.
  */
-export async function excluirLeadPorDeal(dealId: string) {
-  const papel = await getUserPapel();
-  if (papel !== "ceo") {
-    return { success: false, error: "Apenas CEO/CTO podem excluir leads." };
-  }
-  if (!z.string().uuid().safeParse(dealId).success) {
-    return { success: false, error: "Id inválido." };
-  }
-
-  const supabase = await createAuditedSupabaseClient();
-  const { data: deal } = await supabase
-    .from("deals")
-    .select("id, atleta_id")
-    .eq("id", dealId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (!deal) {
-    return { success: false, error: "Deal não encontrado (já excluído?)." };
-  }
-
-  if (deal.atleta_id) {
-    const { data: atleta } = await supabase
-      .from("atletas")
-      .select("id, form_submission_id")
-      .eq("id", deal.atleta_id)
-      .maybeSingle();
-    if (atleta?.form_submission_id) {
-      return excluirLead(atleta.form_submission_id);
-    }
-  }
-
-  // Sem form_submission vinculada: cascata direta atleta + deals.
-  const agora = new Date().toISOString();
-  if (deal.atleta_id) {
-    await supabase
-      .from("deals")
-      .update({ deleted_at: agora })
-      .eq("atleta_id", deal.atleta_id)
-      .is("deleted_at", null);
-    await supabase
-      .from("atletas")
-      .update({ deleted_at: agora })
-      .eq("id", deal.atleta_id)
-      .is("deleted_at", null);
-  } else {
-    await supabase
-      .from("deals")
-      .update({ deleted_at: agora })
-      .eq("id", dealId)
-      .is("deleted_at", null);
-  }
-
-  revalidatePath("/pipeline");
-  revalidatePath("/leads");
-  revalidatePath("/war-room");
-  return { success: true, atletasExcluidos: deal.atleta_id ? 1 : 0, dealsExcluidos: 1 };
+export async function excluirLeadPorDeal(dealId: string): Promise<ExcluirLeadResult> {
+  if ((await getUserPapel()) !== "ceo") return { success: false, error: MSG_SEM_PERMISSAO };
+  if (!idSchema.safeParse(dealId).success) return { success: false, error: "Id inválido." };
+  return executarExclusao({ p_deal_id: dealId });
 }

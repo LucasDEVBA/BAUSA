@@ -638,7 +638,7 @@ export function PipelineBoard({
                 arrastandoColuna={arrastandoColuna}
                 sort={sortMap[stage] ?? DEFAULT_PIPELINE_SORT}
                 onSortChange={handleColumnSortChange}
-                onExcluirDeal={setDealParaExcluir}
+                onExcluirDeal={podeEditarColunas ? setDealParaExcluir : undefined}
               />
             ))}
             {podeEditarColunas && (
@@ -712,6 +712,7 @@ export function PipelineBoard({
       {frioAberto && (
         <AprovacaoLeadsModal
           modo="frios"
+          stageConfig={stageConfig}
           leadIdInicial={frioAberto}
           onClose={() => setFrioAberto(null)}
           onDecidido={(id) => {
@@ -728,6 +729,7 @@ export function PipelineBoard({
       {incompletoAberto && (
         <AprovacaoLeadsModal
           modo="incompletos"
+          stageConfig={stageConfig}
           leadIdInicial={incompletoAberto}
           onClose={() => setIncompletoAberto(null)}
           onDecidido={(id) => {
@@ -816,8 +818,12 @@ export function PipelineBoard({
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="excluir-deal-titulo"
+            aria-describedby="excluir-deal-descricao"
             className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && !excluindoLead) setDealParaExcluir(null);
+            }}
           >
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sys-red/10">
@@ -827,15 +833,17 @@ export function PipelineBoard({
                 <h2 id="excluir-deal-titulo" className="text-sm font-semibold text-foreground">
                   Excluir {dealParaExcluir.athlete_name}?
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p id="excluir-deal-descricao" className="mt-1 text-xs text-muted-foreground">
                   Exclui o lead inteiro: some do pipeline, das listas e de
-                  todas as mensagens automáticas. Nada é apagado de verdade —
-                  reversível pelo suporte.
+                  todas as mensagens automáticas. Tarefas abertas são
+                  canceladas e grupos de WhatsApp desvinculados (a conversa
+                  fica). Nada é apagado de verdade — reversível pelo suporte.
                 </p>
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
+                autoFocus
                 onClick={() => setDealParaExcluir(null)}
                 disabled={excluindoLead}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
@@ -847,13 +855,26 @@ export function PipelineBoard({
                   const alvo = dealParaExcluir;
                   startExcluirLead(async () => {
                     const r = await excluirLeadPorDeal(alvo.id);
-                    if (r.success) {
-                      toast.success(`Lead ${alvo.athlete_name} excluído.`);
-                      setDealParaExcluir(null);
-                      router.refresh();
-                    } else {
-                      toast.error(r.error ?? "Erro ao excluir.");
+                    // Falha = NADA mudou (função atômica): modal aberto, card fica.
+                    if (!r.success) {
+                      toast.error(r.error);
+                      return;
                     }
+                    // O card só sai com a exclusão do deal CONFIRMADA pelo banco.
+                    if (r.dealAlvoExcluido !== true) {
+                      toast.error("A exclusão não confirmou a saída deste deal — o card continua. Recarregue a página e tente de novo.");
+                      router.refresh();
+                      return;
+                    }
+                    setDeals((prev) => prev.filter((d) => d.id !== alvo.id));
+                    setDealParaExcluir(null);
+                    toast.success(
+                      r.jaExcluido
+                        ? `Exclusão de ${alvo.athlete_name} concluída.`
+                        : `Lead ${alvo.athlete_name} excluído.`,
+                    );
+                    if (r.aviso) toast.warning(r.aviso);
+                    router.refresh();
                   });
                 }}
                 disabled={excluindoLead}

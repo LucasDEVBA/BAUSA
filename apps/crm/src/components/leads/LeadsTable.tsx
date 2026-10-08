@@ -641,8 +641,12 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="excluir-lead-titulo"
+            aria-describedby="excluir-lead-descricao"
             className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && !excluindo) setLeadParaExcluir(null);
+            }}
           >
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sys-red/10">
@@ -652,15 +656,17 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
                 <h2 id="excluir-lead-titulo" className="text-sm font-semibold text-foreground">
                   Excluir {leadParaExcluir.athlete_name}?
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p id="excluir-lead-descricao" className="mt-1 text-xs text-muted-foreground">
                   O lead sai das listas, do pipeline e de todas as mensagens
-                  automáticas. Nada é apagado de verdade — a exclusão é
-                  reversível pelo suporte.
+                  automáticas. Tarefas abertas são canceladas e grupos de
+                  WhatsApp desvinculados (a conversa fica). Nada é apagado de
+                  verdade — a exclusão é reversível pelo suporte.
                 </p>
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
+                autoFocus
                 onClick={() => setLeadParaExcluir(null)}
                 disabled={excluindo}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
@@ -672,14 +678,17 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
                   const lead = leadParaExcluir;
                   startExcluir(async () => {
                     const r = await excluirLead(lead.id);
-                    if (r.success) {
-                      toast.success(`Lead ${lead.athlete_name} excluído.`);
-                      if ("aviso" in r && r.aviso) toast.warning(r.aviso);
-                      setLeadParaExcluir(null);
-                      router.refresh();
-                    } else {
-                      toast.error(r.error ?? "Erro ao excluir.");
+                    // Falha = NADA mudou (função atômica): modal aberto, linha fica.
+                    if (!r.success) {
+                      toast.error(r.error);
+                      return;
                     }
+                    setLeadParaExcluir(null);
+                    toast.success(
+                      r.jaExcluido ? `Exclusão de ${lead.athlete_name} concluída.` : `Lead ${lead.athlete_name} excluído.`,
+                    );
+                    if (r.aviso) toast.warning(r.aviso);
+                    router.refresh();
                   });
                 }}
                 disabled={excluindo}

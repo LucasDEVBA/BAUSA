@@ -28,12 +28,14 @@ const path = require('node:path');
 const src = fs.readFileSync(
   path.join(__dirname, '..', 'apps', 'crm', 'src', 'lib', 'actions', 'leads.ts'), 'utf8');
 
+// '(' no fim: 'aprovarLead' é prefixo de 'aprovarLeadDaRevisao' (T12) — o
+// recorte precisa ancorar na função ORIGINAL, não na primeira ocorrência.
 const aprovar = src.slice(
-  src.indexOf('export async function aprovarLead'),
+  src.indexOf('export async function aprovarLead('),
   src.indexOf('export async function reprovarLead'));
 const helper = src.slice(
   src.indexOf('async function garantirDealAtivoNaAprovacao'),
-  src.indexOf('export async function aprovarLead'));
+  src.indexOf('export async function aprovarLead('));
 
 test('garantia do deal fica entre o CAS e o re-arme da reativação', () => {
   const iCas = aprovar.indexOf('aprovacao_status: "aprovado"');
