@@ -18,6 +18,7 @@ import {
 } from "@/lib/escolas/formulario";
 import { escolaAtualizarSchema, mensagemValidacao } from "@/lib/escolas/schema";
 import type { School } from "@/types/school";
+import { Button } from "@/components/ui";
 
 import { SchoolFormFields } from "./SchoolFormFields";
 
@@ -42,6 +43,7 @@ export function SchoolEditForm({ school, onCancel, onSaved, onDirtyChange }: Sch
     watch,
     setValue,
     setError,
+    setFocus,
     formState: { errors, isDirty },
   } = useForm<EscolaFormValues>({
     resolver: zodResolver(escolaFormSchema),
@@ -51,6 +53,12 @@ export function SchoolEditForm({ school, onCancel, onSaved, onDirtyChange }: Sch
   useEffect(() => {
     onDirtyChange(isDirty);
   }, [isDirty, onDirtyChange]);
+
+  // O "Editar" que tinha o foco desmonta ao entrar na edição: o foco vai para
+  // o 1º campo (senão cai no <body>, fora do diálogo).
+  useEffect(() => {
+    setFocus("nome");
+  }, [setFocus]);
 
   const onSubmit = (values: EscolaFormValues) => {
     const montagem = colunasDoForm(values, original);
@@ -99,27 +107,19 @@ export function SchoolEditForm({ school, onCancel, onSaved, onDirtyChange }: Sch
         atual={{
           serie_maxima: school.serie_maxima,
           ingles_minimo: school.ingles_minimo,
+          temperatura_relacionamento: school.temperatura_relacionamento,
           localizacaoPendente: localizacaoPendente(school.cidade, school.estado_us),
         }}
       />
 
       <div className="sticky bottom-0 -mx-5 flex justify-end gap-2 border-t border-border bg-popover px-5 py-3 sm:-mx-6 sm:px-6">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={salvando}
-          className="rounded-md border border-border px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
-        >
+        <Button variant="secondary" size="sm" onClick={onCancel} disabled={salvando}>
           Cancelar
-        </button>
-        <button
-          type="submit"
-          disabled={salvando}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-        >
-          {salvando ? <Loader2 aria-hidden className="size-3.5 animate-spin" /> : <Save aria-hidden className="size-3.5" />}
+        </Button>
+        <Button type="submit" size="sm" disabled={salvando}>
+          {salvando ? <Loader2 aria-hidden className="animate-spin" /> : <Save aria-hidden />}
           Salvar alterações
-        </button>
+        </Button>
       </div>
     </form>
   );

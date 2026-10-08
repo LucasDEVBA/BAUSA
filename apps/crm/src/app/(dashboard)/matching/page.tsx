@@ -17,7 +17,7 @@ import {
   MATCH_CLASSIFICATION_CONFIG,
 } from "@/types/matching";
 import { EditableStrategyRow } from "@/components/matching/EditableStrategyRow";
-import { rotuloTipoEscola } from "@/lib/escolas/apresentacao";
+import { rotuloTipoEscola, siglaEstadoUs } from "@/lib/escolas/apresentacao";
 import {
   ScrollList,
   PageHeader,
@@ -56,7 +56,7 @@ function mapEstrategiaToMatch(row: Record<string, unknown>): SchoolMatch {
     school_name: (escola?.nome as string) ?? "Escola desconhecida",
     // Rótulo legível ("Boarding (internato)"), nunca o código cru do banco.
     school_type: rotuloTipoEscola(escola?.tipo as string | null | undefined) ?? "",
-    school_state: (escola?.estado_us as string) ?? "",
+    school_state: siglaEstadoUs(escola?.estado_us as string | null | undefined) ?? "",
     school_city: "",
     score,
     classification,

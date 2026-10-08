@@ -81,12 +81,12 @@ interface SchoolFormFieldsProps {
   atual?: {
     serie_maxima: string | null;
     ingles_minimo: string | null;
+    temperatura_relacionamento: string | null;
     localizacaoPendente: boolean;
   };
-  autoFocusNome?: boolean;
 }
 
-export function SchoolFormFields({ register, errors, watch, setValue, atual, autoFocusNome }: SchoolFormFieldsProps) {
+export function SchoolFormFields({ register, errors, watch, setValue, atual }: SchoolFormFieldsProps) {
   const uid = useId();
   const id = (campo: keyof EscolaFormValues) => `${uid}-${campo}`;
   const erroId = (campo: keyof EscolaFormValues) => `${uid}-${campo}-erro`;
@@ -105,6 +105,7 @@ export function SchoolFormFields({ register, errors, watch, setValue, atual, aut
   const serieOpcoes = opcoesComAtual(SERIE_OPTIONS, atual?.serie_maxima);
   const inglesSemValor = atual !== undefined && atual.ingles_minimo === null;
   const serieSemValor = atual !== undefined && atual.serie_maxima === null;
+  const temperaturaSemValor = atual !== undefined && atual.temperatura_relacionamento === null;
 
   return (
     <div className="space-y-5">
@@ -114,7 +115,7 @@ export function SchoolFormFields({ register, errors, watch, setValue, atual, aut
             Nome da escola
             <RequiredMark />
           </label>
-          <input {...register("nome")} {...a11y("nome")} className={inputClass} placeholder="Ex.: IMG Academy" autoFocus={autoFocusNome} />
+          <input {...register("nome")} {...a11y("nome")} className={inputClass} placeholder="Ex.: IMG Academy" />
           <FieldError id={erroId("nome")} message={errors.nome?.message} />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -358,10 +359,12 @@ export function SchoolFormFields({ register, errors, watch, setValue, atual, aut
         <div>
           <label htmlFor={id("temperatura_relacionamento")} className={labelClass}>Temperatura do relacionamento</label>
           <select {...register("temperatura_relacionamento")} {...a11y("temperatura_relacionamento")} className={selectClass}>
+            {temperaturaSemValor && <option value="">Não informado (atual)</option>}
             {TEMPERATURA_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+          <FieldError id={erroId("temperatura_relacionamento")} message={errors.temperatura_relacionamento?.message} />
         </div>
         <div>
           <label htmlFor={id("regra_pratica")} className={labelClass}>Regra prática BAUSA</label>

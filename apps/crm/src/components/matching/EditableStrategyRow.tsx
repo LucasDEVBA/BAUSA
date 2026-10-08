@@ -22,6 +22,7 @@ import {
   MATCH_CLASSIFICATION_CONFIG,
 } from "@/types/matching";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui";
 import { toast } from "sonner";
 
 interface StrategyData {
@@ -241,17 +242,17 @@ export function EditableStrategyRow({ strategy }: EditableStrategyRowProps) {
               />
             </div>
           </div>
-          <button
+          <Button
             onClick={(e) => {
               e.stopPropagation();
               handleSave();
             }}
             disabled={isPending}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-colors"
+            className="w-full"
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar Resultado
-          </button>
+            {isPending ? <Loader2 aria-hidden className="animate-spin" /> : <Save aria-hidden />}
+            Salvar resultado
+          </Button>
         </div>
       )}
     </div>

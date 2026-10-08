@@ -16,7 +16,7 @@ import {
   rotulo,
 } from "@/lib/escolas/apresentacao";
 import type { School } from "@/types/school";
-import { Badge, useConfirm } from "@/components/ui";
+import { Badge, Button, useConfirm } from "@/components/ui";
 
 import {
   AGRESSIVIDADE_LABEL,
@@ -193,6 +193,8 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
   const [editando, setEditando] = useState(false);
   const [formSujo, setFormSujo] = useState(false);
   const fecharRef = useRef<HTMLButtonElement>(null);
+  const editarRef = useRef<HTMLButtonElement>(null);
+  const estavaEditando = useRef(false);
   const tituloId = `escola-detalhe-${school.id}`;
   const localizacao = formatarLocalizacao(school.cidade, school.estado_us);
 
@@ -227,6 +229,13 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
     document.addEventListener("keydown", aoTeclar);
     return () => document.removeEventListener("keydown", aoTeclar);
   }, [fechar]);
+
+  // O botão que tinha o foco (Salvar/Cancelar) some ao sair da edição: sem
+  // isto o foco cai no <body>, fora do diálogo, e o Tab escapa para a página.
+  useEffect(() => {
+    if (estavaEditando.current && !editando) editarRef.current?.focus();
+    estavaEditando.current = editando;
+  }, [editando]);
 
   const aoSalvar = useCallback(() => {
     setEditando(false);
@@ -278,15 +287,16 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
               <Badge tone={STATUS_ESCOLA_TOM[school.status]} size="sm">{STATUS_LABEL[school.status]}</Badge>
             </div>
           </div>
-          <button
+          <Button
             ref={fecharRef}
-            type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => void fechar()}
             aria-label="Fechar detalhe da escola"
-            className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="shrink-0"
           >
-            <X aria-hidden className="size-5" />
-          </button>
+            <X aria-hidden />
+          </Button>
         </header>
 
         <div role="tablist" aria-label="Seções da escola" className="flex gap-1 border-b border-border px-5 py-2 sm:px-6">
@@ -334,14 +344,10 @@ export function SchoolDetailSheet({ school, agoraMs, onClose }: SchoolDetailShee
             ) : (
               <div className="space-y-4">
                 <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setEditando(true)}
-                    className="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
-                  >
-                    <Pencil aria-hidden className="size-3" />
+                  <Button ref={editarRef} variant="secondary" size="sm" onClick={() => setEditando(true)}>
+                    <Pencil aria-hidden />
                     Editar
-                  </button>
+                  </Button>
                 </div>
                 <InfoView school={school} />
               </div>

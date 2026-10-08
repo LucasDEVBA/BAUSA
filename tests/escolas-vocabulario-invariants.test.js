@@ -19,6 +19,8 @@
 //      `Number(budget) || 0`; histórico vem da view escolas_historico_bausa.
 //   6. Migration aditiva: perfil NULLABLE sem default, gate por TABELA, view
 //      security_invoker; calcular_match_score intocado.
+//   7. Sheets: cadastro digitado não some sem confirmação e o foco nunca cai
+//      fora do diálogo (abrir/fechar, entrar/sair da edição).
 // ════════════════════════════════════════════════════════════════════════
 
 const { test } = require('node:test');
@@ -128,6 +130,11 @@ test('tipo da escola é exibido com rótulo legível no Match e no Ganho', () =>
     'Motor de Match voltou a mostrar o código cru (boarding/mista)');
   assert.match(semComentarios(ler(GANHO)), /rotuloTipoEscola\(e\.tipo\)/,
     'modal do Ganho voltou a mostrar o código cru');
+  // O "--" do import (Gateway/RPS) não pode aparecer como se fosse um estado.
+  assert.match(semComentarios(ler(MATCHING_PAGE)), /school_state: siglaEstadoUs\(/,
+    'Motor de Match voltou a mostrar a UF crua ("--")');
+  assert.match(semComentarios(ler(GANHO)), /siglaEstadoUs\(e\.estado\)/,
+    'modal do Ganho voltou a mostrar a UF crua ("--")');
   const opts = ler(OPTIONS);
   assert.match(opts, /boarding: "Boarding \(internato\)"/);
   assert.match(opts, /day: "Day school"/);
@@ -224,6 +231,24 @@ test('edição manda só o diff e "Salvar" sem mexer não chama o servidor', () 
     'placeholder "A confirmar" não pode ir para o input como se fosse cidade');
   assert.match(form, /cidade: cidade === "" \? origCidade : cidade/,
     'cidade em branco com placeholder original deve ficar intocada');
+  // Coluna nullable com default no banco: pré-preencher o default no form
+  // faria o "Salvar sem mexer" gravar a coluna numa escola com NULL.
+  assert.match(form, /temperatura_relacionamento: e\.temperatura_relacionamento \?\? ""/,
+    'temperatura NULL não pode virar "neutro" no form (Salvar sem mexer gravaria a coluna)');
+  assert.ok(!/temperatura_relacionamento \?\? "neutro"/.test(form), 'default inventado voltou ao form');
+});
+
+test('sheets de escola: cadastro não some sem confirmação e o foco nunca cai fora do diálogo', () => {
+  const src = semComentarios(ler(path.join(CRM, 'components', 'escolas', 'SchoolFormSheet.tsx')));
+  assert.match(src, /if \(isDirty\) \{\s*const descartar = await confirm\(/,
+    'Esc/fundo/Cancelar descartavam o cadastro digitado sem perguntar');
+  assert.ok(!/onClick=\{onClose\}/.test(src), 'fechar pelo fundo/X/Cancelar deve passar pela confirmação');
+  assert.match(src, /if \(anterior\?\.isConnected\) anterior\.focus\(\)/, 'foco precisa voltar para quem abriu o sheet');
+  // Entrar/sair da edição desmonta o botão focado: o foco não pode cair no
+  // <body> (fora do diálogo, onde o Tab preso não alcança).
+  const detalhe = semComentarios(ler(path.join(CRM, 'components', 'escolas', 'SchoolDetailSheet.tsx')));
+  assert.match(detalhe, /editarRef\.current\?\.focus\(\)/, 'sair da edição deve devolver o foco ao "Editar"');
+  assert.match(semComentarios(ler(EDIT)), /setFocus\("nome"\)/, 'entrar na edição deve focar o 1º campo');
 });
 
 // ─── 4. Contatos ─────────────────────────────────────────────────────────
@@ -236,6 +261,15 @@ test('contatos usam as colunas reais data/tipo', () => {
   assert.match(src, /ultimo_contato_at\.lte\./, 'último contato só pode avançar');
   assert.match(src, /dia > hojeIsoBrasilia\(Date\.now\(\)\)/,
     'servidor precisa barrar contato com data futura (travaria o último contato)');
+  const registrar = src.slice(
+    src.indexOf('export async function registrarContatoEscola'),
+    src.indexOf('export async function listarContatosEscola'),
+  );
+  assert.ok(
+    registrar.indexOf('.is("deleted_at", null)') > -1 &&
+      registrar.indexOf('.is("deleted_at", null)') < registrar.indexOf('.from("historico_contatos_escola")'),
+    'contato só pode ser registrado em escola não removida (checar antes do INSERT)',
+  );
   const apres = semComentarios(ler(path.join(CRM, 'lib', 'escolas', 'apresentacao.ts')));
   assert.match(apres, /timeZone: FUSO_OPERACAO/, '"há N dias" precisa de fuso explícito (SSR em UTC × navegador em BRT)');
 });

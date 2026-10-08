@@ -92,7 +92,7 @@ export const escolaFormSchema = z.object({
     .max(254, "E-mail longo demais.")
     .refine((v) => v === "" || EMAIL_RE.test(v), "E-mail inválido."),
   admissions_officer_telefone: z.string().trim().max(40, "Máximo de 40 caracteres."),
-  temperatura_relacionamento: z.enum(TEMPERATURA_VALUES, { error: "Selecione a temperatura." }),
+  temperatura_relacionamento: z.union([z.enum(TEMPERATURA_VALUES), z.literal("")]),
   regra_pratica: z.string().max(1000, "Máximo de 1000 caracteres."),
   notas_internas: z.string().max(5000, "Máximo de 5000 caracteres."),
 });
@@ -198,7 +198,8 @@ export function formDaEscola(e: School): EscolaFormValues {
     admissions_officer_nome: e.admissions_officer_nome ?? "",
     admissions_officer_email: e.admissions_officer_email ?? "",
     admissions_officer_telefone: e.admissions_officer_telefone ?? "",
-    temperatura_relacionamento: e.temperatura_relacionamento ?? "neutro",
+    // NULL fica vazio: pré-preencher "neutro" faria o Salvar sem mexer gravar a coluna.
+    temperatura_relacionamento: e.temperatura_relacionamento ?? "",
     regra_pratica: e.regra_pratica ?? "",
     notas_internas: e.notas_internas ?? "",
   };
@@ -251,6 +252,12 @@ export function colunasDoForm(v: EscolaFormValues, original: ValoresEscola | nul
   if (v.serie_maxima === "" && (original === null || original.serie_maxima != null)) {
     return { ok: false, campo: "serie_maxima", mensagem: "Selecione a série máxima." };
   }
+  if (
+    v.temperatura_relacionamento === "" &&
+    (original === null || original.temperatura_relacionamento != null)
+  ) {
+    return { ok: false, campo: "temperatura_relacionamento", mensagem: "Selecione a temperatura." };
+  }
   if (v.serie_maxima !== "" && !isValorDe(SERIE_VALUES, v.serie_maxima) && v.serie_maxima !== original?.serie_maxima) {
     return { ok: false, campo: "serie_maxima", mensagem: "Selecione uma série válida." };
   }
@@ -291,7 +298,7 @@ export function colunasDoForm(v: EscolaFormValues, original: ValoresEscola | nul
       admissions_officer_nome: vazioOuNull(v.admissions_officer_nome),
       admissions_officer_email: vazioOuNull(v.admissions_officer_email),
       admissions_officer_telefone: vazioOuNull(v.admissions_officer_telefone),
-      temperatura_relacionamento: v.temperatura_relacionamento,
+      temperatura_relacionamento: v.temperatura_relacionamento === "" ? null : v.temperatura_relacionamento,
       regra_pratica: vazioOuNull(v.regra_pratica),
       notas_internas: vazioOuNull(v.notas_internas),
     },

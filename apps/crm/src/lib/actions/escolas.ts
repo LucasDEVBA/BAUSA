@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getUserPapel } from "@/lib/auth";
 import { hojeIsoBrasilia } from "@/lib/escolas/apresentacao";
 import { normalizarEsportes } from "@/lib/escolas/formulario";
@@ -242,6 +243,20 @@ export async function registrarContatoEscola(
 
   try {
     const supabase = await createAuditedSupabaseClient();
+
+    // Escola removida some da tela: contato nela ficaria órfão e invisível.
+    const { data: escola, error: erroEscola } = await supabase
+      .from("escolas")
+      .select("id")
+      .eq("id", escolaId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (erroEscola) {
+      logErro("registrar_contato_escola_leitura", { escolaId }, erroEscola);
+      return { success: false, error: mensagemErroBanco(erroEscola) };
+    }
+    if (!escola) return { success: false, error: "Escola não encontrada (pode ter sido removida)." };
+
     const { data: contato, error } = await supabase
       .from("historico_contatos_escola")
       .insert({ escola_id: escolaId, data: dia, tipo, resumo })
@@ -256,6 +271,7 @@ export async function registrarContatoEscola(
       .from("escolas")
       .update({ ultimo_contato_at: dia, tipo_ultimo_contato: tipo })
       .eq("id", escolaId)
+      .is("deleted_at", null)
       .or(`ultimo_contato_at.is.null,ultimo_contato_at.lte.${dia}`);
     if (erroUltimo) {
       // O contato já foi gravado: não desfazemos, só registramos a falha.
@@ -273,7 +289,8 @@ export async function registrarContatoEscola(
 export async function listarContatosEscola(escolaId: string): Promise<Resultado<ContatoEscola[]>> {
   if (!uuidSchema.safeParse(escolaId).success) return { success: false, error: "Escola inválida." };
   try {
-    const supabase = await createAuditedSupabaseClient();
+    // Leitura: client comum (o auditado gasta uma RPC set_audit_user à toa).
+    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("historico_contatos_escola")
       .select(CONTATO_COLUNAS)

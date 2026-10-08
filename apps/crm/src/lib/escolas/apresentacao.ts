@@ -67,6 +67,15 @@ export function rotuloEstadoUs(estadoUs: string): string {
   return US_STATES.find((s) => s.value === estadoUs)?.label ?? estadoUs;
 }
 
+/**
+ * Sigla curta para telas que recebem o código cru (Match, Ganho): o "--" do
+ * import do Trello não pode aparecer como se fosse um estado.
+ */
+export function siglaEstadoUs(estadoUs: string | null | undefined): string | null {
+  if (!estadoUs || estadoUs.trim() === "") return null;
+  return isEstadoUs(estadoUs) ? estadoUs : "UF a confirmar";
+}
+
 const USD = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "USD",

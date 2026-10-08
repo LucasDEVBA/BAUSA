@@ -18,8 +18,15 @@ import { cn } from "@/lib/utils";
 import { listarContatosEscola, registrarContatoEscola } from "@/lib/actions/escolas";
 import { formatarDataCurta, hojeIsoBrasilia } from "@/lib/escolas/apresentacao";
 import type { ContatoEscola } from "@/types/school";
+import { Button } from "@/components/ui";
 
-import { TIPO_CONTATO_LABEL, TIPO_CONTATO_OPTIONS, type TipoContato } from "./school-options";
+import {
+  TIPO_CONTATO_LABEL,
+  TIPO_CONTATO_OPTIONS,
+  TIPO_CONTATO_VALUES,
+  isValorDe,
+  type TipoContato,
+} from "./school-options";
 
 const ICONE_CONTATO: Readonly<Record<TipoContato, LucideIcon>> = {
   email: Mail,
@@ -109,15 +116,10 @@ export function SchoolContatosTab({ escolaId, agoraMs, onRegistrado }: SchoolCon
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-foreground">Timeline de contatos</h3>
-        <button
-          type="button"
-          onClick={() => setMostrarForm((v) => !v)}
-          aria-expanded={mostrarForm}
-          className="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
-        >
-          <Plus aria-hidden className="size-3" />
+        <Button variant="secondary" size="sm" onClick={() => setMostrarForm((v) => !v)} aria-expanded={mostrarForm}>
+          <Plus aria-hidden />
           Novo contato
-        </button>
+        </Button>
       </div>
 
       {mostrarForm && (
@@ -166,22 +168,13 @@ export function SchoolContatosTab({ escolaId, agoraMs, onRegistrado }: SchoolCon
             <p id={`${idBase}-erro`} role="alert" className="text-xs font-medium text-destructive">{erroForm}</p>
           )}
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setMostrarForm(false)}
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
-            >
+            <Button variant="ghost" size="sm" onClick={() => setMostrarForm(false)} disabled={salvando}>
               Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={salvar}
-              disabled={salvando}
-              className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
-            >
-              {salvando && <Loader2 aria-hidden className="size-3 animate-spin" />}
+            </Button>
+            <Button size="sm" onClick={salvar} disabled={salvando}>
+              {salvando && <Loader2 aria-hidden className="animate-spin" />}
               Salvar contato
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -214,8 +207,9 @@ export function SchoolContatosTab({ escolaId, agoraMs, onRegistrado }: SchoolCon
           <span aria-hidden className="absolute bottom-2 left-3 top-2 w-px bg-border" />
           <ol className="relative space-y-0">
             {lista.contatos.map((contato) => {
-              const tipo = contato.tipo as TipoContato;
-              const Icone = ICONE_CONTATO[tipo] ?? FileText;
+              // Tipo gravado fora do vocabulário da UI aparece cru, com ícone genérico.
+              const tipoConhecido = isValorDe(TIPO_CONTATO_VALUES, contato.tipo) ? contato.tipo : null;
+              const Icone = tipoConhecido ? ICONE_CONTATO[tipoConhecido] : FileText;
               return (
                 <li key={contato.id} className="relative flex gap-3 py-2">
                   <span className="z-10 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-card">
@@ -224,7 +218,7 @@ export function SchoolContatosTab({ escolaId, agoraMs, onRegistrado }: SchoolCon
                   <div className="min-w-0 flex-1 rounded-lg border border-border bg-card px-3 py-2.5">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="text-[10px] font-medium text-primary">
-                        {(TIPO_CONTATO_LABEL as Readonly<Record<string, string>>)[contato.tipo] ?? contato.tipo}
+                        {tipoConhecido ? TIPO_CONTATO_LABEL[tipoConhecido] : contato.tipo}
                       </span>
                       <time dateTime={contato.data} className="text-[10px] text-label-tertiary">
                         {formatarDataCurta(contato.data)}

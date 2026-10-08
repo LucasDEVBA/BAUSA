@@ -11,7 +11,7 @@ import {
   salvarShortlistEscolas,
   type EscolaSugerida,
 } from "@/lib/actions/handoff-escolas";
-import { rotuloTipoEscola } from "@/lib/escolas/apresentacao";
+import { rotuloTipoEscola, siglaEstadoUs } from "@/lib/escolas/apresentacao";
 import { cn } from "@/lib/utils";
 
 /**
@@ -231,7 +231,7 @@ export function GanhoEscolasModal({
                             {e.nome}
                           </span>
                           <span className="mt-0.5 block text-[11px] text-label-tertiary">
-                            {[e.estado, rotuloTipoEscola(e.tipo)].filter(Boolean).join(" · ") || "—"}
+                            {[siglaEstadoUs(e.estado), rotuloTipoEscola(e.tipo)].filter(Boolean).join(" · ") || "—"}
                           </span>
                           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
                             <Badge tone={TOM_CLASSIF[e.classificacao] ?? "neutral"} size="sm">

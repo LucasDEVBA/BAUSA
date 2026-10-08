@@ -3,10 +3,9 @@
 import { useMemo, useState } from "react";
 import { GraduationCap, Plus, Search, X } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { rotuloEstadoUs } from "@/lib/escolas/apresentacao";
 import type { School } from "@/types/school";
-import { EmptyState } from "@/components/ui";
+import { Button, EmptyState, Input } from "@/components/ui";
 
 import {
   PERFIL_OPTIONS,
@@ -27,8 +26,6 @@ type FiltroTipo = TipoEscola | typeof TODOS;
 type FiltroStatus = StatusEscola | typeof TODOS;
 type FiltroPerfil = PerfilEscola | typeof SEM_PERFIL | typeof TODOS;
 
-const inputClass =
-  "h-9 w-full rounded-md border border-input bg-card text-sm text-foreground placeholder:text-placeholder focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 const selectClass =
   "h-9 w-full min-w-0 appearance-none rounded-md border border-input bg-card px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 sm:w-auto";
 
@@ -108,13 +105,13 @@ export function EscolasClient({ schools, historicoDisponivel, agoraMs }: Escolas
             Buscar escola
           </label>
           <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <Input
             id="escolas-busca"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por nome, cidade ou estado…"
-            className={cn(inputClass, "pl-9 pr-9")}
+            className="pl-9 pr-9"
           />
           {query && (
             <button
@@ -203,14 +200,10 @@ export function EscolasClient({ schools, historicoDisponivel, agoraMs }: Escolas
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsCreating(true)}
-          className="flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 lg:ml-auto"
-        >
-          <Plus aria-hidden className="size-4" />
+        <Button onClick={() => setIsCreating(true)} className="lg:ml-auto">
+          <Plus aria-hidden />
           Adicionar escola
-        </button>
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
@@ -220,14 +213,10 @@ export function EscolasClient({ schools, historicoDisponivel, agoraMs }: Escolas
             title={schools.length === 0 ? "Nenhuma escola cadastrada ainda." : "Nenhuma escola para estes filtros."}
             action={
               schools.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setIsCreating(true)}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  <Plus aria-hidden className="size-4" />
+                <Button onClick={() => setIsCreating(true)}>
+                  <Plus aria-hidden />
                   Cadastrar primeira escola
-                </button>
+                </Button>
               ) : (
                 <button
                   type="button"
