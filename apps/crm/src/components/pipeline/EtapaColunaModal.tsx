@@ -15,12 +15,13 @@ import {
   Plus,
   Settings2,
   Sparkles,
+  Trophy,
   Workflow,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge, Button, EmptyState, Skeleton } from "@/components/ui";
+import { Badge, Button, EmptyState, Skeleton, ToggleField, UnitInput } from "@/components/ui";
 import { SeusAgentsSection } from "@/components/agents/SeusAgentsSection";
 import { BuilderScreen } from "@/components/automacoes/BuilderScreen";
 import {
@@ -40,6 +41,11 @@ import {
   type ContextoColuna,
 } from "@/lib/actions/etapas-pipeline";
 import {
+  ACAO_PADRAO_DIAS_DEFAULT,
+  ACAO_PADRAO_DIAS_MAX,
+  ACAO_PADRAO_TEXTO_MAX,
+  ACAO_PADRAO_TEXTO_MIN,
+  ETAPAS_GANHO_FIXAS,
   ETAPA_ACCENTS,
   ETAPA_ACCENT_DOT,
   ETAPA_ACCENT_LABEL,
@@ -53,7 +59,9 @@ import { cn } from "@/lib/utils";
 /**
  * Modal da COLUNA do Kanban (estilo Trello): clicar no nome da coluna abre
  * aqui. Três abas sobre a mesma etapa:
- *   • Coluna     — rótulo, cor, probabilidade, ocultar (etapas_deal_config)
+ *   • Coluna     — rótulo, cor, probabilidade, ocultar (etapas_deal_config) e
+ *                  comportamento: conta como ganho (só personalizadas), pedir
+ *                  o plano ao entrar e próxima ação padrão (etapas_deal_regras)
  *   • Automações — as que já disparam nesta coluna (gatilho deal_etapa_mudou
  *                  + etapa_para) e criação pré-configurada com esse gatilho
  *   • Agents     — CRUD dos agents de automação (o mesmo de /agents)
@@ -97,6 +105,22 @@ export function EtapaColunaModal({
   const [oculta, setOculta] = useState(config.oculta);
   const [prob, setProb] = useState<string>(probabilidade === null ? "" : String(probabilidade));
 
+  // Comportamento (etapas_deal_regras)
+  const ehPersonalizada = config.isCustomSlot === true;
+  const ganhoFixo = ETAPAS_GANHO_FIXAS.includes(stage);
+  const [ganho, setGanho] = useState(config.ganho);
+  const [pedePlano, setPedePlano] = useState(config.pedePlano);
+  const [acaoTexto, setAcaoTexto] = useState(config.acaoPadrao?.texto ?? "");
+  const [acaoDias, setAcaoDias] = useState<number>(
+    config.acaoPadrao?.dias ?? ACAO_PADRAO_DIAS_DEFAULT,
+  );
+  const acaoTextoLimpo = acaoTexto.trim();
+  const erroAcao =
+    acaoTextoLimpo.length > 0 && acaoTextoLimpo.length < ACAO_PADRAO_TEXTO_MIN
+      ? `Use pelo menos ${ACAO_PADRAO_TEXTO_MIN} caracteres ou deixe em branco.`
+      : null;
+  const probNumero = prob.trim() === "" ? null : Number(prob);
+
   // Builder de automação (tela cheia própria) — o modal se esconde enquanto ele está aberto
   const [builder, setBuilder] = useState<BuilderState | null>(null);
 
@@ -132,6 +156,12 @@ export function EtapaColunaModal({
         accent,
         oculta,
         probabilidade: prob.trim() === "" ? null : Number(prob),
+        regras: {
+          ganho: ehPersonalizada && ganho,
+          pedePlano: config.isLost ? false : pedePlano,
+          acaoPadraoTexto: config.isLost ? "" : acaoTexto,
+          acaoPadraoDias: acaoDias,
+        },
       });
       if (r.success) {
         toast.success("Coluna atualizada");
@@ -335,6 +365,82 @@ export function EtapaColunaModal({
                   </div>
                 </div>
 
+                <section aria-labelledby="etapa-comportamento" className="space-y-3 border-t border-border pt-4">
+                  <h3 id="etapa-comportamento" className="text-xs font-semibold text-foreground">
+                    Comportamento
+                  </h3>
+
+                  {ehPersonalizada ? (
+                    <ToggleField
+                      label="Conta como negócio ganho"
+                      ativo={ganho}
+                      onChange={setGanho}
+                      ajuda="Deals aqui contam em Contratos assinados, no forecast e no War Room, saem das audiências de remarketing e o chatbot sempre passa a conversa para um humano."
+                    />
+                  ) : ganhoFixo ? (
+                    <p className="flex items-center gap-1.5 rounded-lg border border-border bg-secondary/50 px-3 py-2 text-[11px] text-muted-foreground">
+                      <Trophy aria-hidden className="size-3.5 shrink-0 text-sys-green" />
+                      Etapa de negócio ganho (fixa do sistema).
+                    </p>
+                  ) : null}
+                  {ehPersonalizada && ganho && probNumero !== null && probNumero < 95 && (
+                    <p className="text-[11px] text-sys-orange">
+                      Colunas de ganho costumam ter probabilidade de 95% ou mais.
+                    </p>
+                  )}
+
+                  {!config.isLost && (
+                    <ToggleField
+                      label="Pedir o plano ao entrar"
+                      ativo={pedePlano}
+                      onChange={setPedePlano}
+                      ajuda="Ao soltar um card aqui, abre a escolha do plano (Start, Journey, Legacy ou Personalizado); se o deal já tem plano, dá para manter ou alterar. Cancelar mantém o card onde estava."
+                    />
+                  )}
+
+                  {!config.isLost && (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_9rem]">
+                      <div>
+                        <label
+                          htmlFor="etapa-acao-padrao"
+                          className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                        >
+                          Próxima ação padrão
+                        </label>
+                        <input
+                          id="etapa-acao-padrao"
+                          value={acaoTexto}
+                          onChange={(e) => setAcaoTexto(e.target.value)}
+                          maxLength={ACAO_PADRAO_TEXTO_MAX}
+                          placeholder="Ex.: Definir o plano com a família"
+                          aria-invalid={erroAcao ? true : undefined}
+                          aria-describedby="etapa-acao-ajuda"
+                          className={cn(
+                            "w-full rounded-lg border bg-card px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            erroAcao ? "border-sys-red/60" : "border-border",
+                          )}
+                        />
+                        <p
+                          id="etapa-acao-ajuda"
+                          className={cn("mt-1 text-[11px]", erroAcao ? "text-sys-red" : "text-label-tertiary")}
+                        >
+                          {erroAcao ??
+                            "O deal recebe esta ação ao entrar na coluna — por arraste, pelo editor ou por automação/integração — e nunca sobrescreve uma ação escrita à mão. Em branco = mantém a ação atual."}
+                        </p>
+                      </div>
+                      <UnitInput
+                        id="etapa-acao-dias"
+                        label="Prazo"
+                        unidade="dias"
+                        valor={acaoDias}
+                        onChange={setAcaoDias}
+                        min={0}
+                        max={ACAO_PADRAO_DIAS_MAX}
+                      />
+                    </div>
+                  )}
+                </section>
+
                 <p className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
                   Para mudar a <strong>posição</strong>, arraste a coluna pelo cabeçalho direto no board.
                 </p>
@@ -452,7 +558,11 @@ export function EtapaColunaModal({
               <Button variant="ghost" size="md" disabled={pending} onClick={onClose}>
                 Cancelar
               </Button>
-              <Button size="md" disabled={pending || label.trim().length === 0} onClick={salvarColuna}>
+              <Button
+                size="md"
+                disabled={pending || label.trim().length === 0 || erroAcao !== null}
+                onClick={salvarColuna}
+              >
                 {pending ? <Loader2 className="animate-spin" /> : null}
                 Salvar coluna
               </Button>

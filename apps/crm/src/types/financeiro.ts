@@ -51,7 +51,13 @@ export type DespesaCategoria =
   | "impostos"
   | "comissoes"
   | "ocupacao"
-  | "outros";
+  | "outros"
+  // Custos internos por aluno (T18b — despesas.contrato_id)
+  | "psicologa"
+  | "taxas_escola"
+  | "testes_idioma"
+  | "traducao"
+  | "viagem";
 
 export type DespesaTipo = "fixa" | "variavel";
 
@@ -75,6 +81,11 @@ export const DESPESA_CATEGORIA_LABEL: Record<DespesaCategoria, string> = {
   comissoes: "Comissões",
   ocupacao: "Ocupação",
   outros: "Outros",
+  psicologa: "Psicóloga",
+  taxas_escola: "Taxas de escola/aplicação",
+  testes_idioma: "Testes de idioma (TOEFL/Duolingo)",
+  traducao: "Tradução de documentos",
+  viagem: "Viagem/deslocamento",
 };
 
 export const DESPESA_STATUS_LABEL: Record<DespesaStatus, string> = {
@@ -111,6 +122,8 @@ export interface Despesa {
   recorrencia_ativa: boolean;
   despesa_origem_id: string | null;
   colaborador_id: string | null;
+  /** Custo interno com UM aluno (T18b); aparece no contrato e na margem direta. */
+  contrato_id?: string | null;
   comprovante_url: string | null;
   observacao: string | null;
   created_at: string;

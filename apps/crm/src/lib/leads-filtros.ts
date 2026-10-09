@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ════════════════════════════════════════════════════════════════════════
 // Filtros da tela /leads (T8 — paginação no servidor).
-// Estado vive na URL (?q=&classe=&pagina=&porPagina=&ordem=&dir=&atleta=):
+// Estado vive na URL (?q=&classe=&pagina=&porPagina=&ordem=&dir=&atleta=&lead=):
 // link compartilhável, voltar do navegador funciona e o Server Component
 // é a única fonte dos dados. Módulo comum (client + server), sem imports
 // de servidor.
@@ -41,6 +41,9 @@ export interface FiltrosLeads {
   dir: "asc" | "desc";
   /** Deep-link das Execuções/Agenda: abre o dossiê desse atleta. */
   atleta: string | null;
+  /** T14: deep-link da notificação "Reunião detectada de lead fora do
+   *  pipeline" — form_submission_id; abre o dossiê mesmo SEM atleta/deal. */
+  lead: string | null;
 }
 
 export const FILTROS_LEADS_PADRAO: FiltrosLeads = {
@@ -51,6 +54,7 @@ export const FILTROS_LEADS_PADRAO: FiltrosLeads = {
   ordem: "submitted_at",
   dir: "desc",
   atleta: null,
+  lead: null,
 };
 
 const primeiro = (v: unknown): unknown => (Array.isArray(v) ? v[0] : v);
@@ -67,11 +71,14 @@ const filtrosSchema = z.object({
   ordem: z.preprocess(primeiro, z.enum(ORDENS_LEADS)).catch("submitted_at"),
   dir: z.preprocess(primeiro, z.enum(["asc", "desc"])).catch("desc"),
   atleta: z.preprocess(primeiro, z.uuid()).nullable().catch(null),
+  lead: z.preprocess(primeiro, z.uuid()).nullable().catch(null),
 });
 
 export function parseFiltrosLeads(params: Record<string, string | string[] | undefined>): FiltrosLeads {
   const r = filtrosSchema.safeParse(params);
-  return r.success ? { ...r.data, atleta: r.data.atleta ?? null } : FILTROS_LEADS_PADRAO;
+  return r.success
+    ? { ...r.data, atleta: r.data.atleta ?? null, lead: r.data.lead ?? null }
+    : FILTROS_LEADS_PADRAO;
 }
 
 /** Query string de /leads a partir dos filtros (só o que difere do padrão). */

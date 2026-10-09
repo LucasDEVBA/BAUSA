@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getEtapasGanho } from "@/lib/actions/configuracoes";
 
 // ════════════════════════════════════════════════════════════════════════
 // Re-marketing (Fase 1) — audiências inteligentes de leads QUENTE/MORNO
@@ -15,7 +16,14 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 // (fetchSegmentoLeadsFull) no momento do export/disparo.
 // ════════════════════════════════════════════════════════════════════════
 
-const ETAPAS_GANHAS = ["contrato_assinado", "sinal_pago", "admission_process", "concluido"];
+// Etapas de GANHO vêm da config (fixas + Plano escolhido + colunas
+// personalizadas marcadas como ganho — Admitido, Valor total pago…). FAIL-
+// CLOSED: se a config não puder ser lida, TODA coluna personalizada conta
+// como ganho — família que já pagou nunca entra em campanha por erro de
+// leitura. Ver getEtapasGanho({ falhaComoGanho: true }).
+async function fetchEtapasGanhas(): Promise<ReadonlySet<string>> {
+  return new Set<string>(await getEtapasGanho({ falhaComoGanho: true }));
+}
 const DIAS_INATIVO = 90;
 const SCORE_ALTO = 75;
 const TICKET_MEDIO_FALLBACK = 23000; // BRL — média histórica BAUSA se sem contratos
@@ -117,16 +125,24 @@ async function fetchTicketMedio(): Promise<number> {
   const { data } = await supabase
     .from("contratos_financeiros")
     .select("valor_total")
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // Só o sinal (aguardando plano) derrubaria o ticket médio.
+    .not("plano", "is", null);
   const valores = (data ?? []).map((c) => Number(c.valor_total)).filter((v) => v > 0);
   if (valores.length === 0) return TICKET_MEDIO_FALLBACK;
   return Math.round(valores.reduce((s, v) => s + v, 0) / valores.length);
 }
 
 /** True se o deal+atleta pertence ao segmento. */
-function pertenceAoSegmento(key: string, d: DealRow, a: AtletaRow, agora: Date): boolean {
+function pertenceAoSegmento(
+  key: string,
+  d: DealRow,
+  a: AtletaRow,
+  agora: Date,
+  etapasGanhas: ReadonlySet<string>,
+): boolean {
   const etapa = d.etapa;
-  const ganho = ETAPAS_GANHAS.includes(etapa);
+  const ganho = etapasGanhas.has(etapa);
   const perdido = etapa === "perdido";
   const ativoNaoGanho = !ganho && !perdido;
 
@@ -160,6 +176,7 @@ function pertenceAoSegmento(key: string, d: DealRow, a: AtletaRow, agora: Date):
 /** Dados para a página (anônimo). */
 export async function fetchRemarketingData(): Promise<RemarketingData> {
   const [deals, ticketMedio] = await Promise.all([fetchRemarketingDeals(), fetchTicketMedio()]);
+  const etapasGanhas = await fetchEtapasGanhas();
   const agora = new Date();
   const esportesSet = new Set<string>();
 
@@ -170,7 +187,7 @@ export async function fetchRemarketingData(): Promise<RemarketingData> {
       if (!a) continue;
       const classe = a.classificacao_gemini ?? "";
       if (!["QUENTE", "MORNO"].includes(classe)) continue;
-      if (!pertenceAoSegmento(def.key, d, a, agora)) continue;
+      if (!pertenceAoSegmento(def.key, d, a, agora, etapasGanhas)) continue;
 
       const esporte = (a.esporte ?? "").trim() || "—";
       esportesSet.add(esporte);
@@ -251,6 +268,7 @@ export async function fetchSegmentoLeadsFull(
   const def = REMARKETING_SEGMENTS.find((s) => s.key === segmentKey);
   if (!def) return [];
   const deals = await fetchRemarketingDeals();
+  const etapasGanhas = await fetchEtapasGanhas();
   const agora = new Date();
   const out: RemarketingLeadFull[] = [];
 
@@ -259,7 +277,7 @@ export async function fetchSegmentoLeadsFull(
     if (!a) continue;
     const classe = a.classificacao_gemini ?? "";
     if (!["QUENTE", "MORNO"].includes(classe)) continue;
-    if (!pertenceAoSegmento(segmentKey, d, a, agora)) continue;
+    if (!pertenceAoSegmento(segmentKey, d, a, agora, etapasGanhas)) continue;
 
     const lead = {
       idade: idadeDe(a.data_nascimento),

@@ -30,6 +30,7 @@ import { DossieLeadView, useDossieLead } from "./DossieLead";
 import type { PrioridadeLead } from "@/lib/prioridade-engajamento";
 import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
 import { Badge } from "@/components/ui";
+import { ReuniaoDetectadaBadge } from "@/components/pipeline/ReuniaoDetectadaBadge";
 import { LeadStatusBadge } from "./LeadStatusBadge";
 import { formatRelativeTime, formatInvestmentRange } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -46,7 +47,8 @@ interface LeadsTableProps {
   prioridades?: Record<string, PrioridadeLead>;
   /** Aviso do servidor (ex.: ordenação por prioridade só cobre aprovados). */
   aviso?: string | null;
-  /** Deep-link ?atleta=<id>: dossiê já carregado pelo servidor, abre 1 vez. */
+  /** Deep-link ?atleta=<id> ou ?lead=<form_submission_id> (T14): dossiê já
+   *  carregado pelo servidor, abre 1 vez. */
   leadInicial?: Lead | null;
 }
 
@@ -105,7 +107,7 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
   useEffect(() => {
     if (leadParaExcluir && !excluindo) cancelarExclusaoRef.current?.focus();
   }, [leadParaExcluir, excluindo]);
-  // Dossiê sob demanda (a lista só tem o resumo). ?atleta= já chega aberto.
+  // Dossiê sob demanda (a lista só tem o resumo). ?atleta=/?lead= já chegam abertos.
   const dossie = useDossieLead(leadInicial);
 
   // Filtros que a tela DEVE ter: os da URL ou, com navegação em curso, os do
@@ -116,9 +118,17 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
     if (!navegando) alvoRef.current = filtros;
   }, [filtros, navegando]);
   const navegar = (patch: Partial<FiltrosLeads>) => {
-    const proximo: FiltrosLeads = { ...alvoRef.current, ...patch, atleta: null };
+    const proximo: FiltrosLeads = { ...alvoRef.current, ...patch, atleta: null, lead: null };
     alvoRef.current = proximo;
     startNavegar(() => router.replace(urlFiltrosLeads(proximo), { scroll: false }));
+  };
+  // Fechar solta o ?lead=/?atleta= da URL: com ele preso, clicar de novo no
+  // mesmo link (sininho, Execuções) não muda o id e o dossiê não reabre.
+  const fecharDossie = () => {
+    dossie.fechar();
+    if (filtros.lead || filtros.atleta) {
+      router.replace(urlFiltrosLeads(alvoRef.current), { scroll: false });
+    }
   };
 
   // Busca: digita → 300 ms → URL (?q=) → servidor. Menos de 2 caracteres
@@ -403,6 +413,11 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
         accessorFn: (row) => row.pipeline_stage ?? "",
         cell: ({ row }) => {
           const lead = row.original;
+          // T14: reunião detectada e nenhum deal = a reunião existe e o funil não sabe.
+          // pipeline_deal_id vem da view (só deal ATIVO) → aqui o "sem deal" é garantido.
+          if (lead.meeting_scheduled === true && !lead.pipeline_deal_id) {
+            return <ReuniaoDetectadaBadge detectadaEm={lead.meeting_scheduled_at} semDeal />;
+          }
           if (!lead.is_in_pipeline) {
             return <span className="text-xs text-label-tertiary">—</span>;
           }
@@ -659,7 +674,7 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
       </div>
 
       {/* Dossiê sob demanda (mesmo LeadOrDealSheet do /pipeline) */}
-      <DossieLeadView estado={dossie.estado} onClose={dossie.fechar} />
+      <DossieLeadView estado={dossie.estado} onClose={fecharDossie} />
 
       {/* Confirmação de exclusão (soft delete) */}
       {leadParaExcluir && (

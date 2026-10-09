@@ -1,410 +1,31 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
-import { PLANO_VALORES, ENTRADA_PADRAO } from "@/types/crm";
-import { registrarEventoGamificacao, type ResultadoGamificacao } from "@/lib/gamificacao";
+import { chamarRpcFinanceira } from "@/lib/financeiro/rpc";
 
 /**
- * Uma ação do CEO pode disparar dois eventos de XP (ex.: confirmar a parcela
- * de entrada também confirma o sinal). Mescla os dois resultados numa única
- * celebração: pontos somados, estado final (nível/XP) do evento mais recente.
+ * Ações financeiras LEGADAS que continuam valendo (NF, cancelamento, descarte).
+ *
+ * ⚠️ 2026-10 (T5/T6/T9/T10/T11): criarContrato, confirmarPagamento,
+ * confirmarSinalPago e getContratoByDeal SAÍRAM daqui. Toda escrita de
+ * dinheiro agora passa por `lib/actions/financeiro-contrato.ts` → RPCs fin_*
+ * (atômicas, autor no audit, soma validada no banco). Motivos: o
+ * confirmarSinalPago forçava etapa='sinal_pago' (puxava deal de "Valor total
+ * pago" para trás) e a baixa nunca gravava entrada_paga; o criarContrato fazia
+ * N requests sem transação. Guard: tests/financeiro-contrato-invariants.test.js.
  */
-function mesclarGamificacao(
-  a: ResultadoGamificacao | null,
-  b: ResultadoGamificacao | null,
-): ResultadoGamificacao | null {
-  if (!a) return b;
-  if (!b) return a;
-  return {
-    pontos: a.pontos + b.pontos,
-    xpTotal: Math.max(a.xpTotal, b.xpTotal),
-    nivel: b.nivel,
-    nivelNome: b.nivelNome,
-    subiuDeNivel: a.subiuDeNivel || b.subiuDeNivel,
-    conquistasNovas: [...a.conquistasNovas, ...b.conquistasNovas],
-  };
-}
 
-export async function criarContrato(dealId: string, dados: {
-  plano: 'journey' | 'legacy' | 'start' | 'personalizado';
-  forma_pagamento_plano: 'padrao' | 'pix_avista';
-  /** Valor negociado. Ausente = tabela do plano. Diferente da tabela (ou
-   *  plano personalizado) exige justificativa — Regra 3. */
-  valor_total?: number;
-  justificativa_customizacao?: string;
-  entrada_valor?: number;
-  entrada_forma: 'pix' | 'getnet_parcelado';
-  entrada_parcelas?: number;
-  saldo_forma: 'pix_avista' | 'getnet_parcelado';
-  saldo_parcelas?: number;
-  inclui_psicologa?: boolean;
-  custo_psicologa?: number;
-  /** Data da 1ª cobrança (YYYY-MM-DD). Ausente = hoje. */
-  primeiro_vencimento?: string;
-}) {
-  const papel = await getUserPapel();
-  if (papel !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode criar contratos." };
-  }
-
-  const supabase = await createAuditedSupabaseClient();
-
-  // Verificar duplicata
-  const { data: existing } = await supabase
-    .from("contratos_financeiros")
-    .select("id")
-    .eq("deal_id", dealId)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (existing) {
-    return { success: false, error: "Ja existe contrato para este deal." };
-  }
-
-  // Valor efetivo: tabela do plano, ou o negociado. Customização (valor fora
-  // da tabela ou plano personalizado) exige justificativa — Regra 3, audit.
-  const planoConfig = dados.plano === "personalizado" ? null : PLANO_VALORES[dados.plano];
-  const valorTabela = planoConfig
-    ? (dados.forma_pagamento_plano === "pix_avista" ? planoConfig.pix : planoConfig.padrao)
-    : null;
-  const valorTotal = dados.valor_total ?? valorTabela;
-  if (valorTotal == null || valorTotal <= 0) {
-    return { success: false, error: "Plano personalizado exige o valor total negociado." };
-  }
-  const isCustomizado = valorTabela === null || valorTotal !== valorTabela;
-  const justificativa = dados.justificativa_customizacao?.trim() || null;
-  if (isCustomizado && !justificativa) {
-    return { success: false, error: "Valor fora da tabela do plano exige justificativa (fica no audit trail)." };
-  }
-
-  const entradaValor = dados.entrada_valor ?? ENTRADA_PADRAO;
-  if (entradaValor < 0 || entradaValor > valorTotal) {
-    return { success: false, error: "Entrada não pode ser negativa nem maior que o valor total." };
-  }
-  if ((dados.entrada_parcelas ?? 1) < 1 || (dados.saldo_parcelas ?? 1) < 1) {
-    return { success: false, error: "Quantidade de parcelas deve ser pelo menos 1." };
-  }
-  if (dados.primeiro_vencimento && !/^\d{4}-\d{2}-\d{2}$/.test(dados.primeiro_vencimento)) {
-    return { success: false, error: "Data da primeira cobrança inválida." };
-  }
-  const saldoRemanescente = valorTotal - entradaValor;
-
-  const incluiPsicologa = dados.inclui_psicologa ?? planoConfig?.psicologa ?? false;
-  const custoPsicologa = incluiPsicologa ? (dados.custo_psicologa ?? 1200) : 0;
-
-  const { data: contrato, error: contratoError } = await supabase
-    .from("contratos_financeiros")
-    .insert({
-      deal_id: dealId,
-      plano: dados.plano,
-      forma_pagamento_plano: dados.forma_pagamento_plano,
-      valor_total: valorTotal,
-      valor_customizado: isCustomizado ? valorTotal : null,
-      justificativa_customizacao: isCustomizado ? justificativa : null,
-      entrada_valor: entradaValor,
-      entrada_forma: dados.entrada_forma,
-      entrada_parcelas: dados.entrada_parcelas ?? 1,
-      saldo_forma: dados.saldo_forma,
-      saldo_parcelas: dados.saldo_parcelas ?? 1,
-      inclui_psicologa: incluiPsicologa,
-      custo_psicologa: custoPsicologa,
-    })
-    .select("id")
-    .single();
-
-  if (contratoError || !contrato) {
-    return { success: false, error: `Erro ao criar contrato: ${contratoError?.message}` };
-  }
-
-  // Gerar parcelas
-  const parcelas: Array<{
-    contrato_id: string;
-    tipo: string;
-    numero_parcela: string;
-    valor: number;
-    vencimento: string;
-    metodo: string;
-    status: string;
-  }> = [];
-
-  // Base do cronograma: data da 1ª cobrança negociada, ou hoje. O T12:00:00
-  // evita o vencimento escorregar um dia por fuso ao serializar.
-  const hoje = dados.primeiro_vencimento
-    ? new Date(`${dados.primeiro_vencimento}T12:00:00`)
-    : new Date();
-
-  // Parcela(s) de entrada
-  const numEntrada = dados.entrada_parcelas ?? 1;
-  const valorPorEntrada = entradaValor / numEntrada;
-  for (let i = 0; i < numEntrada; i++) {
-    const venc = new Date(hoje);
-    venc.setDate(venc.getDate() + 30 * i);
-    parcelas.push({
-      contrato_id: contrato.id,
-      tipo: "entrada",
-      numero_parcela: numEntrada === 1 ? "Entrada" : `Entrada ${i + 1}/${numEntrada}`,
-      valor: Math.round(valorPorEntrada * 100) / 100,
-      vencimento: venc.toISOString().split("T")[0],
-      metodo: dados.entrada_forma === "getnet_parcelado" ? "getnet" : "pix",
-      status: "previsto",
-    });
-  }
-
-  // Parcela(s) de saldo
-  if (saldoRemanescente > 0) {
-    if (dados.saldo_forma === "pix_avista") {
-      const vencSaldo = new Date(hoje);
-      vencSaldo.setDate(vencSaldo.getDate() + 30);
-      parcelas.push({
-        contrato_id: contrato.id,
-        tipo: "saldo",
-        numero_parcela: "Saldo (Pix)",
-        valor: saldoRemanescente,
-        vencimento: vencSaldo.toISOString().split("T")[0],
-        metodo: "pix",
-        status: "previsto",
-      });
-    } else {
-      const numSaldo = dados.saldo_parcelas ?? 6;
-      const valorPorSaldo = saldoRemanescente / numSaldo;
-      for (let i = 0; i < numSaldo; i++) {
-        const venc = new Date(hoje);
-        venc.setDate(venc.getDate() + 30 * (i + 1));
-        parcelas.push({
-          contrato_id: contrato.id,
-          tipo: "saldo",
-          numero_parcela: `${i + 1}/${numSaldo}`,
-          valor: Math.round(valorPorSaldo * 100) / 100,
-          vencimento: venc.toISOString().split("T")[0],
-          metodo: "getnet",
-          status: "previsto",
-        });
-      }
-    }
-  }
-
-  if (parcelas.length > 0) {
-    const { error: parcError } = await supabase.from("parcelas").insert(parcelas);
-    if (parcError) {
-      return { success: false, error: `Erro ao criar parcelas: ${parcError.message}` };
-    }
-  }
-
-  // Gamificação (fail-open — null nunca quebra a criação do contrato)
-  const gamificacao = await registrarEventoGamificacao("contrato_criado", {
-    tipo: "contrato",
-    id: contrato.id,
-  });
-
-  // Card/coluna/métricas do /pipeline leem o valor do contrato (T3): revalidar
-  // repinta o board atrás do modal sem F5.
-  const { revalidatePath } = await import("next/cache");
-  revalidatePath("/pipeline");
-
-  return { success: true, contratoId: contrato.id, gamificacao };
-}
-
-export async function confirmarPagamento(parcelaId: string, dados?: { comprovante_url?: string }) {
-  const papel = await getUserPapel();
-  if (papel !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode confirmar pagamentos." };
-  }
-
-  const supabase = await createAuditedSupabaseClient();
-
-  const { data: parcela, error: fetchErr } = await supabase
-    .from("parcelas")
-    .select("*, contrato:contratos_financeiros(deal_id)")
-    .eq("id", parcelaId)
-    .single();
-
-  if (fetchErr || !parcela) {
-    return { success: false, error: "Parcela nao encontrada." };
-  }
-
-  // Re-confirmação não pontua de novo (parcela já estava recebida).
-  const jaRecebida = (parcela as { status?: string }).status === "recebido";
-
-  const { error: updateErr } = await supabase
-    .from("parcelas")
-    .update({
-      status: "recebido",
-      recebido_at: new Date().toISOString(),
-      comprovante_url: dados?.comprovante_url || null,
-    })
-    .eq("id", parcelaId);
-
-  if (updateErr) {
-    return { success: false, error: updateErr.message };
-  }
-
-  let gamificacao = jaRecebida
-    ? null
-    : await registrarEventoGamificacao("pagamento_confirmado", {
-        tipo: "parcela",
-        id: parcelaId,
-      });
-
-  // Se é entrada, confirmar sinal pago no deal
-  if (parcela.tipo === "entrada") {
-    const dealId = (parcela as { contrato?: { deal_id?: string } }).contrato?.deal_id;
-    if (dealId) {
-      const sinal = await confirmarSinalPago(dealId);
-      if (sinal.success) {
-        gamificacao = mesclarGamificacao(gamificacao, sinal.gamificacao ?? null);
-      }
-    }
-  }
-
-  // Sinal recebido e saldo a receber aparecem no card do /pipeline (T3).
-  const { revalidatePath } = await import("next/cache");
-  revalidatePath("/pipeline");
-
-  return { success: true, gamificacao };
-}
-
-export async function confirmarSinalPago(dealId: string) {
-  const papel = await getUserPapel();
-  if (papel !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode confirmar sinal." };
-  }
-
-  const supabase = await createAuditedSupabaseClient();
-
-  // Pré-leitura para o XP: só pontua a TRANSIÇÃO (sinal_pago_at null→set) —
-  // re-confirmar o sinal não gera ponto de novo.
-  const { data: dealAntes } = await supabase
-    .from("deals")
-    .select("sinal_pago_at")
-    .eq("id", dealId)
-    .maybeSingle();
-  const sinalJaPago = Boolean((dealAntes as { sinal_pago_at?: string | null } | null)?.sinal_pago_at);
-
-  // Atualizar deal
-  const { error: dealErr } = await supabase
-    .from("deals")
-    .update({
-      sinal_pago_at: new Date().toISOString(),
-      etapa: "sinal_pago",
-    })
-    .eq("id", dealId);
-
-  if (dealErr) {
-    return { success: false, error: dealErr.message };
-  }
-
-  const gamificacao = sinalJaPago
-    ? null
-    : await registrarEventoGamificacao("sinal_pago", { tipo: "deal", id: dealId });
-
-  // Handoff: criar registro de experiência
-  const { data: deal } = await supabase
-    .from("deals")
-    .select("atleta_id, atleta:atletas(nome_completo, responsavel_id, escola_atual, cidade_estado)")
-    .eq("id", dealId)
-    .single();
-
-  if (deal?.atleta_id) {
-    // Verificar se já existe experiência
-    const { data: existingExp } = await supabase
-      .from("crm_experiencia")
-      .select("id")
-      .eq("atleta_id", deal.atleta_id)
-      .maybeSingle();
-
-    if (!existingExp) {
-      // Verificar se contrato inclui psicologa
-      const { data: contrato } = await supabase
-        .from("contratos_financeiros")
-        .select("inclui_psicologa")
-        .eq("deal_id", dealId)
-        .is("deleted_at", null)
-        .maybeSingle();
-
-      const expInsert: Record<string, unknown> = {
-        atleta_id: deal.atleta_id,
-        deal_id: dealId,
-        fase: "admissao",
-        temperatura: "verde",
-        ansiedade: 3,
-        satisfacao: 5,
-        risco_percebido: 1,
-        status: "satisfeita",
-        escola_confirmada_id: null,
-        data_prevista_embarque: null,
-      };
-
-      if (contrato?.inclui_psicologa) {
-        expInsert.psicologa_acionada = false;
-      }
-
-      await supabase.from("crm_experiencia").insert(expInsert);
-
-      // Criar tarefa de onboarding para Head de Sucesso
-      const { data: headUser } = await supabase
-        .from("user_profiles")
-        .select("id")
-        .eq("papel", "head_sucesso")
-        .eq("ativo", true)
-        .limit(1)
-        .maybeSingle();
-
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const headId = headUser?.id || currentUser?.id;
-
-      if (headId) {
-        const prazo = new Date();
-        prazo.setHours(prazo.getHours() + 48);
-
-        const atletaNome = (deal as any).atleta?.nome_completo || "Atleta";
-
-        await supabase.from("tarefas").insert({
-          titulo: `Reuniao de onboarding — ${atletaNome}`,
-          descricao: "Realizar reuniao de onboarding com a familia. Prazo: 48h.",
-          responsavel_id: headId,
-          prazo: prazo.toISOString(),
-          prioridade: "alta",
-          deal_id: dealId,
-          modulo_origem: "experiencia",
-          criada_automaticamente: true,
-        });
-      }
-
-      // Notificações
-      if (currentUser?.id) {
-        const atletaNome = (deal as any).atleta?.nome_completo || "Atleta";
-        const notifs = [
-          {
-            destinatario_id: currentUser.id,
-            titulo: "Sinal pago — Handoff para Experiencia",
-            mensagem: `${atletaNome} pagou o sinal. Registro de experiencia criado. Onboarding em 48h.`,
-            tipo: "handoff",
-            severidade: "alta",
-            deal_id: dealId,
-            link: "/crm/experiencia",
-          },
-        ];
-
-        if (headId && headId !== currentUser.id) {
-          notifs.push({
-            destinatario_id: headId,
-            titulo: "Nova familia para onboarding",
-            mensagem: `${atletaNome} assinou e pagou o sinal. Realizar onboarding em 48h.`,
-            tipo: "handoff",
-            severidade: "alta",
-            deal_id: dealId,
-            link: "/crm/experiencia",
-          });
-        }
-
-        await supabase.from("notificacoes").insert(notifs);
-      }
-    }
-  }
-
-  return { success: true, gamificacao };
-}
+const nfSchema = z.object({
+  contractId: z.uuid(),
+  nfNumero: z.string().trim().max(60).nullable(),
+  nfEmitidaAt: z.iso.date().nullable(),
+  nfValor: z.number().min(0).max(99_999_999.99).nullable(),
+  nfStatus: z.enum(["pendente", "emitida", "nao_aplicavel"]),
+});
 
 export async function updateNfData(dados: {
   contractId: string;
@@ -417,30 +38,38 @@ export async function updateNfData(dados: {
   if (papel !== "ceo") {
     return { success: false, error: "Apenas o CEO pode editar dados de NF." };
   }
+  const parsed = nfSchema.safeParse(dados);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Dados da NF inválidos." };
+  }
 
   const supabase = await createAuditedSupabaseClient();
 
   const { error } = await supabase
     .from("contratos_financeiros")
     .update({
-      nf_numero: dados.nfNumero,
-      nf_emitida_at: dados.nfEmitidaAt,
-      nf_valor: dados.nfValor,
-      nf_status: dados.nfStatus,
+      nf_numero: parsed.data.nfNumero,
+      nf_emitida_at: parsed.data.nfEmitidaAt,
+      nf_valor: parsed.data.nfValor,
+      nf_status: parsed.data.nfStatus,
     })
-    .eq("id", dados.contractId);
+    .eq("id", parsed.data.contractId)
+    .is("deleted_at", null);
 
   if (error) {
     return { success: false, error: error.message };
   }
 
-  // Revalidar a pagina financeiro
-  const { revalidatePath } = await import("next/cache");
   revalidatePath("/financeiro");
+  revalidatePath("/contratos");
+  revalidatePath(`/contratos/${parsed.data.contractId}`);
 
   return { success: true };
 }
 
+// Corpo de origin/develop com 2 mudanças: cancela previsto E atrasado, e as
+// parcelas são canceladas ANTES de mover o deal, com erro checado — falha no
+// meio não pode deixar o deal "perdido" com parcelas abertas que a régua cobra.
 export async function solicitarCancelamento(dealId: string, dados: {
   motivo_cancelamento: string;
   valor_reembolso: number;
@@ -465,6 +94,34 @@ export async function solicitarCancelamento(dealId: string, dados: {
     return { success: false, error: "Deal nao encontrado." };
   }
 
+  // 1º as parcelas pendentes do contrato (repetir é seguro: as já canceladas
+  // não casam o filtro de status).
+  const { data: contrato, error: contratoErr } = await supabase
+    .from("contratos_financeiros")
+    .select("id")
+    .eq("deal_id", dealId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (contratoErr) {
+    console.error({ level: "error", action: "cancelamento_ler_contrato", dealId, error: contratoErr.message });
+    return { success: false, error: "Não foi possível ler o contrato — nada foi alterado. Tente de novo." };
+  }
+
+  if (contrato) {
+    // previsto E atrasado (antes só previsto: a parcela já vencida continuava
+    // em aberto e a régua de cobrança seguiria cobrando quem cancelou).
+    const { error: parcErr } = await supabase
+      .from("parcelas")
+      .update({ status: "cancelado" })
+      .eq("contrato_id", contrato.id)
+      .in("status", ["previsto", "atrasado"])
+      .is("deleted_at", null);
+    if (parcErr) {
+      console.error({ level: "error", action: "cancelamento_parcelas", dealId, contratoId: contrato.id, error: parcErr.message });
+      return { success: false, error: "Não foi possível cancelar as parcelas — nada foi alterado. Tente de novo." };
+    }
+  }
+
   // Atualizar deal com dados de cancelamento
   const { error: updateErr } = await supabase
     .from("deals")
@@ -477,23 +134,11 @@ export async function solicitarCancelamento(dealId: string, dados: {
     .eq("id", dealId);
 
   if (updateErr) {
-    return { success: false, error: `Erro ao processar cancelamento: ${updateErr.message}` };
-  }
-
-  // Cancelar parcelas pendentes do contrato
-  const { data: contrato } = await supabase
-    .from("contratos_financeiros")
-    .select("id")
-    .eq("deal_id", dealId)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (contrato) {
-    await supabase
-      .from("parcelas")
-      .update({ status: "cancelado" })
-      .eq("contrato_id", contrato.id)
-      .eq("status", "previsto");
+    console.error({ level: "error", action: "cancelamento_mover_deal", dealId, error: updateErr.message });
+    return {
+      success: false,
+      error: "As parcelas foram canceladas, mas o negócio não mudou de etapa. Tente de novo.",
+    };
   }
 
   // Criar notificacao para CEO
@@ -520,89 +165,32 @@ export async function solicitarCancelamento(dealId: string, dados: {
   return { success: true };
 }
 
-export async function getContratoByDeal(dealId: string) {
-  const supabase = await createAuditedSupabaseClient();
-
-  const { data: contrato } = await supabase
-    .from("contratos_financeiros")
-    .select("*")
-    .eq("deal_id", dealId)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (!contrato) return { contrato: null, parcelas: [] };
-
-  const { data: parcelas } = await supabase
-    .from("parcelas")
-    .select("*")
-    .eq("contrato_id", contrato.id)
-    .is("deleted_at", null)
-    .order("vencimento", { ascending: true });
-
-  return { contrato, parcelas: parcelas || [] };
-}
-
 /**
- * Refazer contrato (pedido do CEO, 2026-09-10 — contrato totalmente
- * customizável): descarta um contrato SEM NENHUM pagamento confirmado para
- * criar outro do zero com as novas condições. Soft delete (audit intacto).
- * Com qualquer parcela recebida a exclusão é recusada — histórico financeiro
- * real nunca se apaga.
+ * Descartar contrato SEM NENHUM pagamento (ex.: criado no deal errado ou de
+ * teste). Wrapper da RPC atômica `fin_descartar_contrato` (lock no contrato +
+ * checagem de pagamento + soft delete de parcelas/itens/contrato + evento na
+ * MESMA transação). A versão anterior apagava as parcelas ANTES do CAS: uma
+ * baixa entre os dois passos deixava a parcela recebida com soft delete.
+ * Como fin_criar_contrato/fin_registrar_sinal REUTILIZAM a linha descartada
+ * (UNIQUE(deal_id) completa), criar de novo não estoura 23505.
  */
-export async function excluirContratoSemPagamento(contratoId: string) {
+export async function excluirContratoSemPagamento(contratoId: string, justificativa?: string) {
   const papel = await getUserPapel();
   if (papel !== "ceo") {
-    return { success: false, error: "Apenas o CEO pode refazer contratos." };
+    return { success: false, error: "Apenas o CEO pode descartar contratos." };
   }
-
-  const supabase = await createAuditedSupabaseClient();
-
-  const { data: contrato, error: fetchErr } = await supabase
-    .from("contratos_financeiros")
-    .select("id, entrada_paga")
-    .eq("id", contratoId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (fetchErr) return { success: false, error: `Erro ao localizar contrato: ${fetchErr.message}` };
-  if (!contrato) return { success: false, error: "Contrato não encontrado (já refeito?)." };
-  if (contrato.entrada_paga) {
-    return { success: false, error: "Contrato com entrada paga não pode ser refeito." };
+  if (!z.uuid().safeParse(contratoId).success) {
+    return { success: false, error: "Contrato inválido." };
   }
+  const r = await chamarRpcFinanceira<{ contrato_id: string; deal_id: string }>(
+    "fin_descartar_contrato",
+    { p_contrato_id: contratoId, p_justificativa: justificativa?.trim().slice(0, 1000) || null },
+    { contratoId },
+  );
+  if (!r.success) return { success: false, error: r.error };
 
-  const { count: recebidas, error: countErr } = await supabase
-    .from("parcelas")
-    .select("id", { count: "exact", head: true })
-    .eq("contrato_id", contratoId)
-    .eq("status", "recebido")
-    .is("deleted_at", null);
-  if (countErr) return { success: false, error: `Erro ao checar pagamentos: ${countErr.message}` };
-  if ((recebidas ?? 0) > 0) {
-    return { success: false, error: "Contrato já tem parcela recebida — não pode ser refeito." };
-  }
-
-  const agora = new Date().toISOString();
-  const { error: parcErr } = await supabase
-    .from("parcelas")
-    .update({ deleted_at: agora })
-    .eq("contrato_id", contratoId)
-    .is("deleted_at", null);
-  if (parcErr) return { success: false, error: `Erro ao descartar parcelas: ${parcErr.message}` };
-
-  // CAS: só exclui se AINDA não há pagamento (corrida com confirmarPagamento)
-  const { data: casRows, error: delErr } = await supabase
-    .from("contratos_financeiros")
-    .update({ deleted_at: agora })
-    .eq("id", contratoId)
-    .is("deleted_at", null)
-    .eq("entrada_paga", false)
-    .select("id");
-  if (delErr) return { success: false, error: `Erro ao excluir contrato: ${delErr.message}` };
-  if (!casRows || casRows.length === 0) {
-    return { success: false, error: "Contrato mudou de estado em outra aba — recarregue." };
-  }
-
-  const { revalidatePath } = await import("next/cache");
   revalidatePath("/pipeline");
   revalidatePath("/financeiro");
+  revalidatePath("/contratos");
   return { success: true };
 }

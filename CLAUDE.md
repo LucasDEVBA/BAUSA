@@ -119,7 +119,7 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | `functions/process-followup-whatsapp/` | `followup-scheduler` | `followup-scheduler-uat` | Cloud Scheduler (1x/hora) | Follow-ups 48h e 7 dias **só timing ideal** (fallback sem agendamento) |
 | `functions/process-scheduled-followups/` | `process-scheduled-followups` | `process-scheduled-followups-uat` | Cloud Scheduler (diário 08:00 BRT) | Retomada `scheduled_return` em novembro p/ leads `muito_cedo` |
 | `functions/retry-qualification/` | `retry-qualification` | `retry-qualification-uat` | Cloud Scheduler (diário) + HTTP `lead_id` | Reprocessa qualificação Gemini pendente/falha (também usado p/ recuperar lead órfão) |
-| `functions/calendar-webhook/` | `calendar-webhook` | `calendar-webhook-uat` | Google Calendar Push Notification | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO |
+| `functions/calendar-webhook/` | `calendar-webhook` | `calendar-webhook-uat` | Google Calendar Push Notification | Detecção instantânea de reunião + WhatsApp confirmação lead + CEO. **T14:** reunião de lead SEM deal (ou com deal parado em perdido/aguardando_timing/projeto_futuro) gera aviso in-app `reuniao_fora_pipeline` para CEO/CTO (só interno, best-effort, idempotente por CAS + `notificacoes.dedupe_key`, só a instância de PRD grava; link `/leads?lead=<id>`). Check `reuniao_sem_deal` no `monitor-health`. Guard: `tests/calendar-reuniao-fora-pipeline.test.js` |
 | `functions/renew-calendar-watch/` | `renew-calendar-watch` | `renew-calendar-watch-uat` | Cloud Scheduler (cada 6 dias) | Renova watch channel do Google Calendar |
 | `functions/automation-engine/` | `automation-engine` | `automation-engine-uat` | Cloud Scheduler (1x/hora, min 30) | Engine das automações do BAU Engine (`/automacoes`): materializa gatilhos de tempo + executa runs (tarefa/notificação/WhatsApp/deal/IA) com CAS e retry. Ação `ia_prompt` (Gemini resiliente, teto 10/tick, resultado SÓ interno — notificação/tarefa) requer `GEMINI_API_KEY` (config manual). Guards CI: `tests/automation-engine-eligibility.test.js` + `tests/automation-engine-ia.test.js` |
 | `functions/meeting-transcripts/` | `meeting-transcripts` | `meeting-transcripts-uat` | Cloud Scheduler (a cada 2h, min 15) | Captura a transcrição nativa do Google Meet: acha o Doc anexado ao evento do Calendar (`deals.google_calendar_event_id`), exporta via Drive API (`drive.readonly`), resume via Gemini (opcional) e grava em `reunioes_transcricoes` (idempotente por `UNIQUE(google_event_id)`). Exibida no detalhe do lead/deal no Engine |
@@ -320,7 +320,7 @@ adversarial na faixa do meio. Guard: `tests/qualificacao-v2-invariants.test.js`.
 | MORNO | corte_frio ≤ score < corte_quente (passa por auditoria adversarial) |
 | FRIO | score < corte_frio (default 40) — pessoa real, baixa plausibilidade |
 | INVALIDO | dado sujo (regex em código = gate duro) ou injeção de prompt |
-| INCOMPLETO | profissão/faixa ausentes |
+| INCOMPLETO | profissão/faixa ausentes — decidido em CÓDIGO (T19), não pelo modelo |
 
 - **INVALIDO/INCOMPLETO nunca são "qualificados"** (`qualified` = só QUENTE/
   MORNO) e ficam fora de pipeline/outreach (schedulers filtram IN (QUENTE,MORNO)).
@@ -336,6 +336,18 @@ adversarial na faixa do meio. Guard: `tests/qualificacao-v2-invariants.test.js`.
   Os CORTES mandam na faixa — funil ajustável sem mexer em prompt.
 - Dados do lead entram sanitizados entre `<dados_lead>` (anti-injeção;
   tentativa de instrução → INVALIDO).
+- **Gate de completude em código (T19, 2026-10-08):** profissão (1º ou 2º
+  responsável, ≥2 letras) + faixa (um dos 6 códigos) presentes → nunca
+  INCOMPLETO (INCOMPLETO do modelo vira FRIO com teto `corte_frio − 1` e
+  `sinal_alerta`); ausentes → sempre INCOMPLETO (INVALIDO precede). Aplicado
+  antes e depois da 2ª passagem; 2ª passagem INCOMPLETO é descartada. Resposta
+  sem o campo `classificacao` → `qualification_pending` + retry (nunca classe
+  inventada).
+- **Idade incoerente com a série (T23) é ALERTA, nunca INVALIDO:** o modelo
+  recebe `idade_atleta: não informado` e o código grava o `sinal_alerta`.
+  Tabela série → idade em 3 lugares travados por guard
+  (`tests/nascimento-serie-paridade.test.js`): formulário, `qualify-lead` e
+  (PR-09) banco.
 - **Requalificação em massa**: `retry-qualification` modo
   `{mode:'requalify', cutoff:ISO, limit}` — cursor por `qualified_at`,
   retomável; decisão humana (aprovado/reprovado) NUNCA sobrescrita.
@@ -542,17 +554,20 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | `enderecos` | Endereços (BR + internacional) | pais, cep, cidade, estado |
 | `atletas` | Leads CRM com score automático (0-100) + qualificação Gemini separada | lead_score, lead_classificacao, form_submission_id |
 | | ↳ Campos Gemini: `qualificado_gemini`, `classificacao_gemini`, `motivo_gemini` | |
-| `deals` | Pipeline com 16 etapas + dados de reunião | etapa, next_action, data_proxima_acao, motivo_perda |
+| `deals` | Pipeline com 17 etapas (+ `custom_1..6`) + dados de reunião | etapa, next_action, data_proxima_acao, motivo_perda |
 | | ↳ Campos reunião: `reuniao_agendada_at`, `reuniao_link`, `reuniao_data` | |
-| `contratos_financeiros` | Contratos (1:1 com deal) | plano, valor_total, saldo_remanescente (GENERATED) |
-| `parcelas` | Parcelas de pagamento | vencimento, status, metodo |
+| | ↳ Próxima ação (T21): `next_action_etapa` (etapa em que a ação foi gravada), `next_action_manual_em` (CEO escreveu à mão) — mantidos pelo trigger `trg_deals_next_action_meta` | |
+| `contratos_financeiros` | Contratos (1:1 com deal, UNIQUE(deal_id) **completa**) | plano (**NULL = aguardando plano**), valor_total, `valor_base_plano`, `sinal_abatido`, `plano_definido_at`, saldo_remanescente (GENERATED) |
+| `parcelas` | Parcelas de pagamento | vencimento, status, metodo (pix/getnet/transferencia/boleto/cartao/dinheiro/outro), `parcelas_cartao`, `observacao` |
+| `contrato_itens` | Condições negociadas por aluno (T18a): serviço (+), desconto (−), ajuste (±) | compõem o `valor_total`; escrita só pela RPC `fin_salvar_condicoes` |
+| `contrato_eventos` | Histórico financeiro legível (append-only) | tipo, justificativa, autor — gravado pelas RPCs `fin_*` |
 | `crm_experiencia` | Experiência pós-venda (1:1 com atleta) | temperatura (auto), ansiedade, satisfacao |
 | `contatos_experiencia` | Timeline de contatos família | tipo, resumo, proximo_contato |
 | `escolas` | Banco de **high schools** USA (40+ campos; tipo boarding/day/mista — nunca vocabulário de universidade) | `perfil` (opcional, preenchido por pessoa), temperatura_relacionamento; histórico real na view `escolas_historico_bausa` (as colunas `total_*`/`bolsa_media_obtida` são legado não alimentado) |
 | `estrategia_escolas` | Match por par atleta-escola | match_score, resultado |
 | `historico_contatos_escola` | Timeline contatos com escolas | tipo, resumo |
 | `tarefas` | Tarefas com prioridade | prazo, prioridade, criada_automaticamente |
-| `notificacoes` | Notificações in-app | severidade, lida, espelhada ao CEO |
+| `notificacoes` | Notificações in-app | severidade, lida, espelhada ao CEO; `dedupe_key` + UNIQUE(destinatario_id, dedupe_key) — aviso com chave aparece 1× para CEO/CTO |
 | `documentos_atleta` | Checklist de documentos | status workflow (5 etapas) |
 | `faq_artigos` | Base de conhecimento (10 seed) | categoria, acessos |
 | `indicacoes` | Programa de indicação | recompensa_devida, recompensa_entregue |
@@ -570,6 +585,35 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 > o CEO pediu explicitamente controle de "quando eu quiser, chat/grupo específico
 > ou global". Nunca "simplifique" removendo uma das duas.
 
+> ⚠️ **Etapas e colunas do pipeline (T2/T10/T20/T21, migrations `*_status_deal_plano_escolhido`,
+> `*_plano_escolhido_ordem_board_retrocesso`, `*_deals_next_action_meta`).**
+> - Enum `status_deal` ganhou **`plano_escolhido`** (entre `sinal_pago` e `admission_process`).
+>   Retrocesso = regra única `etapa_e_retrocesso` (SQL) ⇄ `lib/etapas-ordem.ts` (TS).
+> - **Comportamento por coluna** mora na chave **`etapas_deal_regras`** (upsert), NUNCA em
+>   `etapas_deal_config` (o código antigo a regrava): `ganho` (só `custom_*`; conta como negócio
+>   ganho em métricas/War Room/remarketing/chatbot), `pede_plano` (soltar o card abre
+>   "Escolher plano"; Cancelar não move), `acao_padrao` (`{texto, dias}`). Leitura:
+>   `getConfigEtapasDeal()` → `{ overrides, regras, probabilidade, lida }`; `lida === false` →
+>   o financeiro NÃO move o deal; remarketing/automation-engine fail-closed; métricas fail-open.
+> - Rótulo de etapa em qualquer mensagem: `getRotulosEtapas()` (server) / `labelEtapa(etapa, stageConfig)` (client).
+
+> ⚠️ **Contrato financeiro (T5/T6/T9/T10/T11/T18, migrations `*_financeiro_contrato_flexivel` e `*_financeiro_rpcs`).**
+> - **Escrita só pelas RPCs `fin_*`** (via `lib/actions/financeiro-contrato.ts` → `lib/financeiro/rpc.ts`).
+>   Nunca UPDATE/INSERT direto em `contratos_financeiros`/`parcelas`/`contrato_itens`.
+> - **Contrato "aguardando plano"** (T11): sinal registrado antes do plano = linha com `plano IS NULL`,
+>   `valor_total = Σ sinais`, parcela de **entrada RECEBIDA** na data real (entra no caixa/DRE). NÃO é
+>   "contratado" no resolver do valor (`lib/valor-deal.ts`); o card mostra "Sinal R$ X pago · total a
+>   definir". Escolher o plano (T10) altera a MESMA linha. Prova de sinal = `sinal_pago_confirmado_por`,
+>   nunca `sinal_pago_at` (o arraste preenche).
+> - `entrada_paga` é recalculado pela RPC só quando TODAS as entradas estão recebidas; a etapa do deal
+>   só AVANÇA para Sinal pago (`deveMoverParaSinalPago` + config mesclada) — quitar nunca move.
+> - Refazer cronograma = soft delete só das abertas + ids novos (a régua não herda marcos); recebidas
+>   nunca mudam. Valor fora da tabela / itens / sinal à parte exigem justificativa (Regra 3).
+> - Preço de tabela = `configuracoes_sistema.planos` (fallback `PLANO_VALORES`); catálogo de serviços =
+>   `servicos_adicionais` (editável em Configurações → Parâmetros). Custo interno por aluno =
+>   `despesas.contrato_id` (já no DRE) → "Margem direta" no /financeiro.
+> - Ticket médio, mix de planos e Top 5 ignoram contrato só com sinal (`.not("plano","is",null)`).
+
 ### Funções SQL Críticas
 
 | Função | Propósito |
@@ -579,7 +623,10 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | `sugerir_escolas(atleta_id, limite)` | Top N escolas por score |
 | `familias_em_alerta_inatividade()` | Famílias excedendo threshold por fase |
 | `trg_experiencia_temperatura()` | Auto-calcula verde/amarelo/vermelho |
-| `trg_deals_check_etapa()` | Detecta retrocesso + seta timestamps |
+| `trg_deals_check_etapa()` | Detecta retrocesso (via `etapa_e_retrocesso`) + seta timestamps |
+| `etapa_e_retrocesso(de, para, cfg)` | Regra ÚNICA de retrocesso (espelho TS: `lib/etapas-ordem.ts`, paridade travada por guard): as duas etapas visíveis com ordem → ordem do board; senão ordem fixa (`ordem_etapa_fixa`) nas duas |
+| `trg_deals_next_action_meta()` | Aplica a ação padrão da coluna (`etapas_deal_regras.<etapa>.acao_padrao`) ao mudar de etapa — nunca sobre ação manual, nunca esvazia |
+| `fin_*` (23 funções, migration `*_financeiro_rpcs`) | **Toda escrita de dinheiro** (criar contrato, registrar sinal, escolher plano/condições, baixa, estorno, editar parcela, quitar, descartar): lock + CAS (`fin_versao_contrato`) + soma ao centavo + autor + justificativa, na MESMA transação. REVOKE de anon/PUBLIC; helpers exigem CEO (`fin_exigir_ceo`) |
 | `audit.log_change()` | Trigger genérico de auditoria (54 triggers). Desde `20261008170100` registra o usuário do JWT da própria requisição (fallback `auth.uid()`, só se existir em `auth.users`); service role/cron = NULL ("sistema") |
 
 ### Páginas CRM (14 rotas)
@@ -677,6 +724,12 @@ no vai-pra-prod**. Sequência OBRIGATÓRIA para rearmar (fora de ordem = alerta 
 `public.configuracoes_sistema` chave `meta_sync_last_tick_at`) → 5. SÓ ENTÃO remover `meta_frescor`
 de `monitor_checks_desativados`. Remover antes do passo 4 = se o heartbeat não estiver gravando,
 o check fica "pulado" para sempre (cobertura zero achando que armou).
+
+### ⚠️ Régua de cobrança (billing-reminders) PAUSADA até limpar os contratos
+Manter o job pausado até, nesta ordem e só com autorização do CEO: `scripts/sql/pendentes-ceo/financeiro/03`
+(descarta o contrato de teste "Lucas Leo") → `02` (corrige a Amanda pelas RPCs) → `04` (prévia do que a régua
+mandaria — tem de sair limpa). `01` (backfill de `entrada_paga`) só se o `02` não rodar. Os scripts terminam em
+`ROLLBACK`; trocar por `COMMIT` só com "pode aplicar". Retomar a régua = decisão do CEO.
 
 ### Configuração manual (pós-código)
 - [x] GitHub Environments `prd`/`uat` com **branch policy** (2026-05-18): `prd` só aceita deploy de `main`, `uat` só de `develop`. Decisão consciente: **sem required reviewers** (repo solo — gate manual atrapalha hotfix; controle de qualidade fica no CI + review de PR + UAT). Revisar se o time crescer (revisor ≠ autor).

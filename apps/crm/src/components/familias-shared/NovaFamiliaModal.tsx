@@ -26,10 +26,14 @@ interface AtletaElegivel {
   deal_id: string;
   nome: string;
   etapa: string;
+  /** Nome da coluna como o CEO configurou (T17). */
+  etapa_label?: string;
 }
 
+// Fallback estático — o nome que vale é etapa_label (config do CEO).
 const ETAPA_LABELS: Record<string, string> = {
   sinal_pago: "Sinal Pago",
+  plano_escolhido: "Plano escolhido",
   admission_process: "Admission Process",
   concluido: "Concluído",
 };
@@ -131,9 +135,8 @@ export function NovaFamiliaModal({
           <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 flex items-start gap-2">
             <AlertCircle className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
             <p className="text-xs text-foreground/80">
-              Lista mostra atletas com deal em <code>sinal_pago</code>,{" "}
-              <code>admission_process</code> ou <code>concluido</code> que ainda
-              não têm registro de experiência.
+              Lista mostra atletas com deal ganho (Sinal pago em diante, inclusive
+              colunas marcadas como ganho) que ainda não têm registro de experiência.
             </p>
           </div>
 
@@ -187,7 +190,7 @@ export function NovaFamiliaModal({
                       {a.nome}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
-                      Etapa: {ETAPA_LABELS[a.etapa] ?? a.etapa}
+                      Etapa: {a.etapa_label ?? ETAPA_LABELS[a.etapa] ?? a.etapa}
                     </p>
                   </div>
                   {selectedId === a.atleta_id && (

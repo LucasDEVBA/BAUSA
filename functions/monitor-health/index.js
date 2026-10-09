@@ -75,6 +75,9 @@ const WATCH_RENOVACAO_MAX_DIAS = 8;      // cron é a cada 6 dias — 8d sem ren
 const SHEETS_SYNC_FOLGA_HORAS = 2;
 const WEEKLY_REPORT_MAX_DIAS = 8;        // relatório é semanal
 const BILLING_TICK_MAX_HORAS = 26;       // régua é diária
+// T14: reunião detectada no Calendar com lead SEM deal ativo. Teto de linhas
+// lidas (hoje ~170 leads com reunião) — acima disso o detalhe avisa amostra.
+const REUNIAO_SEM_DEAL_LIMITE = 500;
 
 // ─── Log estruturado ──────────────────────────────────────────
 const log = (level, action, details = {}) => {
@@ -856,6 +859,30 @@ const runChecks = async () => {
           `&qualified_at=gt.${encodeURIComponent(desdeJanela)}`,
       );
       return { ok: n === 0, valor: n, detalhe: `${n} lead(s) aguardando aprovação do CEO há ${APROVACAO_PENDENTE_HORAS}h+` };
+    }),
+    checkSeguro('reuniao_sem_deal', async () => {
+      // T14 (vídeos 28/09): Samuel (INVALIDO, 21/09) e Clara (FRIO, 08/09)
+      // tiveram reunião detectada e ficaram invisíveis — sem deal o Engine
+      // não mostrava nada. Reprovado fica de fora (decisão consciente do
+      // CEO). SEM janela de tempo de propósito: o problema não some porque
+      // o lead envelheceu. Embed 1:1 (atletas.form_submission_id UNIQUE)
+      // volta OBJETO — normaliza objeto/array nas duas camadas.
+      const linhas = await buscar(
+        `form_submissions?select=id,atletas(id,deleted_at,deals(id,deleted_at))` +
+          `&deleted_at=is.null&meeting_scheduled=is.true` +
+          `&or=(aprovacao_status.is.null,aprovacao_status.neq.reprovado)` +
+          `&order=meeting_scheduled_at.desc&limit=${REUNIAO_SEM_DEAL_LIMITE}`,
+      );
+      const asArray = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+      const n = linhas.filter((l) => !asArray(l.atletas).some(
+        (a) => a && a.deleted_at === null && asArray(a.deals).some((d) => d && d.deleted_at === null),
+      )).length;
+      const amostra = linhas.length >= REUNIAO_SEM_DEAL_LIMITE ? ' (amostra limitada)' : '';
+      return {
+        ok: n === 0,
+        valor: n,
+        detalhe: `${n} lead(s) com reunião detectada no Calendar e SEM deal no pipeline${amostra} — decida no dossiê (Observabilidade → Geral)`,
+      };
     }),
     checkSeguro('runs_erro', async () => {
       const n = await contar(

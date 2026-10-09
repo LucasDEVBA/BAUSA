@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Wallet,
@@ -46,6 +47,11 @@ const CATEGORIA_TONE: Record<DespesaCategoria, BadgeTone> = {
   comissoes: "green",
   ocupacao: "neutral",
   outros: "neutral",
+  psicologa: "purple",
+  taxas_escola: "purple",
+  testes_idioma: "purple",
+  traducao: "purple",
+  viagem: "purple",
 };
 
 const STATUS_TONE: Record<DespesaStatus, BadgeTone> = {
@@ -234,11 +240,20 @@ export function SaidasView({ despesas, empresa }: { despesas: Despesa[]; empresa
             {lancamentos.map((d) => (
               <div key={d.id} className="flex items-center gap-3 px-5 py-3 hover:bg-accent/50">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <p className="truncate text-sm font-medium text-foreground">{d.descricao}</p>
-                    <Badge tone={CATEGORIA_TONE[d.categoria]} size="sm">
+                    <Badge tone={CATEGORIA_TONE[d.categoria]} size="sm" className="shrink-0">
                       {DESPESA_CATEGORIA_LABEL[d.categoria]}
                     </Badge>
+                    {d.contrato_id && (
+                      <Link
+                        href={`/contratos/${d.contrato_id}`}
+                        className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        title="Custo interno lançado no contrato do aluno — abrir o contrato"
+                      >
+                        <Badge tone="purple" size="sm">Custo de aluno</Badge>
+                      </Link>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {new Date(`${d.competencia}T00:00:00`).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}

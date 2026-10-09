@@ -14,6 +14,9 @@ export type DealStage =
   | "contrato_enviado"
   | "contrato_assinado"
   | "sinal_pago"
+  // Etapa própria pós-sinal (2026-10, T2): antes era só um rótulo sobre
+  // 'negociacao' (pré-venda) e o board marcava retrocesso falso.
+  | "plano_escolhido"
   | "admission_process"
   | "concluido"
   | "perdido"
@@ -74,6 +77,11 @@ export interface Deal {
   // Next action obrigatório
   next_action?: string;
   next_action_date?: string;
+  /** Etapa em que a próxima ação atual foi gravada (deals.next_action_etapa);
+   *  ausente em ações legadas (antes de 2026-10). */
+  next_action_etapa?: string;
+  /** true = escrita à mão pelo CEO (deals.next_action_manual_em preenchido). */
+  next_action_manual?: boolean;
   // Posicionamento comercial
   product_tier?: ProductTier;
   has_discount?: boolean;
@@ -83,6 +91,9 @@ export interface Deal {
   remaining_value_brl?: number;
   contract_signed_at?: string;
   signal_paid_at?: string;
+  /** Prova de pagamento do sinal (deals.sinal_pago_confirmado_por) — só as RPCs fin_* gravam.
+   *  false com signal_paid_at = card ARRASTADO para Sinal pago sem registro (T11). */
+  signal_confirmed?: boolean;
   enrollment_confirmed_at?: string;
   remaining_paid_at?: string;
   // Lead futuro
@@ -182,6 +193,13 @@ export interface DealStageConfig {
   isWaitingTiming?: boolean;
   /** Slot de coluna personalizada: oculto por padrão até o CEO nomeá-lo. */
   isCustomSlot?: boolean;
+  /** Etapa nova que nasce OCULTA até a config torná-la visível (plano_escolhido
+   *  até a migration de dados *_plano_escolhido_coluna_board). Espelhado no SQL
+   *  (ordem_etapa_board) — mudar aqui exige mudar lá. */
+  ocultaPorPadrao?: boolean;
+  /** Soltar card sem plano nesta coluna abre a escolha de plano (default da
+   *  regra pede_plano de etapas_deal_regras). */
+  pedePlanoPorPadrao?: boolean;
 }
 
 export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
@@ -305,6 +323,20 @@ export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
     isLost: false,
     order: 10,
   },
+  // GANHO pós-sinal: a família escolhe Start/Journey/Legacy/Personalizado.
+  // Nasce oculta (ocultaPorPadrao) até a migration de dados 124400 levar o
+  // rótulo "Plano escolhido" de 'negociacao' para cá — ver rollout no PR.
+  plano_escolhido: {
+    id: "plano_escolhido",
+    label: "Plano escolhido",
+    shortLabel: "Plano",
+    dotColor: "bg-sys-orange",
+    isFinancial: true,
+    isLost: false,
+    order: 10.5,
+    ocultaPorPadrao: true,
+    pedePlanoPorPadrao: true,
+  },
   admission_process: {
     id: "admission_process",
     label: "Admission Process",
@@ -388,6 +420,7 @@ export const PIPELINE_STAGE_ORDER: DealStage[] = [
   "contrato_enviado",
   "contrato_assinado",
   "sinal_pago",
+  "plano_escolhido",
   "admission_process",
   "concluido",
   "perdido",

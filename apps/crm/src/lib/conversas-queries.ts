@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 import { nomeContatoResponsavel } from "@/lib/whatsapp-lead-lookup";
+import { getEtapasGanho } from "@/lib/actions/configuracoes";
 
 // ════════════════════════════════════════════════════════════════════════
 // Métricas de conversas (WhatsApp) + timings do funil comercial.
@@ -368,10 +369,15 @@ const ORDEM_ETAPA: Record<string, number> = {
   contrato_enviado: 8,
   contrato_assinado: 9,
   sinal_pago: 10,
+  plano_escolhido: 10.5,
   admission_process: 11,
   concluido: 12,
 };
-const rankEtapa = (etapa: string): number => ORDEM_ETAPA[etapa] ?? -1;
+// Colunas personalizadas marcadas como GANHO (Admitido, Valor total pago…)
+// contam como pós-sinal no funil; as demais seguem sem rank (-1).
+const RANK_COLUNA_GANHO = 10.5;
+const rankEtapa = (etapa: string, ganho: ReadonlySet<string>): number =>
+  ORDEM_ETAPA[etapa] ?? (ganho.has(etapa) ? RANK_COLUNA_GANHO : -1);
 
 export async function fetchFunilAvancado(period: ConversaPeriod): Promise<FunilAvancado> {
   const supabase = await createServerSupabaseClient();
@@ -394,6 +400,7 @@ export async function fetchFunilAvancado(period: ConversaPeriod): Promise<FunilA
     console.error({ level: "error", action: "fetch_funil_avancado", error: error.message });
   }
   const deals = (data as unknown as DealFunilRow[] | null) ?? [];
+  const etapasGanho = new Set<string>(await getEtapasGanho());
 
   const contatoAgenda: number[] = [];
   const agendaReuniao: number[] = [];
@@ -407,7 +414,7 @@ export async function fetchFunilAvancado(period: ConversaPeriod): Promise<FunilA
   for (const d of deals) {
     const form = d.atletas?.form_submissions ?? null;
     const contato = form?.created_at ?? d.created_at;
-    const r = rankEtapa(d.etapa); // -1 se perdido/desconhecido
+    const r = rankEtapa(d.etapa, etapasGanho); // -1 se perdido/desconhecido
 
     // Tempos (por timestamp) — inalterados
     if (form?.meeting_scheduled_at) {

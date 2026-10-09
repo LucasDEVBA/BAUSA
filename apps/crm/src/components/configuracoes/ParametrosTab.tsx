@@ -40,6 +40,8 @@ import {
 } from "@/lib/actions/parametros";
 import { cn } from "@/lib/utils";
 
+import { ServicosCatalogoSection } from "./ServicosCatalogoSection";
+
 /**
  * Metas, valores e parâmetros do sistema.
  *
@@ -425,6 +427,9 @@ export function ParametrosTab({ inicial }: { inicial: ParametrosSistema }) {
           }
         />
       </Card>
+
+      {/* ── Catálogo de serviços adicionais (T18a) ── */}
+      <ServicosCatalogoSection />
 
       {/* ── Lead Score ── */}
       <Card>

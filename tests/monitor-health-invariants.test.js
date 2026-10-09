@@ -50,6 +50,8 @@ const CHAVES_CF = [
   "billing_tick_atrasado",
   // F4 — auto-instrumentação por automação (só regras determinísticas na CF)
   "automacoes_saude",
+  // T14 (vídeos 28/09): reunião detectada de lead SEM deal (Samuel/Clara)
+  "reuniao_sem_deal",
 ];
 
 test("monitor-health: todos os checks do watchdog presentes", () => {
@@ -174,6 +176,7 @@ const CHAVES_TELA_GERAL = [
   "sheets_sync_pendente",
   "weekly_report_atrasado",
   "billing_tick_atrasado",
+  "reuniao_sem_deal",
 ];
 
 test("paridade forte: cada check da aba Geral está REGISTRADO, não só mencionado", () => {
@@ -309,4 +312,25 @@ test("monitor-health: fila_whatsapp_presa respeita o gate de aprovação humana"
       "filtrar aprovacao_status=eq.aprovado (paridade com o scheduler) — sem " +
       "isso, leads aguardando decisão do CEO disparam alerta falso de fila presa.",
   );
+});
+
+test("T14 reuniao_sem_deal: mesma regra na CF e na tela (exclui reprovado, sem janela, embed normalizado)", () => {
+  const inicio = cf.indexOf("checkSeguro('reuniao_sem_deal'");
+  assert.ok(inicio >= 0, "check reuniao_sem_deal sumiu da CF");
+  const fim = cf.indexOf("checkSeguro(", inicio + 1);
+  const bloco = cf.slice(inicio, fim > inicio ? fim : undefined);
+  assert.match(bloco, /meeting_scheduled=is\.true/, "CF deixou de filtrar reunião detectada");
+  assert.match(bloco, /aprovacao_status\.neq\.reprovado/, "CF deixou de excluir reprovado");
+  assert.match(bloco, /deleted_at=is\.null/, "CF deixou de ignorar lead excluído");
+  assert.match(bloco, /asArray\(l\.atletas\)/, "CF não normaliza o embed 1:1 (objeto) de atletas");
+  assert.doesNotMatch(bloco, /meeting_scheduled_at=gt\./, "CF ganhou janela de tempo — lead antigo sumiria do alerta");
+
+  const iniTela = tela.indexOf("async function checkReuniaoSemDeal");
+  assert.ok(iniTela >= 0, "checkReuniaoSemDeal sumiu da tela");
+  const fimTela = tela.indexOf("async function", iniTela + 1);
+  const blocoTela = tela.slice(iniTela, fimTela > iniTela ? fimTela : undefined);
+  assert.match(blocoTela, /\.eq\("meeting_scheduled", true\)/);
+  assert.match(blocoTela, /aprovacao_status\.neq\.reprovado/);
+  assert.match(blocoTela, /asArray\(r\.atletas\)/);
+  assert.doesNotMatch(blocoTela, /\.(gte|gt)\("meeting_scheduled_at"/, "tela ganhou janela de tempo");
 });

@@ -47,6 +47,8 @@ interface ReportData {
     propostas: number;
     contratos: number;
     taxaConversao: number;
+    /** Nome de cada coluna como o CEO configurou (T17). */
+    rotulosEtapa: Record<string, string>;
   };
   financeiro: {
     parcelasByMonth: Record<string, { recebido: number; previsto: number; atrasado: number }>;
@@ -158,7 +160,7 @@ export function RelatoriosClient({ data }: RelatoriosClientProps) {
 
 function ComercialTab({ data }: { data: ReportData["comercial"] }) {
   const etapaRows = Object.entries(data.dealsByEtapa).map(([etapa, v]) => [
-    (ETAPA_LABELS as Record<string, string>)[etapa] ?? etapa,
+    data.rotulosEtapa[etapa] ?? (ETAPA_LABELS as Record<string, string>)[etapa] ?? etapa,
     v.count.toString(),
     formatBRL(v.total),
   ]);

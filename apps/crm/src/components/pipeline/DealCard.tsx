@@ -1,16 +1,18 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/core";
-import { Clock, AlertTriangle, CheckCircle, ArrowLeft, CalendarClock, Trash2 } from "lucide-react";
+import { Clock, AlertTriangle, CheckCircle, ArrowLeft, CalendarClock, History, Trash2 } from "lucide-react";
 import {
   type Deal,
-  DEAL_STAGE_CONFIG,
   PRODUCT_TIER_STYLES,
 } from "@/types/deal";
 import {
   DEFAULT_DEAL_STAGE_DISPLAY,
+  getStageDisplay,
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
+import { labelEtapa } from "@/lib/move-deal-result";
+import { etapaDaAcao, isAcaoDeOutraEtapa } from "@/lib/proxima-acao";
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
@@ -129,10 +131,9 @@ export function DealCard({
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
     : undefined;
 
-  // Overrides do CEO quando disponíveis; DEAL_STAGE_CONFIG é só o fallback
-  // (antes o card lia o estático direto e ignorava a config — bug latente).
-  const stageConfig =
-    (configMap ?? DEFAULT_DEAL_STAGE_DISPLAY)[deal.stage] ?? DEAL_STAGE_CONFIG[deal.stage];
+  // Overrides do CEO quando disponíveis; etapa desconhecida (enum mais novo
+  // que o código) cai num fallback neutro em vez de quebrar o card.
+  const stageConfig = getStageDisplay(configMap ?? DEFAULT_DEAL_STAGE_DISPLAY, deal.stage);
   const timing = deal.timing_status ? TIMING_BADGE[deal.timing_status] : undefined;
   // Prioridade interna por engajamento (P1/P2) — camada de exibição; a
   // classificação Gemini continua no badge "IA". Sem prioridade = sem badge.
@@ -148,7 +149,12 @@ export function DealCard({
   const sinalNoValor = sinalPagoAntesDoPlano(deal) !== null;
 
   const today = new Date().toISOString().split("T")[0];
-  const isOverdue = deal.next_action_date && deal.next_action_date < today;
+  // T21: ação herdada de outra etapa (ex.: "Preparar para reunião" num deal
+  // em Sinal pago) não é "atraso" desta coluna — fica neutra, sem vermelho.
+  const acaoHerdada = isAcaoDeOutraEtapa(deal, deal.stage);
+  const origemAcao = acaoHerdada ? etapaDaAcao(deal) : null;
+  const isOverdue =
+    !acaoHerdada && Boolean(deal.next_action_date && deal.next_action_date < today);
 
   const isUnconfigured =
     !deal.next_action?.trim() || !deal.next_action_date;
@@ -281,11 +287,26 @@ export function DealCard({
         <p
           className={cn(
             "mt-1 truncate text-[10px]",
-            isOverdue ? "font-medium text-sys-red" : "text-muted-foreground",
+            isOverdue
+              ? "font-medium text-sys-red"
+              : acaoHerdada
+                ? "text-label-tertiary"
+                : "text-muted-foreground",
           )}
+          title={
+            acaoHerdada && origemAcao
+              ? `Ação de ${labelEtapa(origemAcao, configMap)} — ainda não atualizada para esta coluna`
+              : undefined
+          }
         >
           {isOverdue && (
             <AlertTriangle className="mr-0.5 inline h-2.5 w-2.5" />
+          )}
+          {acaoHerdada && (
+            <>
+              <History aria-hidden className="mr-0.5 inline h-2.5 w-2.5" />
+              <span className="sr-only">Ação de etapa anterior: </span>
+            </>
           )}
           {deal.next_action}
         </p>

@@ -37,12 +37,20 @@ import {
 import { type Deal, PIPELINE_STAGE_ORDER, type DealStage } from "@/types/deal";
 import {
   DEFAULT_DEAL_STAGE_DISPLAY,
+  getStageDisplay,
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
 import { atualizarDeal, moverDeal, type StructuredLossData } from "@/lib/actions/deals";
 import { CustomizarValorModal } from "./CustomizarValorModal";
 import { ROTULO_ORIGEM_VALOR, explicarOrigemValor, formatarValorDeal } from "@/lib/valor-deal";
 import { GanhoEscolasModal } from "./GanhoEscolasModal";
+import { PlanoEscolhidoModal } from "@/components/financeiro/contrato/PlanoEscolhidoModal";
+import {
+  colunasAnterioresBoard,
+  deveAbrirShortlist,
+  proximaColunaBoard,
+} from "@/lib/etapas-ordem";
+import { colunaPedePlano } from "@/lib/plano-integracao";
 import { criarNota, listarNotas } from "@/lib/actions/notas";
 import { getAuditLogsForDeal } from "@/lib/actions/audit";
 import type { NotaInterna, AuditLog } from "@/types/crm";
@@ -60,7 +68,9 @@ import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 interface DealDetailSheetProps {
   deal: Deal | null;
   onClose: () => void;
-  /** Config de exibição das etapas (rótulos/cores) — default estático. Não altera gates de moverDeal. */
+  /** Config das etapas (rótulos/cores/ordem do board/regras) — default estático.
+   *  Avançar/Retroceder seguem a ORDEM DO BOARD; o servidor (moverDeal) decide
+   *  retrocesso pela mesma regra. */
   stageConfig?: DealStageConfigMap;
   /** Chamado após salvar o valor: quem busca o deal no cliente (/remarketing,
    *  /leads) não é repintado pelo router.refresh e precisa rebuscar. */
@@ -575,24 +585,24 @@ export function DealDetailSheet({
   // 2026-09-11 — o editor inline do sheet foi aposentado a pedido do CEO.
   const [showCustomizarValor, setShowCustomizarValor] = useState(false);
 
+  // T10: destino que pede o plano — o move espera a escolha (modal do financeiro).
+  const [planoPara, setPlanoPara] = useState<{ etapa: DealStage; motivo?: string } | null>(null);
+
   if (!deal) return null;
 
-  const stageConfig = stageConfigMap[deal.stage];
-  // Progressão canônica: PIPELINE_STAGE_ORDER estático — a ordem configurada
-  // é só exibição e NUNCA muda o que "avançar/retroceder" significa.
+  const stageConfig = getStageDisplay(stageConfigMap, deal.stage);
+  // Progressão pela ORDEM DO BOARD (colunas visíveis, como o CEO arrumou) —
+  // a mesma escala que moverDeal/trigger usam para decidir retrocesso. Etapa
+  // atual oculta → ordem estática (comportamento antigo).
+  const nextStage = proximaColunaBoard(deal.stage, stageConfigMap);
+  // Só para o lembrete das notas da reunião (posição de negócio estática).
   const currentIdx = PIPELINE_STAGE_ORDER.indexOf(deal.stage);
-  const nextStage =
-    currentIdx < PIPELINE_STAGE_ORDER.length - 1
-      ? PIPELINE_STAGE_ORDER[currentIdx + 1]
-      : null;
   const nextStageLabel = nextStage ? stageConfigMap[nextStage]?.label : null;
   const classColors =
     CLASSIFICATION_COLORS[deal.classification] ?? CLASSIFICATION_COLORS.FRIO;
 
-  // Etapas anteriores para retrocesso
-  const previousStages = PIPELINE_STAGE_ORDER.slice(0, currentIdx).filter(
-    (s) => s !== "perdido",
-  );
+  // Etapas anteriores para retrocesso (colunas visíveis antes da atual)
+  const previousStages = colunasAnterioresBoard(deal.stage, stageConfigMap);
 
   const hasReuniao = Boolean(deal.reuniao_data || deal.reuniao_agendada_at);
 
@@ -649,27 +659,38 @@ export function DealDetailSheet({
     });
   };
 
+  const executarAvanco = (destino: DealStage) => {
+    const destinoLabel = stageConfigMap[destino]?.label ?? destino;
+    startTransition(async () => {
+      const result = await moverDeal(deal.id, destino);
+      if (result.success) {
+        toast.success(`Avançado para ${destinoLabel}`, {
+          description: result.proximaAcao ? `Próxima ação: ${result.proximaAcao}` : undefined,
+        });
+        router.refresh();
+        // Ganho: escolher as escolas é o 1º passo da jornada da família.
+        if (deveAbrirShortlist(deal.stage, destino, stageConfigMap) && deal.atleta_id) {
+          setGanhoEscolas(true);
+          return;
+        }
+        onClose();
+      } else {
+        toast.error(result.error ?? "Erro ao avançar");
+      }
+    });
+  };
+
   const handleAdvance = () => {
     if (!nextStage) return;
     if (!canAdvance) {
       toast.error("Preencha a Proxima Acao e Data para avancar");
       return;
     }
-    startTransition(async () => {
-      const result = await moverDeal(deal.id, nextStage as never);
-      if (result.success) {
-        toast.success(`Avancado para ${nextStageLabel}`);
-        router.refresh();
-        // Ganho: escolher as escolas é o 1º passo da jornada da família.
-        if (nextStage === "sinal_pago" && deal.atleta_id) {
-          setGanhoEscolas(true);
-          return;
-        }
-        onClose();
-      } else {
-        toast.error(result.error ?? "Erro ao avancar");
-      }
-    });
+    if (colunaPedePlano(stageConfigMap[nextStage])) {
+      setPlanoPara({ etapa: nextStage });
+      return;
+    }
+    executarAvanco(nextStage);
   };
 
   const handleRetroceder = () => {
@@ -681,14 +702,18 @@ export function DealDetailSheet({
       toast.error("Informe a justificativa do retrocesso");
       return;
     }
+    if (colunaPedePlano(stageConfigMap[retrocederStage as DealStage])) {
+      setPlanoPara({ etapa: retrocederStage as DealStage, motivo: retrocederMotivo });
+      return;
+    }
+    executarRetrocesso(retrocederStage as DealStage, retrocederMotivo);
+  };
+
+  const executarRetrocesso = (destino: DealStage, motivo: string) => {
     startTransition(async () => {
-      const result = await moverDeal(
-        deal.id,
-        retrocederStage as never,
-        retrocederMotivo,
-      );
+      const result = await moverDeal(deal.id, destino, motivo);
       if (result.success) {
-        toast.success(`Retrocedido para ${stageConfigMap[retrocederStage as DealStage]?.label}`);
+        toast.success(`Retrocedido para ${stageConfigMap[destino]?.label ?? destino}`);
         router.refresh();
         onClose();
       } else {
@@ -735,8 +760,27 @@ export function DealDetailSheet({
   const labelClass = "text-xs font-medium text-muted-foreground";
   const cardClass = "rounded-lg border border-border/70 bg-card/60 p-3";
 
+  const concluirPlano = () => {
+    const alvo = planoPara;
+    setPlanoPara(null);
+    if (!alvo) return;
+    if (alvo.motivo !== undefined) executarRetrocesso(alvo.etapa, alvo.motivo);
+    else executarAvanco(alvo.etapa);
+  };
+
   return (
     <>
+      {planoPara && (
+        <PlanoEscolhidoModal
+          dealId={deal.id}
+          athleteName={deal.athlete_name}
+          origem="mover_coluna"
+          destinoLabel={stageConfigMap[planoPara.etapa]?.label ?? planoPara.etapa}
+          onCancel={() => setPlanoPara(null)}
+          onConfirmed={concluirPlano}
+        />
+      )}
+
       {ganhoEscolas && deal?.atleta_id && (
         <GanhoEscolasModal
           atletaId={deal.atleta_id}
@@ -1551,7 +1595,7 @@ export function DealDetailSheet({
               {deal.signal_paid_at && (
                 <TimelineEvent
                   icon={CheckCircle2}
-                  label="Sinal pago"
+                  label={deal.signal_confirmed ? "Sinal pago" : "Movido para Sinal pago · sem registro de pagamento"}
                   date={deal.signal_paid_at}
                   active
                 />

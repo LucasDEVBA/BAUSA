@@ -126,7 +126,7 @@ Todos criados via `CREATE TYPE ... AS ENUM` com guard `DO $$ BEGIN ... EXCEPTION
 | Tipo | Valores |
 |------|---------|
 | `papel_usuario` | `ceo`, `cto`, `head_sucesso`, `comercial` (`cto` = mesmas permissões do `ceo`) |
-| `status_deal` | `lead`, `reuniao_marcada`, `reuniao_realizada`, `diagnostico_fit`, `alinhamento_estrategico`, `proposta_enviada`, `followup_proposta`, `negociacao`, `contrato_enviado`, `contrato_assinado`, `sinal_pago`, `admission_process`, `concluido`, `perdido`, `cancelamento_solicitado`, `projeto_futuro` |
+| `status_deal` | `contato_feito`, `lead`, `aguardando_timing`, `reuniao_marcada`, `reuniao_realizada`, `diagnostico_fit`, `alinhamento_estrategico`, `proposta_enviada`, `followup_proposta`, `negociacao`, `contrato_enviado`, `contrato_assinado`, `sinal_pago`, `plano_escolhido` (2026-10, entre `sinal_pago` e `admission_process`), `admission_process`, `concluido`, `perdido`, `cancelamento_solicitado`, `projeto_futuro`, `custom_1`..`custom_6` (colunas personalizadas do board) |
 | `classificacao_lead` | `hot`, `warm`, `cold` |
 | `status_parcela` | `previsto`, `recebido`, `atrasado`, `cancelado` |
 | `temperatura_familia` | `verde`, `amarelo`, `vermelho` |
@@ -136,7 +136,7 @@ Todos criados via `CREATE TYPE ... AS ENUM` com guard `DO $$ BEGIN ... EXCEPTION
 | `status_documento` | `pendente`, `enviado_atleta`, `revisado`, `enviado_escola`, `aprovado` |
 | `canal_comunicacao` | `whatsapp`, `email`, `ligacao`, `presencial` |
 | `status_contrato_assinatura` | `nao_enviado`, `enviado`, `assinado`, `cancelado` |
-| `plano_tipo` | `journey`, `legacy`, `start` |
+| `plano_tipo` | `journey`, `legacy`, `start`, `personalizado` |
 | `nivel_ingles` | `nenhum`, `basico`, `intermediario`, `avancado`, `fluente` |
 | `nivel_competitivo` | `escolar`, `escolinha`, `clube_social`, `base_baixo`, `base_medio`, `base_alto`, `selecao`, `apenas_academico` |
 | `decisao_familiar` | `decidida`, `em_discussao`, `resistente` |
@@ -450,6 +450,8 @@ Oportunidades comerciais do pipeline. 16 etapas (14 regulares + projeto_futuro +
 | `notas_reuniao` | TEXT | NULL | — | — | Notas de reuniao |
 | `next_action` | TEXT | NULL | — | — | Proxima acao (obrigatoria para avancar) |
 | `data_proxima_acao` | DATE | NULL | — | — | Data da proxima acao |
+| `next_action_etapa` | TEXT | NULL | — | — | Etapa do deal quando a `next_action` atual foi gravada (trigger `trg_deals_next_action_meta`). NULL = legado ou escrita sem autoria declarada |
+| `next_action_manual_em` | TIMESTAMPTZ | NULL | — | — | Quando o CEO escreveu a acao a mao (so o `atualizarDeal` declara). NULL = acao de sistema/padrao — a acao padrao da coluna NUNCA sobrescreve acao manual |
 | `motivo_perda` | `motivo_perda` | NULL | — | — | Motivo se deal perdido |
 | `detalhe_perda` | TEXT | NULL | — | — | Detalhe da perda |
 | `pode_reativar` | BOOLEAN | NULL | — | — | Se pode ser reativado |
@@ -460,8 +462,8 @@ Oportunidades comerciais do pipeline. 16 etapas (14 regulares + projeto_futuro +
 | `reuniao_realizada_at` | TIMESTAMPTZ | NULL | — | — | Data da reuniao realizada (auto) |
 | `contrato_enviado_at` | TIMESTAMPTZ | NULL | — | — | Data de envio do contrato (auto) |
 | `contrato_assinado_at` | TIMESTAMPTZ | NULL | — | — | Data de assinatura (auto) |
-| `sinal_pago_at` | TIMESTAMPTZ | NULL | — | — | Data de pagamento do sinal (auto) |
-| `sinal_pago_confirmado_por` | UUID | NULL | — | FK → `auth.users(id)` | Quem confirmou o sinal |
+| `sinal_pago_at` | TIMESTAMPTZ | NULL | — | — | Data em que o deal ENTROU em Sinal pago (o trigger preenche no arraste — **não prova pagamento**) |
+| `sinal_pago_confirmado_por` | UUID | NULL | — | FK → `auth.users(id)` | Quem registrou o sinal (prova de pagamento; gravado pela RPC `fin_confirmar_sinal_no_deal`) |
 | `docusign_envelope_id` | TEXT | NULL | — | — | ID do envelope DocuSign |
 | `docusign_status` | `status_contrato_assinatura` | NULL | `'nao_enviado'` | — | Status da assinatura digital |
 | `google_calendar_event_id` | TEXT | NULL | — | — | ID do evento no Google Calendar |
@@ -496,39 +498,45 @@ Oportunidades comerciais do pipeline. 16 etapas (14 regulares + projeto_futuro +
 
 ### 9. contratos_financeiros
 
-Contrato financeiro vinculado 1:1 ao deal. Apenas CEO pode criar/editar.
+Contrato financeiro vinculado 1:1 ao deal. Apenas CEO/CTO leem e escrevem (RLS). **Toda escrita passa pelas RPCs `fin_*`** (migration `20261008190400_financeiro_rpcs.sql`): lock da linha, CAS por `fin_versao_contrato`, soma das parcelas ao centavo, autor e justificativa na mesma transação.
+
+**Estados (derivados, nada gravado — `estadoContrato` em `lib/financeiro/calculo.mjs`):** `aguardando_plano` (plano NULL) · `cancelado` (parcela cancelada e nada em aberto) · `condicoes_pendentes` (Σ parcelas vivas < `valor_total` por mais de 1 centavo por parcela viva — centavos do arredondamento legado não contam; `faltaSemCronograma`) · `quitado` · `ativo`.
 
 | Coluna | Tipo | Nullable | Default | Constraint | Descricao |
 |--------|------|----------|---------|------------|-----------|
 | `id` | UUID | NOT NULL | `gen_random_uuid()` | PK | Identificador unico |
-| `deal_id` | UUID | NOT NULL | — | FK → `deals(id)`, UNIQUE | Deal vinculado (1:1) |
-| `plano` | `plano_tipo` | NOT NULL | — | — | Plano: journey, legacy, start |
-| `forma_pagamento_plano` | TEXT | NOT NULL | — | `CHECK IN ('padrao','pix_avista')` | Forma de pagamento do plano |
-| `valor_total` | NUMERIC(10,2) | NOT NULL | — | — | Valor total do contrato |
-| `valor_customizado` | NUMERIC(10,2) | NULL | — | — | Valor customizado (se diferente do padrao) |
-| `justificativa_customizacao` | TEXT | NULL | — | — | Obrigatoria se customizado (Regra 3) |
-| `entrada_valor` | NUMERIC(10,2) | NOT NULL | `4500.00` | — | Valor da entrada (sinal) |
-| `entrada_forma` | TEXT | NOT NULL | — | `CHECK IN ('pix','getnet_parcelado')` | Forma de pagamento da entrada |
-| `entrada_parcelas` | INTEGER | NOT NULL | `1` | — | Numero de parcelas da entrada |
-| `entrada_paga` | BOOLEAN | NOT NULL | `false` | — | Se a entrada foi paga |
-| `entrada_paga_at` | TIMESTAMPTZ | NULL | — | — | Data do pagamento da entrada |
-| `saldo_remanescente` | NUMERIC(10,2) | NOT NULL | — | **GENERATED ALWAYS AS** (`valor_total - entrada_valor`) STORED | Saldo calculado automaticamente |
-| `saldo_forma` | TEXT | NULL | — | `CHECK IN ('pix_avista','getnet_parcelado')` | Forma de pagamento do saldo |
-| `saldo_parcelas` | INTEGER | NULL | — | — | Numero de parcelas do saldo |
+| `deal_id` | UUID | NOT NULL | — | FK → `deals(id)`, UNIQUE | Deal vinculado (1:1). UNIQUE **completa** (nunca indice parcial: o embed 1:1 contrato↔deal volta OBJETO); o contrato descartado e REUTILIZADO pelas RPCs |
+| `plano` | `plano_tipo` | NULL | — | — | Plano: journey, legacy, start, personalizado. **NULL = aguardando plano** (so o sinal registrado — T11) |
+| `forma_pagamento_plano` | TEXT | NULL | — | `CHECK IN ('padrao','pix_avista')`; obrigatoria quando ha plano | Forma de pagamento do plano |
+| `valor_total` | NUMERIC(10,2) | NOT NULL | — | `>= entrada_valor` | Valor total = `valor_base_plano` + Σ itens + (sinal à parte ? entrada : 0). Aguardando plano: = Σ sinais |
+| `valor_base_plano` | NUMERIC(10,2) | NULL | — | `>= 0` | Preço do plano escolhido (tabela `configuracoes_sistema.planos` ou negociado). NULL = legado ou aguardando plano |
+| `sinal_abatido` | BOOLEAN | NOT NULL | `true` | — | true = sinal abatido do plano; false = cobrado à parte (exige justificativa) |
+| `plano_definido_at` | TIMESTAMPTZ | NULL | — | — | Quando o plano foi escolhido (T10) |
+| `valor_customizado` | NUMERIC(10,2) | NULL | — | — | Total negociado quando fora da tabela (base ≠ tabela, itens ou sinal à parte) |
+| `justificativa_customizacao` | TEXT | NULL | — | — | Obrigatoria se negociado (Regra 3) |
+| `entrada_valor` | NUMERIC(10,2) | NOT NULL | `4500.00` | `>= 0` | Valor da entrada (sinal) |
+| `entrada_forma` | TEXT | NULL | — | `CHECK IN ('pix','getnet_parcelado','transferencia','boleto','cartao','dinheiro','outro')`; obrigatoria se `entrada_valor > 0` | Forma da entrada |
+| `entrada_parcelas` | INTEGER | NOT NULL | `1` | `>= 0` | Numero de parcelas da entrada |
+| `entrada_paga` | BOOLEAN | NOT NULL | `false` | — | true so quando TODAS as parcelas de entrada estao recebidas (recalculado pela RPC `fin_recalcular_entrada_paga`; o estorno desfaz) |
+| `entrada_paga_at` | TIMESTAMPTZ | NULL | — | — | Data da ultima baixa de entrada |
+| `saldo_remanescente` | NUMERIC(10,2) | NOT NULL | — | **GENERATED ALWAYS AS** (`valor_total - entrada_valor`) STORED | Saldo calculado automaticamente (nunca dar UPDATE) |
+| `saldo_forma` | TEXT | NULL | — | `CHECK IN ('pix_avista','pix_parcelado','getnet_parcelado','transferencia','boleto','cartao','dinheiro','outro')` | Forma de pagamento do saldo |
+| `saldo_parcelas` | INTEGER | NULL | — | `>= 1` | Numero de parcelas do saldo (NULL = sem forma: saldo "definir depois" ou entrada = total, quando `saldo_forma` também fica NULL) |
 | `inclui_psicologa` | BOOLEAN | NOT NULL | `false` | — | Se inclui psicóloga intercultural |
-| `custo_psicologa` | NUMERIC(10,2) | NULL | `1200.00` | — | Custo da psicóloga por cliente |
-| `lucro_estimado` | NUMERIC(10,2) | NULL | — | — | Lucro estimado (atualizado por aplicacao) |
+| `custo_psicologa` | NUMERIC(10,2) | NULL | `1200.00` | `>= 0` | Custo estimado da psicóloga (entra na margem direta so enquanto nao houver custo real lancado) |
+| `lucro_estimado` | NUMERIC(10,2) | NULL | — | — | Legado, nao alimentado — a margem e calculada na leitura (`margemAluno`) |
 | `nf_status` | TEXT | NOT NULL | `'pendente'` | `CHECK IN ('pendente','emitida','nao_aplicavel')` | Status da nota fiscal |
 | `nf_numero` | TEXT | NULL | — | — | Numero da NF |
 | `nf_emitida_at` | TIMESTAMPTZ | NULL | — | — | Data de emissao da NF |
 | `nf_valor` | NUMERIC(10,2) | NULL | — | — | Valor da NF |
 | `created_at` | TIMESTAMPTZ | NOT NULL | `NOW()` | — | Data de criacao |
 | `updated_at` | TIMESTAMPTZ | NOT NULL | `NOW()` | — | Atualizado via trigger |
-| `deleted_at` | TIMESTAMPTZ | NULL | — | — | Soft delete |
+| `deleted_at` | TIMESTAMPTZ | NULL | — | — | Soft delete (descarte so sem pagamento: `fin_descartar_contrato`) |
 | `created_by` | UUID | NULL | — | FK → `auth.users(id)` | Criador |
 
 **Chave primaria:** `id`
 **Unique constraints:** `deal_id` (garante 1:1 com deals)
+**CHECK de coerencia (aguardando plano):** `plano IS NOT NULL OR (forma_pagamento_plano IS NULL AND valor_base_plano IS NULL AND saldo_forma IS NULL AND valor_total = entrada_valor)`.
 
 **Indices:**
 
@@ -536,27 +544,47 @@ Contrato financeiro vinculado 1:1 ao deal. Apenas CEO pode criar/editar.
 |------|---------|
 | `idx_contratos_deal` | `deal_id` |
 
+#### 9a. contrato_itens (T18a)
+
+Condições negociadas por aluno que compõem o `valor_total`. Escrita só pela RPC `fin_salvar_condicoes`. RLS: CEO/CTO.
+
+| Coluna | Tipo | Nullable | Constraint | Descricao |
+|--------|------|----------|------------|-----------|
+| `id` | UUID | NOT NULL | PK | — |
+| `contrato_id` | UUID | NOT NULL | FK → `contratos_financeiros(id)` | Contrato |
+| `tipo` | TEXT | NOT NULL | `IN ('servico','desconto','ajuste')` | servico > 0, desconto < 0, ajuste ≠ 0 |
+| `descricao` | TEXT | NOT NULL | 2–160 chars | Ex.: "TOEFL", "Desconto irmão" |
+| `valor` | NUMERIC(10,2) | NOT NULL | sinal coerente com o tipo | Valor assinado |
+| `catalogo_chave` | TEXT | NULL | `^[a-z0-9_]{1,40}$` | Item do catálogo `servicos_adicionais` (o valor do dia fica gravado) |
+| `created_at`/`updated_at`/`deleted_at`/`created_by` | — | — | — | Audit + soft delete |
+
+#### 9b. contrato_eventos
+
+Histórico financeiro legível (quem, quando, o quê, por quê). **Append-only** (sem UPDATE/DELETE para `authenticated`; sem trigger de audit). Tipos: `contrato_criado`, `sinal_registrado`, `plano_escolhido`, `condicoes_editadas`, `parcela_editada`, `parcela_baixada`, `parcela_estornada`, `sinal_removido`, `contrato_quitado`, `contrato_descartado`. Colunas: `contrato_id`, `deal_id`, `tipo`, `justificativa` (≤ 1000), `detalhes` (JSONB), `created_at`, `created_by`.
+
 ---
 
 ### 10. parcelas
 
-Agenda de recebiveis. Gerada ao criar contrato. CEO confirma recebimento.
+Agenda de recebiveis. Gerada pelas RPCs `fin_*`. Refazer o cronograma = soft delete SÓ das abertas + parcelas novas com ids novos (a régua não herda marcos); parcela recebida nunca muda.
 
 | Coluna | Tipo | Nullable | Default | Constraint | Descricao |
 |--------|------|----------|---------|------------|-----------|
 | `id` | UUID | NOT NULL | `gen_random_uuid()` | PK | Identificador unico |
 | `contrato_id` | UUID | NOT NULL | — | FK → `contratos_financeiros(id)` | Contrato vinculado |
-| `tipo` | TEXT | NOT NULL | — | `CHECK IN ('entrada','saldo')` | Tipo da parcela |
+| `tipo` | TEXT | NOT NULL | — | `CHECK IN ('entrada','saldo')` | Tipo da parcela (o sinal é `entrada`) |
 | `numero_parcela` | TEXT | NOT NULL | — | — | Numero (ex: '1/6') |
-| `valor` | NUMERIC(10,2) | NOT NULL | — | — | Valor da parcela |
-| `vencimento` | DATE | NOT NULL | — | — | Data de vencimento |
-| `metodo` | TEXT | NOT NULL | — | `CHECK IN ('pix','getnet')` | Metodo de pagamento |
-| `status` | `status_parcela` | NOT NULL | `'previsto'` | — | Status: previsto, recebido, atrasado, cancelado |
-| `recebido_at` | TIMESTAMPTZ | NULL | — | — | Data do recebimento |
+| `valor` | NUMERIC(10,2) | NOT NULL | — | `>= 0` | Valor da parcela (a ultima absorve os centavos) |
+| `vencimento` | DATE | NOT NULL | — | — | Data de vencimento (mesmo dia de cada mes) |
+| `metodo` | TEXT | NOT NULL | — | `CHECK IN ('pix','getnet','transferencia','boleto','cartao','dinheiro','outro')` | Metodo de pagamento |
+| `status` | `status_parcela` | NOT NULL | `'previsto'` | `recebido` exige `recebido_at` | Status: previsto, recebido, atrasado, cancelado |
+| `recebido_at` | TIMESTAMPTZ | NULL | — | — | Data REAL do recebimento (informada na baixa) |
 | `comprovante_url` | TEXT | NULL | — | — | URL do comprovante |
+| `parcelas_cartao` | SMALLINT | NULL | — | 1–24 | Vezes no cartão quando UMA parcela recebida é uma venda parcelada (ex.: sinal na Getnet em 3x) |
+| `observacao` | TEXT | NULL | — | ≤ 500 | Nota da baixa/edição |
 | `created_at` | TIMESTAMPTZ | NOT NULL | `NOW()` | — | Data de criacao |
 | `updated_at` | TIMESTAMPTZ | NOT NULL | `NOW()` | — | Atualizado via trigger |
-| `deleted_at` | TIMESTAMPTZ | NULL | — | — | Soft delete |
+| `deleted_at` | TIMESTAMPTZ | NULL | — | — | Soft delete (a régua `billing-reminders` ignora) |
 | `created_by` | UUID | NULL | — | FK → `auth.users(id)` | Criador |
 
 **Chave primaria:** `id`
@@ -566,10 +594,13 @@ Agenda de recebiveis. Gerada ao criar contrato. CEO confirma recebimento.
 | Nome | Colunas | Condicao |
 |------|---------|----------|
 | `idx_parcelas_contrato` | `contrato_id` | — |
+| `idx_parcelas_contrato_vivas` | `contrato_id, tipo` | `WHERE deleted_at IS NULL` |
 | `idx_parcelas_vencimento` | `vencimento` | `WHERE deleted_at IS NULL` |
 | `idx_parcelas_status` | `status` | `WHERE deleted_at IS NULL` |
 | `idx_parcelas_atrasadas` | `vencimento, contrato_id` | `WHERE status = 'atrasado' AND deleted_at IS NULL` |
 | `idx_parcelas_proximas` | `vencimento` | `WHERE status = 'previsto' AND deleted_at IS NULL` |
+
+> **`despesas.contrato_id`** (public/uat/dev, FK onde houver `contratos_financeiros`): custo interno da BAU com UM aluno (T18b). Categorias de custo de aluno: `psicologa`, `taxas_escola`, `testes_idioma`, `traducao`, `viagem`. Nunca recorrente (`CHECK contrato_id IS NULL OR recorrente = false`). Entra no DRE como saída e na "Margem direta" do /financeiro.
 
 ---
 
@@ -1015,8 +1046,16 @@ Colunas com `GENERATED ALWAYS AS ... STORED` que sao calculadas automaticamente 
 
 | Funcao | Parametros | Retorno | Descricao |
 |--------|-----------|---------|-----------|
-| `public.ordem_etapa(status_deal)` | `p_etapa` | INTEGER | Mapeia etapa do pipeline para inteiro (1-16) para detectar retrocesso. `IMMUTABLE`. |
-| `public.trg_deals_check_etapa()` | — | TRIGGER | Ao mudar etapa: salva etapa_anterior, detecta retrocesso (flag_retrocedido=true), seta timestamps de marcos (reuniao_realizada_at, contrato_enviado_at, contrato_assinado_at, sinal_pago_at). |
+| `public.ordem_etapa_fixa(text)` | `p_etapa` | INTEGER | Ordem de NEGÓCIO (com `plano_escolhido` entre `sinal_pago` e `admission_process`). `IMMUTABLE`. Espelho TS: `ETAPA_ORDEM` (`types/crm.ts`). |
+| `public.ordem_etapa(status_deal)` | `p_etapa` | INTEGER | Delega para `ordem_etapa_fixa` (assinatura mantida). |
+| `public.ordem_etapa_board(text, jsonb)` / `(status_deal)` | etapa, config | INTEGER | Ordem CONFIGURADA pelo CEO, só para etapa visível com `order` explícito; NULL caso contrário. |
+| `public.etapa_e_retrocesso(de, para, cfg)` | — | BOOLEAN | Regra ÚNICA de retrocesso: isenções (`perdido`, `cancelamento_solicitado`, `projeto_futuro`, `aguardando_timing`, `custom_*`); as duas visíveis com ordem → ordem do board; senão ordem fixa nas DUAS. Espelho TS: `lib/etapas-ordem.ts` (paridade travada por `tests/etapas-plano-escolhido-invariants.test.js`). |
+| `public.trg_deals_check_etapa()` | — | TRIGGER | Ao mudar etapa: salva etapa_anterior, detecta retrocesso por `etapa_e_retrocesso` (config ilegível → ordem fixa + WARNING, nunca aborta), seta timestamps de marcos (reuniao_realizada_at, contrato_enviado_at, contrato_assinado_at, sinal_pago_at). |
+| `public.trg_deals_next_action_meta()` | — | TRIGGER | BEFORE INSERT/UPDATE: aplica `etapas_deal_regras.<etapa>.acao_padrao` quando a etapa muda e a ação atual é de sistema; mantém `next_action_etapa`/`next_action_manual_em`. Nunca em `perdido`, nunca esvazia. |
+
+### Funcoes de Negocio — Financeiro (`fin_*`, migration `20261008190400`)
+
+23 funções `SECURITY INVOKER` (RLS do CEO vale), `REVOKE` de anon/PUBLIC, cada escrita com `fin_exigir_ceo()`, lock + CAS (`fin_versao_contrato`) e evento em `contrato_eventos` na mesma transação. Públicas para o Engine: `fin_criar_contrato`, `fin_registrar_sinal`, `fin_salvar_condicoes` (escolher plano / editar condições), `fin_baixar_parcela`, `fin_estornar_parcela` (novo vencimento opcional zera os marcos da régua), `fin_editar_parcela`, `fin_quitar_contrato` (não move o deal), `fin_descartar_contrato` (só sem pagamento), `fin_versao_contrato`, `fin_valor_tabela` (preço de `configuracoes_sistema.planos`). Helpers: `fin_inserir_parcelas`, `fin_descartar_abertas`, `fin_recalcular_entrada_paga`, `fin_confirmar_sinal_no_deal`, `fin_desconfirmar_sinal_se_vazio`, `fin_sincronizar_itens`, `fin_registrar_evento`, `fin_validar_contrato`, `fin_metodo_da_forma`, `fin_hoje`, `fin_data_ao_meio_dia`, `fin_resultado`, `fin_exigir_ceo`. Erros voltam como códigos `FIN_*` em pt-BR (`FIN_CONTRATO_MUDOU`, `FIN_JUSTIFICATIVA`, `FIN_PERMISSAO`…).
 
 ---
 
@@ -1161,7 +1200,9 @@ Valores inseridos via seed na migration `20260401000300`:
 | `thresholds_experiencia` | JSONB | ansiedade_vermelho=4, satisfacao_vermelho=2 |
 | `inatividade_por_fase` | JSONB | admissao=7d, pre_embarque=15d, embarcado_inicial=7d, acompanhamento=30d |
 | `digest_horario` | JSONB | "09:00" |
-| `probabilidade_por_etapa` | JSONB | lead=10%, reuniao_marcada=20%, reuniao_realizada=35%, diagnostico_fit=45%, alinhamento_estrategico=50%, proposta_enviada=55%, followup_proposta=60%, negociacao=65%, contrato_enviado=75%, contrato_assinado=85%, sinal_pago=95%, admission_process=98%, concluido=100%, perdido=0%, cancelamento_solicitado=10%, projeto_futuro=5%. |
+| `probabilidade_por_etapa` | JSONB | lead=10%, reuniao_marcada=20%, reuniao_realizada=35%, diagnostico_fit=45%, alinhamento_estrategico=50%, proposta_enviada=55%, followup_proposta=60%, negociacao=65%, contrato_enviado=75%, contrato_assinado=85%, sinal_pago=95%, plano_escolhido=97% (2026-10), admission_process=98%, concluido=100%, perdido=0%, cancelamento_solicitado=10%, projeto_futuro=5%. |
+| `etapas_deal_regras` | JSONB | (2026-10, migration `20261008190100`) Comportamento por coluna — `{"<etapa>": {"ganho": bool (só custom_*), "pede_plano": bool, "acao_padrao": {"texto", "dias"}}}`. Seed: ações padrão de reuniao_realizada→plano_escolhido, `plano_escolhido.pede_plano = true`, `ganho` nas colunas "Admitido"/"Valor total pago". Escrita por upsert; NUNCA misturar com `etapas_deal_config` (exibição). |
+| `servicos_adicionais` | JSONB (array) | (2026-10, migration `20261008190300`) Catálogo de serviços sugeridos `[{chave, nome, valor, ativo}]` — TOEFL 2.500, inglês 3 meses 3.600, psicológico extra 1.200, tradução 800. Editável em Configurações → Parâmetros. |
 
 ### faq_artigos
 

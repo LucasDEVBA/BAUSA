@@ -43,13 +43,21 @@ export default async function LeadsPage({
   const supabase = await createServerSupabaseClient();
 
   const carregarLeadInicial = async (): Promise<Lead | null> => {
-    if (!filtros.atleta) return null;
+    if (!filtros.lead && !filtros.atleta) return null;
     try {
+      // T14: ?lead=<form_submission_id> (notificação "Reunião detectada —
+      // fora do pipeline") abre o dossiê direto, mesmo sem atleta/deal.
+      if (filtros.lead) return await obterLeadDossieInterno(supabase, filtros.lead);
+      if (!filtros.atleta) return null;
       const fsId = await formSubmissionDoAtleta(supabase, filtros.atleta);
       return fsId ? await obterLeadDossieInterno(supabase, fsId) : null;
     } catch (e) {
       // Deep-link quebrado nunca derruba a lista.
-      console.error({ level: "error", action: "leads_deeplink_atleta", message: e instanceof Error ? e.message : String(e) });
+      console.error({
+        level: "error",
+        action: filtros.lead ? "leads_deeplink_lead" : "leads_deeplink_atleta",
+        message: e instanceof Error ? e.message : String(e),
+      });
       return null;
     }
   };

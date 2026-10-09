@@ -16,6 +16,13 @@ const CATEGORIAS = [
   "comissoes",
   "ocupacao",
   "outros",
+  // Custos de aluno (T18b): editar pelo Saídas um custo lançado no contrato
+  // não pode falhar na validação da categoria.
+  "psicologa",
+  "taxas_escola",
+  "testes_idioma",
+  "traducao",
+  "viagem",
 ] as const;
 const TIPOS = ["fixa", "variavel"] as const;
 const STATUS = ["previsto", "pago", "atrasado", "cancelado"] as const;

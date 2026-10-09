@@ -96,12 +96,17 @@ export async function getNotificacoesNaoLidas() {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  // CEO ve TODAS as notificacoes nao lidas do sistema
+  const { data: { user } } = await supabase.auth.getUser();
   if (papel !== "ceo") {
-    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       query = query.eq("destinatario_id", user.id);
     }
+  } else if (user) {
+    // CEO ve TODAS as notificacoes nao lidas do sistema — EXCETO as copias
+    // alheias das que tem dedupe_key: essas nascem 1 linha por destinatario
+    // (CEO e CTO), entao o CEO veria o mesmo aviso 2x e a copia do outro
+    // nunca sairia do sininho (a RLS de UPDATE so marca a propria como lida).
+    query = query.or(`dedupe_key.is.null,destinatario_id.eq.${user.id}`);
   }
 
   const { data } = await query;

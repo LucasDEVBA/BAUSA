@@ -9,11 +9,19 @@ import {
   type FasesFamiliaConfig,
 } from "@/lib/fases-familia";
 import {
+  DEAL_STAGES,
+  ETAPAS_GANHO_FIXAS,
+  SLOTS_CUSTOM,
+  etapasGanho,
+  mergeDealStageConfig,
   mergeProbabilidadePorEtapa,
   parseEtapasDealConfig,
+  parseEtapasDealRegras,
   PROBABILIDADE_ETAPA_FALLBACK,
   type EtapasDealConfig,
+  type EtapasDealRegras,
 } from "@/lib/etapas-deal";
+import type { DealStage } from "@/types/deal";
 
 export async function getConfiguracoes() {
   const supabase = await createAuditedSupabaseClient();
@@ -164,6 +172,84 @@ export async function getProbabilidadePorEtapa(): Promise<Record<string, number>
     });
     return { ...PROBABILIDADE_ETAPA_FALLBACK };
   }
+}
+
+/** Config completa das etapas de deal numa leitura só (moverDeal, /pipeline, métricas). */
+export interface ConfigEtapasDeal {
+  /** Apresentação (rótulo/cor/ordem/oculta) — chave etapas_deal_config. */
+  overrides: EtapasDealConfig;
+  /** Comportamento (ganho/pede_plano/acao_padrao) — chave etapas_deal_regras. */
+  regras: EtapasDealRegras;
+  /** probabilidade_por_etapa mesclada com o fallback. */
+  probabilidade: Record<string, number>;
+  /** false = leitura falhou (defaults do código em uso). Consumidores
+   *  fail-closed (remarketing) tratam TODA coluna personalizada como ganho. */
+  lida: boolean;
+}
+
+const CHAVES_ETAPAS_DEAL = ["etapas_deal_config", "etapas_deal_regras", "probabilidade_por_etapa"];
+
+export async function getConfigEtapasDeal(): Promise<ConfigEtapasDeal> {
+  const falha: ConfigEtapasDeal = {
+    overrides: {},
+    regras: {},
+    probabilidade: { ...PROBABILIDADE_ETAPA_FALLBACK },
+    lida: false,
+  };
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("configuracoes_sistema")
+      .select("chave, valor")
+      .in("chave", CHAVES_ETAPAS_DEAL);
+    if (error || !data) {
+      console.error({
+        level: "error",
+        action: "get_config_etapas_deal",
+        error: error?.message ?? "sem dados",
+      });
+      return falha;
+    }
+    const porChave = new Map(
+      (data as { chave: string; valor: unknown }[]).map((row) => [row.chave, row.valor]),
+    );
+    return {
+      overrides: parseEtapasDealConfig(porChave.get("etapas_deal_config")),
+      regras: parseEtapasDealRegras(porChave.get("etapas_deal_regras")),
+      probabilidade: mergeProbabilidadePorEtapa(porChave.get("probabilidade_por_etapa")),
+      lida: true,
+    };
+  } catch (err) {
+    console.error({
+      level: "error",
+      action: "get_config_etapas_deal",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return falha;
+  }
+}
+
+/**
+ * Etapas que contam como GANHO (fixas + colunas personalizadas marcadas).
+ * `falhaComoGanho`: se a config não puder ser lida, TODAS as colunas
+ * personalizadas contam como ganho — usar onde o erro mandaria mensagem a
+ * família pagante (remarketing). Métricas usam o default (só as fixas).
+ */
+export async function getEtapasGanho(opts?: { falhaComoGanho?: boolean }): Promise<DealStage[]> {
+  const cfg = await getConfigEtapasDeal();
+  if (!cfg.lida && opts?.falhaComoGanho) {
+    return [...ETAPAS_GANHO_FIXAS, ...SLOTS_CUSTOM];
+  }
+  return etapasGanho(mergeDealStageConfig(cfg.overrides, cfg.regras));
+}
+
+/** Nome de exibição (rótulo do CEO) de cada etapa — para textos server-side (T17). */
+export async function getRotulosEtapas(): Promise<Record<DealStage, string>> {
+  const cfg = await getConfigEtapasDeal();
+  const merged = mergeDealStageConfig(cfg.overrides, cfg.regras);
+  const out = {} as Record<DealStage, string>;
+  for (const stage of DEAL_STAGES) out[stage] = merged[stage].label;
+  return out;
 }
 
 export async function atualizarMultiplasConfiguracoes(configs: Record<string, unknown>) {

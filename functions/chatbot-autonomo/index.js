@@ -62,12 +62,65 @@ const RESPOSTA_MAX        = 2000;  // corte defensivo da resposta gerada
 const TRANSCRIPT_MSGS     = 15;    // últimas N mensagens no prompt
 
 // Etapas em que a IA NUNCA responde: dinheiro/negociação/proposta/contrato/
-// cancelamento — sempre escala ao humano (invariante de escalonamento duro).
+// pós-venda/cancelamento — sempre escala ao humano (escalonamento duro).
 const ESCALACAO_ETAPAS = new Set([
   'proposta_enviada', 'followup_proposta', 'negociacao',
-  'contrato_enviado', 'contrato_assinado', 'sinal_pago',
+  'contrato_enviado', 'contrato_assinado', 'sinal_pago', 'plano_escolhido',
   'admission_process', 'cancelamento_solicitado',
 ]);
+
+// Etapas CONHECIDAS em que a IA pode responder. Qualquer etapa fora desta
+// lista e de ESCALACAO_ETAPAS (valor novo do enum, coluna desconhecida)
+// ESCALA — fail-closed.
+const ETAPAS_IA_PERMITIDA = new Set([
+  'contato_feito', 'lead', 'aguardando_timing', 'reuniao_marcada',
+  'reuniao_realizada', 'diagnostico_fit', 'alinhamento_estrategico',
+  'concluido', 'perdido', 'projeto_futuro',
+]);
+
+const SLOT_CUSTOM_RE = /^custom_[1-6]$/;
+
+// Colunas personalizadas marcadas como GANHO pelo CEO (etapas_deal_regras —
+// "Admitido", "Valor total pago"…): família que já pagou, a IA não responde.
+// Regras ilegíveis (valor presente mas não-objeto) → TODAS as personalizadas
+// escalam (fail-closed). Chave ausente → nenhuma personalizada é ganho.
+const colunasGanhoCustom = (regras) => {
+  if (regras === undefined || regras === null) return new Set();
+  if (typeof regras !== 'object' || Array.isArray(regras)) {
+    return new Set(['custom_1', 'custom_2', 'custom_3', 'custom_4', 'custom_5', 'custom_6']);
+  }
+  return new Set(
+    Object.keys(regras).filter(
+      (k) => SLOT_CUSTOM_RE.test(k) && regras[k] && regras[k].ganho === true,
+    ),
+  );
+};
+
+const deveEscalarPorEtapa = (etapa, customGanho) => {
+  if (!etapa) return false;
+  if (ESCALACAO_ETAPAS.has(etapa)) return true;
+  if (SLOT_CUSTOM_RE.test(etapa)) return customGanho.has(etapa);
+  return !ETAPAS_IA_PERMITIDA.has(etapa);
+};
+
+// Nome da coluna para os avisos ao CEO/Head (rótulo configurado; fail-open
+// para o rótulo padrão / código).
+const ROTULO_ETAPA_PADRAO = {
+  contato_feito: 'Contato feito', lead: 'Lead', aguardando_timing: 'Aguardando timing',
+  reuniao_marcada: 'Reunião marcada', reuniao_realizada: 'Reunião realizada',
+  diagnostico_fit: 'Diagnóstico / Fit', alinhamento_estrategico: 'Alinhamento',
+  proposta_enviada: 'Proposta enviada', followup_proposta: 'Follow-up proposta',
+  negociacao: 'Negociação', contrato_enviado: 'Contrato enviado',
+  contrato_assinado: 'Contrato assinado', sinal_pago: 'Sinal pago',
+  plano_escolhido: 'Plano escolhido', admission_process: 'Admission process',
+  concluido: 'Concluído', perdido: 'Perdido', cancelamento_solicitado: 'Cancelamento',
+  projeto_futuro: 'Projeto futuro',
+};
+const rotuloEtapa = (etapa, etapasCfg) => {
+  const entrada = etapasCfg && typeof etapasCfg === 'object' ? etapasCfg[etapa] : null;
+  const label = entrada && typeof entrada.label === 'string' ? entrada.label.trim() : '';
+  return label || ROTULO_ETAPA_PADRAO[etapa] || etapa;
+};
 
 // ─── Log estruturado (nunca loga conteúdo/PII cru) ──────────────
 const log = (level, action, details = {}) => {
@@ -664,10 +717,11 @@ const processarConversa = async (conv, config, tickState) => {
     return { enviouAoLead: false };
   }
 
-  // ── ESCALONAMENTO DURO por ETAPA (dinheiro/negociação/contrato): nunca responde
-  if (lead.etapa && ESCALACAO_ETAPAS.has(lead.etapa)) {
+  // ── ESCALONAMENTO DURO por ETAPA (dinheiro/negociação/contrato/pós-venda,
+  // inclusive colunas personalizadas de ganho): nunca responde
+  if (lead.etapa && deveEscalarPorEtapa(lead.etapa, config.customGanho)) {
     if (!(await claimConversa(phone, messageId, lead.atletaId))) return { enviouAoLead: false };
-    await escalar(lead, `etapa ${lead.etapa}`);
+    await escalar(lead, `etapa ${rotuloEtapa(lead.etapa, config.etapasCfg)}`);
     await registrarLog({
       phone, atletaId: lead.atletaId, mensagemLead: ultimaTexto, decisao: 'escalou',
       motivo: `etapa ${lead.etapa}`, modoEfetivo,
@@ -803,10 +857,13 @@ functions.http('chatbotAutonomo', async (req, res) => {
 
     // Config global + critério + persona (fail-open p/ defaults do código).
     const cfgRows = await sbGet(
-      'configuracoes_sistema?chave=in.(chatbot_autonomo,chatbot_autonomo_criterio,chatbot_persona)&select=chave,valor'
+      'configuracoes_sistema?chave=in.(chatbot_autonomo,chatbot_autonomo_criterio,chatbot_persona,etapas_deal_config,etapas_deal_regras)&select=chave,valor'
     );
     const cfgByChave = {};
     for (const r of cfgRows) cfgByChave[r.chave] = r.valor || {};
+    // Regras de coluna: guardadas CRUAS (valor inválido precisa chegar inválido
+    // ao colunasGanhoCustom para o fail-closed).
+    const regrasEtapasRaw = (cfgRows.find((r) => r.chave === 'etapas_deal_regras') || {}).valor;
 
     const modo = cfgByChave.chatbot_autonomo?.modo || 'off';
 
@@ -835,6 +892,8 @@ functions.http('chatbotAutonomo', async (req, res) => {
       persona: (typeof cfgByChave.chatbot_persona?.persona === 'string'
         && cfgByChave.chatbot_persona.persona.trim())
         ? cfgByChave.chatbot_persona.persona.trim() : PERSONA_DEFAULT,
+      customGanho: colunasGanhoCustom(regrasEtapasRaw),
+      etapasCfg: cfgByChave.etapas_deal_config || {},
     };
 
     const elegiveis = (await buscarConversasElegiveis()).slice(0, MAX_CONVERSAS_POR_TICK);

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { createAdminClient, hasServiceKey } from "@/lib/supabase-admin";
 import { getUserPapel } from "@/lib/auth";
-import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
+import { getProbabilidadePorEtapa, getRotulosEtapas } from "@/lib/actions/configuracoes";
 import { excluirLead } from "@/lib/actions/leads-excluir";
 import {
   faixaInvestimentoConhecida,
@@ -386,6 +386,9 @@ export interface LeadPendenteAprovacao {
   device_type: string | null;
   form_started_at: string | null;
   submitted_at: string;
+  // T14: reunião detectada no Calendar — badge no dossiê da fila/revisão
+  meeting_scheduled: boolean | null;
+  meeting_scheduled_at: string | null;
 }
 
 // Todos os campos do formulário que ajudam na decisão — o CEO decide com o
@@ -406,7 +409,7 @@ const COLUNAS_FILA_APROVACAO =
   "sinais_reforco, sinais_alerta, prioridade_estrategica, acao_recomendada, " +
   "utm_source, utm_medium, utm_campaign, " +
   "utm_content, utm_term, referrer_url, landing_url, cta_source, device_type, form_started_at, " +
-  "submitted_at";
+  "submitted_at, meeting_scheduled, meeting_scheduled_at";
 
 /**
  * Contagem da fila para o ícone do Header global (client-side).
@@ -1211,6 +1214,9 @@ export async function aprovarLead(
   }
   const dealId = garantia.dealId;
   let aviso: string | null = null;
+  // T17: o aviso mostra o NOME DA COLUNA (rótulo do CEO), nunca o código.
+  const rotulos: Record<string, string> = await getRotulosEtapas();
+  const colunaDoDeal = rotulos[garantia.etapa] ?? garantia.etapa;
 
   // Reunião no HISTÓRICO do deal (ou deal já além da pré-reunião) sem nenhum
   // envio: o convite inicial seria indevido. O CAS acima só sabia do flag do
@@ -1232,20 +1238,20 @@ export async function aprovarLead(
         formSubmissionId,
         erro: carimboErr?.message ?? "0 linhas (corrida com o disparo?)",
       });
-      aviso = `ATENÇÃO: o deal está em "${garantia.etapa}", mas não foi possível bloquear as mensagens automáticas — o convite pode ter saído; confira.`;
+      aviso = `ATENÇÃO: o deal está em "${colunaDoDeal}", mas não foi possível bloquear as mensagens automáticas — o convite pode ter saído; confira.`;
     } else {
-      aviso = `Aprovado sem mensagem automática: o deal já está em "${garantia.etapa}".`;
+      aviso = `Aprovado sem mensagem automática: o deal já está em "${colunaDoDeal}".`;
     }
   }
 
   let reativacao = false;
   if (bloquearInicial) {
-    aviso = `Aprovado sem mensagem automática: a reunião já foi detectada — deal em "${garantia.etapa}".`;
+    aviso = `Aprovado sem mensagem automática: a reunião já foi detectada — deal em "${colunaDoDeal}".`;
   }
   if (fsRow.whatsapp_sent_at && !garantia.rearmavel) {
     // Histórico de outreach, mas o deal já avançou (ex.: cliente em
     // admissão) ou o timing é alternativo: aprovar NUNCA re-dispara convite.
-    aviso = `Aprovado sem nova mensagem: o deal está em "${garantia.etapa}"${
+    aviso = `Aprovado sem nova mensagem: o deal está em "${colunaDoDeal}"${
       fsRow.timing_status && fsRow.timing_status !== "ideal" ? ` e o timing é ${String(fsRow.timing_status)}` : ""
     } — a reativação automática não foi disparada.`;
   }

@@ -1,5 +1,6 @@
 import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getEtapasGanho, getRotulosEtapas } from "@/lib/actions/configuracoes";
 import { EMBED_CONTRATO_VALOR_LEVE, valorExibidoDeal } from "@/lib/valor-deal";
 import { RelatoriosClient } from "./client";
 
@@ -15,6 +16,10 @@ async function fetchReportData() {
     .is("deleted_at", null);
 
   const allDeals = deals || [];
+  // GANHO = fixas + Plano escolhido + colunas personalizadas marcadas (T20);
+  // rótulos = nomes das colunas do CEO (T17).
+  const etapasGanho = new Set<string>(await getEtapasGanho());
+  const rotulosEtapa: Record<string, string> = await getRotulosEtapas();
 
   const now = new Date();
   const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -55,13 +60,7 @@ async function fetchReportData() {
       d.etapa === "followup_proposta" ||
       d.etapa === "negociacao"
   ).length;
-  const contratos = allDeals.filter(
-    (d) =>
-      d.etapa === "contrato_assinado" ||
-      d.etapa === "sinal_pago" ||
-      d.etapa === "admission_process" ||
-      d.etapa === "concluido"
-  ).length;
+  const contratos = allDeals.filter((d) => etapasGanho.has(d.etapa)).length;
   const taxaConversao =
     leadsRecebidos > 0 ? Math.round((contratos / leadsRecebidos) * 100) : 0;
 
@@ -131,6 +130,8 @@ async function fetchReportData() {
     .from("contratos_financeiros")
     .select("id, deal_id, plano, valor_total, deals(atleta:atletas(nome_completo))")
     .is("deleted_at", null)
+    // Top 5 contratos = com plano escolhido (o "aguardando plano" só tem o sinal).
+    .not("plano", "is", null)
     .order("valor_total", { ascending: false })
     .limit(5);
 
@@ -187,13 +188,7 @@ async function fetchReportData() {
   > = {};
   for (const safra of safras) {
     const safraDeals = allDeals.filter((d) => d.safra === safra);
-    const safraContratos = safraDeals.filter(
-      (d) =>
-        d.etapa === "contrato_assinado" ||
-        d.etapa === "sinal_pago" ||
-        d.etapa === "admission_process" ||
-        d.etapa === "concluido"
-    );
+    const safraContratos = safraDeals.filter((d) => etapasGanho.has(d.etapa));
     const totalRevenue = safraDeals.reduce(
       (s, d) => s + (valorExibidoDeal(d)),
       0
@@ -265,6 +260,7 @@ async function fetchReportData() {
       propostas,
       contratos,
       taxaConversao,
+      rotulosEtapa,
     },
     financeiro: {
       parcelasByMonth,

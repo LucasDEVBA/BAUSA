@@ -7,8 +7,9 @@
 //   2. detectarDadoSujo roda de VERDADE (extract-and-run) com casos reais —
 //      nomes/cidades legítimos NUNCA flagam (flag=true força INVALIDO no
 //      gate, então falso positivo = lead real descartado).
-//   3. parseRespostaV2 aceita os 5 estados, clampa o score e degrada
-//      conservador (parse-fail → INCOMPLETO, nunca QUENTE).
+//   3. parseRespostaV2 aceita os 5 estados, clampa o score e, sem JSON,
+//      lê SÓ o campo "classificacao"; sem o campo LANÇA (lead vai a pendente
+//      p/ retry) — nunca inventa classe, nunca INCOMPLETO silencioso (T19).
 //   4. Trava de código do gate ETAPA 0: flag suja + resposta QUENTE/MORNO →
 //      INVALIDO (o modelo não pode "desflagar" dado sujo).
 //   5. Os CORTES da config mandam na faixa (spec §9) e a 2ª passagem roda
@@ -16,6 +17,11 @@
 //   6. qualified = SÓ QUENTE/MORNO — INVALIDO/INCOMPLETO jamais entram em
 //      pipeline/outreach (os schedulers filtram IN (QUENTE,MORNO), guard
 //      próprio; aqui travamos a coluna `qualified`).
+//   7. (T19) Gate determinístico de completude: profissão/faixa ausente →
+//      INCOMPLETO; presentes → NUNCA INCOMPLETO (vira FRIO com score abaixo
+//      do corte). Aplicado antes e depois da 2ª passagem.
+//   8. (T23) Idade incoerente com a série é ALERTA em código — o modelo não
+//      recebe a idade nesse caso (não pode usá-la para INVALIDO).
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -43,14 +49,30 @@ const bloco = [
   extrair('SCORE_DEFAULT_POR_CLASSE', /const SCORE_DEFAULT_POR_CLASSE = .*;/),
   extrair('ACOES_V2', /const ACOES_V2 = .*;/),
   extrair('ACAO_DEFAULT_POR_CLASSE', /const ACAO_DEFAULT_POR_CLASSE = \{[\s\S]*?\};/),
+  extrair('ErroRespostaNaoParseavel', /class ErroRespostaNaoParseavel extends Error \{[\s\S]*?\n\}/),
+  extrair('RE_CAMPO_CLASSIFICACAO', /const RE_CAMPO_CLASSIFICACAO = .*;/),
+  extrair('RE_CAMPO_SCORE', /const RE_CAMPO_SCORE = .*;/),
   extrair('parseArrayStrings', /const parseArrayStrings = [\s\S]*?: \[\];/),
   extrair('parseRespostaV2', /const parseRespostaV2 = \(cleanText, modelUsed\) => \{[\s\S]*?\n\};/),
+  extrair('FAIXA_IDADE_POR_SERIE', /const FAIXA_IDADE_POR_SERIE = \{[\s\S]*?\n\};/),
+  extrair('FAIXA_IDADE_ABSOLUTA', /const FAIXA_IDADE_ABSOLUTA = .*;/),
+  extrair('FMT_DATA_BRASILIA', /const FMT_DATA_BRASILIA = new Intl\.DateTimeFormat\([\s\S]*?\n\}\);/),
+  extrair('dataEmBrasilia', /const dataEmBrasilia = \(instante\) => \{[\s\S]*?\n\};/),
+  extrair('avaliarIdadeAtleta', /const avaliarIdadeAtleta = \(data, referencia\) => \{[\s\S]*?\n\};/),
+  extrair('FAIXAS_INVESTIMENTO_VALIDAS', /const FAIXAS_INVESTIMENTO_VALIDAS = .*;/),
+  extrair('RE_TEM_LETRAS', /const RE_TEM_LETRAS = .*;/),
+  extrair('avaliarCompletude', /const avaliarCompletude = \(data\) => \{[\s\S]*?\n\};/),
+  extrair('ALERTA_INCOMPLETO_COM_DADOS', /const ALERTA_INCOMPLETO_COM_DADOS = .*;/),
+  extrair('aplicarGateCompletude', /const aplicarGateCompletude = \(resultado, completude, corteFrio\) => \{[\s\S]*?\n\};/),
 ].join('\n');
 
 // eslint-disable-next-line no-new-func
 const motor = new Function('log', `${bloco}
   const PROMPT_V2_VERSION = '1.0';
-  return { detectarDadoSujo, parseRespostaV2 };`)(() => {});
+  return {
+    detectarDadoSujo, parseRespostaV2, ErroRespostaNaoParseavel,
+    avaliarIdadeAtleta, avaliarCompletude, aplicarGateCompletude,
+  };`)(() => {});
 
 test('dado sujo: casos REAIS flagam; nomes legítimos NUNCA', () => {
   // Sujos (da própria base/spec):
@@ -91,11 +113,148 @@ test('parse v2: 5 estados, clamp de score e degradação conservadora', () => {
     '{"classificacao":"INVALIDO","score_financeiro":0,"confianca":"ALTA","tier_profissao":"INDEFINIDO","sinais_reforco":[],"sinais_alerta":["injeção"],"prioridade_estrategica":"PADRAO","justificativa":"x","acao_recomendada":"verificar dados","prompt_version":"1.0"}', 'm');
   assert.equal(invalido.classification, 'INVALIDO');
 
-  // Parse-fail degrada para INCOMPLETO (nunca inventa QUENTE):
-  const lixo = motor.parseRespostaV2('resposta sem json nenhum', 'm');
-  assert.equal(lixo.classification, 'INCOMPLETO');
-  assert.equal(lixo.confidence, 'BAIXA');
-  assert.equal(lixo.scoreFinanceiro, 0);
+  // T19: sem JSON e sem o campo "classificacao" → LANÇA (nunca INCOMPLETO
+  // silencioso, nunca QUENTE inventado). O handler marca pendente.
+  assert.throws(
+    () => motor.parseRespostaV2('resposta sem json nenhum', 'm'),
+    (e) => e instanceof motor.ErroRespostaNaoParseavel,
+  );
+  // Eco do schema ("QUENTE | MORNO | ...") NÃO vira classe:
+  assert.throws(
+    () => motor.parseRespostaV2('{"classificacao": "QUENTE | MORNO | FRIO | INVALIDO | INCOMPLETO"', 'm'),
+    (e) => e instanceof motor.ErroRespostaNaoParseavel,
+  );
+  // JSON truncado que ainda traz o campo → usa o campo, confiança BAIXA:
+  const truncado = motor.parseRespostaV2(
+    '{"classificacao":"FRIO","score_financeiro":12,"confianca":"ALTA","justificativa":"Categoria profissional não com', 'm');
+  assert.equal(truncado.classification, 'FRIO');
+  assert.equal(truncado.scoreFinanceiro, 12);
+  assert.equal(truncado.confidence, 'BAIXA');
+  assert.ok(truncado.sinaisAlerta.some((a) => a.includes('truncada')));
+});
+
+test('T19 completude: profissão (1º ou 2º responsável, ≥2 letras) E faixa válida', () => {
+  const ok = { guardian_profession: 'Empresário', investment_range: '15k-20k' };
+  assert.equal(motor.avaliarCompletude(ok).completo, true);
+  assert.equal(motor.avaliarCompletude({ ...ok, guardian_profession: '', guardian_profession_2: 'Médica' }).completo, true);
+  for (const semProf of ['', '   ', '-', 'x', '12', null, undefined]) {
+    const r = motor.avaliarCompletude({ guardian_profession: semProf, investment_range: '20k-30k' });
+    assert.equal(r.completo, false, `profissão ${JSON.stringify(semProf)} não conta como preenchida`);
+    assert.deepEqual(r.faltando, ['profissão do responsável']);
+  }
+  for (const semFaixa of ['', null, 'qualquer', '15k']) {
+    const r = motor.avaliarCompletude({ guardian_profession: 'Advogado', investment_range: semFaixa });
+    assert.deepEqual(r.faltando, ['faixa de investimento']);
+  }
+});
+
+test('T19 gate: dados presentes NUNCA saem INCOMPLETO; ausentes SEMPRE saem INCOMPLETO', () => {
+  const base = {
+    classification: 'INCOMPLETO', scoreFinanceiro: 0, confidence: 'ALTA', reason: 'abaixo do piso',
+    sinaisAlerta: [], acaoRecomendada: 'verificar dados',
+  };
+  const completo = { completo: true, faltando: [] };
+  const incompleto = { completo: false, faltando: ['profissão do responsável'] };
+
+  // Caso Arthur cascone: dados completos, 15k-20k, modelo disse INCOMPLETO.
+  const frio = motor.aplicarGateCompletude(base, completo, 40);
+  assert.equal(frio.classification, 'FRIO');
+  assert.equal(frio.reason, 'abaixo do piso', 'motivo do modelo é preservado');
+  assert.equal(frio.acaoRecomendada, 'nutricao');
+  assert.ok(frio.sinaisAlerta.some((a) => a.includes('INCOMPLETO do modelo com profissão e faixa presentes')));
+  // Score do modelo preservado, mas com teto < corte_frio (nunca vira MORNO/fila).
+  assert.equal(motor.aplicarGateCompletude({ ...base, scoreFinanceiro: 25 }, completo, 40).scoreFinanceiro, 25);
+  assert.equal(motor.aplicarGateCompletude({ ...base, scoreFinanceiro: 55 }, completo, 40).scoreFinanceiro, 39);
+
+  // Faltou dado: QUENTE/MORNO/FRIO do modelo → INCOMPLETO forçado.
+  for (const classe of ['QUENTE', 'MORNO', 'FRIO']) {
+    const r = motor.aplicarGateCompletude({ ...base, classification: classe, scoreFinanceiro: 80 }, incompleto, 40);
+    assert.equal(r.classification, 'INCOMPLETO');
+    assert.equal(r.scoreFinanceiro, 0);
+    assert.ok(r.sinaisAlerta.some((a) => a.includes('ausente → INCOMPLETO')));
+  }
+  // INVALIDO (dado sujo/injeção) precede a completude.
+  assert.equal(motor.aplicarGateCompletude({ ...base, classification: 'INVALIDO' }, incompleto, 40).classification, 'INVALIDO');
+  // Classes válidas com dado completo passam intactas.
+  const morno = { ...base, classification: 'MORNO', scoreFinanceiro: 45 };
+  assert.deepEqual(motor.aplicarGateCompletude(morno, completo, 40), morno);
+  // Idempotente (aplicado antes e depois da 2ª passagem).
+  const duas = motor.aplicarGateCompletude(motor.aplicarGateCompletude(base, incompleto, 40), incompleto, 40);
+  assert.equal(duas.sinaisAlerta.length, 1);
+  const duasF = motor.aplicarGateCompletude(motor.aplicarGateCompletude(base, completo, 40), completo, 40);
+  assert.equal(duasF.classification, 'FRIO');
+  assert.equal(duasF.sinaisAlerta.length, 1);
+});
+
+test('T19 orquestrador: gate antes e depois da 2ª passagem; auditoria INCOMPLETO descartada', () => {
+  const orq = src.slice(src.indexOf('const qualifyWithGemini'), src.indexOf('// ─── Atualizar Supabase'));
+  const ocorrencias = orq.match(/resultado = aplicarGateCompletude\(resultado, completude, corteFrio\);/g) || [];
+  assert.equal(ocorrencias.length, 2, 'o gate deve rodar antes da auditoria E na saída final');
+  assert.ok(
+    orq.indexOf('aplicarGateCompletude') < orq.indexOf('auditarFaixaDoMeio('),
+    'o 1º gate precisa vir antes da 2ª passagem',
+  );
+  const aud = src.slice(src.indexOf('const auditarFaixaDoMeio'), src.indexOf('// ─── Orquestrador v2'));
+  assert.match(aud, /segunda\.classification === 'INCOMPLETO'[\s\S]{0,300}return primeira;/,
+    'INCOMPLETO da 2ª passagem precisa ser descartado (mantém a 1ª)');
+  // O fallback por substring (raiz do INCOMPLETO silencioso) não pode voltar.
+  assert.doesNotMatch(src, /CLASSES_V2\.find\(\(c\) => cleanText\.includes\(c\)\)/,
+    'fallback por substring voltou — classe inventada/INCOMPLETO silencioso');
+  // Erro de parse vira pendente (handler), com motivo distinto nas Execuções.
+  assert.match(src, /geminiErr instanceof ErroRespostaNaoParseavel/);
+});
+
+test('T19 notificação de pendência usa o schema REAL de notificacoes (antes falhava 100%)', () => {
+  const fn = src.slice(src.indexOf('const notifyQualificationPending'), src.indexOf('const notifyAprovacaoPendente'));
+  assert.match(fn, /destinatario_id: user\.id/);
+  assert.match(fn, /mensagem,/);
+  assert.match(fn, /severidade: 'media'/);
+  assert.match(fn, /on_conflict=destinatario_id,dedupe_key/);
+  assert.match(fn, /papel=in\.\(ceo,cto\)/, 'o aviso leva ao War Room (CEO-only) — destinatários CEO/CTO');
+  assert.doesNotMatch(fn, /user_id: |descricao,|modulo_origem: |severidade: 'aviso'/, 'payload antigo (colunas inexistentes) voltou');
+});
+
+test('T23 idade × série: incoerente vira ALERTA e a idade NÃO vai para o modelo', () => {
+  const ref = new Date('2026-09-28T12:00:00Z');
+  // Samuel: seletor do celular no ano corrente → idade 0 no 9º ano.
+  const samuel = motor.avaliarIdadeAtleta({ birth_date: '2026-07-31', school_year: '9th_grade', age: -1 }, ref);
+  assert.equal(samuel.coerente, false);
+  assert.match(samuel.alerta, /não invalida o lead/);
+  // Data do responsável (1972) no 9º ano.
+  assert.equal(motor.avaliarIdadeAtleta({ birth_date: '1972-04-26', school_year: '9th_grade' }, ref).coerente, false);
+  // Ano de 5 dígitos: cai no campo age do navegador (negativo) → incoerente.
+  assert.equal(motor.avaliarIdadeAtleta({ birth_date: '20001-06-02', school_year: 'hs_1st', age: -17975 }, ref).coerente, false);
+  // Coerentes.
+  assert.equal(motor.avaliarIdadeAtleta({ birth_date: '2011-01-08', school_year: 'hs_1st' }, ref).coerente, true);
+  assert.equal(motor.avaliarIdadeAtleta({ birth_date: '2004-07-01', school_year: 'hs_3rd' }, ref).coerente, true);
+  // Sem data nenhuma: não é gate (idade não pontua).
+  const sem = motor.avaliarIdadeAtleta({ school_year: 'hs_1st' }, ref);
+  assert.equal(sem.idade, null);
+  assert.equal(sem.coerente, true);
+  // Série em texto livre (legado) usa a faixa absoluta.
+  assert.equal(motor.avaliarIdadeAtleta({ birth_date: '2010-01-01', school_year: '2 ano EM' }, ref).coerente, true);
+
+  // Véspera do aniversário às 22h BRT (01h UTC do dia seguinte): o formulário
+  // (data local) aceita 17 no 8º ano; em UTC a CF contava 18 → alerta falso.
+  const vespera = motor.avaliarIdadeAtleta(
+    { birth_date: '2008-10-09', school_year: '8th_grade', age: 17 },
+    new Date('2026-10-09T01:00:00Z'),
+  );
+  assert.equal(vespera.idade, 17, 'referência da idade tem de ser a data em BRT, não em UTC');
+  assert.equal(vespera.coerente, true);
+  // 00h30 BRT do aniversário: aí sim 18 (fora da faixa do 8º ano).
+  const aniversario = motor.avaliarIdadeAtleta(
+    { birth_date: '2008-10-09', school_year: '8th_grade' },
+    new Date('2026-10-09T03:30:00Z'),
+  );
+  assert.equal(aniversario.idade, 18);
+  assert.equal(aniversario.coerente, false);
+
+  assert.match(src, /idade_atleta: \$\{idadeInfo && !idadeInfo\.coerente \? 'não informado' : \(idadeInfo\?\.idade \?\? campo\(data\.age\)\)\}/,
+    'incoerente: o modelo NÃO recebe a idade (usaria para INVALIDO); coerente: recebe a idade que o código validou, não o age do navegador');
+  assert.match(src, /const userMessage = montarDadosLeadV2\(leadData, flagInfo, idadeInfo\);/);
+  assert.match(src, /idadeInfo\.alerta && !resultado\.sinaisAlerta\.includes\(idadeInfo\.alerta\)/,
+    'o alerta de idade é escrito em código no resultado');
 });
 
 // ─── Invariantes por fonte (orquestrador/handler) ───────────────

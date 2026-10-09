@@ -323,6 +323,32 @@ const isoWeekBucket = (brt) => {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 };
 
+// "Deal parado" nunca dispara em etapas finais, estacionadas ou de ganho
+// PÓS-SINAL (família que já pagou não recebe cadência de venda): sinal_pago,
+// plano_escolhido (2026-10, T2) e admission_process. contrato_assinado é
+// ganho mas o sinal pode estar pendente — cobrar o sinal é cadência legítima.
+const ETAPAS_FORA_DEAL_PARADO = [
+  'concluido', 'perdido', 'cancelamento_solicitado', 'projeto_futuro',
+  'aguardando_timing', 'sinal_pago', 'plano_escolhido', 'admission_process',
+];
+const SLOTS_CUSTOM = ['custom_1', 'custom_2', 'custom_3', 'custom_4', 'custom_5', 'custom_6'];
+
+// Colunas personalizadas marcadas como GANHO (etapas_deal_regras) também
+// ficam fora. FAIL-CLOSED: sem conseguir ler/entender a config, TODAS as
+// personalizadas saem (melhor não disparar que cobrar família pagante).
+const colunasGanhoCustom = async () => {
+  try {
+    const rows = await sbGet('configuracoes_sistema?chave=eq.etapas_deal_regras&select=valor');
+    if (!Array.isArray(rows) || rows.length === 0) return [];
+    const valor = rows[0].valor;
+    if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return SLOTS_CUSTOM;
+    return SLOTS_CUSTOM.filter((s) => valor[s] && valor[s].ganho === true);
+  } catch (e) {
+    log('WARN', 'etapas_regras_indisponivel', { error: e.message });
+    return SLOTS_CUSTOM;
+  }
+};
+
 // Config numérica {dias} dos finders de janela — default histórico: 1 dia.
 const configDias = (config) =>
   Number(config?.dias) > 0 ? Number(config.dias) : 1;
@@ -333,9 +359,10 @@ const TIME_TRIGGER_FINDERS = {
   deal_parado_etapa: async (config) => {
     const dias = configDias(config);
     // aguardando_timing fica parado POR DESIGN (retomada em novembro) — excluir.
+    const fora = [...ETAPAS_FORA_DEAL_PARADO, ...(await colunasGanhoCustom())];
     const rows = await sbGet(
       'deals?select=id,atleta_id,etapa,responsavel_id,updated_at'
-      + '&etapa=not.in.(concluido,perdido,cancelamento_solicitado,projeto_futuro,aguardando_timing,sinal_pago)'
+      + `&etapa=not.in.(${fora.join(',')})`
       + `&updated_at=lt.${encodeURIComponent(isoDaysAgo(dias))}`
       + `&deleted_at=is.null&limit=${MATERIALIZE_LIMIT}`
     );
