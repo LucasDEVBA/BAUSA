@@ -226,6 +226,7 @@ const en: Translations = {
       "A data de nascimento não pode ser no futuro": "Date of birth cannot be in the future",
       "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Check the athlete's year of birth — the selected date is in the current year",
       "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "The date of birth doesn't match the selected grade — check the athlete's year of birth (not the parent's)",
+      "Confira o ano de nascimento do atleta (não o do responsável)": "Check the athlete's year of birth (not the parent's)",
       "WhatsApp é obrigatório": "WhatsApp is required",
       "Série é obrigatória": "Grade is required",
       "Escola é obrigatória": "School is required",

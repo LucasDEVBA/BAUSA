@@ -59,7 +59,7 @@ test('a tabela série → faixa de idade é IGUAL no front e no classificador', 
 test('mensagens do front (MSG_NASCIMENTO) são chaves traduzidas em pt/en/es', () => {
   const bloco = TS.slice(TS.indexOf('export const MSG_NASCIMENTO'), TS.indexOf('} as const;'));
   const msgs = [...bloco.matchAll(/^\s*\w+:\s*\n?\s*"([^"]+)"/gm)].map((m) => m[1]);
-  assert.equal(msgs.length, 5, `esperava 5 mensagens em MSG_NASCIMENTO, achei ${msgs.length}`);
+  assert.equal(msgs.length, 6, `esperava 6 mensagens em MSG_NASCIMENTO, achei ${msgs.length}`);
   for (const idioma of ['pt', 'en', 'es']) {
     const tr = ler(`apps/web/src/i18n/translations/${idioma}.ts`);
     for (const m of msgs) {
@@ -78,4 +78,15 @@ test('formulário: Zod usa a regra compartilhada, input com min/max e erro do se
   assert.match(form, /translateError\(submissionError\)/, 'erro do servidor precisa passar pela tradução');
   assert.match(form, /const FORM_DRAFT_KEY = "bolsa_atleta_form_draft_v2";/, 'chave do rascunho mudou — rascunhos salvos se perderiam');
   assert.match(form, /on_conflict=email%2Cathlete_name/, 'upsert por email+athlete_name mudou');
+  // age gravado = mesma conta (data LOCAL) da validação; new Date("YYYY-MM-DD")
+  // é meia-noite UTC e, em BRT, contava 1 ano a mais na véspera do aniversário.
+  assert.match(form, /const computedAge = birthDateValue \? idadeEmAnos\(birthDateValue\) : null;/);
+  assert.doesNotMatch(form, /new Date\(birthDateValue\)/, 'cálculo de idade por new Date(ISO) voltou');
+});
+
+test('sem série escolhida, a data fora da faixa absoluta não fala de "série escolhida"', () => {
+  assert.match(TS, /return faixaDaSerie \? "incoerente" : "foraDaFaixa";/);
+  const fora = TS.match(/foraDaFaixa:\s*\n?\s*"([^"]+)"/);
+  assert.ok(fora, 'mensagem foraDaFaixa sumiu');
+  assert.doesNotMatch(fora[1], /série/, 'a mensagem sem série não pode citar a série');
 });

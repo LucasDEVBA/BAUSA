@@ -25,7 +25,7 @@ import { CountrySelect } from "@/components/ui/country-select";
 import { captureUTMs, getStoredUTMs } from "@/lib/tracking/utm";
 import { getOrCreateSessionId, captureLandingUrl, captureReferrer, getDeviceType } from "@/lib/tracking/session";
 import { trackFormStart, trackFormStep, trackFormSubmit, trackFormError } from "@/lib/tracking/events";
-import { MSG_NASCIMENTO, limitesSeletorNascimento, validarNascimento } from "@/lib/forms/nascimento";
+import { MSG_NASCIMENTO, idadeEmAnos, limitesSeletorNascimento, validarNascimento } from "@/lib/forms/nascimento";
 
 // supabase é importado dinamicamente dentro do onSubmit para evitar
 // que a inicialização do cliente (que exige env vars) quebre o carregamento da página
@@ -489,17 +489,7 @@ const Forms = () => {
     try {
       const birthDateValue = data.birthDate?.trim() || null;
 
-      // Compute numeric age from birth date
-      let computedAge: number | null = null;
-      if (birthDateValue) {
-        const birth = new Date(birthDateValue);
-        const today = new Date();
-        computedAge = today.getFullYear() - birth.getFullYear();
-        const monthDiff = today.getMonth() - birth.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-          computedAge--;
-        }
-      }
+      const computedAge = birthDateValue ? idadeEmAnos(birthDateValue) : null;
 
       const submissionData = {
         submission_id: submissionIdRef.current,

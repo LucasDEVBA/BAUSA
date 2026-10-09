@@ -225,6 +225,7 @@ export const pt = {
       "A data de nascimento não pode ser no futuro": "A data de nascimento não pode ser no futuro",
       "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Confira o ano de nascimento do atleta — a data escolhida é deste ano",
       "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)",
+      "Confira o ano de nascimento do atleta (não o do responsável)": "Confira o ano de nascimento do atleta (não o do responsável)",
       "WhatsApp é obrigatório": "WhatsApp é obrigatório",
       "Série é obrigatória": "Série é obrigatória",
       "Escola é obrigatória": "Escola é obrigatória",

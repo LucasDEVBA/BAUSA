@@ -7,11 +7,13 @@
  * INVALIDO → lead real invisível no Engine.
  *
  * PARIDADE (guard tests/nascimento-serie-paridade.test.js): a tabela
- * série → faixa de idade é IGUAL em
- *   - functions/qualify-lead/index.js (FAIXA_IDADE_POR_SERIE)
- *   - supabase/migrations/*_form_submissions_validar_nascimento.sql (public.fs_faixa_idade_serie)
- * As MENSAGENS (PT) são também as chaves de tradução em form.errors (en/es)
- * e as mensagens que o banco devolve no envio direto.
+ * série → faixa de idade é IGUAL em functions/qualify-lead/index.js
+ * (FAIXA_IDADE_POR_SERIE). Com o PR-09 entra a 3ª cópia — a migration
+ * *_form_submissions_validar_nascimento.sql (public.fs_faixa_idade_serie) —,
+ * travada em tests/nascimento-banco-paridade.test.js. Até lá o envio direto
+ * ao banco NÃO valida a data no servidor.
+ * As MENSAGENS (PT) são também as chaves de tradução em form.errors (en/es);
+ * a partir do PR-09, o banco devolve as mesmas no envio direto.
  */
 
 export interface FaixaIdade {
@@ -41,6 +43,9 @@ export const MSG_NASCIMENTO = {
   anoAtual: "Confira o ano de nascimento do atleta — a data escolhida é deste ano",
   incoerente:
     "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)",
+  // Sem série (a data vem antes dela no passo 1): falar de "série escolhida"
+  // confundia quem digitou a data do responsável.
+  foraDaFaixa: "Confira o ano de nascimento do atleta (não o do responsável)",
 } as const;
 
 export type MotivoNascimentoInvalido = keyof typeof MSG_NASCIMENTO;
@@ -94,10 +99,21 @@ export function validarNascimento(
   const ref = hojeLocal(hoje);
   if (comparar(nasc, ref) > 0) return "futuro";
   if (nasc.ano === ref.ano) return "anoAtual";
-  const faixa = FAIXA_IDADE_POR_SERIE[serie] ?? FAIXA_IDADE_ABSOLUTA;
+  const faixaDaSerie = FAIXA_IDADE_POR_SERIE[serie];
+  const faixa = faixaDaSerie ?? FAIXA_IDADE_ABSOLUTA;
   const idade = calcularIdade(nasc, ref);
-  if (idade < faixa.min || idade > faixa.max) return "incoerente";
+  if (idade < faixa.min || idade > faixa.max) return faixaDaSerie ? "incoerente" : "foraDaFaixa";
   return null;
+}
+
+/**
+ * Idade gravada em `age`: anos completos na data LOCAL, a mesma conta da
+ * validação. `new Date("YYYY-MM-DD")` é meia-noite UTC lida com getters
+ * locais — em BRT, a véspera do aniversário já contava 1 ano a mais.
+ */
+export function idadeEmAnos(valor: string, hoje: Date = new Date()): number | null {
+  const nasc = parseDataISO(valor);
+  return nasc ? calcularIdade(nasc, hojeLocal(hoje)) : null;
 }
 
 function isoLocal(ano: number, mes: number, dia: number): string {

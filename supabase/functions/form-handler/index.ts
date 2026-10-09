@@ -5,8 +5,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4"
 // com a anon key — não passa por aqui. Esta função segue publicada (o deploy
 // de supabase/** a republica) e usa a SERVICE ROLE, então é um segundo
 // caminho de escrita que não passa pelas travas do role anon. Endurecida no
-// T23: só aceita os campos do formulário (mass-assignment) e valida a data de
-// nascimento com A MESMA função do banco (public.fs_motivo_nascimento_invalido).
+// T23: só aceita os campos do formulário (mass-assignment) e SÓ INSERE (nunca
+// sobrescreve lead). AINDA NÃO valida a data de nascimento: a checagem no
+// servidor (RPC public.fs_motivo_nascimento_invalido) chega no PR-09, junto
+// com a migration *_form_submissions_validar_nascimento.sql.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

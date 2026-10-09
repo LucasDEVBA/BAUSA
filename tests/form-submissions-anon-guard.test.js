@@ -1,12 +1,13 @@
 'use strict';
 
 // ════════════════════════════════════════════════════════════════════════
-// GUARD — mass-assignment no INSERT anônimo de form_submissions (T23-S2)
+// GUARD — mass-assignment do role anon em form_submissions (T23-S2)
 // ════════════════════════════════════════════════════════════════════════
 // A anon key é pública (vai no bundle do site) e a policy de INSERT do anon
 // é WITH CHECK (true) com grant em todas as colunas. Sem esta trava, um POST
 // direto com aprovacao_status='aprovado' pulava o gate humano (o qualify-lead
-// PRESERVA decisão humana) e entrava no outreach automático.
+// PRESERVA decisão humana) e entrava no outreach automático. Em uat/dev o anon
+// também tem policy de UPDATE (WITH CHECK true): o PATCH precisa da mesma trava.
 // ════════════════════════════════════════════════════════════════════════
 
 const { test } = require('node:test');
@@ -33,13 +34,25 @@ test('o INSERT anônimo zera as colunas que só o servidor escreve', () => {
   for (const col of CRITICAS) {
     assert.ok(SQL.includes(`'${col}',`), `coluna ${col} saiu da trava de mass-assignment`);
   }
-  assert.match(SQL, /jsonb_populate_record\(NEW, jsonb_build_object\(/);
+  assert.match(SQL, /padrao := jsonb_build_object\(/);
+  assert.match(SQL, /NEW := jsonb_populate_record\(NEW, padrao\);/);
 });
 
-test('a trava é só para o role anon, BEFORE INSERT, nos 3 schemas', () => {
+test('o UPDATE anônimo mantém as colunas de servidor como estavam (uat/dev têm policy de UPDATE)', () => {
+  const ramo = SQL.slice(SQL.indexOf("IF TG_OP = 'UPDATE' THEN"), SQL.indexOf('NEW := jsonb_populate_record'));
+  assert.ok(ramo.length > 0, "ramo do UPDATE sumiu — PATCH anônimo voltaria a aprovar lead em uat/dev");
+  assert.match(ramo, /antigo := to_jsonb\(OLD\);/, 'o UPDATE tem de restaurar do OLD, não zerar (apagaria a decisão humana)');
+  assert.match(ramo, /jsonb_object_agg\(chave, antigo -> chave\)/);
+  assert.match(ramo, /FROM jsonb_object_keys\(padrao\) AS chave/, 'a lista do UPDATE tem de ser a MESMA do INSERT');
+  // Reenvio do formulário revive lead excluído (deleted_at: null), mas o anon
+  // nunca exclui lead: só o NULL passa.
+  assert.match(ramo, /NOT \(chave = 'deleted_at' AND to_jsonb\(NEW\) -> 'deleted_at' = 'null'::jsonb\)/);
+});
+
+test('a trava é só para o role anon, BEFORE INSERT OR UPDATE, nos 3 schemas', () => {
   assert.match(SQL, /IF current_user <> 'anon' THEN\s*\n\s*RETURN NEW;/, 'CFs/Engine não podem perder a escrita dessas colunas');
   for (const schema of ['public', 'uat', 'dev']) {
-    assert.match(SQL, new RegExp(`BEFORE INSERT ON ${schema}\\.form_submissions`), `trigger ausente em ${schema}`);
+    assert.match(SQL, new RegExp(`BEFORE INSERT OR UPDATE ON ${schema}\\.form_submissions`), `trigger ausente em ${schema}`);
   }
 });
 

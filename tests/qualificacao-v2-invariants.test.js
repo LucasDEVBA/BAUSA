@@ -56,6 +56,8 @@ const bloco = [
   extrair('parseRespostaV2', /const parseRespostaV2 = \(cleanText, modelUsed\) => \{[\s\S]*?\n\};/),
   extrair('FAIXA_IDADE_POR_SERIE', /const FAIXA_IDADE_POR_SERIE = \{[\s\S]*?\n\};/),
   extrair('FAIXA_IDADE_ABSOLUTA', /const FAIXA_IDADE_ABSOLUTA = .*;/),
+  extrair('FMT_DATA_BRASILIA', /const FMT_DATA_BRASILIA = new Intl\.DateTimeFormat\([\s\S]*?\n\}\);/),
+  extrair('dataEmBrasilia', /const dataEmBrasilia = \(instante\) => \{[\s\S]*?\n\};/),
   extrair('avaliarIdadeAtleta', /const avaliarIdadeAtleta = \(data, referencia\) => \{[\s\S]*?\n\};/),
   extrair('FAIXAS_INVESTIMENTO_VALIDAS', /const FAIXAS_INVESTIMENTO_VALIDAS = .*;/),
   extrair('RE_TEM_LETRAS', /const RE_TEM_LETRAS = .*;/),
@@ -232,8 +234,24 @@ test('T23 idade × série: incoerente vira ALERTA e a idade NÃO vai para o mode
   // Série em texto livre (legado) usa a faixa absoluta.
   assert.equal(motor.avaliarIdadeAtleta({ birth_date: '2010-01-01', school_year: '2 ano EM' }, ref).coerente, true);
 
-  assert.match(src, /idade_atleta: \$\{idadeInfo && !idadeInfo\.coerente \? 'não informado' : campo\(data\.age\)\}/,
-    'com idade incoerente o modelo NÃO pode receber a idade (usaria para INVALIDO)');
+  // Véspera do aniversário às 22h BRT (01h UTC do dia seguinte): o formulário
+  // (data local) aceita 17 no 8º ano; em UTC a CF contava 18 → alerta falso.
+  const vespera = motor.avaliarIdadeAtleta(
+    { birth_date: '2008-10-09', school_year: '8th_grade', age: 17 },
+    new Date('2026-10-09T01:00:00Z'),
+  );
+  assert.equal(vespera.idade, 17, 'referência da idade tem de ser a data em BRT, não em UTC');
+  assert.equal(vespera.coerente, true);
+  // 00h30 BRT do aniversário: aí sim 18 (fora da faixa do 8º ano).
+  const aniversario = motor.avaliarIdadeAtleta(
+    { birth_date: '2008-10-09', school_year: '8th_grade' },
+    new Date('2026-10-09T03:30:00Z'),
+  );
+  assert.equal(aniversario.idade, 18);
+  assert.equal(aniversario.coerente, false);
+
+  assert.match(src, /idade_atleta: \$\{idadeInfo && !idadeInfo\.coerente \? 'não informado' : \(idadeInfo\?\.idade \?\? campo\(data\.age\)\)\}/,
+    'incoerente: o modelo NÃO recebe a idade (usaria para INVALIDO); coerente: recebe a idade que o código validou, não o age do navegador');
   assert.match(src, /const userMessage = montarDadosLeadV2\(leadData, flagInfo, idadeInfo\);/);
   assert.match(src, /idadeInfo\.alerta && !resultado\.sinaisAlerta\.includes\(idadeInfo\.alerta\)/,
     'o alerta de idade é escrito em código no resultado');

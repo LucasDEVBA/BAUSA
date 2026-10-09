@@ -606,7 +606,22 @@ const FAIXA_IDADE_POR_SERIE = {
 };
 const FAIXA_IDADE_ABSOLUTA = { min: 5, max: 30 };
 
-// Idade em anos completos na data de referência (envio do formulário).
+// Data civil em Brasília. O formulário valida com a data LOCAL do navegador;
+// com os getters UTC, um envio às 22h BRT na véspera do aniversário contava
+// 1 ano a mais e gravava alerta falso num lead que o próprio form aceitou.
+const FMT_DATA_BRASILIA = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const dataEmBrasilia = (instante) => {
+  const partes = FMT_DATA_BRASILIA.formatToParts(instante);
+  const parte = (tipo) => Number(partes.find((p) => p.type === tipo)?.value);
+  return { ano: parte('year'), mes: parte('month'), dia: parte('day') };
+};
+
+// Idade em anos completos na data de referência (envio do formulário, em BRT).
 // null = sem data utilizável (não é gate: idade não pontua no score).
 const avaliarIdadeAtleta = (data, referencia) => {
   const ref = referencia instanceof Date && !Number.isNaN(referencia.getTime()) ? referencia : new Date();
@@ -618,9 +633,9 @@ const avaliarIdadeAtleta = (data, referencia) => {
     const dia = Number(m[3]);
     const nasc = new Date(Date.UTC(ano, mes - 1, dia));
     if (nasc.getUTCFullYear() === ano && nasc.getUTCMonth() === mes - 1 && nasc.getUTCDate() === dia) {
-      const mesRef = ref.getUTCMonth() + 1;
-      const antesDoAniversario = mesRef < mes || (mesRef === mes && ref.getUTCDate() < dia);
-      idade = ref.getUTCFullYear() - ano - (antesDoAniversario ? 1 : 0);
+      const hoje = dataEmBrasilia(ref);
+      const antesDoAniversario = hoje.mes < mes || (hoje.mes === mes && hoje.dia < dia);
+      idade = hoje.ano - ano - (antesDoAniversario ? 1 : 0);
     }
   }
   if (idade === null && data.age !== null && data.age !== undefined && data.age !== '' && Number.isFinite(Number(data.age))) {
@@ -714,7 +729,7 @@ pais: ${campo(data.address_country, 'BR')}
 renda_media_setor_ibge: não disponível
 escola_atual: ${campo(data.current_school)}
 clube_atual_atleta: ${campo(data.club_history)}
-idade_atleta: ${idadeInfo && !idadeInfo.coerente ? 'não informado' : campo(data.age)}
+idade_atleta: ${idadeInfo && !idadeInfo.coerente ? 'não informado' : (idadeInfo?.idade ?? campo(data.age))}
 atleta_ja_viajou_exterior: ${data.viajou_exterior === true ? 'sim' : data.viajou_exterior === false ? 'não' : 'não informado'}
 origem_do_lead: ${campo(data.como_conheceu || data.utm_source)}
 flag_dado_sujo: ${flagInfo.flag}
