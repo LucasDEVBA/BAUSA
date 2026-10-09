@@ -13,9 +13,12 @@ import { ETAPAS_POS_PROPOSTA, etapasGanho, mergeDealStageConfig } from "@/lib/et
 import { paginaRevisaoDe } from "@/lib/revisao-leads";
 import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 import {
+  CHAVE_CONFIG_PLANOS,
   EMBED_CONTRATO_VALOR,
   camposValorDeal,
+  tabelaPlanosDe,
   type ContratoValorEmbed,
+  type TabelaPlanos,
 } from "@/lib/valor-deal";
 import {
   computarPrioridades,
@@ -127,7 +130,11 @@ interface SupabaseDealRow {
   } | null;
 }
 
-function mapDealRow(row: SupabaseDealRow, prioridades: Map<string, PrioridadeLead>): Deal {
+function mapDealRow(
+  row: SupabaseDealRow,
+  prioridades: Map<string, PrioridadeLead>,
+  tabelaPlanos: TabelaPlanos,
+): Deal {
   const atleta = row.atleta;
   const fs = atleta?.form_submission;
 
@@ -142,8 +149,9 @@ function mapDealRow(row: SupabaseDealRow, prioridades: Map<string, PrioridadeLea
     investment_range:
       fs?.investment_range ?? rotuloFaixaInvestimento(atleta?.faixa_investimento) ?? "",
     // Valor exibido: contrato > negociado > estimado (lib/valor-deal) —
-    // preenche também plano, sinal recebido, saldo e desconto.
-    ...camposValorDeal(row),
+    // preenche também plano, sinal recebido, saldo e desconto (este contra o
+    // preço CONFIGURADO, não o hardcoded).
+    ...camposValorDeal(row, tabelaPlanos),
     justificativa_valor: row.justificativa_customizacao ?? undefined,
     stage: row.etapa as DealStage,
     classification: mapClassificacao(atleta?.lead_classificacao ?? null),
@@ -254,8 +262,9 @@ export default async function PipelinePage() {
   // Overrides de apresentação das etapas (CEO) em paralelo com os deals
   // Deals paginados em blocos de 1000 (max_rows do PostgREST): sem isso o
   // board cortaria em silêncio os deals menos recentes ao passar de 1000.
-  const [cfgEtapas, papel, leadsPendentes, leadsFrios, leadsIncompletos, { data: rows }] = await Promise.all([
+  const [cfgEtapas, cfgPlanos, papel, leadsPendentes, leadsFrios, leadsIncompletos, { data: rows }] = await Promise.all([
     getConfigEtapasDeal(),
+    supabase.from("configuracoes_sistema").select("valor").eq("chave", CHAVE_CONFIG_PLANOS).maybeSingle(),
     getUserPapel(),
     listarLeadsPendentesCards().then(paginaRevisaoDe),
     listarLeadsFriosCards().then(paginaRevisaoDe),
@@ -305,6 +314,12 @@ export default async function PipelinePage() {
   // Apresentação + regras por coluna (ganho/pede plano/ação padrão).
   const stageConfig = mergeDealStageConfig(cfgEtapas.overrides, cfgEtapas.regras);
   const probabilidadePorEtapa = cfgEtapas.probabilidade;
+  // Sem a tabela configurada o desconto cai no PLANO_VALORES (mesmo fallback
+  // da fin_valor_tabela) — o valor do deal não muda, só o selo de desconto.
+  if (cfgPlanos.error) {
+    console.warn({ level: "warn", action: "pipeline_tabela_planos", error: cfgPlanos.error.message });
+  }
+  const tabelaPlanos = tabelaPlanosDe(cfgPlanos.data?.valor);
   // GANHO = etapas fixas (contrato assinado em diante, Plano escolhido) +
   // colunas personalizadas marcadas pelo CEO (Admitido, Valor total pago…).
   const etapasDeGanho = etapasGanho(stageConfig);
@@ -337,7 +352,7 @@ export default async function PipelinePage() {
   }
   const prioridades = await computarPrioridades(supabase, alvosPrioridade);
 
-  const rawDeals = dealRows.map((row) => mapDealRow(row, prioridades));
+  const rawDeals = dealRows.map((row) => mapDealRow(row, prioridades, tabelaPlanos));
 
   // Resolver siblings: agrupar por responsavel_id
   const respMap = new Map<string, { atletaId: string; nome: string; esporte?: string; dealIdx: number }[]>();
