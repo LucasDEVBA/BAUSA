@@ -51,11 +51,8 @@ import {
   type LeadPendenteAprovacao,
   type ResultadoDetalheRevisao,
 } from "@/lib/actions/leads";
-import {
-  DEFAULT_DEAL_STAGE_DISPLAY,
-  isDealStage,
-  type DealStageConfigMap,
-} from "@/lib/etapas-deal";
+import { getStageConfigDeal } from "@/lib/actions/configuracoes";
+import { isDealStage, type DealStageConfigMap } from "@/lib/etapas-deal";
 import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
 import { celebrar } from "@/lib/gamificacao-store";
 import { cn, formatInvestmentRange } from "@/lib/utils";
@@ -185,8 +182,10 @@ export function AprovacaoLeadsModal({
    *  "muito_cedo": revisão dos aprovados estacionados em Aguardando timing
    *  (mensagens automáticas desligadas); ação = ativar agora no funil. */
   modo?: "aprovacao" | "frios" | "incompletos" | "muito_cedo";
-  /** Rótulos configurados das colunas (toasts mostram "Reunião marcada", não o enum). */
-  stageConfig?: DealStageConfigMap;
+  /** Config MESCLADA das colunas (a mesma do board) — toasts e avisos citam o
+   *  nome da coluna do CEO ("Lead qualificado"), nunca o default estático.
+   *  OBRIGATÓRIA (auditoria 09/10/2026). */
+  stageConfig: DealStageConfigMap;
 }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
@@ -329,10 +328,8 @@ export function AprovacaoLeadsModal({
     [leads, foraDoRecorte, onDecidido, router],
   );
 
-  const rotuloEtapa = (etapa: string): string => {
-    const mapa = stageConfig ?? DEFAULT_DEAL_STAGE_DISPLAY;
-    return isDealStage(etapa) ? mapa[etapa].label : etapa;
-  };
+  const rotuloEtapa = (etapa: string): string =>
+    isDealStage(etapa) ? stageConfig[etapa].label : etapa;
 
   // O aviso do aprovarLead cita a etapa pela chave do enum (ex.: "reuniao_marcada")
   // até o T17 traduzir no servidor — o CEO lê o nome da coluna.
@@ -1018,20 +1015,24 @@ export function AprovacaoLeadsModal({
 
 // ─── Entradas (botão com rótulo / ícone do header) ───────────────────────
 
-export function AprovacoesLeads({
-  count,
-  variant = "button",
-}: {
-  /** Contagem vinda do server component; omitida na variante "icon" (self-fetch). */
-  count?: number;
-  variant?: "button" | "icon";
-}) {
+/**
+ * "button" (páginas): contagem e config das colunas vêm do server component.
+ * "icon" (Header global, fora de qualquer página): busca as duas sozinho,
+ * só para o CEO — a fila nunca abre com o rótulo estático das colunas.
+ */
+type AprovacoesLeadsProps =
+  | { variant: "icon"; count?: never; stageConfig?: never }
+  | { variant?: "button"; count: number; stageConfig: DealStageConfigMap };
+
+export function AprovacoesLeads({ count, variant = "button", stageConfig }: AprovacoesLeadsProps) {
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [pendentes, setPendentes] = useState(count ?? 0);
   // icon: null = sem permissão/ainda carregando → não renderiza
   const [autorizado, setAutorizado] = useState(variant !== "icon");
   const [autoAberto, setAutoAberto] = useState(false);
+  const [configBuscada, setConfigBuscada] = useState<DealStageConfigMap | null>(null);
+  const configColunas = stageConfig ?? configBuscada;
 
   useEffect(() => {
     if (count !== undefined) setPendentes(count);
@@ -1041,15 +1042,30 @@ export function AprovacoesLeads({
   useEffect(() => {
     if (variant !== "icon") return;
     let ativo = true;
-    void contarLeadsPendentesAprovacao().then((n) => {
-      if (!ativo) return;
-      if (n === null) {
-        setAutorizado(false);
-        return;
+    const carregar = async () => {
+      try {
+        const n = await contarLeadsPendentesAprovacao();
+        if (!ativo) return;
+        if (n === null) {
+          setAutorizado(false);
+          return;
+        }
+        // Mesma mescla do board (fail-open no servidor: leitura falha → defaults).
+        const cfg = await getStageConfigDeal();
+        if (!ativo) return;
+        setConfigBuscada(cfg);
+        setAutorizado(true);
+        setPendentes(n);
+      } catch (err) {
+        console.error({
+          level: "error",
+          action: "aprovacoes_leads_icone_carregar",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (ativo) setAutorizado(false);
       }
-      setAutorizado(true);
-      setPendentes(n);
-    });
+    };
+    void carregar();
     return () => {
       ativo = false;
     };
@@ -1083,7 +1099,9 @@ export function AprovacoesLeads({
             </span>
           )}
         </button>
-        {open && <AprovacaoLeadsModal onClose={() => setOpen(false)} onDecidido={onDecidido} />}
+        {open && configColunas && (
+          <AprovacaoLeadsModal stageConfig={configColunas} onClose={() => setOpen(false)} onDecidido={onDecidido} />
+        )}
       </>
     );
   }
@@ -1108,7 +1126,9 @@ export function AprovacoesLeads({
           </span>
         )}
       </button>
-      {open && <AprovacaoLeadsModal onClose={() => setOpen(false)} onDecidido={onDecidido} />}
+      {open && configColunas && (
+        <AprovacaoLeadsModal stageConfig={configColunas} onClose={() => setOpen(false)} onDecidido={onDecidido} />
+      )}
     </>
   );
 }

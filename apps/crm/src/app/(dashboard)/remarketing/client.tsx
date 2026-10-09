@@ -31,6 +31,7 @@ import {
 } from "@/lib/actions/remarketing-campanha";
 import { uploadRemarketingImage } from "@/lib/actions/remarketing-media";
 import { RemarketingLeadSheet } from "@/components/remarketing/RemarketingLeadSheet";
+import type { DealStageConfigMap } from "@/lib/etapas-deal";
 import { Card, Input, PageHeader, ScrollList, StatCard } from "@/components/ui";
 import type { MensagemConfig, MensagemTipo, MensagemCanal } from "@/lib/remarketing-types";
 import type {
@@ -74,7 +75,14 @@ const SEGMENT_COLORS: Record<string, string> = {
   aniversariantes: "var(--sys-pink)",
 };
 
-export function RemarketingClient({ data }: { data: RemarketingData }) {
+export function RemarketingClient({
+  data,
+  stageConfig,
+}: {
+  data: RemarketingData;
+  /** Config MESCLADA das colunas — a do board (editor do deal no detalhe). */
+  stageConfig: DealStageConfigMap;
+}) {
   const { segments, ticketMedio, esportes } = data;
   const [isPending, startTransition] = useTransition();
 
@@ -743,6 +751,7 @@ export function RemarketingClient({ data }: { data: RemarketingData }) {
         key={selectedDealId ?? "none"}
         dealId={selectedDealId}
         onClose={() => setSelectedDealId(null)}
+        stageConfig={stageConfig}
       />
 
       <p className="flex items-center gap-1.5 text-xs text-label-tertiary">

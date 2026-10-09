@@ -41,7 +41,8 @@ import {
   vincularEventoALead,
   type LeadBusca,
 } from "@/lib/actions/agenda-calendar";
-import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
+import { type DealStage } from "@/types/deal";
+import { getStageDisplay, type DealStageConfigMap } from "@/lib/etapas-deal";
 import { cn } from "@/lib/utils";
 
 export interface AgendaEvento {
@@ -104,6 +105,7 @@ export function AgendaClient({
   dealsAgendaveis,
   avisoCalendar,
   mesInicial,
+  stageConfig,
 }: {
   eventos: AgendaEvento[];
   hoje: string; // yyyy-MM-dd em BRT (do servidor)
@@ -112,6 +114,8 @@ export function AgendaClient({
   avisoCalendar?: string | null;
   /** `YYYY-MM` já carregado pelo servidor. */
   mesInicial: string;
+  /** Config MESCLADA das colunas (a mesma do board) — rótulo e cor da etapa. */
+  stageConfig: DealStageConfigMap;
 }) {
   const [novoAberto, setNovoAberto] = useState(false);
   const [vinculando, setVinculando] = useState<AgendaEvento | null>(null);
@@ -361,7 +365,7 @@ export function AgendaClient({
             ) : (
               eventosDoDia.map((e) => {
                 const c = e.classificacao ? CLASSIF[e.classificacao] : null;
-                const stage = e.etapa ? DEAL_STAGE_CONFIG[e.etapa] : null;
+                const stage = e.etapa ? getStageDisplay(stageConfig, e.etapa) : null;
                 const valorFmt = fmtValor(e.valorEstimado);
                 const valor = valorFmt && e.valorOrigem === "estimado" ? `≈ ${valorFmt}` : valorFmt;
                 return (
@@ -455,6 +459,7 @@ export function AgendaClient({
         <NovoCompromissoModal
           deals={dealsAgendaveis}
           hoje={hoje}
+          stageConfig={stageConfig}
           onClose={() => setNovoAberto(false)}
         />
       )}
@@ -470,10 +475,12 @@ const DURACOES = [30, 45, 60, 90] as const;
 function NovoCompromissoModal({
   deals,
   hoje,
+  stageConfig,
   onClose,
 }: {
   deals: DealAgendavel[];
   hoje: string;
+  stageConfig: DealStageConfigMap;
   onClose: () => void;
 }) {
   const [busca, setBusca] = useState("");
@@ -553,7 +560,7 @@ function NovoCompromissoModal({
                   <div>
                     <p className="text-sm font-medium text-foreground">{dealSel.nome}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      {DEAL_STAGE_CONFIG[dealSel.etapa]?.shortLabel ?? dealSel.etapa}
+                      {getStageDisplay(stageConfig, dealSel.etapa).shortLabel}
                     </p>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setDealSel(null)}>
@@ -584,7 +591,7 @@ function NovoCompromissoModal({
                         >
                           <span className="text-xs font-medium text-foreground">{d.nome}</span>
                           <span className="text-[10px] text-muted-foreground">
-                            {DEAL_STAGE_CONFIG[d.etapa]?.shortLabel ?? d.etapa}
+                            {getStageDisplay(stageConfig, d.etapa).shortLabel}
                           </span>
                         </button>
                       ))

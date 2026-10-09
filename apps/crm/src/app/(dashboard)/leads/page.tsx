@@ -6,6 +6,7 @@ import { LeadsTable } from "@/components/leads/LeadsTable";
 import { LeadsExportButton } from "@/components/leads/LeadsExportButton";
 import { AprovacoesLeads } from "@/components/leads/AprovacoesLeads";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui";
+import { getStageConfigDeal } from "@/lib/actions/configuracoes";
 import { requirePapel } from "@/lib/auth";
 import { parseFiltrosLeads } from "@/lib/leads-filtros";
 import {
@@ -62,10 +63,14 @@ export default async function LeadsPage({
     }
   };
 
-  const [kpis, pagina, leadInicial] = await Promise.all([
+  // stageConfig = a MESMA config de colunas do board: o dossiê abre o editor
+  // do deal (rótulos, ordem, ocultas, ganho, pede plano) e a tabela mostra o
+  // nome da coluna do CEO.
+  const [kpis, pagina, leadInicial, stageConfig] = await Promise.all([
     carregarKpisLeads(supabase),
     carregarPaginaLeads(supabase, filtros),
     carregarLeadInicial(),
+    getStageConfigDeal(),
   ]);
 
   const qualificados =
@@ -85,7 +90,7 @@ export default async function LeadsPage({
           className="min-w-0 flex-1"
         />
         <Suspense fallback={null}>
-          <AprovacoesLeads count={kpis.pendentesAprovacao ?? 0} />
+          <AprovacoesLeads count={kpis.pendentesAprovacao ?? 0} stageConfig={stageConfig} />
         </Suspense>
       </div>
 
@@ -130,6 +135,7 @@ export default async function LeadsPage({
           prioridades={pagina.prioridades}
           aviso={pagina.aviso}
           leadInicial={leadInicial}
+          stageConfig={stageConfig}
         />
       ) : (
         <EmptyState icon={AlertTriangle} title="Erro ao carregar os leads" description={pagina.erro} />

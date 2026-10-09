@@ -7,9 +7,18 @@ import {
   Clock,
   AlertTriangle,
   CheckCircle2,
+  History,
   Sparkles,
 } from "lucide-react";
-import { type Deal, DEAL_STAGE_CONFIG } from "@/types/deal";
+import { type Deal } from "@/types/deal";
+import { getStageDisplay, type DealStageConfigMap } from "@/lib/etapas-deal";
+import { labelEtapa } from "@/lib/move-deal-result";
+import {
+  etapaDaAcao,
+  hojeIsoUtc,
+  isAcaoAtrasadaDaEtapa,
+  isAcaoDeOutraEtapa,
+} from "@/lib/proxima-acao";
 import { cn, formatInvestmentRange } from "@/lib/utils";
 import { explicarOrigemValor, formatarValorDeal } from "@/lib/valor-deal";
 import { CustomizarValorModal } from "@/components/pipeline/CustomizarValorModal";
@@ -23,6 +32,9 @@ import { ClassificadorV2Resumo } from "@/components/leads/ClassificadorV2Resumo"
 
 interface Props {
   deal: Deal;
+  /** Config MESCLADA das colunas (a do board): nome da coluna e da etapa de
+   *  origem de uma ação herdada (T17/T21). */
+  stageConfig: DealStageConfigMap;
   /** CEO edita o valor daqui (T3). Padrão: só leitura. */
   podeEditarValor?: boolean;
   /** Deal com contrato: o clique no valor leva à aba do contrato. */
@@ -52,14 +64,23 @@ function diasEntre(iso: string | undefined): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 }
 
+type ToneAlerta = "red" | "orange" | "neutral";
+
+const COR_ICONE_ALERTA: Record<ToneAlerta, string> = {
+  red: "text-sys-red",
+  orange: "text-sys-orange",
+  neutral: "text-label-tertiary",
+};
+
 export function VisaoExecutivaPanel({
   deal,
+  stageConfig,
   podeEditarValor = false,
   onAbrirContrato,
   onValorAtualizado,
 }: Props) {
   const [customizando, setCustomizando] = useState(false);
-  const stageCfg = DEAL_STAGE_CONFIG[deal.stage];
+  const stageCfg = getStageDisplay(stageConfig, deal.stage);
   const origem = deal.valor_origem ?? "estimado";
   const hintValor =
     origem === "contratado"
@@ -84,7 +105,7 @@ export function VisaoExecutivaPanel({
   const diasCriacao = diasEntre(deal.created_at);
 
   // Alertas
-  const alertas: { icon: typeof AlertTriangle; texto: string; tone: "red" | "orange" }[] = [];
+  const alertas: { icon: typeof AlertTriangle; texto: string; tone: ToneAlerta }[] = [];
   if (!deal.next_action) {
     alertas.push({
       icon: AlertTriangle,
@@ -99,15 +120,22 @@ export function VisaoExecutivaPanel({
       tone: "orange",
     });
   }
-  if (deal.next_action_date) {
-    const atraso = diasEntre(deal.next_action_date);
-    if (atraso > 0) {
-      alertas.push({
-        icon: Clock,
-        texto: `Próxima ação atrasada em ${atraso}d`,
-        tone: "red",
-      });
-    }
+  // T21 — mesma regra do card: ação HERDADA de outra etapa (ex.: "Preparar
+  // para reunião" num deal em Sinal pago) não é atraso desta coluna; aparece
+  // neutra, pedindo a ação da etapa atual. Vermelho só para ação da etapa.
+  if (isAcaoAtrasadaDaEtapa(deal, deal.stage, hojeIsoUtc())) {
+    alertas.push({
+      icon: Clock,
+      texto: `Próxima ação atrasada em ${Math.max(1, diasEntre(deal.next_action_date))}d`,
+      tone: "red",
+    });
+  } else if (isAcaoDeOutraEtapa(deal, deal.stage)) {
+    const origem = etapaDaAcao(deal);
+    alertas.push({
+      icon: History,
+      texto: `Ação de etapa anterior${origem ? ` (${labelEtapa(origem, stageConfig)})` : ""} — defina a próxima ação desta coluna`,
+      tone: "neutral",
+    });
   }
   if (deal.flag_retrocedido) {
     alertas.push({
@@ -275,15 +303,13 @@ export function VisaoExecutivaPanel({
                 return (
                   <li
                     key={`${a.texto}-${i}`}
-                    className="flex items-center gap-1.5 text-xs text-foreground/90"
+                    className={cn(
+                      "flex items-start gap-1.5 text-xs",
+                      a.tone === "neutral" ? "text-muted-foreground" : "text-foreground/90",
+                    )}
                   >
-                    <Icon
-                      className={cn(
-                        "h-3 w-3",
-                        a.tone === "red" ? "text-sys-red" : "text-sys-orange",
-                      )}
-                    />
-                    {a.texto}
+                    <Icon aria-hidden className={cn("mt-0.5 h-3 w-3 shrink-0", COR_ICONE_ALERTA[a.tone])} />
+                    <span className="min-w-0">{a.texto}</span>
                   </li>
                 );
               })}

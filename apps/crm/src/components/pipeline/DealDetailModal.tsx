@@ -48,11 +48,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { type Deal } from "@/types/deal";
-import {
-  DEFAULT_DEAL_STAGE_DISPLAY,
-  getStageDisplay,
-  type DealStageConfigMap,
-} from "@/lib/etapas-deal";
+import { getStageDisplay, type DealStageConfigMap } from "@/lib/etapas-deal";
 import { cn, formatInvestmentRange } from "@/lib/utils";
 import { ROTULO_ORIGEM_VALOR, explicarOrigemValor, formatarValorDeal } from "@/lib/valor-deal";
 import { toast } from "sonner";
@@ -86,8 +82,9 @@ import { EmailsLeadSection } from "@/components/emails/EmailsLeadSection";
 interface DealDetailModalProps {
   deal: Deal | null;
   onClose: () => void;
-  /** Config de exibição das etapas (rótulos/cores) — default estático. */
-  stageConfig?: DealStageConfigMap;
+  /** Config MESCLADA das colunas (overrides + regras) — a MESMA do board.
+   *  OBRIGATÓRIA: o editor lateral aberto daqui avança/retrocede por ela. */
+  stageConfig: DealStageConfigMap;
   /** Seção em que o modal abre (ex.: "financeiro" ao clicar no valor de um
    *  deal com contrato). Padrão: Visão Executiva. */
   initialSection?: DealDetailSection;
@@ -354,7 +351,7 @@ function StatPill({
 export function DealDetailModal({
   deal,
   onClose,
-  stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+  stageConfig,
   initialSection,
   podeEditarValor = true,
   onDealAtualizado,
@@ -568,6 +565,7 @@ export function DealDetailModal({
               {section === "executiva" && (
                 <VisaoExecutivaPanel
                   deal={deal}
+                  stageConfig={stageConfig}
                   podeEditarValor={podeEditarValor}
                   onAbrirContrato={() => setSection("financeiro")}
                   onValorAtualizado={onDealAtualizado}
@@ -882,13 +880,13 @@ function FamiliaSection({ deal }: { deal: Deal }) {
 
 function ComercialSection({
   deal,
-  stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+  stageConfig,
   podeEditarValor = true,
   onAbrirContrato,
   onValorAtualizado,
 }: {
   deal: Deal;
-  stageConfig?: DealStageConfigMap;
+  stageConfig: DealStageConfigMap;
   podeEditarValor?: boolean;
   onAbrirContrato?: () => void;
   onValorAtualizado?: () => void;

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { type Lead } from "@/types/lead";
 import { type Deal } from "@/types/deal";
+import { type DealStageConfigMap } from "@/lib/etapas-deal";
 import { LeadDetailModal } from "./LeadDetailModal";
 import { DealDetailModal } from "@/components/pipeline/DealDetailModal";
 import { fetchDeal } from "@/lib/deal-fetch";
@@ -10,9 +11,14 @@ import { fetchDeal } from "@/lib/deal-fetch";
 interface LeadOrDealSheetProps {
   lead: Lead | null;
   onClose: () => void;
+  /** Config MESCLADA das colunas — a MESMA do board (rótulos, ordem, ocultas,
+   *  ganho, pede plano). Obrigatória: o editor do deal avança por ela. */
+  stageConfig: DealStageConfigMap;
+  /** Valor editável (CEO). Ausente = padrão do DealDetailModal. */
+  podeEditarValor?: boolean;
 }
 
-export function LeadOrDealSheet({ lead, onClose }: LeadOrDealSheetProps) {
+export function LeadOrDealSheet({ lead, onClose, stageConfig, podeEditarValor }: LeadOrDealSheetProps) {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [loading, setLoading] = useState(false);
   // Rebusca o deal após editar o valor no modal (aqui não há router.refresh
@@ -57,6 +63,8 @@ export function LeadOrDealSheet({ lead, onClose }: LeadOrDealSheetProps) {
         key={deal.id}
         deal={deal}
         onClose={onClose}
+        stageConfig={stageConfig}
+        podeEditarValor={podeEditarValor}
         onDealAtualizado={() => setVersao((v) => v + 1)}
       />
     );

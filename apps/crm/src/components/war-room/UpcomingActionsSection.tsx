@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { CalendarClock, AlertTriangle } from "lucide-react";
+import { CalendarClock, AlertTriangle, History } from "lucide-react";
 import { ScrollList } from "@/components/ui";
 import type { UpcomingAction } from "@/lib/war-room-queries";
 
@@ -21,6 +21,8 @@ export function UpcomingActionsSection({ actions }: UpcomingActionsSectionProps)
     );
   }
 
+  // T21: só conta ação vencida DA ETAPA ATUAL (ou manual) — a herdada de
+  // outra etapa aparece neutra, como no card do /pipeline.
   const overdueCount = actions.filter((a) => a.is_overdue).length;
 
   return (
@@ -70,7 +72,25 @@ export function UpcomingActionsSection({ actions }: UpcomingActionsSectionProps)
               {/* Details */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{action.athlete_name}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{action.next_action}</p>
+                <p
+                  className={cn(
+                    "text-[10px] truncate",
+                    action.herdada_de ? "text-label-tertiary" : "text-muted-foreground",
+                  )}
+                  title={
+                    action.herdada_de
+                      ? `Ação de ${action.herdada_de} — ainda não atualizada para a coluna atual`
+                      : undefined
+                  }
+                >
+                  {action.herdada_de && (
+                    <>
+                      <History aria-hidden className="mr-0.5 inline h-2.5 w-2.5" />
+                      <span className="sr-only">Ação de etapa anterior ({action.herdada_de}): </span>
+                    </>
+                  )}
+                  {action.next_action}
+                </p>
               </div>
 
               {/* Overdue indicator */}

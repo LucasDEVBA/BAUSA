@@ -14,12 +14,14 @@ import type {
 } from "@/types/revenue";
 import type { Family } from "@/types/family";
 import type { Deal, DealStage } from "@/types/deal";
-import { getEtapasGanho } from "@/lib/actions/configuracoes";
+import { getEtapasGanho, getRotulosEtapas } from "@/lib/actions/configuracoes";
 import {
   ETAPAS_GANHO_POS_SINAL_FIXAS,
   ETAPAS_POS_PROPOSTA,
   SLOTS_CUSTOM,
+  isDealStage,
 } from "@/lib/etapas-deal";
+import { etapaDaAcao, hojeIsoUtc, isAcaoAtrasadaDaEtapa, isAcaoDeOutraEtapa } from "@/lib/proxima-acao";
 import { EMBED_CONTRATO_VALOR_LEVE, valorExibidoDeal } from "@/lib/valor-deal";
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -30,6 +32,20 @@ function mesAtualPrefix(): string {
 
 function firstOfMonth(): string {
   return `${mesAtualPrefix()}-01`;
+}
+
+/**
+ * Início do mês corrente no fuso do negócio (America/Sao_Paulo, sem horário
+ * de verão desde 2019), como instante ISO — corte das metas MENSAIS.
+ */
+function inicioMesBrtIso(agora: Date = new Date()): string {
+  const hojeBrt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(agora);
+  return `${hojeBrt.slice(0, 7)}-01T00:00:00-03:00`;
 }
 
 function daysAgoISO(days: number): string {
@@ -303,12 +319,25 @@ export async function fetchCommercialFunnel(): Promise<CommercialFunnelMetrics> 
   const sinaisPagos = etapasGanho.filter(
     (s) => ETAPAS_GANHO_POS_SINAL_FIXAS.includes(s) || SLOTS_CUSTOM.includes(s),
   );
+  // "Contratos assinados" do FUNIL — T20: no processo do CEO o contrato é
+  // assinado ANTES do sinal, então conta TODO deal de Contrato assinado em
+  // diante = as etapas de GANHO (fixas + colunas marcadas). É ESTOQUE
+  // (acumulado, como todo passo do funil): contém "Sinais pagos" e
+  // "Concluídos", mesma regra do /pipeline, do funil de conversão e do aviso
+  // "conta em Contratos assinados" da coluna marcada como ganho. Nunca
+  // contrato_enviado (ainda não assinado) nem negociacao (pré-venda oculta).
+  // A meta MENSAL usa contracts_signed_month (entrada em ganho no mês), nunca
+  // este estoque — senão a meta ficaria batida para sempre.
+  const contratosAssinados: DealStage[] = etapasGanho;
 
-  const [leads, reunioes, propostas, contratos, sinais, concluidos] = await Promise.all([
+  const [leads, reunioes, propostas, contratos, contratosMes, sinais, concluidos] = await Promise.all([
     countByEtapa(["contato_feito", "lead", "reuniao_marcada"]),
     countByEtapa(["reuniao_realizada", "diagnostico_fit", "alinhamento_estrategico"]),
-    countByEtapa(["proposta_enviada", "followup_proposta"]),
-    countByEtapa(["contrato_assinado", "contrato_enviado", "negociacao"]),
+    // Pós-proposta ainda não ganho — inclui Contrato enviado e Negociação
+    // (sem balde próprio, sumiam do funil), como o funil de conversão.
+    countByEtapa([...ETAPAS_POS_PROPOSTA]),
+    countByEtapa(contratosAssinados),
+    contarContratosFechadosNoMes(supabase, etapasGanho),
     countByEtapa(sinaisPagos),
     countByEtapa("concluido"),
   ]);
@@ -318,9 +347,57 @@ export async function fetchCommercialFunnel(): Promise<CommercialFunnelMetrics> 
     meetings_done: reunioes,
     proposals_sent: propostas,
     contracts_signed: contratos,
+    contracts_signed_month: contratosMes,
     signals_paid: sinais,
     auto_conversions: concluidos,
   };
+}
+
+/**
+ * Contratos FECHADOS NO MÊS (meta "Contratos/Mês"): deals que ENTRARAM numa
+ * etapa de ganho desde o início do mês (BRT) e continuam em ganho. A data de
+ * entrada vem da trilha de auditoria (audit_logs: etapa anterior fora do
+ * ganho → etapa nova de ganho, ou deal criado já em ganho) — os timestamps
+ * de marco (contrato_assinado_at/sinal_pago_at) só são gravados quando o deal
+ * passa EXATAMENTE por aquela etapa e ficam nulos para quem pula direto para
+ * uma coluna de ganho. Leitura falha → null ("—" na tela, nunca 0 inventado).
+ */
+async function contarContratosFechadosNoMes(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  etapasGanho: DealStage[],
+): Promise<number | null> {
+  if (etapasGanho.length === 0) return 0;
+  const ganho = new Set<string>(etapasGanho);
+
+  const { data: trilha, error: erroTrilha } = await supabase
+    .from("audit_logs")
+    .select("registro_id, operacao, etapa_de:dados_anteriores->>etapa")
+    .eq("tabela", "deals")
+    .in("operacao", ["INSERT", "UPDATE"])
+    .gte("created_at", inicioMesBrtIso())
+    .in("dados_novos->>etapa", etapasGanho);
+  if (erroTrilha) {
+    console.error({ level: "error", action: "war_room_contratos_mes", etapa: "audit_logs", error: erroTrilha.message });
+    return null;
+  }
+
+  const entraram = new Set<string>();
+  for (const linha of (trilha ?? []) as { registro_id: string | null; operacao: string; etapa_de: string | null }[]) {
+    if (!linha.registro_id) continue;
+    if (linha.operacao === "INSERT" || !ganho.has(linha.etapa_de ?? "")) entraram.add(linha.registro_id);
+  }
+  if (entraram.size === 0) return 0;
+
+  const { data: deals, error: erroDeals } = await supabase
+    .from("deals")
+    .select("id, etapa")
+    .in("id", [...entraram])
+    .is("deleted_at", null);
+  if (erroDeals) {
+    console.error({ level: "error", action: "war_room_contratos_mes", etapa: "deals", error: erroDeals.message });
+    return null;
+  }
+  return ((deals ?? []) as { id: string; etapa: string }[]).filter((d) => ganho.has(d.etapa)).length;
 }
 
 export async function fetchCashFlow(): Promise<CashFlowMetrics> {
@@ -857,7 +934,13 @@ export interface UpcomingAction {
   athlete_name: string;
   next_action: string;
   date: string;
+  /** Vencida E da etapa atual (ou escrita à mão) — regra única do T21
+   *  (isAcaoAtrasadaDaEtapa), a mesma do card, da Visão Executiva e do
+   *  contador "Ações atrasadas" do /pipeline. */
   is_overdue: boolean;
+  /** Nome da coluna de ORIGEM quando a ação foi herdada de outra etapa (sem
+   *  autoria manual) — aparece neutra, nunca "ATRASADO". null = da etapa atual. */
+  herdada_de: string | null;
   deal_stage: string;
 }
 
@@ -867,7 +950,9 @@ export async function fetchUpcomingActions(safra?: string): Promise<UpcomingActi
 
   let query = supabase
     .from("deals")
-    .select("id, etapa, next_action, data_proxima_acao, safra, atleta:atletas(nome_completo)")
+    .select(
+      "id, etapa, next_action, next_action_etapa, next_action_manual_em, data_proxima_acao, safra, atleta:atletas(nome_completo)",
+    )
     .is("deleted_at", null)
     .not("etapa", "in", "(perdido,concluido,cancelamento_solicitado)")
     .not("data_proxima_acao", "is", null)
@@ -879,23 +964,33 @@ export async function fetchUpcomingActions(safra?: string): Promise<UpcomingActi
     query = query.eq("safra", safra);
   }
 
-  const { data } = await query;
+  const [{ data }, rotulos] = await Promise.all([query, getRotulosEtapas()]);
   if (!data) return [];
 
-  const hoje = new Date().toISOString().split("T")[0];
+  // Mesma referência do card do board (UTC) — sem divergência entre telas.
+  const hoje = hojeIsoUtc();
 
   return (data as Array<Record<string, unknown>>)
     .slice(0, 15)
     .map((d) => {
       const atleta = d.atleta as Record<string, unknown> | null;
       const dateStr = d.data_proxima_acao as string;
+      const etapa = d.etapa as string;
+      const meta = {
+        next_action: (d.next_action as string | null) ?? null,
+        next_action_etapa: (d.next_action_etapa as string | null) ?? null,
+        next_action_manual: Boolean(d.next_action_manual_em),
+        next_action_date: dateStr,
+      };
+      const origem = isAcaoDeOutraEtapa(meta, etapa) ? etapaDaAcao(meta) : null;
       return {
         id: d.id as string,
         athlete_name: (atleta?.nome_completo as string) || "Atleta",
         next_action: (d.next_action as string) || "Sem descricao",
         date: dateStr,
-        is_overdue: dateStr < hoje,
-        deal_stage: d.etapa as string,
+        is_overdue: isAcaoAtrasadaDaEtapa(meta, etapa, hoje),
+        herdada_de: origem === null ? null : isDealStage(origem) ? rotulos[origem] : origem,
+        deal_stage: etapa,
       };
     });
 }
