@@ -14,7 +14,6 @@ import {
 } from "@dnd-kit/core";
 import { PIPELINE_STAGE_ORDER, type Deal, type DealStage } from "@/types/deal";
 import {
-  DEFAULT_DEAL_STAGE_DISPLAY,
   isDealStage,
   orderedKanbanStages,
   type DealStageConfigMap,
@@ -81,8 +80,9 @@ import { toast } from "sonner";
 interface PipelineBoardProps {
   deals: Deal[];
   currentUserId?: string;
-  /** Config de exibição das etapas (rótulo/cor/ordem/oculta) — default estático. */
-  stageConfig?: DealStageConfigMap;
+  /** Config MESCLADA das colunas (overrides + regras) — fonte única do board,
+   *  do editor do deal e do dossiê. Obrigatória (nada de default estático). */
+  stageConfig: DealStageConfigMap;
   /** Probabilidade por etapa (exibida/editável no modal da coluna). */
   probabilidadePorEtapa?: Record<string, number>;
   /** Só nível CEO edita colunas (o board é read-only para os demais). */
@@ -172,7 +172,7 @@ function applyFilters(
 export function PipelineBoard({
   deals: initialDeals,
   currentUserId,
-  stageConfig = DEFAULT_DEAL_STAGE_DISPLAY,
+  stageConfig,
   probabilidadePorEtapa = {},
   podeEditarColunas = false,
   podeEditarValor = false,
@@ -906,6 +906,7 @@ export function PipelineBoard({
       {muitoCedoAberto && (
         <AprovacaoLeadsModal
           modo="muito_cedo"
+          stageConfig={stageConfig}
           leadIdInicial={muitoCedoAberto}
           onClose={() => setMuitoCedoAberto(null)}
           onDecidido={() => {
@@ -918,6 +919,7 @@ export function PipelineBoard({
       {/* Fila de aprovação aberta pelo card da primeira coluna */}
       {leadAprovacao && (
         <AprovacaoLeadsModal
+          stageConfig={stageConfig}
           leadIdInicial={leadAprovacao}
           onClose={() => setLeadAprovacao(null)}
           onDecidido={(id) => {
@@ -950,9 +952,12 @@ export function PipelineBoard({
         />
       )}
 
-      {/* Dossiê aberto pela faixa "Fora do pipeline" (lead ou deal) */}
+      {/* Dossiê aberto pela faixa "Fora do pipeline" (lead ou deal) — o
+          editor do deal usa a MESMA config de colunas do board. */}
       <DossieLeadView
         estado={dossie.estado}
+        stageConfig={stageConfig}
+        podeEditarValor={podeEditarValor}
         onClose={() => {
           // O dossiê tem ações (mover etapa, aprovar…): a faixa não pode ficar velha.
           dossie.fechar();

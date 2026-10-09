@@ -18,6 +18,7 @@ import {
   parseEtapasDealConfig,
   parseEtapasDealRegras,
   PROBABILIDADE_ETAPA_FALLBACK,
+  type DealStageConfigMap,
   type EtapasDealConfig,
   type EtapasDealRegras,
 } from "@/lib/etapas-deal";
@@ -241,6 +242,17 @@ export async function getEtapasGanho(opts?: { falhaComoGanho?: boolean }): Promi
     return [...ETAPAS_GANHO_FIXAS, ...SLOTS_CUSTOM];
   }
   return etapasGanho(mergeDealStageConfig(cfg.overrides, cfg.regras));
+}
+
+/**
+ * Config MESCLADA das colunas (apresentação + regras) — a MESMA que o board
+ * desenha. Toda tela FORA do /pipeline que abre o editor do deal (/leads,
+ * /remarketing) usa esta: rótulos do CEO, ordem do board, ocultas, ganho e
+ * pede-plano. Fail-open como o board: leitura falha → defaults do código.
+ */
+export async function getStageConfigDeal(): Promise<DealStageConfigMap> {
+  const cfg = await getConfigEtapasDeal();
+  return mergeDealStageConfig(cfg.overrides, cfg.regras);
 }
 
 /** Nome de exibição (rótulo do CEO) de cada etapa — para textos server-side (T17). */

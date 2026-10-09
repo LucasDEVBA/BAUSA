@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getAgendaDoMes } from "@/lib/actions/agenda-calendar";
+import { getStageConfigDeal } from "@/lib/actions/configuracoes";
 import { requirePapel } from "@/lib/auth";
 import { AgendaClient } from "./client";
 import type { AgendaEvento } from "./client";
@@ -29,7 +30,12 @@ export default async function AgendaPage({
 
   // Só o mês pedido. Antes eram 300 dias (−120/+180) numa tacada: 681 eventos
   // trafegados para desenhar ~30.
-  const { eventos: doMes, aviso } = await getAgendaDoMes(mesInicial);
+  // Config de colunas do board (rótulo do CEO: "Valor total pago", não
+  // "Coluna personalizada 2") — buscada junto com o mês, sem cascata.
+  const [{ eventos: doMes, aviso }, stageConfig] = await Promise.all([
+    getAgendaDoMes(mesInicial),
+    getStageConfigDeal(),
+  ]);
 
   // Deals ativos p/ o "Novo compromisso" (qualquer etapa exceto perdido)
   const supabase = await createServerSupabaseClient();
@@ -59,6 +65,7 @@ export default async function AgendaPage({
       mesInicial={mesInicial}
       dealsAgendaveis={dealsAgendaveis}
       avisoCalendar={aviso}
+      stageConfig={stageConfig}
     />
   );
 }

@@ -13,7 +13,13 @@ export interface CommercialFunnelMetrics {
   leads_qualified: number;
   meetings_done: number;
   proposals_sent: number;
+  /** Contrato assinado EM DIANTE (etapas de ganho: inclui sinais e concluídos).
+   *  ESTOQUE acumulado — só para o funil; nunca comparar com meta mensal. */
   contracts_signed: number;
+  /** Deals que ENTRARAM em etapa de ganho no mês corrente (BRT) e seguem em
+   *  ganho — base da meta "Contratos/Mês". null = leitura falhou ("—"). */
+  contracts_signed_month: number | null;
+  /** Ganho já com sinal (Sinal pago, Plano escolhido, colunas de ganho) — ⊂ contracts_signed. */
   signals_paid: number;
   auto_conversions: number;
 }

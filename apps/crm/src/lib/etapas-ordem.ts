@@ -13,11 +13,13 @@
 // Módulo puro (sem "use server") — importável no client e no server.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { DEAL_STAGE_CONFIG, PIPELINE_STAGE_ORDER, type DealStage } from "@/types/deal";
+import { type DealStage } from "@/types/deal";
 import {
   compararOrdemBoard,
   isDealStage,
   orderedKanbanStages,
+  ordemEtapaBoard,
+  ordemEtapaFixa,
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
 
@@ -113,47 +115,51 @@ export function deveAbrirShortlist(
 }
 
 /**
- * Etapa nova que ainda nasce oculta (plano_escolhido até a migration de dados
- * *_plano_escolhido_coluna_board) nunca é oferecida como destino pelo caminho
- * de fallback: gravar um deal nela antes do vai-pra-prod derruba o
- * board/tabela do Engine antigo (banco único — o UAT grava em produção).
+ * Colunas que o editor lateral oferece, na ORDEM DO BOARD (orderedKanbanStages
+ * — o mesmo cálculo que desenha o Kanban): só as VISÍVEIS (sem Perdido, que
+ * tem botão próprio), com a etapa atual inserida no lugar de onde se
+ * avança/retrocede. Coluna oculta NUNCA é destino (slot custom sem nome,
+ * etapa aposentada, plano_escolhido antes da migration de dados).
+ *
+ * Onde a atual entra segue a MESMA escala do servidor (compararOrdemBoard):
+ * - com ordem de board (visível e configurada) ou coluna personalizada (raia
+ *   livre, sem ordem de negócio): no lugar em que o board a desenha;
+ * - oculta / sem ordem configurada (aguardando_timing, admission_process…): o
+ *   servidor a compara pela ORDEM FIXA — logo depois da última coluna visível
+ *   de negócio que vem antes dela na ordem fixa. Pela posição do board ela
+ *   cairia depois de Perdido: sem "Avançar" e com todo o funil (até as
+ *   colunas de ganho) oferecido como "Retroceder" (auditoria 09/10/2026).
  */
-function ocultaPorPadraoAinda(s: DealStage, config: DealStageConfigMap): boolean {
-  return DEAL_STAGE_CONFIG[s].ocultaPorPadrao === true && config[s].oculta;
-}
-
-/** Colunas VISÍVEIS do board, na ordem do CEO, sem Perdido. */
-function colunasVisiveis(config: DealStageConfigMap): DealStage[] {
-  return orderedKanbanStages(config).filter((s) => !config[s].oculta && s !== "perdido");
+function colunasDoEditor(atual: DealStage, config: DealStageConfigMap): DealStage[] {
+  const board = orderedKanbanStages(config);
+  if (!board.includes(atual)) return [];
+  if (ordemEtapaBoard(atual, config) !== null || isColunaPersonalizada(atual)) {
+    return board.filter((s) => s === atual || (!config[s].oculta && s !== "perdido"));
+  }
+  const visiveis = board.filter((s) => s !== atual && !config[s].oculta && s !== "perdido");
+  const fixaAtual = ordemEtapaFixa(atual);
+  let corte = 0;
+  visiveis.forEach((s, i) => {
+    if (!isColunaPersonalizada(s) && ordemEtapaFixa(s) < fixaAtual) corte = i + 1;
+  });
+  return [...visiveis.slice(0, corte), atual, ...visiveis.slice(corte)];
 }
 
 /**
- * "Avançar" do editor lateral: próxima coluna visível do board. Etapa atual
- * oculta (ex.: admission_process) → ordem estática (comportamento antigo).
+ * "Avançar" do editor lateral: próxima coluna VISÍVEL do board depois da
+ * atual. Etapa fora do Kanban (cancelamento/projeto futuro) → null.
  */
 export function proximaColunaBoard(atual: DealStage, config: DealStageConfigMap): DealStage | null {
-  const visiveis = colunasVisiveis(config);
-  const idx = visiveis.indexOf(atual);
-  if (idx === -1) {
-    const i = PIPELINE_STAGE_ORDER.indexOf(atual);
-    const proxima =
-      i >= 0
-        ? (PIPELINE_STAGE_ORDER.slice(i + 1).find((s) => !ocultaPorPadraoAinda(s, config)) ?? null)
-        : null;
-    return proxima === "perdido" ? null : proxima;
-  }
-  return visiveis[idx + 1] ?? null;
+  const colunas = colunasDoEditor(atual, config);
+  const idx = colunas.indexOf(atual);
+  if (idx === -1) return null;
+  return colunas[idx + 1] ?? null;
 }
 
-/** "Retroceder" do editor lateral: colunas visíveis antes da atual. */
+/** "Retroceder" do editor lateral: colunas VISÍVEIS antes da atual, na ordem do board. */
 export function colunasAnterioresBoard(atual: DealStage, config: DealStageConfigMap): DealStage[] {
-  const visiveis = colunasVisiveis(config);
-  const idx = visiveis.indexOf(atual);
-  if (idx === -1) {
-    const i = PIPELINE_STAGE_ORDER.indexOf(atual);
-    return PIPELINE_STAGE_ORDER.slice(0, Math.max(0, i)).filter(
-      (s) => s !== "perdido" && !ocultaPorPadraoAinda(s, config),
-    );
-  }
-  return visiveis.slice(0, idx);
+  const colunas = colunasDoEditor(atual, config);
+  const idx = colunas.indexOf(atual);
+  if (idx === -1) return [];
+  return colunas.slice(0, idx);
 }

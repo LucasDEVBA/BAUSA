@@ -35,11 +35,7 @@ import {
   Shield,
 } from "lucide-react";
 import { type Deal, PIPELINE_STAGE_ORDER, type DealStage } from "@/types/deal";
-import {
-  DEFAULT_DEAL_STAGE_DISPLAY,
-  getStageDisplay,
-  type DealStageConfigMap,
-} from "@/lib/etapas-deal";
+import { getStageDisplay, type DealStageConfigMap } from "@/lib/etapas-deal";
 import { atualizarDeal, moverDeal, type StructuredLossData } from "@/lib/actions/deals";
 import { CustomizarValorModal } from "./CustomizarValorModal";
 import { ROTULO_ORIGEM_VALOR, explicarOrigemValor, formatarValorDeal } from "@/lib/valor-deal";
@@ -48,6 +44,7 @@ import { PlanoEscolhidoModal } from "@/components/financeiro/contrato/PlanoEscol
 import {
   colunasAnterioresBoard,
   deveAbrirShortlist,
+  isRetrocessoEtapa,
   proximaColunaBoard,
 } from "@/lib/etapas-ordem";
 import { colunaPedePlano } from "@/lib/plano-integracao";
@@ -68,10 +65,12 @@ import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 interface DealDetailSheetProps {
   deal: Deal | null;
   onClose: () => void;
-  /** Config das etapas (rótulos/cores/ordem do board/regras) — default estático.
-   *  Avançar/Retroceder seguem a ORDEM DO BOARD; o servidor (moverDeal) decide
-   *  retrocesso pela mesma regra. */
-  stageConfig?: DealStageConfigMap;
+  /** Config MESCLADA das colunas (overrides + regras) — a MESMA do board.
+   *  OBRIGATÓRIA: com o default estático, fora do board o editor mostrava
+   *  "Coluna personalizada 2", avançava para slot oculto e pulava "Plano
+   *  escolhido". Avançar/Retroceder seguem a ORDEM DO BOARD (só colunas
+   *  visíveis); o servidor (moverDeal) decide retrocesso pela mesma regra. */
+  stageConfig: DealStageConfigMap;
   /** Chamado após salvar o valor: quem busca o deal no cliente (/remarketing,
    *  /leads) não é repintado pelo router.refresh e precisa rebuscar. */
   onDealAtualizado?: () => void;
@@ -534,7 +533,7 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
 export function DealDetailSheet({
   deal,
   onClose,
-  stageConfig: stageConfigMap = DEFAULT_DEAL_STAGE_DISPLAY,
+  stageConfig: stageConfigMap,
   onDealAtualizado,
 }: DealDetailSheetProps) {
   const router = useRouter();
@@ -591,9 +590,10 @@ export function DealDetailSheet({
   if (!deal) return null;
 
   const stageConfig = getStageDisplay(stageConfigMap, deal.stage);
-  // Progressão pela ORDEM DO BOARD (colunas visíveis, como o CEO arrumou) —
-  // a mesma escala que moverDeal/trigger usam para decidir retrocesso. Etapa
-  // atual oculta → ordem estática (comportamento antigo).
+  // Progressão pela ORDEM DO BOARD (só colunas visíveis, como o CEO arrumou)
+  // — a mesma escala que moverDeal/trigger usam para decidir retrocesso.
+  // Etapa atual oculta (ex.: Aguardando timing) entra pela ordem fixa, como o
+  // servidor a compara — nunca "depois de Perdido".
   const nextStage = proximaColunaBoard(deal.stage, stageConfigMap);
   // Só para o lembrete das notas da reunião (posição de negócio estática).
   const currentIdx = PIPELINE_STAGE_ORDER.indexOf(deal.stage);
@@ -603,6 +603,11 @@ export function DealDetailSheet({
 
   // Etapas anteriores para retrocesso (colunas visíveis antes da atual)
   const previousStages = colunasAnterioresBoard(deal.stage, stageConfigMap);
+  // Justificativa só quando o SERVIDOR marca retrocesso (moverDeal/trigger):
+  // sair de Aguardando timing ou de/para coluna personalizada é isento — lá
+  // o motivo seria descartado e o toast "Retrocedido" mentiria.
+  const retrocessoExigeMotivo =
+    !retrocederStage || isRetrocessoEtapa(deal.stage, retrocederStage, stageConfigMap);
 
   const hasReuniao = Boolean(deal.reuniao_data || deal.reuniao_agendada_at);
 
@@ -698,22 +703,25 @@ export function DealDetailSheet({
       toast.error("Selecione a etapa de destino");
       return;
     }
-    if (!retrocederMotivo.trim()) {
+    if (retrocessoExigeMotivo && !retrocederMotivo.trim()) {
       toast.error("Informe a justificativa do retrocesso");
       return;
     }
+    const motivo = retrocessoExigeMotivo ? retrocederMotivo : "";
     if (colunaPedePlano(stageConfigMap[retrocederStage as DealStage])) {
-      setPlanoPara({ etapa: retrocederStage as DealStage, motivo: retrocederMotivo });
+      setPlanoPara({ etapa: retrocederStage as DealStage, motivo });
       return;
     }
-    executarRetrocesso(retrocederStage as DealStage, retrocederMotivo);
+    executarRetrocesso(retrocederStage as DealStage, motivo);
   };
 
   const executarRetrocesso = (destino: DealStage, motivo: string) => {
+    const destinoLabel = stageConfigMap[destino]?.label ?? destino;
+    const retrocessoReal = isRetrocessoEtapa(deal.stage, destino, stageConfigMap);
     startTransition(async () => {
-      const result = await moverDeal(deal.id, destino, motivo);
+      const result = await moverDeal(deal.id, destino, motivo || undefined);
       if (result.success) {
-        toast.success(`Retrocedido para ${stageConfigMap[destino]?.label ?? destino}`);
+        toast.success(retrocessoReal ? `Retrocedido para ${destinoLabel}` : `Movido para ${destinoLabel}`);
         router.refresh();
         onClose();
       } else {
@@ -1713,16 +1721,25 @@ export function DealDetailSheet({
                   </option>
                 ))}
               </select>
-              <label className="text-xs font-medium text-sys-orange">
-                Justificativa (obrigatoria)
-              </label>
-              <textarea
-                value={retrocederMotivo}
-                onChange={(e) => setRetrocederMotivo(e.target.value)}
-                rows={2}
-                placeholder="Descreva o motivo do retrocesso..."
-                className="w-full rounded-lg border border-sys-orange/30 bg-card py-2 px-3 text-sm text-foreground placeholder:text-placeholder outline-none resize-none"
-              />
+              {retrocessoExigeMotivo ? (
+                <>
+                  <label htmlFor="retroceder-motivo" className="text-xs font-medium text-sys-orange">
+                    Justificativa (obrigatoria)
+                  </label>
+                  <textarea
+                    id="retroceder-motivo"
+                    value={retrocederMotivo}
+                    onChange={(e) => setRetrocederMotivo(e.target.value)}
+                    rows={2}
+                    placeholder="Descreva o motivo do retrocesso..."
+                    className="w-full rounded-lg border border-sys-orange/30 bg-card py-2 px-3 text-sm text-foreground placeholder:text-placeholder outline-none resize-none"
+                  />
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground" role="status">
+                  Esta mudança não conta como retrocesso — não precisa de justificativa.
+                </p>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={handleRetroceder}
@@ -1732,7 +1749,7 @@ export function DealDetailSheet({
                   {isPending ? (
                     <Loader2 className="inline h-4 w-4 animate-spin mr-1" />
                   ) : null}
-                  Confirmar Retrocesso
+                  {retrocessoExigeMotivo ? "Confirmar Retrocesso" : "Confirmar mudança"}
                 </button>
                 <button
                   onClick={() => {

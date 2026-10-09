@@ -28,7 +28,7 @@ import { normalizarTermoBusca } from "@/lib/revisao-leads";
 import { DossieLeadView, useDossieLead } from "./DossieLead";
 // Type-only (statement inteiro é elidido no build): a lib é server-side.
 import type { PrioridadeLead } from "@/lib/prioridade-engajamento";
-import { DEAL_STAGE_CONFIG, type DealStage } from "@/types/deal";
+import { getStageDisplay, type DealStageConfigMap } from "@/lib/etapas-deal";
 import { Badge } from "@/components/ui";
 import { ReuniaoDetectadaBadge } from "@/components/pipeline/ReuniaoDetectadaBadge";
 import { LeadStatusBadge } from "./LeadStatusBadge";
@@ -50,6 +50,9 @@ interface LeadsTableProps {
   /** Deep-link ?atleta=<id> ou ?lead=<form_submission_id> (T14): dossiê já
    *  carregado pelo servidor, abre 1 vez. */
   leadInicial?: Lead | null;
+  /** Config MESCLADA das colunas — a MESMA do board: nome da coluna na
+   *  tabela e no editor do deal aberto pelo dossiê (T17/T2/T20). */
+  stageConfig: DealStageConfigMap;
 }
 
 const BUSCA_DEBOUNCE_MS = 300;
@@ -70,7 +73,7 @@ function SortIcon({ isSorted }: { isSorted: false | "asc" | "desc" }) {
   return <ArrowUpDown className="h-3 w-3 opacity-40" />;
 }
 
-export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, leadInicial = null }: LeadsTableProps) {
+export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, leadInicial = null, stageConfig }: LeadsTableProps) {
   const router = useRouter();
   const [navegando, startNavegar] = useTransition();
   // Confirmação de exclusão fora das colunas memoizadas (closure stale) —
@@ -421,8 +424,8 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
           if (!lead.is_in_pipeline) {
             return <span className="text-xs text-label-tertiary">—</span>;
           }
-          const stage = lead.pipeline_stage as DealStage | null;
-          const config = stage ? DEAL_STAGE_CONFIG[stage] : null;
+          // Nome/cor da coluna do CEO (T17) — nunca o rótulo estático.
+          const config = lead.pipeline_stage ? getStageDisplay(stageConfig, lead.pipeline_stage) : null;
           const label = config?.shortLabel ?? "No Pipeline";
           return (
             <span className={cn(
@@ -495,8 +498,8 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
         size: 44,
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- estados de popover/duplicata já eram lidos via closure (comportamento herdado); prioridades entra como dep real.
-    [prioridades]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- estados de popover/duplicata já eram lidos via closure (comportamento herdado); prioridades e stageConfig entram como deps reais.
+    [prioridades, stageConfig]
   );
 
   const totalPaginas = Math.max(1, Math.ceil(total / filtros.porPagina));
@@ -674,7 +677,7 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
       </div>
 
       {/* Dossiê sob demanda (mesmo LeadOrDealSheet do /pipeline) */}
-      <DossieLeadView estado={dossie.estado} onClose={fecharDossie} />
+      <DossieLeadView estado={dossie.estado} onClose={fecharDossie} stageConfig={stageConfig} />
 
       {/* Confirmação de exclusão (soft delete) */}
       {leadParaExcluir && (

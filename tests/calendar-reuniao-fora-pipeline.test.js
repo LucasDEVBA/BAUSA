@@ -187,7 +187,7 @@ test('deep-link /leads?lead=<id> abre o dossiê de lead SEM atleta/deal e não g
   // /leads não remonta a tabela (comportamento coberto em DossieLead.test.tsx).
   const hook = lerCrm('components', 'leads', 'DossieLead.tsx');
   assert.match(hook, /if \(leadInicialId !== leadInicialVisto\) \{/, 'o dossiê só abria na montagem — o aviso do sininho não abria nada');
-  assert.match(tabela, /<DossieLeadView estado=\{dossie\.estado\} onClose=\{fecharDossie\} \/>/,
+  assert.match(tabela, /<DossieLeadView estado=\{dossie\.estado\} onClose=\{fecharDossie\}[^>]*\/>/,
     'fechar o dossiê tem de soltar o ?lead= da URL (senão o mesmo link não reabre)');
 });
 

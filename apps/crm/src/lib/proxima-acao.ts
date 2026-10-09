@@ -15,7 +15,8 @@
 // isAcaoManual são espelho EXATO de public.next_action_e_de_sistema — o guard
 // tests/etapas-plano-escolhido-invariants.test.js compara as duas listas.
 //
-// Módulo puro — client (DealCard/PipelineTableView).
+// Módulo puro — client (DealCard/PipelineTableView/VisaoExecutivaPanel) e
+// server (contador "Ações atrasadas" do /pipeline).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { DealStage } from "@/types/deal";
@@ -71,4 +72,30 @@ export function isAcaoDeOutraEtapa(meta: MetaProximaAcao, etapaAtual: string): b
   if (isAcaoManual(meta)) return false;
   const origem = etapaDaAcao(meta);
   return origem !== null && origem !== etapaAtual;
+}
+
+export interface PrazoProximaAcao extends MetaProximaAcao {
+  /** deals.data_proxima_acao (YYYY-MM-DD). */
+  next_action_date?: string | null;
+}
+
+/**
+ * Ação ATRASADA de verdade: da etapa ATUAL (ou manual) com prazo antes de
+ * `hoje` (YYYY-MM-DD). A herdada de outra etapa nunca conta (T21) — mesma
+ * regra do card, da tabela, da Visão Executiva e do contador "Ações
+ * atrasadas" do /pipeline.
+ */
+export function isAcaoAtrasadaDaEtapa(
+  deal: PrazoProximaAcao,
+  etapaAtual: string,
+  hoje: string,
+): boolean {
+  const prazo = deal.next_action_date?.slice(0, 10);
+  if (!prazo || prazo >= hoje) return false;
+  return !isAcaoDeOutraEtapa(deal, etapaAtual);
+}
+
+/** Data de hoje (UTC, YYYY-MM-DD) — a mesma referência do card do board. */
+export function hojeIsoUtc(agora: Date = new Date()): string {
+  return agora.toISOString().slice(0, 10);
 }
