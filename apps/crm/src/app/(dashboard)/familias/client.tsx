@@ -42,6 +42,8 @@ interface FamiliasConsolidadasClientProps {
   familias: FamiliaConsolidada[];
   /** Config das fases (rótulo configurado pelo CEO). Default: estático. */
   journeyConfig?: JourneyConfigMap;
+  /** Nome de cada coluna do pipeline como o CEO configurou (T17). */
+  rotulosEtapa?: Record<string, string>;
 }
 
 const CLASSIFICATION_TONE: Record<string, BadgeTone> = {
@@ -75,6 +77,7 @@ function formatBRL(v: number) {
 export function FamiliasConsolidadasClient({
   familias,
   journeyConfig = JOURNEY_STAGE_CONFIG,
+  rotulosEtapa = {},
 }: FamiliasConsolidadasClientProps) {
   const faseLabel = (fase: string): string =>
     isFamilyJourneyStage(fase) ? journeyConfig[fase].label : fase;
@@ -180,7 +183,7 @@ export function FamiliasConsolidadasClient({
         <EmptyState
           icon={Users}
           title="Nenhuma família encontrada"
-          description="Famílias aparecem aqui quando o deal chega em admission_process."
+          description="Famílias aparecem aqui quando o deal é ganho (Sinal pago em diante)."
         />
       ) : (
         <Card padding="none" variant="plain" className="overflow-hidden">
@@ -325,9 +328,9 @@ export function FamiliasConsolidadasClient({
                           <td className="px-4 py-2.5">
                             <span className="text-xs text-muted-foreground">
                               {atleta.etapa
-                                ? ((ETAPA_LABELS as Record<string, string>)[
-                                    atleta.etapa
-                                  ] ?? atleta.etapa)
+                                ? (rotulosEtapa[atleta.etapa] ??
+                                  (ETAPA_LABELS as Record<string, string>)[atleta.etapa] ??
+                                  atleta.etapa)
                                 : "—"}
                             </span>
                           </td>

@@ -39,6 +39,7 @@ const leadsSrc = ler('apps', 'crm', 'src', 'lib', 'actions', 'leads.ts');
 const dealsSrc = ler('apps', 'crm', 'src', 'lib', 'actions', 'deals.ts');
 const etapasSrc = ler('apps', 'crm', 'src', 'lib', 'etapas-deal.ts');
 const etapasActionSrc = ler('apps', 'crm', 'src', 'lib', 'actions', 'etapas-pipeline.ts');
+const etapasOrdemSrc = ler('apps', 'crm', 'src', 'lib', 'etapas-ordem.ts');
 const tiposDealSrc = ler('apps', 'crm', 'src', 'types', 'deal.ts');
 // T7 (2026-10-08): janelas e paginação das revisões moram no módulo comum.
 const revisaoSrc = ler('apps', 'crm', 'src', 'lib', 'revisao-leads.ts');
@@ -93,10 +94,12 @@ test('retrocesso: colunas custom isentas no trigger SQL e no moverDeal', () => {
     'isenção de retrocesso (entrada) sumiu do trigger');
   assert.match(migSrc, /OLD\.etapa::text NOT LIKE 'custom\\_%'/,
     'isenção de retrocesso (saída) sumiu do trigger');
-  assert.match(dealsSrc, /!novaEtapa\.startsWith\("custom_"\)/,
-    'isenção de retrocesso sumiu do moverDeal (entrada)');
-  assert.match(dealsSrc, /!String\(deal\.etapa\)\.startsWith\("custom_"\)/,
-    'isenção de retrocesso sumiu do moverDeal (saída)');
+  // Desde 2026-10 (T2) a regra é ÚNICA em lib/etapas-ordem.ts (espelho de
+  // public.etapa_e_retrocesso, migration *_plano_escolhido_ordem_board_retrocesso) e o moverDeal a usa.
+  assert.match(etapasOrdemSrc, /if \(isColunaPersonalizada\(para\) \|\| isColunaPersonalizada\(de\)\) return false;/,
+    'isenção de retrocesso das colunas custom sumiu da regra única');
+  assert.match(dealsSrc, /isRetrocessoEtapa\(etapaAtual, novaEtapa, stageMap\)/,
+    'moverDeal deixou de usar a regra única de retrocesso');
 });
 
 test('slot custom nasce oculto; criar coluna exige slot livre + CEO', () => {
@@ -107,8 +110,11 @@ test('slot custom nasce oculto; criar coluna exige slot livre + CEO', () => {
     etapasActionSrc.indexOf('export async function criarColunaPipeline'),
     etapasActionSrc.indexOf('export async function reordenarEtapasPipeline'));
   assert.match(criar, /getUserPapel\(\)\) !== "ceo"/, 'gate CEO sumiu do criar coluna');
-  assert.match(criar, /isCustomSlot === true,\s*\)\s*as DealStage\[\]\)\.find\(\(s\) => atual\[s\] === undefined\)/,
+  assert.match(criar, /isCustomSlot === true,\s*\)\s*as DealStage\[\]\)\.find\(\(s\) => slotCustomLivre\(atual\[s\]\)\)/,
     'busca de slot livre mudou — criar não pode sobrescrever coluna nomeada');
+  // Livre = sem nome e não tornado visível (só `order` do arraste não ocupa).
+  assert.match(etapasSrc, /return !override \|\| \(override\.label === undefined && override\.oculta !== false\);/,
+    'slot nomeado ou visível não pode ser reaproveitado');
   assert.match(criar, /oculta: false/, 'coluna criada precisa nascer visível');
 });
 

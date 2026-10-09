@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
 import { registrarEventoGamificacao } from "@/lib/gamificacao";
+import { getEtapasGanho, getRotulosEtapas } from "@/lib/actions/configuracoes";
 
 type FaseExperiencia =
   | "envio_opcoes"
@@ -403,19 +404,25 @@ export async function criarFamiliaManual(
 
 // ─── Atletas elegíveis para virar família (ainda sem experiencia) ─
 export async function listarAtletasElegiveis(): Promise<
-  { atleta_id: string; deal_id: string; nome: string; etapa: string }[]
+  { atleta_id: string; deal_id: string; nome: string; etapa: string; etapa_label: string }[]
 > {
   const papel = await requireExperiencePapel();
   if (!papel) return [];
 
   const supabase = await createAuditedSupabaseClient();
 
+  // Jornada da família começa no GANHO com sinal: todas as etapas de ganho
+  // menos "Contrato assinado" (Sinal pago, Plano escolhido, admissão,
+  // concluído e colunas personalizadas marcadas como ganho).
+  const [etapasGanho, rotulos] = [await getEtapasGanho(), await getRotulosEtapas()];
+  const etapasElegiveis = etapasGanho.filter((s) => s !== "contrato_assinado");
+
   const { data } = await supabase
     .from("deals")
     .select(
       "id, etapa, atleta_id, atleta:atletas(nome_completo, crm_experiencia(id))"
     )
-    .in("etapa", ["admission_process", "concluido", "sinal_pago"])
+    .in("etapa", etapasElegiveis)
     .is("deleted_at", null);
 
   type Row = {
@@ -439,6 +446,7 @@ export async function listarAtletasElegiveis(): Promise<
       deal_id: row.id,
       nome: row.atleta?.nome_completo ?? "Atleta",
       etapa: row.etapa,
+      etapa_label: (rotulos as Record<string, string>)[row.etapa] ?? row.etapa,
     }));
 }
 

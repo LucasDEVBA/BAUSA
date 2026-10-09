@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { requirePapel } from "@/lib/auth";
-import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { getFasesFamiliaConfigOverrides, getRotulosEtapas } from "@/lib/actions/configuracoes";
 import { mergeJourneyConfig } from "@/lib/fases-familia";
 import {
   EMBED_CONTRATO_VALOR_LEVE,
@@ -36,6 +36,8 @@ export default async function FamiliasPage() {
   await requirePapel(["ceo", "head_sucesso"]);
 
   const supabase = await createServerSupabaseClient();
+  // T17: etapa do deal pelo NOME DA COLUNA do CEO
+  const rotulosEtapa: Record<string, string> = await getRotulosEtapas();
   const journeyConfig = mergeJourneyConfig(
     await getFasesFamiliaConfigOverrides(),
   );
@@ -84,7 +86,7 @@ export default async function FamiliasPage() {
   const experiencias = (expData ?? []) as ExperienciaRow[];
 
   if (experiencias.length === 0) {
-    return <FamiliasConsolidadasClient familias={[]} journeyConfig={journeyConfig} />;
+    return <FamiliasConsolidadasClient familias={[]} journeyConfig={journeyConfig} rotulosEtapa={rotulosEtapa} />;
   }
 
   const atletaIdsComExperiencia = experiencias
@@ -92,7 +94,7 @@ export default async function FamiliasPage() {
     .filter((id): id is string => id !== null);
 
   if (atletaIdsComExperiencia.length === 0) {
-    return <FamiliasConsolidadasClient familias={[]} journeyConfig={journeyConfig} />;
+    return <FamiliasConsolidadasClient familias={[]} journeyConfig={journeyConfig} rotulosEtapa={rotulosEtapa} />;
   }
 
   const expByAtleta = new Map<string, ExperienciaRow>();
@@ -119,7 +121,7 @@ export default async function FamiliasPage() {
   const uniqueRespIds = Array.from(new Set(respIds));
 
   if (uniqueRespIds.length === 0) {
-    return <FamiliasConsolidadasClient familias={[]} journeyConfig={journeyConfig} />;
+    return <FamiliasConsolidadasClient familias={[]} journeyConfig={journeyConfig} rotulosEtapa={rotulosEtapa} />;
   }
 
   const { data: respData, error: respErr } = await supabase
@@ -203,6 +205,6 @@ export default async function FamiliasPage() {
   });
 
   return (
-    <FamiliasConsolidadasClient familias={familias} journeyConfig={journeyConfig} />
+    <FamiliasConsolidadasClient familias={familias} journeyConfig={journeyConfig} rotulosEtapa={rotulosEtapa} />
   );
 }

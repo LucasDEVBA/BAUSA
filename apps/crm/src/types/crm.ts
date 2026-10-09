@@ -7,7 +7,7 @@ export type StatusDeal =
   | 'lead' | 'aguardando_timing' | 'reuniao_marcada' | 'reuniao_realizada'
   | 'diagnostico_fit' | 'alinhamento_estrategico' | 'proposta_enviada'
   | 'followup_proposta' | 'negociacao' | 'contrato_enviado'
-  | 'contrato_assinado' | 'sinal_pago' | 'admission_process'
+  | 'contrato_assinado' | 'sinal_pago' | 'plano_escolhido' | 'admission_process'
   | 'concluido' | 'perdido' | 'cancelamento_solicitado' | 'projeto_futuro'
   // Slots de coluna personalizada do board (enum PG custom_1..custom_6)
   | 'custom_1' | 'custom_2' | 'custom_3' | 'custom_4' | 'custom_5' | 'custom_6';
@@ -100,6 +100,10 @@ export interface Deal {
   status_decisao_familia: DecisaoFamiliar | null;
   notas_reuniao: string | null;
   next_action: string | null;
+  /** Etapa em que a next_action atual foi gravada (trigger trg_deals_next_action_meta). */
+  next_action_etapa?: string | null;
+  /** Quando o CEO escreveu a next_action à mão (só atualizarDeal grava). */
+  next_action_manual_em?: string | null;
   data_proxima_acao: string | null;
   motivo_perda: MotivoPerda | null;
   detalhe_perda: string | null;
@@ -197,6 +201,7 @@ export const ETAPA_LABELS: Record<StatusDeal, string> = {
   contrato_enviado: 'Contrato Enviado',
   contrato_assinado: 'Contrato Assinado',
   sinal_pago: 'Sinal Pago',
+  plano_escolhido: 'Plano escolhido',
   admission_process: 'Admission Process',
   concluido: 'Concluído',
   perdido: 'Perdido',
@@ -210,7 +215,11 @@ export const ETAPA_LABELS: Record<StatusDeal, string> = {
   custom_6: 'Coluna personalizada 6',
 };
 
-// Ordem das etapas (para detectar retrocesso)
+// Ordem FIXA de negócio das etapas. Espelho EXATO de public.ordem_etapa_fixa
+// (migration *_plano_escolhido_ordem_board_retrocesso) — o guard tests/etapas-plano-escolhido-invariants
+// compara as duas. NÃO usar direto para decidir retrocesso/avanço: a regra
+// única (ordem do board quando as duas etapas estão visíveis) vive em
+// @/lib/etapas-ordem (isRetrocessoEtapa / direcaoEtapa).
 export const ETAPA_ORDEM: Record<StatusDeal, number> = {
   contato_feito: 1,
   lead: 2,
@@ -225,11 +234,12 @@ export const ETAPA_ORDEM: Record<StatusDeal, number> = {
   contrato_enviado: 11,
   contrato_assinado: 12,
   sinal_pago: 13,
-  admission_process: 14,
-  concluido: 15,
-  perdido: 16,
-  cancelamento_solicitado: 17,
-  projeto_futuro: 18,
+  plano_escolhido: 14,
+  admission_process: 15,
+  concluido: 16,
+  perdido: 17,
+  cancelamento_solicitado: 18,
+  projeto_futuro: 19,
   // Colunas personalizadas: ordem 0 + isenção explícita de retrocesso no
   // moverDeal e no trigger SQL — raias livres, sem semântica de funil.
   custom_1: 0,
@@ -245,7 +255,7 @@ export const PIPELINE_ETAPAS: StatusDeal[] = [
   'contato_feito', 'lead', 'aguardando_timing', 'reuniao_marcada', 'reuniao_realizada', 'diagnostico_fit',
   'alinhamento_estrategico', 'proposta_enviada', 'followup_proposta',
   'negociacao', 'contrato_enviado', 'contrato_assinado', 'sinal_pago',
-  'admission_process',
+  'plano_escolhido', 'admission_process',
 ];
 
 // Cores dos badges

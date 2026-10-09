@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Columns3, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui";
+import { Button, ToggleField } from "@/components/ui";
 import {
   ETAPA_ACCENTS,
   ETAPA_ACCENT_DOT,
@@ -29,11 +29,12 @@ export function NovaColunaModal({
 }) {
   const [nome, setNome] = useState("");
   const [accent, setAccent] = useState<EtapaDealAccent>("blue");
+  const [ganho, setGanho] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const criar = () => {
     startTransition(async () => {
-      const r = await criarColunaPipeline({ label: nome, accent });
+      const r = await criarColunaPipeline({ label: nome, accent, ganho });
       if (r.success) {
         toast.success(`Coluna "${nome.trim()}" criada no fim do board`, {
           description: "Arraste-a pelo cabeçalho para a posição que quiser.",
@@ -111,6 +112,15 @@ export function NovaColunaModal({
               {ETAPA_ACCENT_LABEL[a]}
             </button>
           ))}
+        </div>
+
+        <div className="mt-4">
+          <ToggleField
+            label="Conta como negócio ganho"
+            ativo={ganho}
+            onChange={setGanho}
+            ajuda="Use para etapas depois do fechamento (ex.: Admitido, Valor total pago). Dá para mudar depois no modal da coluna."
+          />
         </div>
 
         <div className="mt-5 flex items-center justify-end gap-2">

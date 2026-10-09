@@ -281,7 +281,13 @@ export function PipelinesTab({
       if (label !== base.label) override.label = label;
       if (row.accent !== "") override.accent = row.accent;
       if (row.order !== base.order) override.order = row.order;
-      if (row.oculta) override.oculta = true;
+      // Visibilidade grava quando difere do PADRÃO da etapa (mesma regra do
+      // salvarEtapaPipeline): slots custom e plano_escolhido nascem ocultos —
+      // sem o `oculta:false` explícito, salvar esta aba escondia "Admitido",
+      // "Valor total pago" e "Plano escolhido" (e tirava a coluna da ordem do
+      // board na regra de retrocesso).
+      const ocultaPorPadrao = base.isCustomSlot === true || base.ocultaPorPadrao === true;
+      if (row.oculta !== ocultaPorPadrao) override.oculta = row.oculta;
       if (Object.keys(override).length > 0) etapas[stage] = override;
       probabilidade[stage] = row.probabilidade;
     }

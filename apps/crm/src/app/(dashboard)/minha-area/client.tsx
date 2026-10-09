@@ -376,7 +376,7 @@ function OnboardingsSection({
         <EmptyState
           icon={Sparkles}
           title="Nenhum onboarding em andamento"
-          description="Famílias entrarão aqui quando o deal atingir admission_process."
+          description="Famílias entrarão aqui quando o deal for ganho (Sinal pago em diante)."
           className="py-8"
         />
       ) : (

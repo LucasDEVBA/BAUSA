@@ -72,3 +72,10 @@ test('billing-reminders: marca o marco também quando não há contato (não rep
     'Sem contato/contrato ativo, DEVE marcar o marco (CAS) e logar skipped_no_contact — sem loop infinito.',
   );
 });
+
+test('billing-reminders: parcela com soft delete (cronograma refeito) nunca é cobrada', () => {
+  assert.match(src, /status=in\.\(previsto,atrasado\)&deleted_at=is\.null/,
+    'a busca DEVE ignorar parcelas com deleted_at (editar contrato refaz as abertas com ids novos)');
+  assert.match(src, /\$\{column\}=is\.null&deleted_at=is\.null/,
+    'o CAS do marco DEVE exigir parcela viva');
+});

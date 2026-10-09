@@ -11,8 +11,10 @@ import {
 import { type Deal } from "@/types/deal";
 import {
   DEFAULT_DEAL_STAGE_DISPLAY,
+  getStageDisplay,
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
+import { isAcaoDeOutraEtapa } from "@/lib/proxima-acao";
 import { cn } from "@/lib/utils";
 import { ROTULO_ORIGEM_VALOR, explicarOrigemValor } from "@/lib/valor-deal";
 
@@ -80,8 +82,8 @@ export function PipelineTableView({
           bv = b.athlete_name.toLowerCase();
           break;
         case "stage":
-          av = stageConfig[a.stage].order;
-          bv = stageConfig[b.stage].order;
+          av = getStageDisplay(stageConfig, a.stage).order;
+          bv = getStageDisplay(stageConfig, b.stage).order;
           break;
         case "deal_value_brl":
           av = a.deal_value_brl;
@@ -175,9 +177,11 @@ export function PipelineTableView({
           </thead>
           <tbody>
             {sorted.map((d) => {
-              const stageCfg = stageConfig[d.stage];
+              const stageCfg = getStageDisplay(stageConfig, d.stage);
               const dEtapa = diasAtras(d.stage_updated_at) ?? 0;
-              const atraso = d.next_action_date
+              // T21: ação herdada de outra etapa não conta como atraso desta.
+              const acaoHerdada = isAcaoDeOutraEtapa(d, d.stage);
+              const atraso = d.next_action_date && !acaoHerdada
                 ? diasAtras(d.next_action_date) ?? 0
                 : null;
               const semAcao = !d.next_action;
@@ -266,7 +270,13 @@ export function PipelineTableView({
                   <td className="px-3 py-2" title={d.next_action ?? ""}>
                     {d.next_action ? (
                       <>
-                        <p className="truncate text-xs text-foreground">
+                        <p
+                          className={cn(
+                            "truncate text-xs",
+                            acaoHerdada ? "text-label-tertiary" : "text-foreground",
+                          )}
+                        >
+                          {acaoHerdada && <span className="sr-only">Ação de etapa anterior: </span>}
                           {d.next_action}
                         </p>
                         {d.next_action_date && (

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowLeft, Loader2, X } from "lucide-react";
 import { labelEtapa } from "@/lib/move-deal-result";
+import type { DealStageConfigMap } from "@/lib/etapas-deal";
 import type { StatusDeal } from "@/types/crm";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +13,8 @@ interface RetrocessoModalProps {
   fromStage: StatusDeal;
   toStage: StatusDeal;
   isPending: boolean;
+  /** Rótulos configurados pelo CEO — o modal mostra o NOME DA COLUNA (T17). */
+  stageConfig?: DealStageConfigMap;
   onCancel: () => void;
   onConfirm: (motivo: string) => void;
 }
@@ -22,6 +25,7 @@ export function RetrocessoModal({
   fromStage,
   toStage,
   isPending,
+  stageConfig,
   onCancel,
   onConfirm,
 }: RetrocessoModalProps) {
@@ -42,18 +46,23 @@ export function RetrocessoModal({
       onClick={onCancel}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="retrocesso-titulo"
         className="w-full max-w-md rounded-2xl border-sys-orange/30 liquid-glass p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
           <div className="flex items-center gap-2">
             <ArrowLeft className="h-4 w-4 text-sys-orange" />
-            <p className="text-sm font-bold text-sys-orange">
+            <p id="retrocesso-titulo" className="text-sm font-bold text-sys-orange">
               Retroceder etapa
             </p>
           </div>
           <button
+            type="button"
             onClick={onCancel}
+            aria-label="Fechar"
             className="rounded-md p-1 text-muted-foreground hover:bg-fill-4 hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -64,18 +73,23 @@ export function RetrocessoModal({
           <p className="text-xs text-muted-foreground">Atleta</p>
           <p className="mb-2 text-sm font-semibold text-foreground">{athleteName}</p>
           <p className="text-xs text-muted-foreground">
-            {labelEtapa(fromStage)}{" "}
-            <span className="text-sys-orange">{"→"}</span>{" "}
+            {labelEtapa(fromStage, stageConfig)}{" "}
+            <span className="text-sys-orange" aria-hidden>{"→"}</span>
+            <span className="sr-only"> para </span>{" "}
             <span className="font-semibold text-sys-orange">
-              {labelEtapa(toStage)}
+              {labelEtapa(toStage, stageConfig)}
             </span>
           </p>
         </div>
 
-        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <label
+          htmlFor="retrocesso-motivo"
+          className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+        >
           Motivo do retrocesso <span className="text-sys-orange">*</span>
         </label>
         <textarea
+          id="retrocesso-motivo"
           autoFocus
           value={motivo}
           onChange={(e) => setMotivo(e.target.value)}

@@ -14,6 +14,12 @@ import type {
 } from "@/types/revenue";
 import type { Family } from "@/types/family";
 import type { Deal, DealStage } from "@/types/deal";
+import { getEtapasGanho } from "@/lib/actions/configuracoes";
+import {
+  ETAPAS_GANHO_POS_SINAL_FIXAS,
+  ETAPAS_POS_PROPOSTA,
+  SLOTS_CUSTOM,
+} from "@/lib/etapas-deal";
 import { EMBED_CONTRATO_VALOR_LEVE, valorExibidoDeal } from "@/lib/valor-deal";
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -291,12 +297,19 @@ export async function fetchCommercialFunnel(): Promise<CommercialFunnelMetrics> 
     return count || 0;
   };
 
+  // Balde "Sinais pagos" = ganho já com sinal: Sinal pago, Plano escolhido e
+  // colunas personalizadas marcadas como ganho (Admitido, Valor total pago…).
+  const etapasGanho = await getEtapasGanho();
+  const sinaisPagos = etapasGanho.filter(
+    (s) => ETAPAS_GANHO_POS_SINAL_FIXAS.includes(s) || SLOTS_CUSTOM.includes(s),
+  );
+
   const [leads, reunioes, propostas, contratos, sinais, concluidos] = await Promise.all([
     countByEtapa(["contato_feito", "lead", "reuniao_marcada"]),
     countByEtapa(["reuniao_realizada", "diagnostico_fit", "alinhamento_estrategico"]),
     countByEtapa(["proposta_enviada", "followup_proposta"]),
     countByEtapa(["contrato_assinado", "contrato_enviado", "negociacao"]),
-    countByEtapa("sinal_pago"),
+    countByEtapa(sinaisPagos),
     countByEtapa("concluido"),
   ]);
 
@@ -341,11 +354,12 @@ export async function fetchRevenueAtRisk(): Promise<RevenueAtRiskMetrics> {
     .eq("etapa", "contrato_assinado")
     .is("deleted_at", null);
 
-  // Sinal pago com remanescente pendente
+  // Sinal pago com remanescente pendente (Plano escolhido é pós-sinal; as
+  // colunas personalizadas ficam de fora — "Valor total pago" não tem saldo)
   const { data: semRemanescente } = await supabase
     .from("deals")
     .select(`id, valor_estimado, flag_valores_customizados, ${EMBED_CONTRATO_VALOR_LEVE}`)
-    .in("etapa", ["sinal_pago", "admission_process"])
+    .in("etapa", ["sinal_pago", "plano_escolhido", "admission_process"])
     .is("deleted_at", null);
 
   // Parcelas atrasadas
@@ -434,20 +448,16 @@ export async function fetchConversionFunnel(): Promise<ConversionFunnelStep[]> {
     .is("deleted_at", null);
 
   const deals = data || [];
+  const ganho = new Set<string>(await getEtapasGanho());
+  const posProposta = new Set<string>(ETAPAS_POS_PROPOSTA);
+  const posReuniao = new Set<string>(["reuniao_realizada", "diagnostico_fit", "alinhamento_estrategico"]);
   const total = deals.length;
   const qualified = deals.filter((d) => d.etapa !== "perdido").length;
-  const reunioes = deals.filter((d) =>
-    ["reuniao_realizada", "diagnostico_fit", "alinhamento_estrategico", "proposta_enviada",
-     "followup_proposta", "negociacao", "contrato_enviado", "contrato_assinado",
-     "sinal_pago", "admission_process", "concluido"].includes(d.etapa)
+  const reunioes = deals.filter(
+    (d) => posReuniao.has(d.etapa) || posProposta.has(d.etapa) || ganho.has(d.etapa),
   ).length;
-  const propostas = deals.filter((d) =>
-    ["proposta_enviada", "followup_proposta", "negociacao", "contrato_enviado",
-     "contrato_assinado", "sinal_pago", "admission_process", "concluido"].includes(d.etapa)
-  ).length;
-  const contratos = deals.filter((d) =>
-    ["contrato_assinado", "sinal_pago", "admission_process", "concluido"].includes(d.etapa)
-  ).length;
+  const propostas = deals.filter((d) => posProposta.has(d.etapa) || ganho.has(d.etapa)).length;
+  const contratos = deals.filter((d) => ganho.has(d.etapa)).length;
 
   return [
     { label: "Leads Captados", value: total, fill: "#6366f1" },

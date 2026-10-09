@@ -6,10 +6,10 @@ import { PageHeader } from "@/components/ui";
 import { parseSinaisV2 } from "@/lib/classificador-v2";
 import { rotuloFaixaInvestimento } from "@/lib/faixa-investimento";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { getEtapasDealConfigOverrides, getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
+import { getConfigEtapasDeal } from "@/lib/actions/configuracoes";
 import { getUserPapel } from "@/lib/auth";
 import { listarLeadsFriosCards, listarLeadsIncompletosCards, listarLeadsPendentesCards } from "@/lib/actions/leads";
-import { mergeDealStageConfig } from "@/lib/etapas-deal";
+import { ETAPAS_POS_PROPOSTA, etapasGanho, mergeDealStageConfig } from "@/lib/etapas-deal";
 import { paginaRevisaoDe } from "@/lib/revisao-leads";
 import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 import {
@@ -38,6 +38,8 @@ interface SupabaseDealRow {
   valor_estimado: number | null;
   next_action: string | null;
   data_proxima_acao: string | null;
+  next_action_etapa: string | null;
+  next_action_manual_em: string | null;
   responsavel_id: string | null;
   created_at: string;
   updated_at: string;
@@ -48,6 +50,7 @@ interface SupabaseDealRow {
   notas_reuniao: string | null;
   contrato_assinado_at: string | null;
   sinal_pago_at: string | null;
+  sinal_pago_confirmado_por: string | null;
   pode_reativar: boolean | null;
   data_reativacao: string | null;
   projeto_futuro_ano: number | null;
@@ -149,6 +152,8 @@ function mapDealRow(row: SupabaseDealRow, prioridades: Map<string, PrioridadeLea
     stage_updated_at: row.updated_at,
     next_action: row.next_action ?? undefined,
     next_action_date: row.data_proxima_acao ?? undefined,
+    next_action_etapa: row.next_action_etapa ?? undefined,
+    next_action_manual: Boolean(row.next_action_manual_em),
     notes: row.notas_reuniao ?? undefined,
     flag_retrocedido: row.flag_retrocedido ?? undefined,
     motivo_retrocesso: row.motivo_retrocesso ?? undefined,
@@ -156,6 +161,7 @@ function mapDealRow(row: SupabaseDealRow, prioridades: Map<string, PrioridadeLea
     lost_reason_category: row.motivo_perda ?? undefined,
     contract_signed_at: row.contrato_assinado_at ?? undefined,
     signal_paid_at: row.sinal_pago_at ?? undefined,
+    signal_confirmed: Boolean(row.sinal_pago_confirmado_por),
     is_future_lead: row.pode_reativar ?? undefined,
     future_project_year: row.projeto_futuro_ano ?? undefined,
     future_reactivation_date: row.projeto_futuro_data_reativacao ?? undefined,
@@ -248,9 +254,8 @@ export default async function PipelinePage() {
   // Overrides de apresentação das etapas (CEO) em paralelo com os deals
   // Deals paginados em blocos de 1000 (max_rows do PostgREST): sem isso o
   // board cortaria em silêncio os deals menos recentes ao passar de 1000.
-  const [etapasOverrides, probabilidadePorEtapa, papel, leadsPendentes, leadsFrios, leadsIncompletos, { data: rows }] = await Promise.all([
-    getEtapasDealConfigOverrides(),
-    getProbabilidadePorEtapa(),
+  const [cfgEtapas, papel, leadsPendentes, leadsFrios, leadsIncompletos, { data: rows }] = await Promise.all([
+    getConfigEtapasDeal(),
     getUserPapel(),
     listarLeadsPendentesCards().then(paginaRevisaoDe),
     listarLeadsFriosCards().then(paginaRevisaoDe),
@@ -259,10 +264,11 @@ export default async function PipelinePage() {
     .from("deals")
     .select(`
       id, etapa, valor_estimado, next_action, data_proxima_acao,
+      next_action_etapa, next_action_manual_em,
       responsavel_id,
       created_at, updated_at, motivo_perda, detalhe_perda,
       flag_retrocedido, motivo_retrocesso, notas_reuniao,
-      contrato_assinado_at, sinal_pago_at,
+      contrato_assinado_at, sinal_pago_at, sinal_pago_confirmado_por,
       pode_reativar, data_reativacao,
       projeto_futuro_ano, projeto_futuro_data_reativacao,
       deleted_at, flag_valores_customizados, justificativa_customizacao,
@@ -296,7 +302,12 @@ export default async function PipelinePage() {
     .range(de, ate)),
   ]);
 
-  const stageConfig = mergeDealStageConfig(etapasOverrides);
+  // Apresentação + regras por coluna (ganho/pede plano/ação padrão).
+  const stageConfig = mergeDealStageConfig(cfgEtapas.overrides, cfgEtapas.regras);
+  const probabilidadePorEtapa = cfgEtapas.probabilidade;
+  // GANHO = etapas fixas (contrato assinado em diante, Plano escolhido) +
+  // colunas personalizadas marcadas pelo CEO (Admitido, Valor total pago…).
+  const etapasDeGanho = etapasGanho(stageConfig);
 
   const todasDealRows = (rows ?? []).map((row) => row as unknown as SupabaseDealRow);
 
@@ -372,10 +383,10 @@ export default async function PipelinePage() {
   const totalFinalizados = concluidos + deals.filter((d) => d.stage === "perdido").length;
   const conversionRate = totalFinalizados > 0 ? Math.round((concluidos / totalFinalizados) * 100) : 0;
 
-  // Previsao 30 dias: deals com proxima acao nos proximos 30 dias e etapa >= proposta_enviada
+  // Previsao 30 dias: etapa >= proposta_enviada (pós-proposta + ganho ativo)
   const advancedStages: DealStage[] = [
-    "proposta_enviada", "followup_proposta", "negociacao",
-    "contrato_enviado", "contrato_assinado", "sinal_pago", "admission_process",
+    ...ETAPAS_POS_PROPOSTA,
+    ...etapasDeGanho.filter((s) => s !== "concluido"),
   ];
   const forecastDeals = activeDeals.filter((d) => advancedStages.includes(d.stage));
   const forecast30dBrl = forecastDeals.reduce((sum, d) => sum + d.deal_value_brl, 0);
@@ -385,9 +396,7 @@ export default async function PipelinePage() {
   const reunioesMarcadas = deals.filter((d) => d.stage === "reuniao_marcada").length;
   const ticketMedioBrl =
     activeDeals.length > 0 ? Math.round(totalPipelineBrl / activeDeals.length) : 0;
-  const signedStages: DealStage[] = [
-    "contrato_assinado", "sinal_pago", "admission_process", "concluido",
-  ];
+  const signedStages: DealStage[] = etapasDeGanho;
   const contratosAssinados = deals.filter((d) => signedStages.includes(d.stage)).length;
   const ganhoBrl = deals
     .filter((d) => d.stage === "concluido")
