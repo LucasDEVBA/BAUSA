@@ -322,6 +322,9 @@ test('migration de dados: move o rótulo sem apagar as outras colunas', { skip: 
   assert.match(migColuna, /v_cfg := v_cfg \|\| jsonb_build_object\(/, 'merge com || (preserva as demais chaves)');
   assert.ok(!/SET valor = '\{/.test(migColuna), 'a migration não pode sobrescrever a config inteira');
   assert.match(migColuna, /'plano escolhido'/, 'gatilho da migração é negociacao rotulada "Plano escolhido"');
+  // Sem btrim, um rótulo com espaço nas pontas caía no ramo "coluna nova" e o
+  // board ficava com DUAS colunas "Plano escolhido" visíveis.
+  assert.match(migColuna, /lower\(btrim\(regexp_replace\(COALESCE\(v_neg ->> 'label'/, 'rótulo normalizado (caixa, espaços internos e nas pontas)');
   assert.match(migColuna, /jsonb_build_object\('oculta', true, 'order'/, 'negociacao volta a ser pré-venda oculta');
 });
 

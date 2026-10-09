@@ -324,8 +324,9 @@ export const DEAL_STAGE_CONFIG: Record<DealStage, DealStageConfig> = {
     order: 10,
   },
   // GANHO pós-sinal: a família escolhe Start/Journey/Legacy/Personalizado.
-  // Nasce oculta (ocultaPorPadrao) até a migration de dados 124400 levar o
-  // rótulo "Plano escolhido" de 'negociacao' para cá — ver rollout no PR.
+  // Nasce oculta (ocultaPorPadrao) até a migration de dados
+  // *_plano_escolhido_coluna_board levar o rótulo "Plano escolhido" de
+  // 'negociacao' para cá — ver rollout no PR.
   plano_escolhido: {
     id: "plano_escolhido",
     label: "Plano escolhido",
