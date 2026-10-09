@@ -42,8 +42,11 @@ import {
 import { RetrocessoModal } from "./RetrocessoModal";
 import { LossModal, type LossPayload } from "./LossModal";
 import { GanhoEscolasModal } from "./GanhoEscolasModal";
-import { PlanoEscolhidoModal } from "@/components/financeiro/contrato/PlanoEscolhidoModal";
-import { deveAbrirShortlist } from "@/lib/etapas-ordem";
+import {
+  PlanoEscolhidoModal,
+  type PlanoEscolhidoResultado,
+} from "@/components/financeiro/contrato/PlanoEscolhidoModal";
+import { deveAbrirShortlist, isRetrocessoEtapa } from "@/lib/etapas-ordem";
 import { colunaPedePlano } from "@/lib/plano-integracao";
 import { moverDeal, type StructuredLossData } from "@/lib/actions/deals";
 import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
@@ -120,6 +123,8 @@ type PendingMove = {
   fromStage: StatusDeal;
   athleteName: string;
   kind: "retrocesso" | "perdido";
+  /** Destino pede o plano (T10): a justificativa vem ANTES do modal do plano. */
+  pedirPlanoDepois?: boolean;
 };
 
 type GanhoPendente = { atletaId: string; athleteName: string };
@@ -130,6 +135,8 @@ type PlanoPendente = {
   novaEtapa: StatusDeal;
   fromStage: DealStage;
   athleteName: string;
+  /** Justificativa do retrocesso já coletada (arraste para trás). */
+  motivo?: string;
 };
 
 function applyFilters(
@@ -598,6 +605,19 @@ export function PipelineBoard({
     // escolher / manter ou alterar) ANTES de mover. Sem update otimista:
     // cancelar deixa o card onde estava.
     if (colunaPedePlano(stageConfig[newStage])) {
+      // Para trás: a justificativa vem PRIMEIRO (como no editor lateral) —
+      // senão o plano era gravado e, ao cancelar o motivo, o card não movia.
+      if (isRetrocessoEtapa(deal.stage, newStage, stageConfig)) {
+        setPendingMove({
+          dealId,
+          novaEtapa: newStage as StatusDeal,
+          fromStage: deal.stage as StatusDeal,
+          athleteName: deal.athlete_name,
+          kind: "retrocesso",
+          pedirPlanoDepois: true,
+        });
+        return;
+      }
       setPlanoPendente({
         dealId,
         novaEtapa: newStage as StatusDeal,
@@ -610,10 +630,19 @@ export function PipelineBoard({
     performMove(dealId, newStage as StatusDeal, deal.stage);
   };
 
-  const concluirPlanoPendente = () => {
+  const concluirPlanoPendente = (resultado: PlanoEscolhidoResultado) => {
     const pendente = planoPendente;
     setPlanoPendente(null);
-    if (pendente) performMove(pendente.dealId, pendente.novaEtapa, pendente.fromStage);
+    if (!pendente) return;
+    // O sinal confirmado agora já levou o deal a "Sinal pago" no servidor: é
+    // para lá que o card volta se o move falhar.
+    const origemReal: DealStage = resultado.movidoParaSinalPago ? "sinal_pago" : pendente.fromStage;
+    performMove(
+      pendente.dealId,
+      pendente.novaEtapa,
+      origemReal,
+      pendente.motivo !== undefined ? { motivo: pendente.motivo } : undefined,
+    );
   };
 
   return (
@@ -774,6 +803,16 @@ export function PipelineBoard({
           const previousStage = pendingMove.fromStage as DealStage;
           const move = pendingMove;
           setPendingMove(null);
+          if (move.pedirPlanoDepois) {
+            setPlanoPendente({
+              dealId: move.dealId,
+              novaEtapa: move.novaEtapa,
+              fromStage: previousStage,
+              athleteName: move.athleteName,
+              motivo,
+            });
+            return;
+          }
           performMove(move.dealId, move.novaEtapa, previousStage, { motivo });
         }}
       />

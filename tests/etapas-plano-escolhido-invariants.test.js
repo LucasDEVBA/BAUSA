@@ -241,7 +241,7 @@ test('ganho: chatbot autônomo escala plano_escolhido, colunas de ganho e etapa 
 
 test('ganho: automation-engine não dispara "deal parado" em ganho (fail-closed)', () => {
   const lista = fatia(engineSrc, 'const ETAPAS_FORA_DEAL_PARADO = [', '];');
-  for (const e of ['concluido', 'perdido', 'aguardando_timing', 'sinal_pago', 'plano_escolhido']) {
+  for (const e of ['concluido', 'perdido', 'aguardando_timing', 'sinal_pago', 'plano_escolhido', 'admission_process']) {
     assert.match(lista, new RegExp(`'${e}'`), `${e} voltou a ser elegível a "deal parado"`);
   }
   const fn = fatia(engineSrc, 'const colunasGanhoCustom = async', '};');

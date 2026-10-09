@@ -323,12 +323,13 @@ const isoWeekBucket = (brt) => {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 };
 
-// "Deal parado" nunca dispara em etapas finais, estacionadas ou de GANHO
-// (família que já pagou não recebe cadência de venda). Plano escolhido é
-// ganho pós-sinal (2026-10, T2).
+// "Deal parado" nunca dispara em etapas finais, estacionadas ou de ganho
+// PÓS-SINAL (família que já pagou não recebe cadência de venda): sinal_pago,
+// plano_escolhido (2026-10, T2) e admission_process. contrato_assinado é
+// ganho mas o sinal pode estar pendente — cobrar o sinal é cadência legítima.
 const ETAPAS_FORA_DEAL_PARADO = [
   'concluido', 'perdido', 'cancelamento_solicitado', 'projeto_futuro',
-  'aguardando_timing', 'sinal_pago', 'plano_escolhido',
+  'aguardando_timing', 'sinal_pago', 'plano_escolhido', 'admission_process',
 ];
 const SLOTS_CUSTOM = ['custom_1', 'custom_2', 'custom_3', 'custom_4', 'custom_5', 'custom_6'];
 
