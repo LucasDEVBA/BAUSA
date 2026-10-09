@@ -303,12 +303,20 @@ export async function fetchCommercialFunnel(): Promise<CommercialFunnelMetrics> 
   const sinaisPagos = etapasGanho.filter(
     (s) => ETAPAS_GANHO_POS_SINAL_FIXAS.includes(s) || SLOTS_CUSTOM.includes(s),
   );
+  // "Contratos assinados" (card + meta Contratos/Mês) — T20: no processo do
+  // CEO o contrato é assinado ANTES do sinal, então conta TODO deal de
+  // Contrato assinado em diante = as etapas de GANHO (fixas + colunas
+  // marcadas). Contém "Sinais pagos" e "Concluídos" (funil coerente, mesma
+  // regra do /pipeline, do funil de conversão e do aviso "conta em Contratos
+  // assinados" da coluna marcada como ganho). Nunca contrato_enviado (ainda
+  // não assinado) nem negociacao (pré-venda oculta) — nenhuma das duas é ganho.
+  const contratosAssinados: DealStage[] = etapasGanho;
 
   const [leads, reunioes, propostas, contratos, sinais, concluidos] = await Promise.all([
     countByEtapa(["contato_feito", "lead", "reuniao_marcada"]),
     countByEtapa(["reuniao_realizada", "diagnostico_fit", "alinhamento_estrategico"]),
     countByEtapa(["proposta_enviada", "followup_proposta"]),
-    countByEtapa(["contrato_assinado", "contrato_enviado", "negociacao"]),
+    countByEtapa(contratosAssinados),
     countByEtapa(sinaisPagos),
     countByEtapa("concluido"),
   ]);

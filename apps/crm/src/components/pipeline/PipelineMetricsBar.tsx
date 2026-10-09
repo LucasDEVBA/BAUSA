@@ -29,7 +29,11 @@ export interface PipelineMetrics {
   ganhoBrl: number;
   perdidos: number;
   leadsNovos: number;
+  /** Deals ativos com ação DA ETAPA ATUAL (ou manual) vencida — a herdada de
+   *  etapa anterior não conta (T21, mesma regra do card). */
   acoesAtrasadas: number;
+  /** Vencidas herdadas de etapa anterior, fora do contador (transparência). */
+  acoesHerdadasVencidas?: number;
   /** Ativos cujo valor ainda é ESTIMATIVA da faixa (sem contrato/negociação) —
    *  transparência do total (T3). Opcional: ausente = sem hint. */
   ativosComValorEstimado?: number;
@@ -106,6 +110,11 @@ export function PipelineMetricsBar({ metrics }: { metrics: PipelineMetrics }) {
     });
   };
 
+  const herdadas = metrics.acoesHerdadasVencidas ?? 0;
+  const hintHerdadas =
+    herdadas > 0
+      ? `Só da etapa atual · ${herdadas} de etapa anterior fora da conta`
+      : "Só ações da etapa atual";
   const estimados = metrics.ativosComValorEstimado ?? 0;
   const hintEstimados =
     estimados > 0 ? `${estimados} de ${metrics.activeCount} por estimativa da faixa` : undefined;
@@ -126,6 +135,7 @@ export function PipelineMetricsBar({ metrics }: { metrics: PipelineMetrics }) {
       label: "Ações atrasadas",
       value: String(metrics.acoesAtrasadas),
       tone: metrics.acoesAtrasadas > 0 ? "red" : "muted",
+      hint: hintHerdadas,
     },
   ];
 

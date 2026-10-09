@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { toast } from "sonner";
 
 import { obterLeadDossie } from "@/lib/actions/leads-busca";
+import { type DealStageConfigMap } from "@/lib/etapas-deal";
 import { type Lead } from "@/types/lead";
 
 // Só no navegador: o dossiê formata datas no fuso de quem vê e usa Date.now().
@@ -78,13 +79,26 @@ export function useDossieLead(leadInicial: Lead | null = null) {
 export function DossieLeadView({
   estado,
   onClose,
+  stageConfig,
+  podeEditarValor,
 }: {
   estado: EstadoDossie;
   onClose: () => void;
+  /** Config MESCLADA das colunas (a do board) — o dossiê abre o editor do deal. */
+  stageConfig: DealStageConfigMap;
+  podeEditarValor?: boolean;
 }) {
   if (estado.status === "fechado") return null;
   if (estado.status === "aberto") {
-    return <LeadOrDealSheet key={estado.lead.id} lead={estado.lead} onClose={onClose} />;
+    return (
+      <LeadOrDealSheet
+        key={estado.lead.id}
+        lead={estado.lead}
+        onClose={onClose}
+        stageConfig={stageConfig}
+        podeEditarValor={podeEditarValor}
+      />
+    );
   }
   return <AbrindoDossie onClose={onClose} />;
 }

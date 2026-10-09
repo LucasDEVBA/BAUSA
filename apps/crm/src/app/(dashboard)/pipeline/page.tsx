@@ -10,6 +10,7 @@ import { getConfigEtapasDeal } from "@/lib/actions/configuracoes";
 import { getUserPapel } from "@/lib/auth";
 import { listarLeadsFriosCards, listarLeadsIncompletosCards, listarLeadsPendentesCards } from "@/lib/actions/leads";
 import { ETAPAS_POS_PROPOSTA, etapasGanho, mergeDealStageConfig } from "@/lib/etapas-deal";
+import { hojeIsoUtc, isAcaoAtrasadaDaEtapa, isAcaoDeOutraEtapa } from "@/lib/proxima-acao";
 import { paginaRevisaoDe } from "@/lib/revisao-leads";
 import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
 import {
@@ -407,7 +408,6 @@ export default async function PipelinePage() {
   const forecast30dBrl = forecastDeals.reduce((sum, d) => sum + d.deal_value_brl, 0);
 
   // Metricas adicionais (mesma fonte de dados — somente leitura)
-  const now = Date.now();
   const reunioesMarcadas = deals.filter((d) => d.stage === "reuniao_marcada").length;
   const ticketMedioBrl =
     activeDeals.length > 0 ? Math.round(totalPipelineBrl / activeDeals.length) : 0;
@@ -418,8 +418,13 @@ export default async function PipelinePage() {
     .reduce((sum, d) => sum + d.deal_value_brl, 0);
   const perdidos = deals.filter((d) => d.stage === "perdido").length;
   const leadsNovos = deals.filter((d) => d.stage === "lead").length;
-  const acoesAtrasadas = activeDeals.filter(
-    (d) => d.next_action_date && new Date(d.next_action_date).getTime() < now,
+  // T21: só ação da etapa ATUAL (ou manual) vencida — a herdada de etapa
+  // anterior não é atraso desta coluna (mesma regra do card/Visão Executiva).
+  const hoje = hojeIsoUtc();
+  const acoesAtrasadas = activeDeals.filter((d) => isAcaoAtrasadaDaEtapa(d, d.stage, hoje)).length;
+  // Transparência do contador: vencidas que ficaram de fora por serem herdadas.
+  const acoesHerdadasVencidas = activeDeals.filter(
+    (d) => Boolean(d.next_action_date && d.next_action_date.slice(0, 10) < hoje) && isAcaoDeOutraEtapa(d, d.stage),
   ).length;
   // Transparência do total: quantos ativos ainda somam ESTIMATIVA da faixa
   const ativosComValorEstimado = activeDeals.filter((d) => d.valor_origem === "estimado").length;
@@ -447,6 +452,7 @@ export default async function PipelinePage() {
           perdidos,
           leadsNovos,
           acoesAtrasadas,
+          acoesHerdadasVencidas,
           ativosComValorEstimado,
         }}
       />

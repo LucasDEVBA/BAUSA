@@ -13,7 +13,9 @@ export interface CommercialFunnelMetrics {
   leads_qualified: number;
   meetings_done: number;
   proposals_sent: number;
+  /** Contrato assinado EM DIANTE (etapas de ganho: inclui sinais e concluídos). */
   contracts_signed: number;
+  /** Ganho já com sinal (Sinal pago, Plano escolhido, colunas de ganho) — ⊂ contracts_signed. */
   signals_paid: number;
   auto_conversions: number;
 }

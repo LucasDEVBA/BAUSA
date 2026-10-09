@@ -30,7 +30,10 @@ export function CommercialFunnelSection({ data }: CommercialFunnelSectionProps) 
   return (
     <div className="rounded-2xl glass-card p-4">
       <h3 className="text-sm font-semibold text-foreground">Funil Comercial</h3>
-      <p className="mt-0.5 text-xs text-muted-foreground">Performance por etapa do processo de vendas</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        Performance por etapa do processo de vendas · Contratos assinados conta do contrato assinado em diante
+        (inclui sinais pagos e concluídos)
+      </p>
 
       <div className="mt-5 flex items-center gap-1 overflow-x-auto pb-2">
         {steps.map((step, idx) => (

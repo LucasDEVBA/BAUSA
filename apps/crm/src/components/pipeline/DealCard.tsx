@@ -12,7 +12,7 @@ import {
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
 import { labelEtapa } from "@/lib/move-deal-result";
-import { etapaDaAcao, isAcaoDeOutraEtapa } from "@/lib/proxima-acao";
+import { etapaDaAcao, hojeIsoUtc, isAcaoAtrasadaDaEtapa, isAcaoDeOutraEtapa } from "@/lib/proxima-acao";
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
@@ -148,13 +148,11 @@ export function DealCard({
   // Com o sinal antes do plano, ele já é o texto principal da linha do valor.
   const sinalNoValor = sinalPagoAntesDoPlano(deal) !== null;
 
-  const today = new Date().toISOString().split("T")[0];
   // T21: ação herdada de outra etapa (ex.: "Preparar para reunião" num deal
   // em Sinal pago) não é "atraso" desta coluna — fica neutra, sem vermelho.
   const acaoHerdada = isAcaoDeOutraEtapa(deal, deal.stage);
   const origemAcao = acaoHerdada ? etapaDaAcao(deal) : null;
-  const isOverdue =
-    !acaoHerdada && Boolean(deal.next_action_date && deal.next_action_date < today);
+  const isOverdue = isAcaoAtrasadaDaEtapa(deal, deal.stage, hojeIsoUtc());
 
   const isUnconfigured =
     !deal.next_action?.trim() || !deal.next_action_date;

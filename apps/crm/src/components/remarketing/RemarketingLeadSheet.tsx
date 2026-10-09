@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 
 import { type Deal } from "@/types/deal";
+import { type DealStageConfigMap } from "@/lib/etapas-deal";
 import { DealDetailSheet } from "@/components/pipeline/DealDetailSheet";
 import { fetchDeal } from "@/lib/deal-fetch";
 
@@ -21,9 +22,12 @@ import { fetchDeal } from "@/lib/deal-fetch";
 interface RemarketingLeadSheetProps {
   dealId: string | null;
   onClose: () => void;
+  /** Config MESCLADA das colunas — a MESMA do board. Obrigatória: sem ela o
+   *  editor oferecia slot oculto/sem nome e tirava o deal das métricas de ganho. */
+  stageConfig: DealStageConfigMap;
 }
 
-export function RemarketingLeadSheet({ dealId, onClose }: RemarketingLeadSheetProps) {
+export function RemarketingLeadSheet({ dealId, onClose, stageConfig }: RemarketingLeadSheetProps) {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [erro, setErro] = useState(false);
   const [versao, setVersao] = useState(0);
@@ -53,6 +57,7 @@ export function RemarketingLeadSheet({ dealId, onClose }: RemarketingLeadSheetPr
         key={deal.id}
         deal={deal}
         onClose={onClose}
+        stageConfig={stageConfig}
         onDealAtualizado={() => setVersao((v) => v + 1)}
       />
     );

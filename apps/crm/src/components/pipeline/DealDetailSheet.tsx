@@ -35,11 +35,7 @@ import {
   Shield,
 } from "lucide-react";
 import { type Deal, PIPELINE_STAGE_ORDER, type DealStage } from "@/types/deal";
-import {
-  DEFAULT_DEAL_STAGE_DISPLAY,
-  getStageDisplay,
-  type DealStageConfigMap,
-} from "@/lib/etapas-deal";
+import { getStageDisplay, type DealStageConfigMap } from "@/lib/etapas-deal";
 import { atualizarDeal, moverDeal, type StructuredLossData } from "@/lib/actions/deals";
 import { CustomizarValorModal } from "./CustomizarValorModal";
 import { ROTULO_ORIGEM_VALOR, explicarOrigemValor, formatarValorDeal } from "@/lib/valor-deal";
@@ -68,10 +64,12 @@ import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 interface DealDetailSheetProps {
   deal: Deal | null;
   onClose: () => void;
-  /** Config das etapas (rótulos/cores/ordem do board/regras) — default estático.
-   *  Avançar/Retroceder seguem a ORDEM DO BOARD; o servidor (moverDeal) decide
-   *  retrocesso pela mesma regra. */
-  stageConfig?: DealStageConfigMap;
+  /** Config MESCLADA das colunas (overrides + regras) — a MESMA do board.
+   *  OBRIGATÓRIA: com o default estático, fora do board o editor mostrava
+   *  "Coluna personalizada 2", avançava para slot oculto e pulava "Plano
+   *  escolhido". Avançar/Retroceder seguem a ORDEM DO BOARD (só colunas
+   *  visíveis); o servidor (moverDeal) decide retrocesso pela mesma regra. */
+  stageConfig: DealStageConfigMap;
   /** Chamado após salvar o valor: quem busca o deal no cliente (/remarketing,
    *  /leads) não é repintado pelo router.refresh e precisa rebuscar. */
   onDealAtualizado?: () => void;
@@ -534,7 +532,7 @@ function AuditTrailSection({ dealId, atletaId }: { dealId: string; atletaId?: st
 export function DealDetailSheet({
   deal,
   onClose,
-  stageConfig: stageConfigMap = DEFAULT_DEAL_STAGE_DISPLAY,
+  stageConfig: stageConfigMap,
   onDealAtualizado,
 }: DealDetailSheetProps) {
   const router = useRouter();
@@ -591,9 +589,9 @@ export function DealDetailSheet({
   if (!deal) return null;
 
   const stageConfig = getStageDisplay(stageConfigMap, deal.stage);
-  // Progressão pela ORDEM DO BOARD (colunas visíveis, como o CEO arrumou) —
-  // a mesma escala que moverDeal/trigger usam para decidir retrocesso. Etapa
-  // atual oculta → ordem estática (comportamento antigo).
+  // Progressão pela ORDEM DO BOARD (só colunas visíveis, como o CEO arrumou)
+  // — a mesma escala que moverDeal/trigger usam para decidir retrocesso.
+  // Etapa atual oculta conta na posição em que o board a desenha.
   const nextStage = proximaColunaBoard(deal.stage, stageConfigMap);
   // Só para o lembrete das notas da reunião (posição de negócio estática).
   const currentIdx = PIPELINE_STAGE_ORDER.indexOf(deal.stage);
