@@ -8,8 +8,7 @@
 //   1. Front (Zod)            apps/web/src/lib/forms/nascimento.ts
 //   2. Classificador (alerta) functions/qualify-lead/index.js
 //   3. Banco (envio direto)   supabase/migrations/*_form_submissions_validar_nascimento.sql
-//      → travado em tests/nascimento-banco-paridade.test.js (vai no PR 2,
-//        junto com a migration; este arquivo vai no PR 1 com o front e a CF).
+//      → travado em tests/nascimento-banco-paridade.test.js (banco × front).
 // Se o classificador divergir do front, volta o INVALIDO por idade.
 // Também trava: mensagens do front traduzidas em en/es e o input com min/max.
 // ════════════════════════════════════════════════════════════════════════

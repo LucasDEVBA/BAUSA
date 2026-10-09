@@ -114,9 +114,9 @@ export function deveAbrirShortlist(
 
 /**
  * Etapa nova que ainda nasce oculta (plano_escolhido até a migration de dados
- * 124400) nunca é oferecida como destino pelo caminho de fallback: gravar um
- * deal nela antes do vai-pra-prod derruba o board/tabela do Engine antigo
- * (banco único — o UAT grava em produção).
+ * *_plano_escolhido_coluna_board) nunca é oferecida como destino pelo caminho
+ * de fallback: gravar um deal nela antes do vai-pra-prod derruba o
+ * board/tabela do Engine antigo (banco único — o UAT grava em produção).
  */
 function ocultaPorPadraoAinda(s: DealStage, config: DealStageConfigMap): boolean {
   return DEAL_STAGE_CONFIG[s].ocultaPorPadrao === true && config[s].oculta;

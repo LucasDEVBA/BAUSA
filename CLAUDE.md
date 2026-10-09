@@ -345,9 +345,18 @@ adversarial na faixa do meio. Guard: `tests/qualificacao-v2-invariants.test.js`.
   inventada).
 - **Idade incoerente com a série (T23) é ALERTA, nunca INVALIDO:** o modelo
   recebe `idade_atleta: não informado` e o código grava o `sinal_alerta`.
-  Tabela série → idade em 3 lugares travados por guard
-  (`tests/nascimento-serie-paridade.test.js`): formulário, `qualify-lead` e
-  (PR-09) banco.
+  Tabela série → idade em 3 lugares travados por guard: formulário,
+  `qualify-lead` (`tests/nascimento-serie-paridade.test.js`) e banco
+  (`tests/nascimento-banco-paridade.test.js`).
+- **Trava de nascimento no banco (T23, migration
+  `*_form_submissions_validar_nascimento.sql`):** trigger
+  `fs_validar_nascimento_anon_trg` **só no INSERT do role `anon`** (o
+  formulário) em public/uat/dev, com a função `public.fs_motivo_nascimento_invalido`
+  (folga de 1 ano e referência = amanhã em BRT → nunca mais estrita que o
+  front); recusa com `23514` e a mesma mensagem PT do front. CFs
+  (service_role) e Engine (authenticated) nunca são travados por dado legado;
+  falha interna da validação aceita o envio com WARNING. A edge function
+  legada `form-handler` valida pela MESMA função (RPC).
 - **Requalificação em massa**: `retry-qualification` modo
   `{mode:'requalify', cutoff:ISO, limit}` — cursor por `qualified_at`,
   retomável; decisão humana (aprovado/reprovado) NUNCA sobrescrita.
@@ -589,6 +598,11 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 > `*_plano_escolhido_ordem_board_retrocesso`, `*_deals_next_action_meta`).**
 > - Enum `status_deal` ganhou **`plano_escolhido`** (entre `sinal_pago` e `admission_process`).
 >   Retrocesso = regra única `etapa_e_retrocesso` (SQL) ⇄ `lib/etapas-ordem.ts` (TS).
+> - A coluna **"Plano escolhido"** do board é a etapa `plano_escolhido` desde a migration de dados
+>   `*_plano_escolhido_coluna_board` (só pôde entrar DEPOIS do código acima em produção); antes era
+>   um rótulo sobre `negociacao`, que voltou a ser pré-venda **oculta**. Nunca rotular `negociacao`
+>   de novo como "Plano escolhido": o deal que já pagou o sinal volta a contar como pré-venda
+>   ("Negociação parada", remarketing "proposta sem resposta", probabilidade de negociação).
 > - **Comportamento por coluna** mora na chave **`etapas_deal_regras`** (upsert), NUNCA em
 >   `etapas_deal_config` (o código antigo a regrava): `ganho` (só `custom_*`; conta como negócio
 >   ganho em métricas/War Room/remarketing/chatbot), `pede_plano` (soltar o card abre
