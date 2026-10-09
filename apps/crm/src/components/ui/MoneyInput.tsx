@@ -31,7 +31,7 @@ export interface MoneyInputProps
 }
 
 export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function MoneyInput(
-  { value, onValueChange, erro, ajuda, label, id, className, onBlur, onFocus, disabled, ...props },
+  { value, onValueChange, erro, ajuda, label, id, className, onBlur, onFocus, disabled, placeholder = "0,00", ...props },
   ref,
 ) {
   const gerado = useId();
@@ -69,12 +69,15 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
           type="text"
           inputMode="decimal"
           autoComplete="off"
+          placeholder={placeholder}
           disabled={disabled}
           aria-invalid={Boolean(erro || invalido) || undefined}
           aria-describedby={describedBy}
           value={texto}
           onFocus={(e) => {
-            setRascunho(texto);
+            // Zero começa vazio: com "0,00" no campo, digitar 7800 colava no
+            // fim ("0,007800"), o parse recusava e a entrada voltava vazia.
+            setRascunho(value === 0 ? "" : texto);
             onFocus?.(e);
           }}
           onChange={(e) => {
