@@ -554,10 +554,13 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | `enderecos` | Endereços (BR + internacional) | pais, cep, cidade, estado |
 | `atletas` | Leads CRM com score automático (0-100) + qualificação Gemini separada | lead_score, lead_classificacao, form_submission_id |
 | | ↳ Campos Gemini: `qualificado_gemini`, `classificacao_gemini`, `motivo_gemini` | |
-| `deals` | Pipeline com 16 etapas + dados de reunião | etapa, next_action, data_proxima_acao, motivo_perda |
+| `deals` | Pipeline com 17 etapas (+ `custom_1..6`) + dados de reunião | etapa, next_action, data_proxima_acao, motivo_perda |
 | | ↳ Campos reunião: `reuniao_agendada_at`, `reuniao_link`, `reuniao_data` | |
-| `contratos_financeiros` | Contratos (1:1 com deal) | plano, valor_total, saldo_remanescente (GENERATED) |
-| `parcelas` | Parcelas de pagamento | vencimento, status, metodo |
+| | ↳ Próxima ação (T21): `next_action_etapa` (etapa em que a ação foi gravada), `next_action_manual_em` (CEO escreveu à mão) — mantidos pelo trigger `trg_deals_next_action_meta` | |
+| `contratos_financeiros` | Contratos (1:1 com deal, UNIQUE(deal_id) **completa**) | plano (**NULL = aguardando plano**), valor_total, `valor_base_plano`, `sinal_abatido`, `plano_definido_at`, saldo_remanescente (GENERATED) |
+| `parcelas` | Parcelas de pagamento | vencimento, status, metodo (pix/getnet/transferencia/boleto/cartao/dinheiro/outro), `parcelas_cartao`, `observacao` |
+| `contrato_itens` | Condições negociadas por aluno (T18a): serviço (+), desconto (−), ajuste (±) | compõem o `valor_total`; escrita só pela RPC `fin_salvar_condicoes` |
+| `contrato_eventos` | Histórico financeiro legível (append-only) | tipo, justificativa, autor — gravado pelas RPCs `fin_*` |
 | `crm_experiencia` | Experiência pós-venda (1:1 com atleta) | temperatura (auto), ansiedade, satisfacao |
 | `contatos_experiencia` | Timeline de contatos família | tipo, resumo, proximo_contato |
 | `escolas` | Banco de **high schools** USA (40+ campos; tipo boarding/day/mista — nunca vocabulário de universidade) | `perfil` (opcional, preenchido por pessoa), temperatura_relacionamento; histórico real na view `escolas_historico_bausa` (as colunas `total_*`/`bolsa_media_obtida` são legado não alimentado) |
@@ -582,6 +585,35 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 > o CEO pediu explicitamente controle de "quando eu quiser, chat/grupo específico
 > ou global". Nunca "simplifique" removendo uma das duas.
 
+> ⚠️ **Etapas e colunas do pipeline (T2/T10/T20/T21, migrations `*_status_deal_plano_escolhido`,
+> `*_plano_escolhido_ordem_board_retrocesso`, `*_deals_next_action_meta`).**
+> - Enum `status_deal` ganhou **`plano_escolhido`** (entre `sinal_pago` e `admission_process`).
+>   Retrocesso = regra única `etapa_e_retrocesso` (SQL) ⇄ `lib/etapas-ordem.ts` (TS).
+> - **Comportamento por coluna** mora na chave **`etapas_deal_regras`** (upsert), NUNCA em
+>   `etapas_deal_config` (o código antigo a regrava): `ganho` (só `custom_*`; conta como negócio
+>   ganho em métricas/War Room/remarketing/chatbot), `pede_plano` (soltar o card abre
+>   "Escolher plano"; Cancelar não move), `acao_padrao` (`{texto, dias}`). Leitura:
+>   `getConfigEtapasDeal()` → `{ overrides, regras, probabilidade, lida }`; `lida === false` →
+>   o financeiro NÃO move o deal; remarketing/automation-engine fail-closed; métricas fail-open.
+> - Rótulo de etapa em qualquer mensagem: `getRotulosEtapas()` (server) / `labelEtapa(etapa, stageConfig)` (client).
+
+> ⚠️ **Contrato financeiro (T5/T6/T9/T10/T11/T18, migrations `*_financeiro_contrato_flexivel` e `*_financeiro_rpcs`).**
+> - **Escrita só pelas RPCs `fin_*`** (via `lib/actions/financeiro-contrato.ts` → `lib/financeiro/rpc.ts`).
+>   Nunca UPDATE/INSERT direto em `contratos_financeiros`/`parcelas`/`contrato_itens`.
+> - **Contrato "aguardando plano"** (T11): sinal registrado antes do plano = linha com `plano IS NULL`,
+>   `valor_total = Σ sinais`, parcela de **entrada RECEBIDA** na data real (entra no caixa/DRE). NÃO é
+>   "contratado" no resolver do valor (`lib/valor-deal.ts`); o card mostra "Sinal R$ X pago · total a
+>   definir". Escolher o plano (T10) altera a MESMA linha. Prova de sinal = `sinal_pago_confirmado_por`,
+>   nunca `sinal_pago_at` (o arraste preenche).
+> - `entrada_paga` é recalculado pela RPC só quando TODAS as entradas estão recebidas; a etapa do deal
+>   só AVANÇA para Sinal pago (`deveMoverParaSinalPago` + config mesclada) — quitar nunca move.
+> - Refazer cronograma = soft delete só das abertas + ids novos (a régua não herda marcos); recebidas
+>   nunca mudam. Valor fora da tabela / itens / sinal à parte exigem justificativa (Regra 3).
+> - Preço de tabela = `configuracoes_sistema.planos` (fallback `PLANO_VALORES`); catálogo de serviços =
+>   `servicos_adicionais` (editável em Configurações → Parâmetros). Custo interno por aluno =
+>   `despesas.contrato_id` (já no DRE) → "Margem direta" no /financeiro.
+> - Ticket médio, mix de planos e Top 5 ignoram contrato só com sinal (`.not("plano","is",null)`).
+
 ### Funções SQL Críticas
 
 | Função | Propósito |
@@ -591,7 +623,10 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 | `sugerir_escolas(atleta_id, limite)` | Top N escolas por score |
 | `familias_em_alerta_inatividade()` | Famílias excedendo threshold por fase |
 | `trg_experiencia_temperatura()` | Auto-calcula verde/amarelo/vermelho |
-| `trg_deals_check_etapa()` | Detecta retrocesso + seta timestamps |
+| `trg_deals_check_etapa()` | Detecta retrocesso (via `etapa_e_retrocesso`) + seta timestamps |
+| `etapa_e_retrocesso(de, para, cfg)` | Regra ÚNICA de retrocesso (espelho TS: `lib/etapas-ordem.ts`, paridade travada por guard): as duas etapas visíveis com ordem → ordem do board; senão ordem fixa (`ordem_etapa_fixa`) nas duas |
+| `trg_deals_next_action_meta()` | Aplica a ação padrão da coluna (`etapas_deal_regras.<etapa>.acao_padrao`) ao mudar de etapa — nunca sobre ação manual, nunca esvazia |
+| `fin_*` (23 funções, migration `*_financeiro_rpcs`) | **Toda escrita de dinheiro** (criar contrato, registrar sinal, escolher plano/condições, baixa, estorno, editar parcela, quitar, descartar): lock + CAS (`fin_versao_contrato`) + soma ao centavo + autor + justificativa, na MESMA transação. REVOKE de anon/PUBLIC; helpers exigem CEO (`fin_exigir_ceo`) |
 | `audit.log_change()` | Trigger genérico de auditoria (54 triggers). Desde `20261008170100` registra o usuário do JWT da própria requisição (fallback `auth.uid()`, só se existir em `auth.users`); service role/cron = NULL ("sistema") |
 
 ### Páginas CRM (14 rotas)
@@ -689,6 +724,12 @@ no vai-pra-prod**. Sequência OBRIGATÓRIA para rearmar (fora de ordem = alerta 
 `public.configuracoes_sistema` chave `meta_sync_last_tick_at`) → 5. SÓ ENTÃO remover `meta_frescor`
 de `monitor_checks_desativados`. Remover antes do passo 4 = se o heartbeat não estiver gravando,
 o check fica "pulado" para sempre (cobertura zero achando que armou).
+
+### ⚠️ Régua de cobrança (billing-reminders) PAUSADA até limpar os contratos
+Manter o job pausado até, nesta ordem e só com autorização do CEO: `scripts/sql/pendentes-ceo/financeiro/03`
+(descarta o contrato de teste "Lucas Leo") → `02` (corrige a Amanda pelas RPCs) → `04` (prévia do que a régua
+mandaria — tem de sair limpa). `01` (backfill de `entrada_paga`) só se o `02` não rodar. Os scripts terminam em
+`ROLLBACK`; trocar por `COMMIT` só com "pode aplicar". Retomar a régua = decisão do CEO.
 
 ### Configuração manual (pós-código)
 - [x] GitHub Environments `prd`/`uat` com **branch policy** (2026-05-18): `prd` só aceita deploy de `main`, `uat` só de `develop`. Decisão consciente: **sem required reviewers** (repo solo — gate manual atrapalha hotfix; controle de qualidade fica no CI + review de PR + UAT). Revisar se o time crescer (revisor ≠ autor).
