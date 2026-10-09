@@ -125,7 +125,9 @@ async function fetchTicketMedio(): Promise<number> {
   const { data } = await supabase
     .from("contratos_financeiros")
     .select("valor_total")
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // Só o sinal (aguardando plano) derrubaria o ticket médio.
+    .not("plano", "is", null);
   const valores = (data ?? []).map((c) => Number(c.valor_total)).filter((v) => v > 0);
   if (valores.length === 0) return TICKET_MEDIO_FALLBACK;
   return Math.round(valores.reduce((s, v) => s + v, 0) / valores.length);

@@ -1,24 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition, type RefObject } from "react";
+import { useEffect, useRef, useState, useTransition, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { BadgeDollarSign, Check, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui";
+import { Button, MoneyInput } from "@/components/ui";
 import { customizarValorDeal } from "@/lib/actions/deals";
+import { listarCatalogoServicos } from "@/lib/actions/financeiro-contrato";
+import { deCentavos, formatarMoeda, paraCentavos } from "@/lib/financeiro/calculo.mjs";
 import { JUSTIFICATIVA_VALOR_MAX, ROTULO_ORIGEM_VALOR, VALOR_DEAL_MAXIMO } from "@/lib/valor-deal";
 import { cn } from "@/lib/utils";
 import { type OrigemValorDeal } from "@/types/deal";
 
 /**
  * Modal de customização do valor do deal (pedido do CEO, 2026-09-11 —
- * substitui o editor inline do sheet lateral). Máscara BRL no campo,
- * serviços adicionais clicáveis que somam ao valor, delta visível e
- * justificativa obrigatória (Regra 3 — audit trail no deal).
+ * substitui o editor inline do sheet lateral). Dinheiro com centavos pelo
+ * MoneyInput (T6), serviços adicionais do catálogo editável (T18a) que somam
+ * ao valor, delta visível e justificativa obrigatória (Regra 3 — audit trail
+ * no deal).
  */
 
+/** Fallback enquanto o catálogo (configuracoes_sistema.servicos_adicionais)
+ *  carrega ou se vier vazio/falhar — mesmos itens do seed da migration. */
 export const SERVICOS_AVULSOS = [
   { nome: "Preparação TOEFL", valor: 2500 },
   { nome: "Aula particular inglês (3 meses)", valor: 3600 },
@@ -26,13 +31,41 @@ export const SERVICOS_AVULSOS = [
   { nome: "Tradução juramentada", valor: 800 },
 ] as const;
 
-const fmtBRL = (v: number) => `R$ ${v.toLocaleString("pt-BR")}`;
+interface ServicoOpcao {
+  /** chave do catálogo (ou o nome, no fallback) — identifica o botão marcado. */
+  id: string;
+  nome: string;
+  valor: number;
+}
 
-/** Máscara BRL em reais inteiros: só dígitos entram; exibe com milhar pt-BR. */
-const parseDigitos = (s: string): number => {
-  const digitos = s.replace(/\D/g, "");
-  return digitos ? Number(digitos) : 0;
-};
+const OPCOES_FALLBACK: ServicoOpcao[] = SERVICOS_AVULSOS.map((s) => ({ id: s.nome, ...s }));
+
+const somarCentavos = (a: number, b: number) => deCentavos(paraCentavos(a) + paraCentavos(b));
+
+/**
+ * Catálogo editável em Configurações → Parâmetros. Só troca o fallback se a
+ * pessoa ainda não marcou nenhum serviço: trocar depois deixaria um valor
+ * somado sem o botão que o desfaz.
+ */
+function useCatalogoServicos(escolheuRef: RefObject<boolean>): ServicoOpcao[] {
+  const [opcoes, setOpcoes] = useState<ServicoOpcao[]>(OPCOES_FALLBACK);
+  useEffect(() => {
+    let vivo = true;
+    listarCatalogoServicos()
+      .then((lista) => {
+        const ativos = lista.filter((s) => s.ativo && s.valor > 0);
+        if (!vivo || ativos.length === 0 || escolheuRef.current) return;
+        setOpcoes(ativos.map((s) => ({ id: s.chave, nome: s.nome, valor: s.valor })));
+      })
+      .catch((err: unknown) => {
+        console.warn({ level: "warn", action: "customizar_valor_catalogo_falhou", error: String(err) });
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [escolheuRef]);
+  return opcoes;
+}
 
 const SELETOR_FOCAVEIS =
   'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
@@ -104,11 +137,14 @@ export function CustomizarValorModal({
 }: CustomizarValorModalProps) {
   const origemAtual: OrigemValorDeal = origem ?? (jaCustomizado ? "negociado" : "estimado");
   const router = useRouter();
-  const [valor, setValor] = useState(valorAtual);
+  // null = campo vazio ou inválido (MoneyInput).
+  const [valor, setValor] = useState<number | null>(valorAtual);
   const [justificativa, setJustificativa] = useState("");
   const [servicos, setServicos] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const painelRef = useRef<HTMLDivElement>(null);
+  const escolheuServicoRef = useRef(false);
+  const opcoesServico = useCatalogoServicos(escolheuServicoRef);
 
   useTecladoDoModal(painelRef, onClose);
 
@@ -130,45 +166,59 @@ export function CustomizarValorModal({
   );
   useEffect(() => () => gatilho?.focus(), [gatilho]);
 
-  const delta = valor - valorAtual;
+  const delta = valor === null ? 0 : deCentavos(paraCentavos(valor) - paraCentavos(valorAtual));
   // Estimativa pode ser CONFIRMADA sem mudar o número (vira "negociado").
-  const confirmandoEstimativa = delta === 0 && origemAtual === "estimado";
+  const confirmandoEstimativa = valor !== null && delta === 0 && origemAtual === "estimado";
   const semMudanca = delta === 0 && !confirmandoEstimativa;
   const faltaJustificativa = !justificativa.trim();
-  const valorInvalido = valor <= 0;
+  const valorInvalido = valor === null || valor <= 0;
   // Mesmo teto do servidor (zod): o erro aparece no campo, não só no toast.
-  const valorAcimaDoLimite = valor > VALOR_DEAL_MAXIMO;
+  const valorAcimaDoLimite = valor !== null && valor > VALOR_DEAL_MAXIMO;
 
-  const valorMascarado = useMemo(() => valor.toLocaleString("pt-BR"), [valor]);
+  // Motivo VISÍVEL do botão desabilitado (não só no title — a11y).
+  const motivoBloqueio = valorAcimaDoLimite
+    ? "Valor acima do limite."
+    : valorInvalido
+      ? "Informe um valor maior que zero."
+      : semMudanca
+        ? "Altere o valor para salvar."
+        : faltaJustificativa
+          ? "Preencha a justificativa."
+          : null;
 
-  const toggleServico = (nome: string, valorServico: number) => {
-    setServicos((prev) => {
-      const next = new Set(prev);
-      if (next.has(nome)) {
-        next.delete(nome);
-        setValor((v) => Math.max(0, v - valorServico));
-      } else {
-        next.add(nome);
-        setValor((v) => v + valorServico);
-      }
-      return next;
-    });
+  // Fora do updater do setServicos: no StrictMode o updater roda 2× e somaria o serviço em dobro.
+  const toggleServico = (servico: ServicoOpcao) => {
+    const marcado = servicos.has(servico.id);
+    const proximos = new Set(servicos);
+    if (marcado) proximos.delete(servico.id);
+    else proximos.add(servico.id);
+    escolheuServicoRef.current = true;
+    setServicos(proximos);
+    setValor((v) =>
+      marcado ? Math.max(0, somarCentavos(v ?? 0, -servico.valor)) : somarCentavos(v ?? 0, servico.valor),
+    );
   };
 
   const salvar = () => {
+    if (valor === null) return;
     startTransition(async () => {
-      const result = await customizarValorDeal(dealId, valor, justificativa);
-      if (result.success) {
-        toast.success("Valor negociado salvo", {
-          description: `${athleteName}: ${fmtBRL(valorAtual)} → ${fmtBRL(valor)}`,
-        });
-        onSaved?.();
-        router.refresh();
-        onClose();
-        return;
+      try {
+        const result = await customizarValorDeal(dealId, valor, justificativa);
+        if (result.success) {
+          toast.success("Valor negociado salvo", {
+            description: `${athleteName}: ${formatarMoeda(valorAtual)} → ${formatarMoeda(valor)}`,
+          });
+          onSaved?.();
+          router.refresh();
+          onClose();
+          return;
+        }
+        toast.error(result.error ?? "Erro ao customizar valor");
+        if (result.code === "TEM_CONTRATO") onTemContrato?.();
+      } catch (err) {
+        console.error({ level: "error", action: "customizar_valor_salvar", dealId, error: String(err) });
+        toast.error("Não foi possível salvar o valor. Tente de novo.");
       }
-      toast.error(result.error ?? "Erro ao customizar valor");
-      if (result.code === "TEM_CONTRATO") onTemContrato?.();
     });
   };
 
@@ -213,7 +263,7 @@ export function CustomizarValorModal({
                 <p className="text-[11px] font-medium text-muted-foreground">Valor atual</p>
                 <p className="text-sm font-semibold tabular-nums text-foreground">
                   {origemAtual === "estimado" ? "≈ " : ""}
-                  {fmtBRL(valorAtual)}
+                  {formatarMoeda(valorAtual)}
                   <span
                     className={cn(
                       "ml-1.5 text-[9px] font-semibold uppercase",
@@ -239,39 +289,23 @@ export function CustomizarValorModal({
                     delta > 0 ? "bg-sys-green/12 text-sys-green" : "bg-bau-burgundy/12 text-bau-burgundy",
                   )}
                 >
-                  {delta > 0 ? "+" : "−"} {fmtBRL(Math.abs(delta)).replace("R$ ", "R$ ")}
+                  {delta > 0 ? "+" : "−"} {formatarMoeda(Math.abs(delta))}
                 </span>
               )}
             </div>
 
-            <div>
-              <label htmlFor="novo-valor" className="text-[11px] font-medium text-muted-foreground">
-                Novo valor
-              </label>
-              <div
-                className={cn(
-                  "mt-1 flex items-center rounded-lg border bg-background focus-within:ring-2 focus-within:ring-ring",
-                  valorAcimaDoLimite ? "border-sys-red" : "border-border",
-                )}
-              >
-                <span className="pl-3 text-sm font-medium text-muted-foreground">R$</span>
-                <input
-                  id="novo-valor"
-                  type="text"
-                  inputMode="numeric"
-                  value={valorMascarado}
-                  onChange={(e) => setValor(parseDigitos(e.target.value))}
-                  aria-invalid={valorAcimaDoLimite || undefined}
-                  aria-describedby={valorAcimaDoLimite ? "novo-valor-erro" : undefined}
-                  className="w-full bg-transparent px-2 py-2.5 text-base font-semibold tabular-nums text-foreground outline-none"
-                />
-              </div>
-              {valorAcimaDoLimite && (
-                <p id="novo-valor-erro" role="alert" className="mt-1 text-[11px] text-sys-red">
-                  Valor acima do limite ({fmtBRL(VALOR_DEAL_MAXIMO)}) — confira os dígitos.
-                </p>
-              )}
-            </div>
+            <MoneyInput
+              id="novo-valor"
+              label="Novo valor"
+              value={valor}
+              onValueChange={setValor}
+              className="font-semibold"
+              erro={
+                valorAcimaDoLimite
+                  ? `Valor acima do limite (${formatarMoeda(VALOR_DEAL_MAXIMO)}) — confira os dígitos.`
+                  : undefined
+              }
+            />
 
             {/* Serviços adicionais: clicar soma/retira do valor */}
             <div>
@@ -279,13 +313,13 @@ export function CustomizarValorModal({
                 Serviços adicionais <span className="font-normal text-label-tertiary">— clique para incluir no valor</span>
               </p>
               <div className="mt-1.5 space-y-1.5">
-                {SERVICOS_AVULSOS.map((s) => {
-                  const ativo = servicos.has(s.nome);
+                {opcoesServico.map((s) => {
+                  const ativo = servicos.has(s.id);
                   return (
                     <button
-                      key={s.nome}
+                      key={s.id}
                       type="button"
-                      onClick={() => toggleServico(s.nome, s.valor)}
+                      onClick={() => toggleServico(s)}
                       aria-pressed={ativo}
                       className={cn(
                         "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors",
@@ -305,7 +339,7 @@ export function CustomizarValorModal({
                         </span>
                         {s.nome}
                       </span>
-                      <span className="text-xs font-semibold tabular-nums text-sys-green">{fmtBRL(s.valor)}</span>
+                      <span className="text-xs font-semibold tabular-nums text-sys-green">{formatarMoeda(s.valor)}</span>
                     </button>
                   );
                 })}
@@ -339,23 +373,20 @@ export function CustomizarValorModal({
           </div>
 
           {/* Footer */}
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-3.5">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-3.5">
+            {motivoBloqueio && (
+              <p id="customizar-valor-motivo" className="mr-auto text-[11px] text-muted-foreground">
+                {motivoBloqueio}
+              </p>
+            )}
             <Button variant="ghost" size="md" disabled={pending} onClick={onClose}>
               Cancelar
             </Button>
             <Button
               variant="primary"
               size="md"
-              disabled={pending || faltaJustificativa || valorInvalido || valorAcimaDoLimite || semMudanca}
-              title={
-                valorAcimaDoLimite
-                  ? "Valor acima do limite"
-                  : semMudanca
-                    ? "Altere o valor para salvar"
-                    : faltaJustificativa
-                      ? "Preencha a justificativa"
-                      : undefined
-              }
+              disabled={pending || motivoBloqueio !== null}
+              aria-describedby={motivoBloqueio ? "customizar-valor-motivo" : undefined}
               onClick={salvar}
             >
               {pending ? <Loader2 className="animate-spin" /> : <Check />}

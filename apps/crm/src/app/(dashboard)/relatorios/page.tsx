@@ -130,6 +130,8 @@ async function fetchReportData() {
     .from("contratos_financeiros")
     .select("id, deal_id, plano, valor_total, deals(atleta:atletas(nome_completo))")
     .is("deleted_at", null)
+    // Top 5 contratos = com plano escolhido (o "aguardando plano" só tem o sinal).
+    .not("plano", "is", null)
     .order("valor_total", { ascending: false })
     .limit(5);
 

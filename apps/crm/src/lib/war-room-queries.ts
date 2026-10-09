@@ -395,7 +395,9 @@ export async function fetchPositioning(): Promise<PositioningMetrics> {
   const { data: contratos } = await supabase
     .from("contratos_financeiros")
     .select("plano, valor_customizado")
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // Mix de planos: contrato só com o sinal (aguardando plano) não tem plano.
+    .not("plano", "is", null);
 
   const lista = contratos ?? [];
   const totalContratos = lista.length || 1;

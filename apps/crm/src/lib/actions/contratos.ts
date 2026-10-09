@@ -3,6 +3,8 @@
 import { z } from "zod";
 
 import { getUserPapel } from "@/lib/auth";
+import { estadoContrato, type ParcelaParaCalculo } from "@/lib/financeiro/calculo.mjs";
+import { hojeBRT } from "@/lib/financeiro/schemas";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 /**
@@ -14,14 +16,23 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
  * classe, com busca, filtro por situação e visão de carteira.
  */
 
-export type SituacaoContrato = "em_dia" | "atrasado" | "quitado" | "cancelado";
+export type SituacaoContrato =
+  | "em_dia"
+  | "atrasado"
+  | "quitado"
+  | "cancelado"
+  /** Só o sinal registrado — plano ainda não escolhido (T11). */
+  | "aguardando_plano"
+  /** Saldo do contrato sem parcelas que o cubram (T9). */
+  | "condicoes_pendentes";
 
 export interface ContratoLista {
   id: string;
   dealId: string;
   atletaId: string | null;
   atleta: string;
-  plano: string;
+  /** null = aguardando plano. */
+  plano: string | null;
   valorTotal: number;
   /** Somatório das parcelas já recebidas. */
   recebido: number;
@@ -43,6 +54,8 @@ export interface ResumoCarteira {
   aReceber: number;
   emAtraso: number;
   contratosComAtraso: number;
+  /** Contratos só com o sinal (plano ainda não escolhido). */
+  aguardandoPlano: number;
 }
 
 type Parcela = {
@@ -76,6 +89,7 @@ export async function getContratos(): Promise<{
       aReceber: 0,
       emAtraso: 0,
       contratosComAtraso: 0,
+      aguardandoPlano: 0,
     },
   };
   if ((await getUserPapel()) !== "ceo") return vazio;
@@ -94,7 +108,7 @@ export async function getContratos(): Promise<{
   const linhas = (contratosRaw ?? []) as unknown as Array<{
     id: string;
     deal_id: string;
-    plano: string;
+    plano: string | null;
     valor_total: number | string;
     nf_status: string;
     created_at: string;
@@ -122,7 +136,8 @@ export async function getContratos(): Promise<{
     else porContrato.set(p.contrato_id, [p]);
   }
 
-  const hoje = new Date().toISOString().slice(0, 10);
+  // Dia de Brasília: depois das 21h o UTC já é amanhã e marcaria atraso cedo demais.
+  const hoje = hojeBRT();
   const contratos: ContratoLista[] = linhas.map((c) => {
     const parcelas = porContrato.get(c.id) ?? [];
     const atletaEmbed = Array.isArray(c.deal?.atleta) ? c.deal?.atleta[0] : c.deal?.atleta;
@@ -136,14 +151,12 @@ export async function getContratos(): Promise<{
       .filter((p) => p.vencimento >= hoje)
       .sort((a, b) => a.vencimento.localeCompare(b.vencimento))[0];
 
-    const cancelado = c.deal?.etapa === "cancelamento_solicitado";
-    const situacao: SituacaoContrato = cancelado
-      ? "cancelado"
-      : emAberto.length === 0 && parcelas.length > 0
-        ? "quitado"
-        : atrasadas.length > 0
-          ? "atrasado"
-          : "em_dia";
+    const situacao = situacaoDoContrato(
+      { plano: c.plano, valor_total: Number(c.valor_total ?? 0) },
+      parcelas,
+      c.deal?.etapa ?? null,
+      atrasadas.length > 0,
+    );
 
     return {
       id: c.id,
@@ -181,9 +194,38 @@ export async function getContratos(): Promise<{
         );
       }, 0),
     contratosComAtraso: contratos.filter((c) => c.situacao === "atrasado").length,
+    aguardandoPlano: contratos.filter((c) => c.situacao === "aguardando_plano").length,
   };
 
   return { contratos, resumo };
+}
+
+/**
+ * Situação exibida na carteira. O estado vem da MESMA regra do contrato
+ * (calculo.mjs › estadoContrato) para a lista não divergir da aba do lead.
+ * Cancelamento pedido no deal vence tudo; parcela vencida vence "condições
+ * pendentes" (atraso é cobrança; saldo sem parcela é cadastro — e o
+ * /financeiro já lista esses à parte).
+ */
+function situacaoDoContrato(
+  contrato: { plano: string | null; valor_total: number },
+  parcelas: Parcela[],
+  etapaDeal: string | null,
+  temAtrasada: boolean,
+): SituacaoContrato {
+  if (etapaDeal === "cancelamento_solicitado") return "cancelado";
+  const estado = estadoContrato(
+    contrato,
+    parcelas.map((p) => ({
+      tipo: p.tipo === "entrada" || p.tipo === "saldo" ? p.tipo : undefined,
+      valor: Number(p.valor ?? 0),
+      status: p.status as ParcelaParaCalculo["status"],
+      vencimento: p.vencimento,
+    })),
+  );
+  if (estado === "cancelado" || estado === "aguardando_plano" || estado === "quitado") return estado;
+  if (temAtrasada) return "atrasado";
+  return estado === "condicoes_pendentes" ? "condicoes_pendentes" : "em_dia";
 }
 
 export interface ContratoDetalhe {

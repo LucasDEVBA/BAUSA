@@ -1,4 +1,5 @@
-export type PlanType = "Journey" | "Legacy" | "Start" | "Personalizado";
+// "A definir" = contrato aguardando plano (só o sinal registrado — T11).
+export type PlanType = "Journey" | "Legacy" | "Start" | "Personalizado" | "A definir";
 export type PaymentMethod = "parcelado" | "pix";
 export type ReceivableStatus = "previsto" | "recebido" | "atrasado";
 
@@ -39,6 +40,16 @@ export const PLAN_CONFIG: Record<
     description: "Contrato negociado caso a caso — valor e condições próprias",
     color: "text-muted-foreground",
     bg: "bg-secondary border-border",
+  },
+  // Sinal recebido antes da escolha do plano (T11): sem preço — o total sai
+  // quando o plano for escolhido na aba Contrato.
+  "A definir": {
+    price: 0,
+    pix_price: 0,
+    signal: 4500,
+    description: "Sinal recebido — plano ainda não escolhido",
+    color: "text-sys-orange",
+    bg: "bg-sys-orange/10 border-sys-orange/20",
   },
 };
 

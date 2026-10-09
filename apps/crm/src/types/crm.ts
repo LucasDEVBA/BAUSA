@@ -1,3 +1,5 @@
+import type { FormaEntrada, FormaSaldo, MetodoParcela } from "@/lib/financeiro/calculo.mjs";
+
 // 'cto' tem permissões IDÊNTICAS a 'ceo' (resolvido em get_user_papel/getUserPapel);
 // é distinto apenas para exibição. Ver lib/papel.ts (isCeoLevel).
 export type PapelUsuario = 'ceo' | 'cto' | 'head_sucesso' | 'comercial';
@@ -265,29 +267,39 @@ export const CLASSIFICACAO_COLORS: Record<ClassificacaoLead, { bg: string; text:
   cold: { bg: 'bg-lead-cold/15', text: 'text-lead-cold' },
 };
 
+// Espelha contratos_financeiros/parcelas depois da migration
+// *_financeiro_contrato_flexivel (T9/T11/T18). O tipo de trabalho do contrato
+// é `types/contrato.ts`; este fica coerente para quem ler a linha crua.
 export interface ContratoFinanceiro {
   id: string;
   deal_id: string;
-  plano: 'journey' | 'legacy' | 'start' | 'personalizado';
-  forma_pagamento_plano: 'padrao' | 'pix_avista';
+  /** null = AGUARDANDO PLANO (só o sinal registrado — T11). */
+  plano: 'journey' | 'legacy' | 'start' | 'personalizado' | null;
+  forma_pagamento_plano: 'padrao' | 'pix_avista' | null;
   valor_total: number;
+  /** Preço do plano escolhido; null = legado (base = total − itens) ou aguardando plano. */
+  valor_base_plano: number | null;
   valor_customizado: number | null;
   justificativa_customizacao: string | null;
+  /** true (padrão) = sinal abatido do plano; false = cobrado à parte. */
+  sinal_abatido: boolean;
   entrada_valor: number;
-  entrada_forma: 'pix' | 'getnet_parcelado';
+  entrada_forma: FormaEntrada | null;
   entrada_parcelas: number;
   entrada_paga: boolean;
   entrada_paga_at: string | null;
   saldo_remanescente: number;
-  saldo_forma: 'pix_avista' | 'getnet_parcelado' | null;
+  saldo_forma: FormaSaldo | null;
   saldo_parcelas: number | null;
   inclui_psicologa: boolean;
-  custo_psicologa: number;
+  custo_psicologa: number | null;
   lucro_estimado: number | null;
   nf_status: 'pendente' | 'emitida' | 'nao_aplicavel';
   nf_numero: string | null;
   nf_emitida_at: string | null;
   nf_valor: number | null;
+  /** Quando o plano foi escolhido (T10); null no contrato aguardando plano. */
+  plano_definido_at: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -300,10 +312,13 @@ export interface Parcela {
   numero_parcela: string;
   valor: number;
   vencimento: string;
-  metodo: 'pix' | 'getnet';
+  metodo: MetodoParcela;
   status: 'previsto' | 'recebido' | 'atrasado' | 'cancelado';
   recebido_at: string | null;
   comprovante_url: string | null;
+  /** Vezes no cartão quando UMA parcela recebida é uma venda parcelada (ex.: sinal na Getnet em 3x). */
+  parcelas_cartao: number | null;
+  observacao: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -404,12 +419,16 @@ export interface NotaInterna {
   autor?: { nome: string };
 }
 
+// FALLBACK — a fonte dos preços é configuracoes_sistema.planos (editável em
+// Configurações → Parâmetros; a RPC fin_valor_tabela lê de lá). Usado só
+// quando a leitura falha, com os mesmos números do seed.
 export const PLANO_VALORES = {
   journey: { padrao: 26000, pix: 23000, psicologa: true },
   legacy: { padrao: 32000, pix: 28500, psicologa: true },
   start: { padrao: 18000, pix: 16000, psicologa: false },
 } as const;
 
+// FALLBACK — a fonte é configuracoes_sistema.entrada_padrao.
 export const ENTRADA_PADRAO = 4500;
 
 export interface Escola {

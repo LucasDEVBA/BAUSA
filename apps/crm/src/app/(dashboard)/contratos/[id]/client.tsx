@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CalendarClock, CheckCircle2, FileText, Receipt, User, Wallet } from "lucide-react";
+import { toast } from "sonner";
 
 import { Badge, Card, PageHeader, StatCard } from "@/components/ui";
 import { ContratoPainel } from "@/components/financeiro/contrato/ContratoPainel";
@@ -36,10 +37,15 @@ export function ContratoDetalheClient({ detalhe, inicial }: { detalhe: ContratoD
 
   const recarregar = async () => {
     if (!c) return;
-    const novo = await carregarContrato(c.id);
-    if (novo?.contrato) setDados(novo);
-    else router.push("/contratos"); // descartado
-    router.refresh();
+    try {
+      const novo = await carregarContrato(c.id);
+      if (novo?.contrato) setDados(novo);
+      else router.push("/contratos"); // descartado
+      router.refresh();
+    } catch (err) {
+      console.error({ level: "error", action: "contrato_detalhe_recarregar", contratoId: c.id, error: String(err) });
+      toast.error("Não foi possível recarregar o contrato. Atualize a página.");
+    }
   };
 
   return (
@@ -107,7 +113,7 @@ export function ContratoDetalheClient({ detalhe, inicial }: { detalhe: ContratoD
             <Badge tone={c.nf_status === "emitida" ? "green" : c.nf_status === "nao_aplicavel" ? "neutral" : "orange"} size="sm">
               {c.nf_status === "emitida" ? "Emitida" : c.nf_status === "nao_aplicavel" ? "Não aplicável" : "Pendente"}
             </Badge>
-            <NfEditRow contractId={c.id} nfStatus={c.nf_status} nfNumero={c.nf_numero} nfEmitidaAt={c.nf_emitida_at} nfValor={c.nf_valor} />
+            <NfEditRow contractId={c.id} nfStatus={c.nf_status} nfNumero={c.nf_numero} nfEmitidaAt={c.nf_emitida_at} nfValor={c.nf_valor} onSalvo={() => void recarregar()} />
           </div>
         </Card>
       )}

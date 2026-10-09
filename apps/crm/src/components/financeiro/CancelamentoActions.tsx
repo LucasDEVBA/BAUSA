@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { XCircle, Loader2, X } from "lucide-react";
-import { solicitarCancelamento } from "@/lib/actions/financeiro";
 import { toast } from "sonner";
+
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import { solicitarCancelamento } from "@/lib/actions/financeiro";
 import { cn } from "@/lib/utils";
 
 interface CancelamentoActionsProps {
@@ -14,9 +16,11 @@ interface CancelamentoActionsProps {
 
 export function CancelamentoActions({ dealId, atletaNome }: CancelamentoActionsProps) {
   const router = useRouter();
+  const tituloId = useId();
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
-  const [valorReembolso, setValorReembolso] = useState(0);
+  // MoneyInput: com type="number", "1.500" virava R$ 1,50 de reembolso.
+  const [valorReembolso, setValorReembolso] = useState<number | null>(null);
   const [justificativa, setJustificativa] = useState("");
   const [comprovanteUrl, setComprovanteUrl] = useState("");
 
@@ -27,18 +31,23 @@ export function CancelamentoActions({ dealId, atletaNome }: CancelamentoActionsP
     }
 
     startTransition(async () => {
-      const result = await solicitarCancelamento(dealId, {
-        motivo_cancelamento: justificativa,
-        valor_reembolso: valorReembolso,
-        justificativa_reembolso: justificativa,
-        comprovante_url: comprovanteUrl || undefined,
-      });
-      if (result.success) {
-        toast.success("Cancelamento processado com sucesso");
-        setShowForm(false);
-        router.refresh();
-      } else {
-        toast.error(result.error ?? "Erro ao processar cancelamento");
+      try {
+        const result = await solicitarCancelamento(dealId, {
+          motivo_cancelamento: justificativa,
+          valor_reembolso: valorReembolso ?? 0,
+          justificativa_reembolso: justificativa,
+          comprovante_url: comprovanteUrl || undefined,
+        });
+        if (result.success) {
+          toast.success("Cancelamento processado com sucesso");
+          setShowForm(false);
+          router.refresh();
+        } else {
+          toast.error(result.error ?? "Erro ao processar cancelamento");
+        }
+      } catch (err) {
+        console.error({ level: "error", action: "cancelamento_processar", dealId, error: String(err) });
+        toast.error("Não foi possível processar o cancelamento. Tente de novo.");
       }
     });
   };
@@ -49,46 +58,50 @@ export function CancelamentoActions({ dealId, atletaNome }: CancelamentoActionsP
   if (!showForm) {
     return (
       <button
+        type="button"
         onClick={() => setShowForm(true)}
         className="flex items-center gap-1 rounded-lg border border-sys-red/20 bg-sys-red/5 px-2.5 py-1 text-[10px] font-medium text-sys-red transition-colors hover:bg-sys-red/10"
       >
-        <XCircle className="h-3 w-3" />
+        <XCircle className="h-3 w-3" aria-hidden />
         Processar
       </button>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-      <div className="liquid-glass relative z-10 w-full max-w-md rounded-2xl p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowForm(false)} aria-hidden />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={tituloId}
+        className="liquid-glass relative z-10 w-full max-w-md rounded-2xl p-6"
+      >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-foreground">Processar cancelamento — {atletaNome}</h3>
+          <h3 id={tituloId} className="text-sm font-semibold text-foreground">Processar cancelamento — {atletaNome}</h3>
           <button
+            type="button"
             onClick={() => setShowForm(false)}
+            aria-label="Fechar"
             className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-fill-4 hover:text-foreground"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
 
         <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Valor de reembolso (R$)</label>
-            <input
-              type="number"
-              min={0}
-              step={100}
-              value={valorReembolso}
-              onChange={(e) => setValorReembolso(Number(e.target.value))}
-              className={inputClass}
-              placeholder="0"
-            />
-          </div>
+          <MoneyInput
+            label="Valor de reembolso"
+            value={valorReembolso}
+            onValueChange={setValorReembolso}
+            placeholder="0,00"
+            ajuda="Deixe vazio se não houver reembolso."
+          />
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Justificativa *</label>
+            <label htmlFor={`${tituloId}-justificativa`} className="mb-1 block text-xs font-medium text-muted-foreground">Justificativa *</label>
             <textarea
+              id={`${tituloId}-justificativa`}
               value={justificativa}
               onChange={(e) => setJustificativa(e.target.value)}
               rows={3}
@@ -98,8 +111,9 @@ export function CancelamentoActions({ dealId, atletaNome }: CancelamentoActionsP
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Comprovante URL (opcional)</label>
+            <label htmlFor={`${tituloId}-comprovante`} className="mb-1 block text-xs font-medium text-muted-foreground">Comprovante URL (opcional)</label>
             <input
+              id={`${tituloId}-comprovante`}
               type="text"
               value={comprovanteUrl}
               onChange={(e) => setComprovanteUrl(e.target.value)}
@@ -110,12 +124,14 @@ export function CancelamentoActions({ dealId, atletaNome }: CancelamentoActionsP
 
           <div className="flex gap-3 pt-2">
             <button
+              type="button"
               onClick={() => setShowForm(false)}
               className="flex-1 rounded-lg border border-border bg-card py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent"
             >
               Cancelar
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={isPending}
               className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive py-2.5 text-sm font-medium text-destructive-foreground transition-colors hover:opacity-90 disabled:opacity-40"

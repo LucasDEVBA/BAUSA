@@ -112,7 +112,7 @@ export async function getFinanceiroMetrics(ref = new Date()): Promise<Financeiro
       .is("deleted_at", null),
     supabase.from("despesas").select("*").is("deleted_at", null),
     supabase.from("colaboradores").select("custo_mensal_brl, ativo").is("deleted_at", null),
-    supabase.from("contratos_financeiros").select("valor_total").is("deleted_at", null),
+    supabase.from("contratos_financeiros").select("valor_total, plano").is("deleted_at", null),
     // Marketing = FONTE ÚNICA em investimentos_marketing (alimenta CAC e DRE).
     // Despesas categoria='marketing' são excluídas do DRE para não dobrar.
     supabase.from("investimentos_marketing").select("mes, canal, valor_gasto, source").is("deleted_at", null),
@@ -121,7 +121,9 @@ export async function getFinanceiroMetrics(ref = new Date()): Promise<Financeiro
   const parcelas = parcelasRes.data ?? [];
   const despesas = (despesasRes.data as Despesa[] | null) ?? [];
   const colaboradores = colabRes.data ?? [];
-  const contratos = contratosRes.data ?? [];
+  // Contrato só com o sinal (plano nulo — T11) não é ticket: derrubaria o
+  // ticket médio e inflaria o break-even. O sinal entra no DRE pela parcela.
+  const contratos = (contratosRes.data ?? []).filter((c) => c.plano !== null);
   const investimentos = dedupInvestimentos(
     (mktRes.data as InvestimentoRow[] | null) ?? [],
   );

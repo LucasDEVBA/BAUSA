@@ -22,6 +22,10 @@
 //   9. Actions "use server": todo export checa papel; leituras com deleted_at.
 //  10. Form de contrato: nada de componente aninhado no render nem
 //      Number(e.target.value) em dinheiro (bug R$ 7,80).
+//  13. Fora do formulário: todo campo de dinheiro (NF, reembolso, valor do
+//      deal) é MoneyInput; contrato só com sinal (plano NULL) não entra em
+//      ticket médio / mix de planos / Top 5; /financeiro mostra margem REAL
+//      (custos do aluno), sem os custos fixos inventados.
 // ════════════════════════════════════════════════════════════════════════
 
 const { test } = require('node:test');
@@ -212,4 +216,46 @@ test('10. formulário de contrato: sem componente aninhado e sem Number(e.target
   assert.match(money, /inputMode="decimal"/);
   assert.match(money, /parseValorBRL/);
   assert.doesNotMatch(money, /type="number"/);
+});
+
+test('13. dinheiro fora do form é MoneyInput; contrato só com sinal fora das médias; margem direta real', () => {
+  const comp = (...p) => semComentarioTs(ler('apps', 'crm', 'src', ...p));
+  for (const arq of [
+    ['components', 'financeiro', 'NfEditRow.tsx'],
+    ['components', 'financeiro', 'CancelamentoActions.tsx'],
+    ['components', 'pipeline', 'CustomizarValorModal.tsx'],
+  ]) {
+    const src = comp(...arq);
+    assert.match(src, /<MoneyInput\b/, `${arq.at(-1)}: dinheiro sem MoneyInput`);
+    assert.doesNotMatch(src, /type="number"/, `${arq.at(-1)}: type=number em dinheiro lê "7.800" como 7,8`);
+    assert.doesNotMatch(src, /parseDigitos/, `${arq.at(-1)}: máscara de reais inteiros voltou (perde centavos)`);
+  }
+  assert.match(comp('components', 'ui', 'index.ts'), /export \{ MoneyInput, type MoneyInputProps \} from "\.\/MoneyInput"/);
+  // NF: falha da action não pode fechar a edição como se tivesse salvo.
+  assert.match(comp('components', 'financeiro', 'NfEditRow.tsx'), /if \(!result\.success\)[\s\S]{0,200}toast\.error/);
+  // Catálogo editável (T18a) no modal de valor, com o array fixo só de fallback.
+  const modal = comp('components', 'pipeline', 'CustomizarValorModal.tsx');
+  assert.match(modal, /listarCatalogoServicos\(\)/, 'modal de valor voltou ao array fixo de serviços');
+  for (const prop of ['origem', 'explicacaoOrigem', 'onTemContrato']) {
+    assert.match(modal, new RegExp(`\\b${prop}\\?:`), `modal de valor perdeu a prop ${prop} (T3)`);
+  }
+
+  // Leitores de plano/valor_total que não podem contar o "aguardando plano".
+  const naoNulo = /\.not\("plano", "is", null\)/;
+  const war = comp('lib', 'war-room-queries.ts');
+  const pos = war.slice(war.indexOf('export async function fetchPositioning'));
+  assert.match(pos.slice(0, pos.indexOf('\nexport ')), naoNulo, 'mix de planos conta contrato só com sinal');
+  const rmk = comp('lib', 'remarketing-queries.ts');
+  const tkt = rmk.slice(rmk.indexOf('async function fetchTicketMedio'));
+  assert.match(tkt.slice(0, tkt.indexOf('\n}')), naoNulo, 'ticket médio do remarketing cai com sinal-só');
+  assert.match(comp('app', '(dashboard)', 'relatorios', 'page.tsx'), naoNulo, 'Top 5 contratos lista sinal-só');
+  assert.match(comp('lib', 'financeiro-metrics.ts'), /\.filter\(\(c\) => c\.plano !== null\)/, 'ticket médio/break-even contam sinal-só');
+
+  // /financeiro: margem pela regra única (custos do aluno), nada de custo fixo inventado.
+  const fin = comp('app', '(dashboard)', 'financeiro', 'page.tsx');
+  assert.match(fin, /margemAluno\(/, '/financeiro deixou de usar a margem real (margemAluno)');
+  assert.match(fin, /\.from\("despesas"\)[\s\S]{0,120}\.not\("contrato_id", "is", null\)[\s\S]{0,40}\.is\("deleted_at", null\)/, 'custos do aluno não são lidos');
+  assert.doesNotMatch(fin, /CUSTO_FIXO_MENSAL|calcularLucro/, 'custos fixos inventados voltaram ao "lucro" por contrato');
+  assert.doesNotMatch(fin, /PLANO_VALORES/, '"customizado" voltou a comparar com a tabela do código');
+  assert.match(fin, /await requirePapel\("ceo"\)/, '/financeiro sem requirePapel');
 });
