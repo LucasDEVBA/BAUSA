@@ -29,7 +29,13 @@ import { SaidasView } from "@/components/financeiro/SaidasView";
 import { FolhaView } from "@/components/financeiro/FolhaView";
 import { ResultadoView } from "@/components/financeiro/ResultadoView";
 import { getFinanceiroMetrics, type FinanceiroMetrics } from "@/lib/financeiro-metrics";
-import { estadoContrato, margemAluno, type ParcelaParaCalculo } from "@/lib/financeiro/calculo.mjs";
+import {
+  estadoContrato,
+  faltaSemCronograma,
+  formatarMoeda,
+  margemAluno,
+  type ParcelaParaCalculo,
+} from "@/lib/financeiro/calculo.mjs";
 import { dedupInvestimentos, type InvestimentoRow } from "@/lib/marketing-spend";
 import { DESPESA_CATEGORIA_LABEL, type Despesa, type Colaborador, type EmpresaDados } from "@/types/financeiro";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
@@ -263,11 +269,10 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   const condicoesPendentes = contractsWithNf
     .map((c) => {
       const parcelas = parcelasPorContrato.get(c.id) ?? [];
-      if (estadoContrato({ plano: c.plano, valor_total: c.valor_total }, parcelas) !== "condicoes_pendentes") return null;
-      const coberto = parcelas
-        .filter((p) => p.status !== "cancelado")
-        .reduce((s, p) => s + Math.round(p.valor * 100), 0);
-      return { id: c.id, atletaNome: c.atletaNome, semParcela: (Math.round(c.valor_total * 100) - coberto) / 100 };
+      const contrato = { plano: c.plano, valor_total: c.valor_total };
+      if (estadoContrato(contrato, parcelas) !== "condicoes_pendentes") return null;
+      // Mesma regra da aba do contrato (tolera centavos de arredondamento legado).
+      return { id: c.id, atletaNome: c.atletaNome, semParcela: faltaSemCronograma(contrato, parcelas) };
     })
     .filter((c): c is { id: string; atletaNome: string; semParcela: number } => c !== null && c.semParcela > 0);
   const totalSemParcela = condicoesPendentes.reduce((s, c) => s + c.semParcela, 0);
@@ -750,7 +755,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-sys-orange" aria-hidden />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-sys-orange">
-                    {condicoesPendentes.length} contrato{condicoesPendentes.length !== 1 ? "s" : ""} com saldo sem parcelas (condições pendentes): {formatBRL(totalSemParcela)}
+                    {condicoesPendentes.length} contrato{condicoesPendentes.length !== 1 ? "s" : ""} com saldo sem parcelas (condições pendentes): {formatarMoeda(totalSemParcela)}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     A régua não cobra o que não tem parcela. Monte o cronograma em:{" "}

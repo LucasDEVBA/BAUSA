@@ -203,6 +203,21 @@ export function composicaoValorTotal({ valorBase, itens = [], entrada = 0, sinal
 const vivas = (parcelas) => parcelas.filter((p) => !p.deleted_at && p.status !== "cancelado");
 
 /**
+ * Valor do contrato SEM parcela que o cubra ("definir depois" ou entrada sem
+ * cronograma). Diferença de até 1 centavo por parcela viva NÃO conta: o
+ * criarContrato antigo arredondava cada parcela (6 × 3.583,33 = 25.999,98
+ * num contrato de 26.000) e esses centavos nunca são um saldo a cobrar — sem
+ * a tolerância o contrato legado ficava "condições pendentes" para sempre e
+ * nunca chegava a "quitado". O "Quitar" ainda grava a diferença ao centavo.
+ */
+export function faltaSemCronograma(contrato, parcelas = []) {
+  if (!contrato) return 0;
+  const v = vivas(parcelas);
+  const faltaC = paraCentavos(contrato.valor_total) - v.reduce((s, p) => s + paraCentavos(p.valor), 0);
+  return faltaC > v.length ? deCentavos(faltaC) : 0;
+}
+
+/**
  * Estado DERIVADO do contrato (nada gravado):
  *   sem_contrato | aguardando_plano | cancelado | condicoes_pendentes | quitado | ativo
  * "cancelado" = há parcela cancelada (fluxo solicitarCancelamento) e nada em aberto.
@@ -217,9 +232,8 @@ export function estadoContrato(contrato, parcelas = []) {
   ) {
     return "cancelado";
   }
+  if (faltaSemCronograma(contrato, parcelas) > 0) return "condicoes_pendentes";
   const v = vivas(parcelas);
-  const somaC = v.reduce((s, p) => s + paraCentavos(p.valor), 0);
-  if (somaC < paraCentavos(contrato.valor_total)) return "condicoes_pendentes";
   if (v.length > 0 && v.every((p) => p.status === "recebido")) return "quitado";
   return "ativo";
 }
@@ -242,7 +256,9 @@ export function resumoFinanceiro(contrato, parcelas = [], hoje) {
     pagas: rec.length,
     totalParcelas: v.length,
     sinalRecebido: deCentavos(somaC(rec.filter((p) => p.tipo === "entrada"))),
-    semCronograma: deCentavos(Math.max(0, totalC - somaC(v))),
+    semCronograma: faltaSemCronograma(contrato, parcelas),
+    /** O que "Quitar" registra: total − recebido (absorve centavos legados para mais ou para menos). */
+    aQuitar: deCentavos(Math.max(0, totalC - recebidoC)),
     pctRecebido: totalC > 0 ? Math.round((recebidoC / totalC) * 100) : null,
   };
 }

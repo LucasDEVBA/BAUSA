@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle, Minus, Plus, Trash2 } from "lucide-react";
@@ -27,6 +27,7 @@ import {
   FORMAS_SALDO_UNICA,
   PLANO_LABEL,
   PLANOS,
+  saldoDoContrato,
   type CondicoesContrato,
   type CondicoesContratoInput,
   type FormaPlano,
@@ -83,6 +84,8 @@ function valoresIniciais(modo: ModoContratoForm, dados: ContratoCompleto): Parti
       confirmarValorBaixo: false,
       confirmarComPagamentos: false,
       exigirJustificativa: false,
+      planoAtual: null,
+      pagosNoSaldo: 0,
     };
   }
   const abertasSaldo = dados.parcelas.filter((p) => p.tipo === "saldo" && p.status !== "recebido");
@@ -118,7 +121,8 @@ function valoresIniciais(modo: ModoContratoForm, dados: ContratoCompleto): Parti
       parcelasCartao: null,
     },
     saldo: {
-      definirDepois: c.plano !== null && c.saldo_forma === null,
+      // Saldo R$ 0 (entrada = total) também grava forma NULL — não é "definir depois".
+      definirDepois: c.plano !== null && c.saldo_forma === null && c.saldo_remanescente > 0,
       forma: c.saldo_forma,
       quantidade: Math.max(1, abertasSaldo.length),
       primeiroVencimento: abertasSaldo[0]?.vencimento ?? umMes,
@@ -127,7 +131,31 @@ function valoresIniciais(modo: ModoContratoForm, dados: ContratoCompleto): Parti
     confirmarComPagamentos: false,
     // Editar contrato com plano exige justificativa (o servidor reaplica pelo banco).
     exigirJustificativa: modo === "editar",
+    // Trocar de plano com saldo já pago pede confirmação (o servidor reaplica pelo banco).
+    planoAtual: modo === "editar" ? ((c.plano ?? null) as PlanoContrato | null) : null,
+    pagosNoSaldo: dados.parcelas
+      .filter((p) => p.tipo === "saldo" && p.status === "recebido")
+      .reduce((s, p) => s + p.valor, 0),
   };
+}
+
+/** Campo numérico vazio vira undefined (vale o default do schema), nunca NaN. */
+const inteiroOuIndefinido = (x: string) => (x === "" ? undefined : Number(x));
+
+/** Rótulos dos campos de dinheiro (motivo de bloqueio quando o texto é inválido). */
+const ROTULO_DINHEIRO: Record<string, string> = {
+  valorBasePlano: "Valor do plano",
+  entrada: "Valor da entrada",
+  psicologa: "Custo interno da psicóloga",
+};
+
+function ErroCampo({ id, mensagem }: { id: string; mensagem?: string }) {
+  if (!mensagem) return null;
+  return (
+    <p id={id} role="alert" className="text-[11px] text-sys-red">
+      {mensagem}
+    </p>
+  );
 }
 
 const rotulo = "block text-xs font-medium text-muted-foreground";
@@ -145,6 +173,13 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
   const { control, register, handleSubmit, setValue, formState } = form;
   const itens = useFieldArray({ control, name: "itens" });
   const v = useWatch({ control });
+
+  // Texto que não é dinheiro ("4.500.00") TRAVA o envio: o valor nunca vira 0
+  // nem fica o último número parcial digitado.
+  const [dinheiroInvalido, setDinheiroInvalido] = useState<Record<string, boolean>>({});
+  const marcarDinheiro = useCallback((chave: string, invalido: boolean) => {
+    setDinheiroInvalido((atual) => (Boolean(atual[chave]) === invalido ? atual : { ...atual, [chave]: invalido }));
+  }, []);
 
   const recebidasEntrada = useMemo(
     () => dados.parcelas.filter((p) => p.tipo === "entrada" && p.status === "recebido"),
@@ -168,7 +203,9 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
     entrada: v.entrada?.valor ?? 0,
     sinalAbatido: v.sinalAbatido ?? true,
   });
-  const saldoNovo = Math.max(0, Math.round((total - (v.entrada?.valor ?? 0)) * 100) / 100);
+  const saldoNovo = saldoDoContrato(total, v.entrada?.valor ?? 0);
+  // Entrada cobre o total (com plano já escolhido): nada a parcelar no saldo.
+  const semSaldo = total > 0 && saldoNovo === 0;
   const tabela = valorTabela(dados, v.plano, v.formaPagamentoPlano ?? "padrao");
   const customizado = v.plano !== undefined && (tabela === null || v.valorBasePlano !== tabela);
   // Regra 3 completa (mesma conta do schema e da RPC): itens ou sinal à parte também negociam.
@@ -224,11 +261,26 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
   const pagosNoSaldo = recebidasSaldo.reduce((s, p) => s + p.valor, 0);
   const trocouPlano = modo === "editar" && dados.contrato?.plano !== v.plano;
 
+  // Só os campos de dinheiro MONTADOS contam (item removido, psicóloga
+  // desligada ou entrada travada não podem prender o botão).
+  const camposAtivos = new Set<string>([
+    "valorBasePlano",
+    ...(entradaTravada ? [] : ["entrada"]),
+    ...(v.incluiPsicologa ? ["psicologa"] : []),
+    ...itens.fields.map((f) => `item:${f.id}`),
+  ]);
+  const motivosDinheiro = Object.entries(dinheiroInvalido)
+    .filter(([chave, invalido]) => invalido && camposAtivos.has(chave))
+    .map(([chave]) => `Valor inválido em “${ROTULO_DINHEIRO[chave] ?? "Valor do item"}” — use o formato 7.800,00.`);
+
   // Motivos de bloqueio derivados dos VALORES atuais (não de formState.errors,
   // que só existe depois da 1ª validação): o botão já nasce desabilitado com o
   // motivo visível (critério do T6) sem pintar todos os campos de vermelho.
   const validacao = condicoesContratoSchema.safeParse({ ...v, exigirJustificativa: modo === "editar" });
-  const motivos = validacao.success ? [] : validacao.error.issues.map((i) => i.message).slice(0, 3);
+  const motivos = [
+    ...motivosDinheiro,
+    ...(validacao.success ? [] : validacao.error.issues.map((i) => i.message)),
+  ].slice(0, 3);
   const chaveMotivos = motivos.join("|");
   useEffect(() => {
     onBloqueio?.(modo === "editar" && !formState.isDirty ? ["Nada mudou."] : chaveMotivos ? chaveMotivos.split("|") : []);
@@ -249,7 +301,14 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
     <form
       id={formId}
       noValidate
-      onSubmit={handleSubmit((valores) => onEnviar(valores, { entrada: regerarEntrada, saldo: regerarSaldo }))}
+      onSubmit={(e) => {
+        // Enter num campo também envia: o texto inválido precisa travar aqui.
+        if (motivosDinheiro.length > 0) {
+          e.preventDefault();
+          return;
+        }
+        return handleSubmit((valores) => onEnviar(valores, { entrada: regerarEntrada, saldo: regerarSaldo }))(e);
+      }}
       className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]"
     >
       <div className="min-w-0 space-y-4">
@@ -313,7 +372,10 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
               <MoneyInput
                 label="Valor do plano"
                 value={field.value ?? null}
-                onValueChange={(x) => field.onChange(x ?? undefined)}
+                onValueChange={(x, { invalido }) => {
+                  marcarDinheiro("valorBasePlano", invalido);
+                  field.onChange(x ?? undefined);
+                }}
                 onBlur={field.onBlur}
                 ref={field.ref}
                 erro={fieldState.error?.message}
@@ -369,7 +431,10 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
                     <MoneyInput
                       aria-label="Valor do item"
                       value={field.value ?? null}
-                      onValueChange={(x) => field.onChange(x ?? undefined)}
+                      onValueChange={(x, { invalido }) => {
+                        marcarDinheiro(`item:${f.id}`, invalido);
+                        field.onChange(x ?? undefined);
+                      }}
                       onBlur={field.onBlur}
                       erro={fieldState.error?.message}
                     />
@@ -432,7 +497,11 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
                   <MoneyInput
                     label="Valor da entrada"
                     value={field.value ?? null}
-                    onValueChange={(x) => field.onChange(x ?? 0)}
+                    onValueChange={(x, { invalido }) => {
+                      marcarDinheiro("entrada", invalido);
+                      // vazio = sem entrada (0); inválido NUNCA vira 0 (fica vazio e trava).
+                      field.onChange(invalido ? undefined : (x ?? 0));
+                    }}
                     onBlur={field.onBlur}
                     erro={fieldState.error?.message}
                     ajuda={
@@ -458,7 +527,10 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
                 <div className="space-y-1.5">
                   <label htmlFor={`${formId}-ent-qtd`} className={rotulo}>Parcelas da entrada</label>
                   <input id={`${formId}-ent-qtd`} type="number" inputMode="numeric" min={1} max={12}
-                    {...register("entrada.quantidade", { valueAsNumber: true })} className={campo} />
+                    aria-invalid={Boolean(formState.errors.entrada?.quantidade) || undefined}
+                    aria-describedby={formState.errors.entrada?.quantidade ? `${formId}-ent-qtd-erro` : undefined}
+                    {...register("entrada.quantidade", { setValueAs: inteiroOuIndefinido })} className={campo} />
+                  <ErroCampo id={`${formId}-ent-qtd-erro`} mensagem={formState.errors.entrada?.quantidade?.message} />
                 </div>
               </div>
               {modo === "criar" && (
@@ -486,8 +558,11 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
                 {v.entrada?.forma && FORMAS_COM_CARTAO.has(v.entrada.forma) && v.entrada?.jaRecebida && (
                   <div className="space-y-1.5">
                     <label htmlFor={`${formId}-ent-cartao`} className={rotulo}>Vezes no cartão</label>
-                    <input id={`${formId}-ent-cartao`} type="number" min={1} max={24}
+                    <input id={`${formId}-ent-cartao`} type="number" inputMode="numeric" min={1} max={24}
+                      aria-invalid={Boolean(formState.errors.entrada?.parcelasCartao) || undefined}
+                      aria-describedby={formState.errors.entrada?.parcelasCartao ? `${formId}-ent-cartao-erro` : undefined}
                       {...register("entrada.parcelasCartao", { setValueAs: (x: string) => (x === "" ? null : Number(x)) })} className={campo} />
+                    <ErroCampo id={`${formId}-ent-cartao-erro`} mensagem={formState.errors.entrada?.parcelasCartao?.message} />
                   </div>
                 )}
               </div>
@@ -514,13 +589,19 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
         {/* 4. Saldo */}
         <fieldset className={secao}>
           <legend className="px-1 text-sm font-semibold text-foreground">Saldo · {formatarMoeda(saldoNovo)}</legend>
-          <ToggleField
-            label="Definir as condições do saldo depois"
-            ajuda="O contrato fica com “condições pendentes” até você definir forma e parcelas."
-            ativo={Boolean(v.saldo?.definirDepois)}
-            onChange={(x) => setValue("saldo.definirDepois", x, { shouldDirty: true, shouldValidate: true })}
-          />
-          {!v.saldo?.definirDepois && (
+          {semSaldo ? (
+            <p className="text-xs text-muted-foreground">
+              Sem saldo a parcelar: a entrada cobre o valor total do contrato.
+            </p>
+          ) : (
+            <ToggleField
+              label="Definir as condições do saldo depois"
+              ajuda="O contrato fica com “condições pendentes” até você definir forma e parcelas."
+              ativo={Boolean(v.saldo?.definirDepois)}
+              onChange={(x) => setValue("saldo.definirDepois", x, { shouldDirty: true, shouldValidate: true })}
+            />
+          )}
+          {!semSaldo && !v.saldo?.definirDepois && (
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <label htmlFor={`${formId}-sal-forma`} className={rotulo}>Forma do saldo *</label>
@@ -534,7 +615,10 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
                 <div className="space-y-1.5">
                   <label htmlFor={`${formId}-sal-qtd`} className={rotulo}>Parcelas {recebidasSaldo.length > 0 ? "em aberto" : ""}</label>
                   <input id={`${formId}-sal-qtd`} type="number" inputMode="numeric" min={1} max={24}
-                    {...register("saldo.quantidade", { valueAsNumber: true })} className={campo} />
+                    aria-invalid={Boolean(formState.errors.saldo?.quantidade) || undefined}
+                    aria-describedby={formState.errors.saldo?.quantidade ? `${formId}-sal-qtd-erro` : undefined}
+                    {...register("saldo.quantidade", { setValueAs: inteiroOuIndefinido })} className={campo} />
+                  <ErroCampo id={`${formId}-sal-qtd-erro`} mensagem={formState.errors.saldo?.quantidade?.message} />
                 </div>
               )}
               <div className="space-y-1.5">
@@ -544,7 +628,7 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
               </div>
             </div>
           )}
-          {modo === "editar" && regerarSaldo && !v.saldo?.definirDepois && (
+          {modo === "editar" && regerarSaldo && !semSaldo && !v.saldo?.definirDepois && (
             <p className="text-[11px] text-muted-foreground">
               As parcelas EM ABERTO do saldo serão recalculadas
               {recebidasSaldo.length > 0 ? ` — as ${recebidasSaldo.length} já recebidas não mudam` : ""}.
@@ -572,7 +656,11 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
               name="custoPsicologa"
               render={({ field }) => (
                 <MoneyInput label="Custo interno da psicóloga" value={field.value ?? null}
-                  onValueChange={(x) => field.onChange(x ?? 0)} onBlur={field.onBlur}
+                  onValueChange={(x, { invalido }) => {
+                    marcarDinheiro("psicologa", invalido);
+                    field.onChange(invalido ? undefined : (x ?? 0));
+                  }}
+                  onBlur={field.onBlur}
                   ajuda="Custo da BAU (entra na margem do aluno), não é cobrado à parte." />
               )}
             />
@@ -601,7 +689,9 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
           <Linha
             rotulo="Saldo"
             valor={
-              v.saldo?.definirDepois
+              semSaldo
+                ? `${formatarMoeda(0)} · entrada cobre o total`
+                : v.saldo?.definirDepois
                 ? `${formatarMoeda(saldoNovo)} · a definir`
                 : previaSaldo.length > 0
                   ? `${previaSaldo.length}× ${formatarMoeda(previaSaldo[0].valor)}${previaSaldo.length > 1 && previaSaldo[previaSaldo.length - 1].valor !== previaSaldo[0].valor ? ` (última ${formatarMoeda(previaSaldo[previaSaldo.length - 1].valor)})` : ""}`
@@ -616,7 +706,7 @@ export function ContratoForm({ modo, dados, formId, onEnviar, onBloqueio }: Cont
         <div className="flex flex-wrap gap-1.5 pt-1">
           {customizado && <Badge tone="orange" size="sm">Valor fora da tabela</Badge>}
           {irrisoria && <Badge tone="red" size="sm">Entrada muito baixa</Badge>}
-          {v.saldo?.definirDepois && <Badge tone="neutral" size="sm">Condições pendentes</Badge>}
+          {!semSaldo && v.saldo?.definirDepois && <Badge tone="neutral" size="sm">Condições pendentes</Badge>}
         </div>
       </aside>
     </form>

@@ -125,6 +125,7 @@ export interface ContratoCompleto {
     totalParcelas: number;
     sinalRecebido: number;
     semCronograma: number;
+    aQuitar: number;
     pctRecebido: number | null;
   } | null;
   planosTabela: { legacy: PlanoTabela; journey: PlanoTabela; start: PlanoTabela };

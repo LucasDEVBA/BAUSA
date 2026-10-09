@@ -17,6 +17,14 @@ const TITULO: Record<TipoEventoContrato, string> = {
   contrato_descartado: "Contrato descartado",
 };
 
+// Fuso FIXO: /contratos/[id] renderiza no servidor (UTC) e hidrata no
+// navegador (BRT) — sem timeZone o horário diferia e o React refazia a árvore.
+const DATA_HORA_BRT = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "America/Sao_Paulo",
+});
+
 /** Linha do tempo legível (contrato_eventos): quem, quando, o quê e por quê. */
 export function HistoricoContrato({ eventos }: { eventos: ContratoEventoRow[] }) {
   if (eventos.length === 0) return null;
@@ -30,7 +38,7 @@ export function HistoricoContrato({ eventos }: { eventos: ContratoEventoRow[] })
           <li key={e.id} className="border-l-2 border-border pl-3">
             <p className="text-xs font-medium text-foreground">{TITULO[e.tipo] ?? e.tipo}</p>
             <p className="text-[11px] text-muted-foreground">
-              {new Date(e.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+              <time dateTime={e.created_at}>{DATA_HORA_BRT.format(new Date(e.created_at))}</time>
               {" · "}{e.autorNome ?? "sistema"}
             </p>
             {e.justificativa && <p className="mt-0.5 text-[11px] text-foreground/80">“{e.justificativa}”</p>}

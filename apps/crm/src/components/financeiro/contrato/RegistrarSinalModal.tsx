@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { ComprovanteUpload } from "@/components/financeiro/contrato/ComprovanteUpload";
-import { FinModal } from "@/components/financeiro/contrato/FinModal";
+import { FinModal, MotivoBloqueio } from "@/components/financeiro/contrato/FinModal";
 import { registrarSinal } from "@/lib/actions/financeiro-contrato";
 import { ehValorIrrisorio, formatarMoeda } from "@/lib/financeiro/calculo.mjs";
 import {
@@ -17,6 +17,7 @@ import {
   FORMAS_COM_CARTAO,
   FORMAS_ENTRADA,
   hojeBRT,
+  OBSERVACAO_MAX,
   registrarSinalSchema,
   type RegistrarSinalInput,
 } from "@/lib/financeiro/schemas";
@@ -53,6 +54,8 @@ export function RegistrarSinalModal({
 }) {
   const formId = useId();
   const [salvando, setSalvando] = useState(false);
+  const [valorInvalido, setValorInvalido] = useState(false);
+  const [subindoComprovante, setSubindoComprovante] = useState(false);
   const { control, register, handleSubmit, setValue, formState } = useForm<RegistrarSinalInput, unknown, SaidaSinal>({
     resolver: zodResolver(registrarSinalSchema) as Resolver<RegistrarSinalInput, unknown, SaidaSinal>,
     defaultValues: {
@@ -68,8 +71,14 @@ export function RegistrarSinalModal({
   const valor = useWatch({ control, name: "valor" });
   const comprovante = useWatch({ control, name: "comprovanteUrl" });
   const forma = useWatch({ control, name: "forma" });
+  const motivo = valorInvalido
+    ? "Valor inválido — use o formato 7.800,00."
+    : subindoComprovante
+      ? "Aguarde o envio do comprovante."
+      : null;
 
   const enviar = async (dados: SaidaSinal) => {
+    if (motivo) return;
     setSalvando(true);
     try {
       const r = await registrarSinal(dados);
@@ -83,6 +92,9 @@ export function RegistrarSinalModal({
         description: r.data.movidoParaSinalPago ? `${athleteName} · movido para Sinal pago` : athleteName,
       });
       onRegistrado(r.data);
+    } catch (err) {
+      console.error({ level: "error", action: "registrar_sinal_falhou", dealId, error: String(err) });
+      toast.error("Não foi possível registrar o sinal. Tente de novo.", { description: athleteName });
     } finally {
       setSalvando(false);
     }
@@ -103,10 +115,12 @@ export function RegistrarSinalModal({
       rodape={
         <>
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>Cancelar</Button>
-          <Button type="submit" form={formId} disabled={salvando}>
+          <Button type="submit" form={formId} disabled={salvando || motivo !== null}
+            aria-describedby={motivo ? `${formId}-motivo` : undefined}>
             {salvando && <Loader2 className="animate-spin" />}
             Registrar sinal
           </Button>
+          <MotivoBloqueio id={`${formId}-motivo`} motivo={motivo} />
         </>
       }
     >
@@ -119,9 +133,14 @@ export function RegistrarSinalModal({
               label="Valor pago *"
               autoFocus
               value={field.value ?? null}
-              onValueChange={(x) => field.onChange(x ?? undefined)}
+              onValueChange={(x, { invalido }) => {
+                setValorInvalido(invalido);
+                field.onChange(x ?? undefined);
+                // Valor mudou: a confirmação de "valor baixo" vale para o valor anterior.
+                setValue("confirmarValorBaixo", false);
+              }}
               onBlur={field.onBlur}
-              erro={fieldState.error?.message}
+              erro={valorInvalido ? undefined : fieldState.error?.message}
               ajuda={
                 field.value === undefined ? (
                   <button type="button" className="font-medium text-primary hover:underline" onClick={() => field.onChange(sugestao)}>
@@ -153,22 +172,33 @@ export function RegistrarSinalModal({
           <div className="space-y-1.5">
             <label htmlFor={`${formId}-cartao`} className="block text-xs font-medium text-muted-foreground">Vezes no cartão</label>
             <input id={`${formId}-cartao`} type="number" inputMode="numeric" min={1} max={24}
+              aria-invalid={Boolean(formState.errors.parcelasCartao) || undefined}
+              aria-describedby={formState.errors.parcelasCartao ? `${formId}-cartao-erro` : `${formId}-cartao-ajuda`}
               {...register("parcelasCartao", { setValueAs: (x: string) => (x === "" ? null : Number(x)) })}
               className="h-10 w-full rounded-lg border border-input bg-card px-3 text-base sm:h-9 sm:text-sm" />
-            <p className="text-[11px] text-label-tertiary">Informativo: o sinal entra no caixa na data do pagamento.</p>
+            {formState.errors.parcelasCartao ? (
+              <p id={`${formId}-cartao-erro`} role="alert" className="text-[11px] text-sys-red">{formState.errors.parcelasCartao.message}</p>
+            ) : (
+              <p id={`${formId}-cartao-ajuda`} className="text-[11px] text-label-tertiary">Informativo: o sinal entra no caixa na data do pagamento.</p>
+            )}
           </div>
         )}
-        <ComprovanteUpload atletaId={atletaId} valor={comprovante ?? null}
+        <ComprovanteUpload atletaId={atletaId} valor={comprovante ?? null} onEnviandoChange={setSubindoComprovante}
           onChange={(url) => setValue("comprovanteUrl", url, { shouldValidate: true })} />
         <div className="space-y-1.5">
           <label htmlFor={`${formId}-obs`} className="block text-xs font-medium text-muted-foreground">Observação</label>
-          <textarea id={`${formId}-obs`} rows={2} {...register("observacao")} placeholder="Ex.: pago pelo avô; comprovante no WhatsApp"
+          <textarea id={`${formId}-obs`} rows={2} maxLength={OBSERVACAO_MAX} {...register("observacao")} placeholder="Ex.: pago pelo avô; comprovante no WhatsApp"
+            aria-invalid={Boolean(formState.errors.observacao) || undefined}
+            aria-describedby={formState.errors.observacao ? `${formId}-obs-erro` : undefined}
             className="w-full resize-none rounded-lg border border-input bg-card px-3 py-2 text-base sm:text-sm" />
+          {formState.errors.observacao && (
+            <p id={`${formId}-obs-erro`} role="alert" className="text-[11px] text-sys-red">{formState.errors.observacao.message}</p>
+          )}
         </div>
         {ehValorIrrisorio(valor ?? 0) && (
           <label className="flex items-start gap-2 rounded-lg border border-sys-orange/30 bg-sys-orange/8 p-2.5 text-xs text-sys-orange">
-            <input type="checkbox" className="mt-0.5 size-4"
-              onChange={(e) => setValue("confirmarValorBaixo", e.target.checked, { shouldValidate: true })} />
+            {/* register = estado da caixa e do form são o MESMO (remontar não a deixa desmarcada com o form "confirmado"). */}
+            <input type="checkbox" className="mt-0.5 size-4" {...register("confirmarValorBaixo")} />
             <span><AlertTriangle aria-hidden className="mr-1 inline size-3.5" />
               Sinal de <strong>{formatarMoeda(valor ?? 0)}</strong> está abaixo de R$ 100. Confirmo que o valor está certo.</span>
           </label>

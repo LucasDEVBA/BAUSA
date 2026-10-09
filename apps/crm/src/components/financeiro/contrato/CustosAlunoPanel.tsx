@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Badge, Button, useConfirm } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
-import { FinModal } from "@/components/financeiro/contrato/FinModal";
+import { FinModal, MotivoBloqueio } from "@/components/financeiro/contrato/FinModal";
 import { lancarCustoAluno, removerCustoAluno } from "@/lib/actions/financeiro-contrato";
 import { formatarMoeda, margemAluno } from "@/lib/financeiro/calculo.mjs";
 import {
@@ -38,11 +38,16 @@ export function CustosAlunoPanel({ dados, onAlterado }: { dados: ContratoComplet
 
   const remover = async (id: string) => {
     if (!(await confirm({ title: "Remover este custo?", description: "Sai do DRE e da margem do aluno.", tone: "danger", confirmLabel: "Remover" }))) return;
-    const r = await removerCustoAluno(id, c.id);
-    if (r.success) {
-      toast.success("Custo removido");
-      onAlterado();
-    } else toast.error(r.error);
+    try {
+      const r = await removerCustoAluno(id, c.id);
+      if (r.success) {
+        toast.success("Custo removido");
+        onAlterado();
+      } else toast.error(r.error);
+    } catch (err) {
+      console.error({ level: "error", action: "remover_custo_aluno_falhou", contratoId: c.id, error: String(err) });
+      toast.error("Não foi possível remover o custo. Tente de novo.");
+    }
   };
 
   return (
@@ -86,19 +91,24 @@ function LancarCustoModal({ contratoId, athleteName, onFechar, onFeito }: {
   const [descricao, setDescricao] = useState("");
   const [categoria, setCategoria] = useState<CategoriaCustoAluno | "">("");
   const [valor, setValor] = useState<number | null>(null);
+  const [valorInvalido, setValorInvalido] = useState(false);
   const [data, setData] = useState(hojeBRT());
   const [pago, setPago] = useState(true);
   const [salvando, setSalvando] = useState(false);
-  const bloqueio = !categoria ? "Escolha a categoria." : descricao.trim().length < 2 ? "Descreva o custo." : !valor ? "Informe o valor." : null;
+  const bloqueio = !categoria ? "Escolha a categoria." : descricao.trim().length < 2 ? "Descreva o custo." :
+    valorInvalido ? "Valor inválido — use o formato 7.800,00." : !valor ? "Informe o valor." : !data ? "Informe a data." : null;
 
   const salvar = async () => {
-    if (!categoria || !valor) return;
+    if (!categoria || !valor || bloqueio) return;
     setSalvando(true);
     try {
       const r = await lancarCustoAluno({ contratoId, descricao, categoria, valor, data, pago });
       if (!r.success) return void toast.error(r.error);
       toast.success("Custo lançado", { description: athleteName });
       onFeito();
+    } catch (err) {
+      console.error({ level: "error", action: "lancar_custo_aluno_falhou", contratoId, error: String(err) });
+      toast.error("Não foi possível lançar o custo. Tente de novo.");
     } finally {
       setSalvando(false);
     }
@@ -108,7 +118,10 @@ function LancarCustoModal({ contratoId, athleteName, onFechar, onFeito }: {
     <FinModal aberto onFechar={onFechar} bloqueado={salvando} titulo="Lançar custo do aluno" descricao={athleteName} icone={<Receipt className="size-4" />}
       rodape={<>
         <Button variant="ghost" onClick={onFechar} disabled={salvando}>Cancelar</Button>
-        <Button onClick={salvar} disabled={salvando || bloqueio !== null} title={bloqueio ?? undefined}>{salvando && <Loader2 className="animate-spin" />}Lançar</Button>
+        <Button onClick={salvar} disabled={salvando || bloqueio !== null} aria-describedby={bloqueio ? `${id}-motivo` : undefined}>
+          {salvando && <Loader2 className="animate-spin" />}Lançar
+        </Button>
+        <MotivoBloqueio id={`${id}-motivo`} motivo={bloqueio} />
       </>}>
       <div className="space-y-3">
         <div>
@@ -124,7 +137,7 @@ function LancarCustoModal({ contratoId, athleteName, onFechar, onFeito }: {
           <input id={`${id}-d`} value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex.: Application fee IMG Academy"
             className="h-10 w-full rounded-lg border border-input bg-card px-3 text-base sm:h-9 sm:text-sm" />
         </div>
-        <MoneyInput label="Valor (R$) *" value={valor} onValueChange={setValor} />
+        <MoneyInput label="Valor (R$) *" value={valor} onValueChange={(x, { invalido }) => { setValor(x); setValorInvalido(invalido); }} />
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor={`${id}-dt`} className="block text-xs font-medium text-muted-foreground">Data *</label>

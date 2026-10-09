@@ -95,6 +95,18 @@ export const justificativaSchema = z
   .max(JUSTIFICATIVA_MAX);
 export const uuidSchema = z.uuid("Identificador inválido.");
 
+/** Inteiro de um campo numérico com mensagens em PT (o padrão do Zod é inglês e virava o motivo do botão). */
+function inteiroEntre(min: number, max: number, rotulo: string) {
+  return z
+    .number({ error: `${rotulo}: informe um número.` })
+    .int(`${rotulo}: use um número inteiro.`)
+    .min(min, `${rotulo}: de ${min} a ${max}.`)
+    .max(max, `${rotulo}: de ${min} a ${max}.`);
+}
+const parcelasCartaoSchema = inteiroEntre(1, 24, "Vezes no cartão").nullable().default(null);
+export const OBSERVACAO_MAX = 500;
+const observacaoSchema = z.string().trim().max(OBSERVACAO_MAX, `Observação: máximo ${OBSERVACAO_MAX} caracteres.`).default("");
+
 /** "Hoje" no fuso do negócio (America/Sao_Paulo), YYYY-MM-DD. */
 export function hojeBRT(agora: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(agora);
@@ -139,18 +151,18 @@ export const condicoesContratoSchema = z
       valor: dinheiroSchema,
       forma: z.enum(FORMAS_ENTRADA).nullable(),
       /** Total de parcelas da entrada (inclui as já recebidas). */
-      quantidade: z.number().int().min(1).max(12).default(1),
+      quantidade: inteiroEntre(1, 12, "Parcelas da entrada").default(1),
       /** Entrada já paga na criação (registra como recebida). */
       jaRecebida: z.boolean().default(false),
       dataRecebimento: dataIsoSchema.nullable().default(null),
       primeiroVencimento: dataIsoSchema.nullable().default(null),
-      parcelasCartao: z.number().int().min(1).max(24).nullable().default(null),
+      parcelasCartao: parcelasCartaoSchema,
     }),
 
     saldo: z.object({
       definirDepois: z.boolean().default(false),
       forma: z.enum(FORMAS_SALDO).nullable(),
-      quantidade: z.number().int().min(1).max(24).default(1),
+      quantidade: inteiroEntre(1, 24, "Parcelas do saldo").default(1),
       primeiroVencimento: dataIsoSchema.nullable().default(null),
     }),
 
@@ -160,6 +172,9 @@ export const condicoesContratoSchema = z
     confirmarComPagamentos: z.boolean().default(false),
     /** Editar contrato que já tem plano (T9) — o SERVIDOR define (nunca confia no client). */
     exigirJustificativa: z.boolean().default(false),
+    /** Plano gravado e Σ recebido no saldo — o SERVIDOR define pelo banco; o form usa para travar o botão (T10). */
+    planoAtual: z.enum(PLANOS).nullable().default(null),
+    pagosNoSaldo: z.number().min(0).default(0),
   })
   .superRefine((v, ctx) => {
     const customizado = v.valorTabela === null || v.valorBasePlano !== v.valorTabela;
@@ -187,7 +202,12 @@ export const condicoesContratoSchema = z
     if (v.entrada.valor > 0 && !v.entrada.jaRecebida && !v.entrada.primeiroVencimento) {
       ctx.addIssue({ code: "custom", path: ["entrada", "primeiroVencimento"], message: "Informe o vencimento da entrada." });
     }
-    if (!v.saldo.definirDepois) {
+    const total =
+      v.valorBasePlano +
+      v.itens.reduce((s, i) => s + valorAssinadoDoItem(i), 0) +
+      (v.sinalAbatido ? 0 : v.entrada.valor);
+    // Entrada = total: não há saldo a parcelar (forma/vencimento não se aplicam).
+    if (!v.saldo.definirDepois && saldoDoContrato(total, v.entrada.valor) > 0) {
       if (!v.saldo.forma) {
         ctx.addIssue({ code: "custom", path: ["saldo", "forma"], message: "Escolha a forma do saldo (ou marque “definir depois”)." });
       }
@@ -195,11 +215,14 @@ export const condicoesContratoSchema = z
         ctx.addIssue({ code: "custom", path: ["saldo", "primeiroVencimento"], message: "Informe o 1º vencimento do saldo." });
       }
     }
+    if (v.planoAtual !== null && v.plano !== v.planoAtual && v.pagosNoSaldo > 0 && !v.confirmarComPagamentos) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["confirmarComPagamentos"],
+        message: "Confirme a troca de plano: já entraram pagamentos no saldo.",
+      });
+    }
     // Entrada irrisória (caso Amanda): exige confirmação explícita — client E server.
-    const total =
-      v.valorBasePlano +
-      v.itens.reduce((s, i) => s + valorAssinadoDoItem(i), 0) +
-      (v.sinalAbatido ? 0 : v.entrada.valor);
     if (total < v.entrada.valor) {
       ctx.addIssue({ code: "custom", path: ["entrada", "valor"], message: "A entrada não pode ser maior que o valor total." });
     }
@@ -212,6 +235,11 @@ export const condicoesContratoSchema = z
     }
   });
 export type CondicoesContratoInput = z.input<typeof condicoesContratoSchema>;
+
+/** Saldo = total − entrada, ao centavo (0 quando a entrada cobre o total). */
+export function saldoDoContrato(total: number, entrada: number): number {
+  return Math.max(0, Math.round((total - entrada) * 100)) / 100;
+}
 export type CondicoesContrato = z.output<typeof condicoesContratoSchema>;
 
 // ─── Sinal antes do plano (T11) ──────────────────────────────────────────────
@@ -221,10 +249,10 @@ export const registrarSinalSchema = z
     dealId: uuidSchema,
     valor: dinheiroPositivoSchema,
     forma: z.enum(FORMAS_ENTRADA, { error: "Escolha a forma de pagamento do sinal." }),
-    parcelasCartao: z.number().int().min(1).max(24).nullable().default(null),
+    parcelasCartao: parcelasCartaoSchema,
     dataPagamento: dataIsoSchema,
     comprovanteUrl: z.url().max(2048).nullable().default(null),
-    observacao: z.string().trim().max(500).default(""),
+    observacao: observacaoSchema,
     confirmarValorBaixo: z.boolean().default(false),
   })
   .superRefine((v, ctx) => {
@@ -251,8 +279,8 @@ export const baixarParcelaSchema = z
     valorRecebido: dinheiroPositivoSchema.nullable().default(null),
     valorParcela: dinheiroPositivoSchema,
     comprovanteUrl: z.url().max(2048).nullable().default(null),
-    observacao: z.string().trim().max(500).default(""),
-    parcelasCartao: z.number().int().min(1).max(24).nullable().default(null),
+    observacao: observacaoSchema,
+    parcelasCartao: parcelasCartaoSchema,
     confirmarValorBaixo: z.boolean().default(false),
   })
   .superRefine((v, ctx) => {
@@ -288,7 +316,7 @@ export const editarParcelaSchema = z
     vencimento: dataIsoSchema.nullable().default(null),
     metodo: z.enum(METODOS_PARCELA).nullable().default(null),
     modoValor: z.enum(["ajustar_ultima", "alterar_total"]).default("ajustar_ultima"),
-    observacao: z.string().trim().max(500).default(""),
+    observacao: observacaoSchema,
     justificativa: justificativaSchema,
   })
   .refine((v) => v.valor !== null || v.vencimento !== null || v.metodo !== null || v.observacao.length > 0, {
@@ -301,7 +329,7 @@ export const quitarContratoSchema = z
     versao: z.string().min(8),
     data: dataIsoSchema,
     metodo: z.enum(METODOS_PARCELA, { error: "Escolha o método da quitação." }),
-    observacao: z.string().trim().max(500).default(""),
+    observacao: observacaoSchema,
   })
   .refine((v) => v.data <= hojeBRT(), { path: ["data"], message: "A data do pagamento não pode ser futura." });
 

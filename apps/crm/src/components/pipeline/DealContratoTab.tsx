@@ -119,23 +119,32 @@ function AssinaturaENf({ dados, atletaId, onSalvo }: { dados: ContratoCompleto; 
   const [nfNumero, setNfNumero] = useState(c?.nf_numero ?? "");
   const [nfData, setNfData] = useState(c?.nf_emitida_at?.split("T")[0] ?? "");
   const [nfValor, setNfValor] = useState<number | null>(c?.nf_valor ?? null);
+  const [nfValorInvalido, setNfValorInvalido] = useState(false);
   const [isPending, startTransition] = useTransition();
   if (!c) return null;
 
-  const salvarNf = () =>
+  const salvarNf = () => {
+    // Texto inválido no valor apagaria o valor salvo (null): trava.
+    if (nfValorInvalido) return;
     startTransition(async () => {
-      const r = await updateNfData({
-        contractId: c.id,
-        nfNumero: nfNumero || null,
-        nfEmitidaAt: nfData || null,
-        nfValor,
-        nfStatus: nfNumero ? "emitida" : "pendente",
-      });
-      if (r.success) {
-        toast.success("Dados da NF salvos");
-        onSalvo();
-      } else toast.error(r.error ?? "Erro ao salvar NF");
+      try {
+        const r = await updateNfData({
+          contractId: c.id,
+          nfNumero: nfNumero || null,
+          nfEmitidaAt: nfData || null,
+          nfValor,
+          nfStatus: nfNumero ? "emitida" : "pendente",
+        });
+        if (r.success) {
+          toast.success("Dados da NF salvos");
+          onSalvo();
+        } else toast.error(r.error ?? "Erro ao salvar NF");
+      } catch (err) {
+        console.error({ level: "error", action: "aba_contrato_salvar_nf", contratoId: c.id, error: String(err) });
+        toast.error("Não foi possível salvar a NF. Tente de novo.");
+      }
     });
+  };
 
   const upload = async (file: File) => {
     const alvo = atletaId ?? dados.atletaId;
@@ -206,8 +215,9 @@ function AssinaturaENf({ dados, atletaId, onSalvo }: { dados: ContratoCompleto; 
                   className="h-10 w-full rounded-lg border border-input bg-card px-3 text-base sm:h-9 sm:text-sm" />
               </div>
             </div>
-            <MoneyInput label="Valor da NF" value={nfValor} onValueChange={setNfValor} />
-            <Button size="sm" variant="secondary" onClick={salvarNf} disabled={isPending} className={cn("text-sys-orange")}>
+            <MoneyInput label="Valor da NF" value={nfValor}
+              onValueChange={(x, { invalido }) => { setNfValor(x); setNfValorInvalido(invalido); }} />
+            <Button size="sm" variant="secondary" onClick={salvarNf} disabled={isPending || nfValorInvalido} className={cn("text-sys-orange")}>
               {isPending ? <Loader2 className="animate-spin" /> : <Save />}Salvar dados da NF
             </Button>
           </div>

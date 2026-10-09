@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useId, useState } from "react";
+import { forwardRef, useEffect, useId, useRef, useState } from "react";
 
 import { formatarValorBRL, parseValorBRL } from "@/lib/financeiro/calculo.mjs";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,13 @@ import { cn } from "@/lib/utils";
  * pessoa digita, o texto NÃO é reformatado (o cursor não pula) e o valor só
  * sobe para o form quando é válido (`onValueChange(null)` = vazio/ inválido).
  *
+ * Texto inválido ("4.500.00") NÃO é "vazio": o 2º argumento traz
+ * `{ invalido: true }` e quem usa TRAVA o envio com o motivo visível — nunca
+ * trocar o null por 0/"valor cheio" (o form gravava R$ 0 de entrada). Nesse
+ * caso, guarde null ou deixe o valor como estava (nunca outro número): um
+ * valor NOVO vindo de fora com o campo fora de foco (ex.: clicar num serviço)
+ * descarta o texto inválido e avisa `onValueChange(valor, { invalido: false })`.
+ *
  * Componente de MÓDULO (nunca declarar dentro de render — remonta e perde o
  * foco a cada tecla, o outro bug do formulário antigo). Integra com RHF via
  * <Controller>. text-base no mobile evita o zoom do iOS em input < 16px.
@@ -22,7 +29,8 @@ import { cn } from "@/lib/utils";
 export interface MoneyInputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type" | "inputMode"> {
   value: number | null;
-  onValueChange: (valor: number | null) => void;
+  /** `info.invalido` = texto que não é dinheiro (valor null): TRAVAR o envio. */
+  onValueChange: (valor: number | null, info: { invalido: boolean }) => void;
   /** Mensagem de erro (aria-invalid + aria-describedby). */
   erro?: string;
   /** Texto de apoio abaixo do campo. */
@@ -42,6 +50,29 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
   // valor vindo de fora, ex. "usar sugestão", aparece sem efeito colateral).
   const [rascunho, setRascunho] = useState<string | null>(null);
   const [invalido, setInvalido] = useState(false);
+  const [focado, setFocado] = useState(false);
+  const [valorVisto, setValorVisto] = useState(value);
+
+  // Valor novo vindo de FORA com o campo fora de foco descarta o texto
+  // inválido — senão ele continuava na tela e o próximo blur apagava o valor.
+  // (null não conta: é o eco do próprio "inválido".)
+  if (value !== valorVisto) {
+    setValorVisto(value);
+    if (invalido && !focado && value !== null) {
+      setRascunho(null);
+      setInvalido(false);
+    }
+  }
+
+  // Avisa quem usa que o inválido foi descartado por valor externo (as outras
+  // transições já avisam no próprio evento).
+  const invalidoAntes = useRef(invalido);
+  useEffect(() => {
+    const antes = invalidoAntes.current;
+    invalidoAntes.current = invalido;
+    if (antes && !invalido && !focado) onValueChange(value, { invalido: false });
+  }, [invalido, focado, value, onValueChange]);
+
   const texto = rascunho ?? formatarValorBRL(value);
 
   const describedBy = [ajuda ? ajudaId : null, erro || invalido ? erroId : null].filter(Boolean).join(" ") || undefined;
@@ -75,6 +106,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
           aria-describedby={describedBy}
           value={texto}
           onFocus={(e) => {
+            setFocado(true);
             // Zero começa vazio: com "0,00" no campo, digitar 7800 colava no
             // fim ("0,007800"), o parse recusava e a entrada voltava vazia.
             setRascunho(value === 0 ? "" : texto);
@@ -85,22 +117,23 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
             setRascunho(bruto);
             if (bruto === "") {
               setInvalido(false);
-              onValueChange(null);
+              onValueChange(null, { invalido: false });
               return;
             }
             const v = parseValorBRL(bruto);
             // Ainda digitando ("7," / "1.") → não acusa até sair do campo.
             if (v !== null) {
               setInvalido(false);
-              onValueChange(v);
+              onValueChange(v, { invalido: false });
             }
           }}
           onBlur={(e) => {
+            setFocado(false);
             const v = parseValorBRL(texto);
             if (texto !== "" && v === null) {
               // mantém o texto digitado visível, com erro
               setInvalido(true);
-              onValueChange(null);
+              onValueChange(null, { invalido: true });
             } else {
               setInvalido(false);
               setRascunho(null); // volta a exibir o valor formatado ("7.800,00")

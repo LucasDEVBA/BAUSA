@@ -18,19 +18,27 @@ export function ComprovanteUpload({
   atletaId,
   valor,
   onChange,
+  onEnviandoChange,
 }: {
   atletaId: string | null | undefined;
   valor: string | null;
   onChange: (url: string | null) => void;
+  /** O modal trava o envio enquanto o arquivo sobe (senão grava sem comprovante e o arquivo fica órfão). */
+  onEnviandoChange?: (enviando: boolean) => void;
 }) {
   const id = useId();
   const [enviando, setEnviando] = useState(false);
   if (!atletaId) return null;
 
+  const marcarEnviando = (x: boolean) => {
+    setEnviando(x);
+    onEnviandoChange?.(x);
+  };
+
   const enviar = async (file: File) => {
     if (file.size > MAX_BYTES) return void toast.error("Arquivo maior que 10 MB.");
     if (!TIPOS.includes(file.type)) return void toast.error("Envie PDF ou imagem (JPG, PNG, WEBP, HEIC).");
-    setEnviando(true);
+    marcarEnviando(true);
     try {
       const nome = `${Date.now()}-${file.name.replace(/[^\w.-]+/g, "_")}`;
       onChange(await uploadDocumento(atletaId, "comprovante_financeiro", new File([file], nome, { type: file.type })));
@@ -38,7 +46,7 @@ export function ComprovanteUpload({
       console.error({ level: "error", action: "comprovante_upload", error: String(err) });
       toast.error("Não foi possível enviar o comprovante.");
     } finally {
-      setEnviando(false);
+      marcarEnviando(false);
     }
   };
 

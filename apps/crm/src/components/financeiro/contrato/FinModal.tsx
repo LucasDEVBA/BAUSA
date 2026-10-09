@@ -95,3 +95,17 @@ export function FinModal({
     </Dialog.Root>
   );
 }
+
+/**
+ * Motivo VISÍVEL do botão desabilitado, no rodapé do FinModal (o `title` não
+ * aparece no toque nem chega ao teclado/leitor de tela). Ligar ao botão com
+ * `aria-describedby={motivo ? id : undefined}`.
+ */
+export function MotivoBloqueio({ id, motivo }: { id: string; motivo: string | null }) {
+  if (!motivo) return null;
+  return (
+    <p id={id} className="text-[11px] text-muted-foreground sm:order-first sm:mr-auto">
+      {motivo}
+    </p>
+  );
+}

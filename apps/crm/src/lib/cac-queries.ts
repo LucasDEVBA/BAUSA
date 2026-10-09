@@ -115,6 +115,8 @@ interface LeadRow {
 
 interface ContratoRow {
   valor_total: number;
+  /** null = contrato "aguardando plano" (só o sinal — T11). */
+  plano: string | null;
 }
 
 // Mapeia canal de gasto → aliases possíveis de utm_source (normalizado).
@@ -168,7 +170,7 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
     ),
     supabase
       .from("contratos_financeiros")
-      .select("valor_total")
+      .select("valor_total, plano")
       .is("deleted_at", null)
       .gte("created_at", startISO),
   ]);
@@ -184,8 +186,13 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
   const leadsQualificados = leads.filter((l) =>
     ["QUENTE", "MORNO"].includes(l.qualification_classification ?? ""),
   ).length;
+  // Família com sinal pago conta como cliente (sinal = negócio fechado no
+  // processo do CEO); mas o TICKET médio só considera contrato com plano — o
+  // "aguardando plano" vale só o sinal e derrubaria o ticket e o ROI por canal
+  // (mesma regra do /financeiro e do remarketing).
   const clientes = contratos.length;
-  const receitaTotal = contratos.reduce((s, c) => s + Number(c.valor_total), 0);
+  const comPlano = contratos.filter((c) => c.plano !== null);
+  const receitaComPlano = comPlano.reduce((s, c) => s + Number(c.valor_total), 0);
 
   // CAC só é definido quando houve gasto no período. Sem gasto, o custo de
   // aquisição é indefinido (não zero) → null → UI exibe "—" em vez de "R$ 0"
@@ -195,7 +202,7 @@ export async function fetchCacMetrics(period: Period): Promise<CacMetrics> {
   const cacLeadQualificado =
     temGasto && leadsQualificados > 0 ? gastoTotal / leadsQualificados : null;
   const cacCliente = temGasto && clientes > 0 ? gastoTotal / clientes : null;
-  const ticketMedio = clientes > 0 ? receitaTotal / clientes : null;
+  const ticketMedio = comPlano.length > 0 ? receitaComPlano / comPlano.length : null;
   const conversaoGlobal = totalLeads > 0 ? clientes / totalLeads : 0;
 
   // Gasto agregado por canal

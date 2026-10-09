@@ -9,13 +9,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { ComprovanteUpload } from "@/components/financeiro/contrato/ComprovanteUpload";
-import { FinModal } from "@/components/financeiro/contrato/FinModal";
+import { FinModal, MotivoBloqueio } from "@/components/financeiro/contrato/FinModal";
 import { baixarParcela } from "@/lib/actions/financeiro-contrato";
 import { ehValorIrrisorio, formatarMoeda } from "@/lib/financeiro/calculo.mjs";
 import {
   baixarParcelaSchema,
   hojeBRT,
   METODO_LABEL,
+  OBSERVACAO_MAX,
   METODOS_PARCELA,
   type BaixarParcelaInput,
 } from "@/lib/financeiro/schemas";
@@ -48,6 +49,8 @@ export function BaixaParcelaModal({
 }) {
   const formId = useId();
   const [salvando, setSalvando] = useState(false);
+  const [valorInvalido, setValorInvalido] = useState(false);
+  const [subindoComprovante, setSubindoComprovante] = useState(false);
   const { control, register, handleSubmit, setValue, formState } = useForm<BaixarParcelaInput, unknown, SaidaBaixa>({
     resolver: zodResolver(baixarParcelaSchema) as Resolver<BaixarParcelaInput, unknown, SaidaBaixa>,
     defaultValues: {
@@ -67,8 +70,15 @@ export function BaixaParcelaModal({
   const comprovante = useWatch({ control, name: "comprovanteUrl" });
   const valorEfetivo = recebido ?? parcela.valor;
   const parcial = recebido !== null && recebido !== undefined && recebido < parcela.valor;
+  // Texto inválido NUNCA vira "valor cheio" (null = cheio): trava com o motivo.
+  const motivo = valorInvalido
+    ? "Valor recebido inválido — use o formato 7.800,00."
+    : subindoComprovante
+      ? "Aguarde o envio do comprovante."
+      : null;
 
   const enviar = async (dados: SaidaBaixa) => {
+    if (motivo) return;
     setSalvando(true);
     try {
       const r = await baixarParcela(dados);
@@ -83,6 +93,9 @@ export function BaixaParcelaModal({
         { description: r.data.movidoParaSinalPago ? `${athleteName} · movido para Sinal pago` : athleteName },
       );
       onBaixada(r.data);
+    } catch (err) {
+      console.error({ level: "error", action: "baixa_parcela_falhou", parcelaId: parcela.id, error: String(err) });
+      toast.error("Não foi possível registrar a baixa. Tente de novo.", { description: athleteName });
     } finally {
       setSalvando(false);
     }
@@ -99,10 +112,12 @@ export function BaixaParcelaModal({
       rodape={
         <>
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>Cancelar</Button>
-          <Button type="submit" form={formId} disabled={salvando}>
+          <Button type="submit" form={formId} disabled={salvando || motivo !== null}
+            aria-describedby={motivo ? `${formId}-motivo` : undefined}>
             {salvando && <Loader2 className="animate-spin" />}
             Confirmar recebimento
           </Button>
+          <MotivoBloqueio id={`${formId}-motivo`} motivo={motivo} />
         </>
       }
     >
@@ -129,24 +144,33 @@ export function BaixaParcelaModal({
             <MoneyInput
               label="Valor recebido"
               value={field.value ?? parcela.valor}
-              onValueChange={(x) => field.onChange(x === null || x === parcela.valor ? null : x)}
+              onValueChange={(x, { invalido }) => {
+                setValorInvalido(invalido);
+                if (invalido) return; // fica o valor anterior; o motivo trava o envio
+                field.onChange(x === null || x === parcela.valor ? null : x);
+                setValue("confirmarValorBaixo", false);
+              }}
               onBlur={field.onBlur}
-              erro={fieldState.error?.message}
+              erro={valorInvalido ? undefined : fieldState.error?.message}
               ajuda={parcial ? `Pagamento parcial: ${formatarMoeda(parcela.valor - (recebido ?? 0))} ficam em aberto como “${parcela.numero_parcela} (restante)”.` : "Igual ao valor da parcela? Deixe como está."}
             />
           )}
         />
-        <ComprovanteUpload atletaId={atletaId} valor={comprovante ?? null}
+        <ComprovanteUpload atletaId={atletaId} valor={comprovante ?? null} onEnviandoChange={setSubindoComprovante}
           onChange={(url) => setValue("comprovanteUrl", url, { shouldValidate: true })} />
         <div className="space-y-1.5">
           <label htmlFor={`${formId}-obs`} className="block text-xs font-medium text-muted-foreground">Observação</label>
-          <input id={`${formId}-obs`} {...register("observacao")} placeholder="Ex.: transferência da conta do pai"
+          <input id={`${formId}-obs`} maxLength={OBSERVACAO_MAX} {...register("observacao")} placeholder="Ex.: transferência da conta do pai"
+            aria-invalid={Boolean(formState.errors.observacao) || undefined}
+            aria-describedby={formState.errors.observacao ? `${formId}-obs-erro` : undefined}
             className="h-10 w-full rounded-lg border border-input bg-card px-3 text-base sm:h-9 sm:text-sm" />
+          {formState.errors.observacao && (
+            <p id={`${formId}-obs-erro`} role="alert" className="text-[11px] text-sys-red">{formState.errors.observacao.message}</p>
+          )}
         </div>
         {ehValorIrrisorio(valorEfetivo) && (
           <label className="flex items-start gap-2 rounded-lg border border-sys-orange/30 bg-sys-orange/8 p-2.5 text-xs text-sys-orange">
-            <input type="checkbox" className="mt-0.5 size-4"
-              onChange={(e) => setValue("confirmarValorBaixo", e.target.checked, { shouldValidate: true })} />
+            <input type="checkbox" className="mt-0.5 size-4" {...register("confirmarValorBaixo")} />
             <span><AlertTriangle aria-hidden className="mr-1 inline size-3.5" />
               Valor de <strong>{formatarMoeda(valorEfetivo)}</strong> está abaixo de R$ 100. Confirmo que está certo.</span>
           </label>

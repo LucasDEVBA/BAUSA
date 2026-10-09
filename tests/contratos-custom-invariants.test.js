@@ -68,7 +68,9 @@ test('contratos: personalizado exige valor; entrada e parcelas validadas', () =>
   assert.match(migFlex, /valor_total >= entrada_valor/, 'CHECK do banco contra saldo negativo sumiu');
   assert.match(rpcs, /inclui_psicologa = COALESCE\(\(p_dados ->> 'inclui_psicologa'\)::boolean/,
     'toggle de psicóloga voltou a ser ignorado');
-  assert.match(schemas, /quantidade: z\.number\(\)\.int\(\)\.min\(1\)/, 'parcelas >= 1');
+  // parcelas >= 1 (inteiro), com mensagens em PT pelo helper inteiroEntre.
+  assert.match(schemas, /quantidade: inteiroEntre\(1, /, 'parcelas >= 1');
+  assert.match(schemas, /function inteiroEntre\([\s\S]*?\.int\([\s\S]*?\.min\(min, /, 'helper de inteiro perdeu .int()/.min()');
 });
 
 test('contratos: descartar só sem nenhum pagamento, atômico (lock + checagem + soft delete na mesma transação)', () => {

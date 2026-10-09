@@ -67,7 +67,9 @@ export async function updateNfData(dados: {
   return { success: true };
 }
 
-// Corpo de origin/develop; ÚNICA mudança (revisão): cancela previsto E atrasado.
+// Corpo de origin/develop com 2 mudanças: cancela previsto E atrasado, e as
+// parcelas são canceladas ANTES de mover o deal, com erro checado — falha no
+// meio não pode deixar o deal "perdido" com parcelas abertas que a régua cobra.
 export async function solicitarCancelamento(dealId: string, dados: {
   motivo_cancelamento: string;
   valor_reembolso: number;
@@ -92,6 +94,34 @@ export async function solicitarCancelamento(dealId: string, dados: {
     return { success: false, error: "Deal nao encontrado." };
   }
 
+  // 1º as parcelas pendentes do contrato (repetir é seguro: as já canceladas
+  // não casam o filtro de status).
+  const { data: contrato, error: contratoErr } = await supabase
+    .from("contratos_financeiros")
+    .select("id")
+    .eq("deal_id", dealId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (contratoErr) {
+    console.error({ level: "error", action: "cancelamento_ler_contrato", dealId, error: contratoErr.message });
+    return { success: false, error: "Não foi possível ler o contrato — nada foi alterado. Tente de novo." };
+  }
+
+  if (contrato) {
+    // previsto E atrasado (antes só previsto: a parcela já vencida continuava
+    // em aberto e a régua de cobrança seguiria cobrando quem cancelou).
+    const { error: parcErr } = await supabase
+      .from("parcelas")
+      .update({ status: "cancelado" })
+      .eq("contrato_id", contrato.id)
+      .in("status", ["previsto", "atrasado"])
+      .is("deleted_at", null);
+    if (parcErr) {
+      console.error({ level: "error", action: "cancelamento_parcelas", dealId, contratoId: contrato.id, error: parcErr.message });
+      return { success: false, error: "Não foi possível cancelar as parcelas — nada foi alterado. Tente de novo." };
+    }
+  }
+
   // Atualizar deal com dados de cancelamento
   const { error: updateErr } = await supabase
     .from("deals")
@@ -104,26 +134,11 @@ export async function solicitarCancelamento(dealId: string, dados: {
     .eq("id", dealId);
 
   if (updateErr) {
-    return { success: false, error: `Erro ao processar cancelamento: ${updateErr.message}` };
-  }
-
-  // Cancelar parcelas pendentes do contrato
-  const { data: contrato } = await supabase
-    .from("contratos_financeiros")
-    .select("id")
-    .eq("deal_id", dealId)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (contrato) {
-    // previsto E atrasado (antes só previsto: a parcela já vencida continuava
-    // em aberto e a régua de cobrança seguiria cobrando quem cancelou).
-    await supabase
-      .from("parcelas")
-      .update({ status: "cancelado" })
-      .eq("contrato_id", contrato.id)
-      .in("status", ["previsto", "atrasado"])
-      .is("deleted_at", null);
+    console.error({ level: "error", action: "cancelamento_mover_deal", dealId, error: updateErr.message });
+    return {
+      success: false,
+      error: "As parcelas foram canceladas, mas o negócio não mudou de etapa. Tente de novo.",
+    };
   }
 
   // Criar notificacao para CEO

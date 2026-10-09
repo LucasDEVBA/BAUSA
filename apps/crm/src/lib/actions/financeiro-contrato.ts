@@ -26,6 +26,7 @@ import {
   hojeBRT,
   quitarContratoSchema,
   registrarSinalSchema,
+  saldoDoContrato,
   uuidSchema,
   valorAssinadoDoItem,
   type BaixarParcelaInput,
@@ -95,13 +96,25 @@ const COLUNAS_PARCELA =
   "id, contrato_id, tipo, numero_parcela, valor, vencimento, metodo, status, recebido_at, " +
   "comprovante_url, parcelas_cartao, observacao, created_at, updated_at";
 
+/**
+ * Falha de LEITURA vira exceção (a aba/modal mostram "Tentar de novo"): devolver
+ * "sem contrato" ou parcelas vazias induzia o CEO a recriar um contrato que
+ * existe ou mostrava estado/saldo errados.
+ */
+function falhaDeLeitura(action: string, contexto: Record<string, unknown>, mensagem: string): never {
+  console.error({ level: "error", action, ...contexto, error: mensagem });
+  throw new Error("Não foi possível carregar o contrato.");
+}
+
 async function montarCompleto(contrato: ContratoRow | null, dealId: string): Promise<ContratoCompleto> {
   const supabase = await createServerSupabaseClient();
   const [parametros, catalogo, dealRes] = await Promise.all([
     getParametrosSistema(),
-    lerCatalogo(),
+    // Catálogo só alimenta atalhos do formulário: falha não impede ver o contrato.
+    lerCatalogo().catch(() => [] as ServicoCatalogo[]),
     supabase.from("deals").select("etapa, atleta_id, atleta:atletas(nome_completo)").eq("id", dealId).maybeSingle(),
   ]);
+  if (dealRes.error) falhaDeLeitura("contrato_deal_leitura_falhou", { dealId }, dealRes.error.message);
   const atletaRaw = dealRes.data?.atleta as unknown;
   const atleta = (Array.isArray(atletaRaw) ? atletaRaw[0] : atletaRaw) as { nome_completo?: string } | null;
   const base = {
@@ -131,10 +144,13 @@ async function montarCompleto(contrato: ContratoRow | null, dealId: string): Pro
       .eq("contrato_id", contrato.id).is("deleted_at", null).order("competencia", { ascending: false }),
     supabase.rpc("fin_versao_contrato", { p_contrato_id: contrato.id }),
   ]);
-  for (const r of [parcelasRes, itensRes, eventosRes, custosRes, versaoRes]) {
-    if (r.error) {
-      console.error({ level: "error", action: "contrato_leitura_falhou", contratoId: contrato.id, error: r.error.message });
-    }
+  // Parcelas, itens, custos e versão decidem estado, saldo, margem e as edições: sem eles, erro.
+  for (const r of [parcelasRes, itensRes, custosRes, versaoRes]) {
+    if (r.error) falhaDeLeitura("contrato_leitura_falhou", { contratoId: contrato.id }, r.error.message);
+  }
+  // Histórico é informativo: sem ele o contrato continua utilizável.
+  if (eventosRes.error) {
+    console.error({ level: "error", action: "contrato_eventos_leitura_falhou", contratoId: contrato.id, error: eventosRes.error.message });
   }
   const parcelas = ((parcelasRes.data ?? []) as unknown as ParcelaRow[]).map((p) => ({ ...p, valor: Number(p.valor) }));
   // Autor dos eventos: created_by → auth.users (sem FK p/ user_profiles) ⇒ 1 consulta extra, sem N+1.
@@ -183,22 +199,22 @@ export async function carregarContratoDoDeal(dealId: string): Promise<ContratoCo
     .eq("deal_id", dealId)
     .is("deleted_at", null) // policy ALL do CEO enxerga excluídos — filtro explícito obrigatório
     .maybeSingle();
-  if (error) {
-    console.error({ level: "error", action: "contrato_do_deal_falhou", dealId, error: error.message });
-  }
+  if (error) falhaDeLeitura("contrato_do_deal_falhou", { dealId }, error.message);
   return montarCompleto(data ? normalizarContrato(data as unknown as Record<string, unknown>) : null, dealId);
 }
 
+/** null = sem permissão/inexistente; erro de leitura LANÇA (nunca vira "não encontrado"). */
 export async function carregarContrato(contratoId: string): Promise<ContratoCompleto | null> {
   if ((await getUserPapel()) !== "ceo") return null;
   if (!uuidSchema.safeParse(contratoId).success) return null;
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("contratos_financeiros")
     .select(COLUNAS_CONTRATO)
     .eq("id", contratoId)
     .is("deleted_at", null)
     .maybeSingle();
+  if (error) falhaDeLeitura("contrato_leitura_falhou", { contratoId }, error.message);
   if (!data) return null;
   const c = normalizarContrato(data as unknown as Record<string, unknown>);
   return montarCompleto(c, c.deal_id);
@@ -286,7 +302,8 @@ export async function criarContratoCompleto(
   const c = parsed.data;
 
   const entrada = planejarEntradaNova(c);
-  const saldo = planejarSaldoNovo(c, totalDoContrato(c) - c.entrada.valor, []);
+  const totalSaldo = saldoDoContrato(totalDoContrato(c), c.entrada.valor);
+  const saldo = planejarSaldoNovo(c, totalSaldo, []);
   if ("erro" in saldo) return { success: false, code: "FIN_VALIDACAO", error: saldo.erro };
 
   const r = await chamarRpcFinanceira<{ contrato_id: string; sinal_confirmado_agora: boolean }>(
@@ -296,7 +313,8 @@ export async function criarContratoCompleto(
       p_dados: {
         ...payloadCondicoes(c),
         entrada: { valor: c.entrada.valor, forma: c.entrada.forma, parcelas: entrada.parcelas },
-        saldo: { forma: c.saldo.definirDepois ? null : c.saldo.forma, parcelas: saldo.parcelas },
+        // Saldo R$ 0 (entrada = total): sem forma — nada a parcelar.
+        saldo: { forma: c.saldo.definirDepois || totalSaldo === 0 ? null : c.saldo.forma, parcelas: saldo.parcelas },
       },
     },
     { dealId },
@@ -364,19 +382,29 @@ export async function salvarCondicoesContrato(
   opcoes: { regerarEntrada: boolean; regerarSaldo: boolean },
 ): Promise<AcaoResult<{ contratoId: string; primeiraEscolha: boolean; movidoParaSinalPago: boolean }>> {
   if ((await getUserPapel()) !== "ceo") return SEM_PERMISSAO;
-  const atual = await carregarContrato(contratoId);
+  let atual: ContratoCompleto | null;
+  try {
+    atual = await carregarContrato(contratoId);
+  } catch {
+    return { success: false, code: "FIN_INESPERADO", error: "Não foi possível ler o contrato. Tente de novo." };
+  }
   if (!atual?.contrato) return { success: false, code: "FIN_VALIDACAO", error: "Contrato não encontrado." };
   if (atual.versao !== versao) {
     return { success: false, code: "FIN_CONTRATO_MUDOU", error: "O contrato mudou em outra aba — recarregue para ver a versão atual." };
   }
-  // Editar contrato que JÁ tem plano exige justificativa (T9) — decidido aqui,
-  // pelo estado real do banco, nunca pelo client.
-  const parsed = condicoesContratoSchema.safeParse({ ...input, exigirJustificativa: atual.contrato.plano !== null });
-  if (!parsed.success) return erroZod(parsed.error.issues);
-  const c = parsed.data;
-
   const recebidasEnt = atual.parcelas.filter((p) => p.tipo === "entrada" && p.status === "recebido");
   const recebidasSal = atual.parcelas.filter((p) => p.tipo === "saldo" && p.status === "recebido");
+
+  // Justificativa (T9) e confirmação de troca de plano com saldo pago (T10) —
+  // decididas aqui, pelo estado real do banco, nunca pelo client.
+  const parsed = condicoesContratoSchema.safeParse({
+    ...input,
+    exigirJustificativa: atual.contrato.plano !== null,
+    planoAtual: atual.contrato.plano,
+    pagosNoSaldo: recebidasSal.reduce((s, p) => s + p.valor, 0),
+  });
+  if (!parsed.success) return erroZod(parsed.error.issues);
+  const c = parsed.data;
 
   // Entrada: só refaz as ABERTAS (recebidas preservadas).
   let entradaParcelas: ParcelaGerada[] = [];
@@ -389,8 +417,9 @@ export async function salvarCondicoesContrato(
     if (pe.erro) return { success: false, code: "FIN_VALIDACAO", error: "A entrada não pode ser menor que o já recebido. Estorne antes." };
     entradaParcelas = pe.parcelas;
   }
+  const totalSaldo = saldoDoContrato(totalDoContrato(c), c.entrada.valor);
   const saldo = opcoes.regerarSaldo
-    ? planejarSaldoNovo(c, totalDoContrato(c) - c.entrada.valor, recebidasSal)
+    ? planejarSaldoNovo(c, totalSaldo, recebidasSal)
     : { regerar: false, parcelas: [] };
   if ("erro" in saldo) return { success: false, code: "FIN_VALIDACAO", error: saldo.erro };
 
@@ -402,7 +431,7 @@ export async function salvarCondicoesContrato(
         versao,
         ...payloadCondicoes(c),
         entrada: { valor: c.entrada.valor, forma: c.entrada.forma, regerar: opcoes.regerarEntrada, parcelas: entradaParcelas },
-        saldo: { forma: c.saldo.definirDepois ? null : c.saldo.forma, regerar: saldo.regerar, parcelas: saldo.parcelas },
+        saldo: { forma: c.saldo.definirDepois || totalSaldo === 0 ? null : c.saldo.forma, regerar: saldo.regerar, parcelas: saldo.parcelas },
       },
     },
     { contratoId },
@@ -616,6 +645,11 @@ export async function removerCustoAluno(despesaId: string, contratoId: string): 
 
 // ─── T18a: catálogo de serviços adicionais (configuracoes_sistema) ───────
 
+/**
+ * Erro de leitura ou catálogo ilegível LANÇA: tratar como lista vazia fazia a
+ * tela de Configurações parecer sem serviços e o próximo Salvar sobrescrever
+ * o catálogo inteiro. Chave ausente = catálogo vazio de verdade.
+ */
 async function lerCatalogo(): Promise<ServicoCatalogo[]> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
@@ -623,9 +657,16 @@ async function lerCatalogo(): Promise<ServicoCatalogo[]> {
     .select("valor")
     .eq("chave", "servicos_adicionais")
     .maybeSingle();
-  if (error) console.warn({ level: "warn", action: "catalogo_servicos_ilegivel", error: error.message });
+  if (error) {
+    console.error({ level: "error", action: "catalogo_servicos_ilegivel", error: error.message });
+    throw new Error("Não foi possível carregar o catálogo de serviços.");
+  }
   const parsed = catalogoServicosSchema.safeParse(data?.valor ?? []);
-  return parsed.success ? parsed.data : [];
+  if (!parsed.success) {
+    console.error({ level: "error", action: "catalogo_servicos_invalido", error: parsed.error.issues[0]?.message });
+    throw new Error("O catálogo de serviços salvo está ilegível.");
+  }
+  return parsed.data;
 }
 
 export async function listarCatalogoServicos(): Promise<ServicoCatalogo[]> {

@@ -500,7 +500,7 @@ Oportunidades comerciais do pipeline. 16 etapas (14 regulares + projeto_futuro +
 
 Contrato financeiro vinculado 1:1 ao deal. Apenas CEO/CTO leem e escrevem (RLS). **Toda escrita passa pelas RPCs `fin_*`** (migration `20261008190400_financeiro_rpcs.sql`): lock da linha, CAS por `fin_versao_contrato`, soma das parcelas ao centavo, autor e justificativa na mesma transação.
 
-**Estados (derivados, nada gravado — `estadoContrato` em `lib/financeiro/calculo.mjs`):** `aguardando_plano` (plano NULL) · `cancelado` (parcela cancelada e nada em aberto) · `condicoes_pendentes` (Σ parcelas vivas < `valor_total`) · `quitado` · `ativo`.
+**Estados (derivados, nada gravado — `estadoContrato` em `lib/financeiro/calculo.mjs`):** `aguardando_plano` (plano NULL) · `cancelado` (parcela cancelada e nada em aberto) · `condicoes_pendentes` (Σ parcelas vivas < `valor_total` por mais de 1 centavo por parcela viva — centavos do arredondamento legado não contam; `faltaSemCronograma`) · `quitado` · `ativo`.
 
 | Coluna | Tipo | Nullable | Default | Constraint | Descricao |
 |--------|------|----------|---------|------------|-----------|
@@ -521,7 +521,7 @@ Contrato financeiro vinculado 1:1 ao deal. Apenas CEO/CTO leem e escrevem (RLS).
 | `entrada_paga_at` | TIMESTAMPTZ | NULL | — | — | Data da ultima baixa de entrada |
 | `saldo_remanescente` | NUMERIC(10,2) | NOT NULL | — | **GENERATED ALWAYS AS** (`valor_total - entrada_valor`) STORED | Saldo calculado automaticamente (nunca dar UPDATE) |
 | `saldo_forma` | TEXT | NULL | — | `CHECK IN ('pix_avista','pix_parcelado','getnet_parcelado','transferencia','boleto','cartao','dinheiro','outro')` | Forma de pagamento do saldo |
-| `saldo_parcelas` | INTEGER | NULL | — | `>= 1` | Numero de parcelas do saldo |
+| `saldo_parcelas` | INTEGER | NULL | — | `>= 1` | Numero de parcelas do saldo (NULL = sem forma: saldo "definir depois" ou entrada = total, quando `saldo_forma` também fica NULL) |
 | `inclui_psicologa` | BOOLEAN | NOT NULL | `false` | — | Se inclui psicóloga intercultural |
 | `custo_psicologa` | NUMERIC(10,2) | NULL | `1200.00` | `>= 0` | Custo estimado da psicóloga (entra na margem direta so enquanto nao houver custo real lancado) |
 | `lucro_estimado` | NUMERIC(10,2) | NULL | — | — | Legado, nao alimentado — a margem e calculada na leitura (`margemAluno`) |

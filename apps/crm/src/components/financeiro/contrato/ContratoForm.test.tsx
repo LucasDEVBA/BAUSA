@@ -213,6 +213,61 @@ describe("Criar contrato pelo modal — botão, motivo e envio (T6)", () => {
     expect(valores.confirmarValorBaixo).toBe(true);
   });
 
+  it("entrada '4.500.00' (hábito en-US) trava o botão com o motivo visível — nunca grava R$ 0", async () => {
+    const user = userEvent.setup();
+    await renderModal();
+
+    await preencherJourneyComEntrada(user, "4.500.00");
+    await escolherFormas(user);
+
+    expect(campoEntrada()).toHaveAttribute("aria-invalid", "true");
+    expect(botaoSalvar()).toBeDisabled();
+    expect(botaoSalvar()).toHaveAccessibleDescription("Valor inválido em “Valor da entrada” — use o formato 7.800,00.");
+
+    // Enter no campo também não envia.
+    await user.click(campoEntrada());
+    await user.keyboard("{Enter}");
+    expect(acoes.criarContratoCompleto).not.toHaveBeenCalled();
+
+    await user.clear(campoEntrada());
+    await user.type(campoEntrada(), "4.500");
+    await user.tab();
+    expect(botaoSalvar()).toBeEnabled();
+    await user.click(botaoSalvar());
+    await waitFor(() => expect(acoes.criarContratoCompleto).toHaveBeenCalledTimes(1));
+    const [, valores] = acoes.criarContratoCompleto.mock.calls[0] as [string, CondicoesContratoInput];
+    expect(valores.entrada.valor).toBe(4500);
+  });
+
+  it("entrada = valor total: sem saldo, forma/vencimento do saldo não são exigidos", async () => {
+    const user = userEvent.setup();
+    await renderModal();
+
+    await preencherJourneyComEntrada(user, "28.500");
+    await user.selectOptions(screen.getByLabelText(/Forma da entrada/), "pix");
+
+    expect(screen.queryByLabelText(/Forma do saldo/)).not.toBeInTheDocument();
+    expect(screen.getByText(/a entrada cobre o valor total/)).toBeVisible();
+    expect(botaoSalvar()).toBeEnabled();
+    await user.click(botaoSalvar());
+    await waitFor(() => expect(acoes.criarContratoCompleto).toHaveBeenCalledTimes(1));
+  });
+
+  it("parcelas da entrada fora do limite mostram erro em PT no campo e no motivo", async () => {
+    const user = userEvent.setup();
+    await renderModal();
+    await preencherJourneyComEntrada(user, "7800");
+    await escolherFormas(user);
+
+    const qtd = screen.getByLabelText("Parcelas da entrada");
+    await user.clear(qtd);
+    await user.type(qtd, "13");
+
+    expect(await screen.findByText("Parcelas da entrada: de 1 a 12.", { selector: "p[role=alert]" })).toBeVisible();
+    expect(qtd).toHaveAttribute("aria-invalid", "true");
+    expect(botaoSalvar()).toHaveAccessibleDescription("Parcelas da entrada: de 1 a 12.");
+  });
+
   it("valor fora da tabela pede justificativa (Regra 3) antes de liberar o botão", async () => {
     const user = userEvent.setup();
     await renderModal();
@@ -232,6 +287,60 @@ describe("Criar contrato pelo modal — botão, motivo e envio (T6)", () => {
   });
 });
 
+describe("Editar contrato — edição concorrente (FIN_CONTRATO_MUDOU)", () => {
+  const CONTRATO_ID = "7c3b2a19-8d4e-4f5a-9b6c-0d1e2f3a4b5c";
+  const comContrato = (versao: string, plano: "journey" | "legacy", valor: number): ContratoCompleto => {
+    const base = dealSemContrato();
+    return {
+      ...base,
+      etapaDeal: "sinal_pago",
+      versao,
+      estado: "ativo",
+      contrato: {
+        id: CONTRATO_ID, deal_id: base.dealId, plano, forma_pagamento_plano: "padrao",
+        valor_total: valor, valor_base_plano: valor, valor_customizado: null, justificativa_customizacao: null,
+        sinal_abatido: true, entrada_valor: 4_500, entrada_forma: "pix", entrada_parcelas: 1, entrada_paga: true,
+        entrada_paga_at: "2026-09-01T15:00:00+00:00", saldo_remanescente: valor - 4_500, saldo_forma: "boleto",
+        saldo_parcelas: 1, inclui_psicologa: plano === "legacy", custo_psicologa: 1_200, nf_status: "pendente",
+        nf_numero: null, nf_emitida_at: null, nf_valor: null, plano_definido_at: "2026-09-01T15:00:00+00:00",
+        created_at: "2026-09-01T15:00:00+00:00", updated_at: "2026-09-01T15:00:00+00:00",
+      },
+      parcelas: [
+        { id: "a1", contrato_id: CONTRATO_ID, tipo: "entrada", numero_parcela: "Entrada", valor: 4_500, vencimento: "2026-09-01",
+          metodo: "pix", status: "recebido", recebido_at: "2026-09-01T15:00:00+00:00", comprovante_url: null, parcelas_cartao: null,
+          observacao: null, created_at: "2026-09-01", updated_at: "2026-09-01" },
+        { id: "a2", contrato_id: CONTRATO_ID, tipo: "saldo", numero_parcela: "Saldo", valor: valor - 4_500, vencimento: "2026-11-01",
+          metodo: "boleto", status: "previsto", recebido_at: null, comprovante_url: null, parcelas_cartao: null,
+          observacao: null, created_at: "2026-09-01", updated_at: "2026-09-01" },
+      ],
+      resumo: null,
+    };
+  };
+
+  it("recarrega o formulário com a versão nova (não regrava o plano antigo por cima)", async () => {
+    const user = userEvent.setup();
+    acoes.carregarContratoDoDeal
+      .mockResolvedValueOnce(comContrato("v1", "journey", 28_500))
+      .mockResolvedValueOnce(comContrato("v2", "legacy", 45_000));
+    acoes.salvarCondicoesContrato.mockResolvedValueOnce({
+      success: false, code: "FIN_CONTRATO_MUDOU", error: "O contrato mudou em outra aba — recarregue.",
+    });
+    render(
+      <PlanoEscolhidoModal dealId={dealSemContrato().dealId} athleteName="Atleta Teste" origem="aba_contrato"
+        iniciarEditando onCancel={vi.fn()} onConfirmed={vi.fn()} />,
+    );
+    expect(await screen.findByRole("radio", { name: /^Journey/ })).toHaveAttribute("aria-checked", "true");
+
+    await user.type(screen.getByLabelText(/Justificativa da alteração/), "ajuste combinado");
+    await user.click(botaoSalvar());
+
+    expect(await screen.findByText(/O formulário foi recarregado com a versão atual/)).toBeVisible();
+    expect(screen.getByRole("radio", { name: /^Legacy/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText("Valor do plano")).toHaveValue("45.000,00");
+    expect(acoes.salvarCondicoesContrato).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("mesma regra no servidor (schema que criarContratoCompleto usa)", () => {
   const condicoes = (entrada: number, confirmarValorBaixo: boolean): CondicoesContratoInput => ({
     plano: "journey",
@@ -242,6 +351,15 @@ describe("mesma regra no servidor (schema que criarContratoCompleto usa)", () =>
     entrada: { valor: entrada, forma: "pix", primeiroVencimento: HOJE },
     saldo: { forma: "pix_avista", primeiroVencimento: "2026-11-08" },
     confirmarValorBaixo,
+  });
+
+  it("trocar de plano com saldo já pago exige a confirmação (planoAtual/pagosNoSaldo vêm do banco)", () => {
+    const base = { ...condicoes(7_800, false), justificativa: "troca combinada", exigirJustificativa: true };
+    const sem = condicoesContratoSchema.safeParse({ ...base, plano: "legacy", valorBasePlano: 45_000, valorTabela: 45_000, planoAtual: "journey", pagosNoSaldo: 2_000 });
+    expect(sem.success).toBe(false);
+    expect(sem.error?.issues.map((i) => i.path.join("."))).toContain("confirmarComPagamentos");
+    expect(condicoesContratoSchema.safeParse({ ...base, plano: "legacy", valorBasePlano: 45_000, valorTabela: 45_000, planoAtual: "journey", pagosNoSaldo: 2_000, confirmarComPagamentos: true }).success).toBe(true);
+    expect(condicoesContratoSchema.safeParse({ ...base, planoAtual: "journey", pagosNoSaldo: 2_000 }).success).toBe(true);
   });
 
   it("rejeita entrada irrisória sem a confirmação e aceita com ela", () => {

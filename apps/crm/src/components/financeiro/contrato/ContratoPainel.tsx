@@ -79,11 +79,16 @@ export function ContratoPainel({
       tone: "danger",
     });
     if (!ok) return;
-    const res = await excluirContratoSemPagamento(c.id, "Descartado pela aba Contrato");
-    if (res.success) {
-      toast.success("Contrato descartado");
-      onAlterado();
-    } else toast.error(res.error ?? "Não foi possível descartar.");
+    try {
+      const res = await excluirContratoSemPagamento(c.id, "Descartado pela aba Contrato");
+      if (res.success) {
+        toast.success("Contrato descartado");
+        onAlterado();
+      } else toast.error(res.error ?? "Não foi possível descartar.");
+    } catch (err) {
+      console.error({ level: "error", action: "descartar_contrato_falhou", contratoId: c.id, error: String(err) });
+      toast.error("Não foi possível descartar. Tente de novo.");
+    }
   };
 
   // ── Sem contrato ──
@@ -220,7 +225,8 @@ export function ContratoPainel({
                         </Button>
                       </>
                     )}
-                    {p.status === "recebido" && (
+                    {/* Cancelado: estorno reabriria a parcela e a régua cobraria (a RPC também recusa). */}
+                    {p.status === "recebido" && dados.estado !== "cancelado" && (
                       <Button size="sm" variant="ghost" onClick={() => setAcao({ tipo: "estorno", parcela: p })}>
                         <Undo2 />{aguardando ? "Remover" : "Estornar"}
                       </Button>
@@ -264,7 +270,7 @@ export function ContratoPainel({
         );
       case "quitar":
         return c && dados.versao && r ? (
-          <QuitarContratoModal contratoId={c.id} versao={dados.versao} aReceber={r.aReceber} semCronograma={r.semCronograma}
+          <QuitarContratoModal contratoId={c.id} versao={dados.versao} aReceber={r.aReceber} semCronograma={r.semCronograma} aQuitar={r.aQuitar}
             athleteName={nome} onFechar={fechar} onFeito={() => concluir()} />
         ) : null;
       case "baixa":

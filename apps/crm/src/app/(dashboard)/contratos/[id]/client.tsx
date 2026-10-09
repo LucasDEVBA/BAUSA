@@ -6,22 +6,22 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, CalendarClock, CheckCircle2, FileText, Receipt, User, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge, Card, PageHeader, StatCard } from "@/components/ui";
+import { Badge, BrandTabs, Card, PageHeader, StatCard } from "@/components/ui";
 import { ContratoPainel } from "@/components/financeiro/contrato/ContratoPainel";
 import { NfEditRow } from "@/components/financeiro/NfEditRow";
 import type { ContratoDetalhe } from "@/lib/actions/contratos";
 import { carregarContrato } from "@/lib/actions/financeiro-contrato";
 import { formatarMoeda } from "@/lib/financeiro/calculo.mjs";
 import { PLANO_LABEL } from "@/lib/financeiro/schemas";
-import { cn } from "@/lib/utils";
 import type { ContratoCompleto } from "@/types/contrato";
 
 const ABAS = [
-  { id: "financeiro", label: "Financeiro", icone: Wallet },
-  { id: "contratante", label: "Contratante", icone: User },
-  { id: "fiscal", label: "Nota fiscal", icone: Receipt },
+  { id: "financeiro", label: "Financeiro", icon: Wallet },
+  { id: "contratante", label: "Contratante", icon: User },
+  { id: "fiscal", label: "Nota fiscal", icon: Receipt },
 ] as const;
 type Aba = (typeof ABAS)[number]["id"];
+const ehAba = (id: string): id is Aba => ABAS.some((a) => a.id === id);
 
 /**
  * /contratos/[id] — antes 100% somente leitura ("a baixa continua na aba do
@@ -74,23 +74,21 @@ export function ContratoDetalheClient({ detalhe, inicial }: { detalhe: ContratoD
         </div>
       )}
 
-      <div role="tablist" aria-label="Seções do contrato" className="flex flex-wrap gap-2">
-        {ABAS.map((a) => {
-          const Icone = a.icone;
-          return (
-            <button key={a.id} role="tab" aria-selected={aba === a.id} type="button" onClick={() => setAba(a.id)}
-              className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium",
-                aba === a.id ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground")}>
-              <Icone aria-hidden className="size-3.5" />{a.label}
-            </button>
-          );
-        })}
-      </div>
+      <BrandTabs
+        items={[...ABAS]}
+        activeId={aba}
+        onSelect={(id) => ehAba(id) && setAba(id)}
+        ariaLabel="Seções do contrato"
+      />
 
-      {aba === "financeiro" && <ContratoPainel dados={dados} onAlterado={() => void recarregar()} linkContratoCompleto={false} />}
+      {aba === "financeiro" && (
+        <div role="tabpanel" aria-label="Financeiro">
+          <ContratoPainel dados={dados} onAlterado={() => void recarregar()} linkContratoCompleto={false} />
+        </div>
+      )}
 
       {aba === "contratante" && (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div role="tabpanel" aria-label="Contratante" className="grid gap-4 lg:grid-cols-2">
           <Card>
             <h3 className="mb-2 text-sm font-semibold text-foreground">Atleta</h3>
             <Linha rotulo="Nome" valor={detalhe.atleta?.nome ?? "—"} />
@@ -107,7 +105,7 @@ export function ContratoDetalheClient({ detalhe, inicial }: { detalhe: ContratoD
       )}
 
       {aba === "fiscal" && c && (
-        <Card>
+        <Card role="tabpanel" aria-label="Nota fiscal">
           <h3 className="mb-2 text-sm font-semibold text-foreground">Nota fiscal</h3>
           <div className="flex flex-wrap items-center gap-3">
             <Badge tone={c.nf_status === "emitida" ? "green" : c.nf_status === "nao_aplicavel" ? "neutral" : "orange"} size="sm">

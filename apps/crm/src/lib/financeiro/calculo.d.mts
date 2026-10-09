@@ -69,6 +69,11 @@ export declare function composicaoValorTotal(args: {
   sinalAbatido?: boolean;
 }): number;
 
+export declare function faltaSemCronograma(
+  contrato: { valor_total: number } | null,
+  parcelas?: ParcelaParaCalculo[],
+): number;
+
 export declare function estadoContrato(
   contrato: { plano: string | null; valor_total: number } | null,
   parcelas?: ParcelaParaCalculo[],
@@ -88,6 +93,7 @@ export declare function resumoFinanceiro(
   totalParcelas: number;
   sinalRecebido: number;
   semCronograma: number;
+  aQuitar: number;
   pctRecebido: number | null;
 };
 

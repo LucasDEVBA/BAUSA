@@ -12,8 +12,8 @@ import {
   criarContratoCompleto,
   salvarCondicoesContrato,
 } from "@/lib/actions/financeiro-contrato";
-import { formatarMoeda } from "@/lib/financeiro/calculo.mjs";
-import { PLANO_LABEL, type CondicoesContrato, type PlanoContrato } from "@/lib/financeiro/schemas";
+import { composicaoValorTotal, formatarMoeda } from "@/lib/financeiro/calculo.mjs";
+import { PLANO_LABEL, valorAssinadoDoItem, type CondicoesContrato, type PlanoContrato } from "@/lib/financeiro/schemas";
 import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
 import { celebrar } from "@/lib/gamificacao-store";
 import type { ContratoCompleto } from "@/types/contrato";
@@ -69,6 +69,8 @@ export function PlanoEscolhidoModal({
   const [alterando, setAlterando] = useState(iniciarEditando);
   const [salvando, setSalvando] = useState(false);
   const [bloqueios, setBloqueios] = useState<string[]>([]);
+  // Edição concorrente: o form é remontado com a versão nova (key) e avisa.
+  const [atualizadoPorOutro, setAtualizadoPorOutro] = useState(false);
 
   const carregar = useCallback(async () => {
     setErroCarga(null);
@@ -119,13 +121,15 @@ export function PlanoEscolhidoModal({
           });
       if (!r.success) {
         toast.error(r.error, { description: athleteName });
-        if (r.code === "FIN_CONTRATO_MUDOU") await carregar();
+        if (r.code === "FIN_CONTRATO_MUDOU") {
+          await carregar();
+          setAtualizadoPorOutro(true);
+        }
         return;
       }
       for (const aviso of r.avisos) toast.warning(aviso, { description: athleteName });
       celebrar(r.gamificacao, GAMIFICACAO_TIPO_LABEL.contrato_criado);
-      const atualizado = await carregarContratoDoDeal(dealId);
-      const total = atualizado?.contrato?.valor_total ?? 0;
+      const total = await totalGravado(valores);
       toast.success(`Plano ${PLANO_LABEL[valores.plano]} salvo — ${formatarMoeda(total)}`, { description: athleteName });
       onConfirmed({
         contratoId: r.data.contratoId,
@@ -134,9 +138,30 @@ export function PlanoEscolhidoModal({
         manteveExistente: false,
         movidoParaSinalPago: r.data.movidoParaSinalPago,
       });
+    } catch (err) {
+      console.error({ level: "error", action: "plano_modal_salvar", dealId, error: String(err) });
+      toast.error("Não foi possível salvar o plano. Tente de novo.", { description: athleteName });
     } finally {
       setSalvando(false);
     }
+  };
+
+  // O contrato JÁ foi gravado: a releitura só confirma o total. Se ela falhar,
+  // usa a mesma conta do servidor — o card precisa mover mesmo assim (senão o
+  // modal ficava em "criar" e o 2º clique dava "este negócio já tem contrato").
+  const totalGravado = async (valores: CondicoesContrato): Promise<number> => {
+    try {
+      const atualizado = await carregarContratoDoDeal(dealId);
+      if (atualizado?.contrato) return atualizado.contrato.valor_total;
+    } catch (err) {
+      console.warn({ level: "warn", action: "plano_modal_releitura_falhou", dealId, error: String(err) });
+    }
+    return composicaoValorTotal({
+      valorBase: valores.valorBasePlano,
+      itens: valores.itens.map((i) => ({ valor: valorAssinadoDoItem(i) })),
+      entrada: valores.entrada.valor,
+      sinalAbatido: valores.sinalAbatido,
+    });
   };
 
   const manter = () => {
@@ -221,7 +246,16 @@ export function PlanoEscolhidoModal({
           </p>
         </div>
       ) : (
-        <ContratoForm modo={modo} dados={dados} formId={formId} onEnviar={enviar} onBloqueio={setBloqueios} />
+        <>
+          {atualizadoPorOutro && (
+            <p role="status" className="mb-3 rounded-lg border border-sys-orange/25 bg-sys-orange/8 px-3 py-2 text-xs text-sys-orange">
+              O contrato foi alterado em outra aba ou por outra pessoa. O formulário foi recarregado com a versão atual — refaça a alteração.
+            </p>
+          )}
+          {/* key = versão: o useForm só lê defaultValues na montagem; sem remontar,
+              o form antigo seria enviado com a versão nova e desfaria a outra edição. */}
+          <ContratoForm key={dados.versao ?? "novo"} modo={modo} dados={dados} formId={formId} onEnviar={enviar} onBloqueio={setBloqueios} />
+        </>
       )}
     </FinModal>
   );

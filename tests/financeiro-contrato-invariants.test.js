@@ -277,3 +277,60 @@ test('14. testes RTL do T6 (Vitest) existem e cobrem os critérios do formulári
   assert.match(form, /await axe\(container\)\)\.toHaveNoViolations\(\)/);
   assert.match(form, /vi\.mock\("@\/lib\/actions\/financeiro-contrato"/, 'ContratoForm: teste não pode tocar a server action real');
 });
+
+test('15. revisão do PR-07: saldo R$ 0, corrida baixa × edição, estorno em cancelado e Regra 3 no ajuste', () => {
+  // Entrada = total: forma do saldo vira NULL (saldo_parcelas 0 violava o CHECK → 23514 genérico).
+  for (const nome of ['fin_criar_contrato', 'fin_salvar_condicoes']) {
+    const c = corpoFuncao(nome);
+    assert.match(c, /IF v_total = v_ent_valor THEN[\s\S]{0,200}v_sal_forma := NULL;/, `${nome}: saldo R$ 0 com forma estoura o CHECK`);
+    assert.doesNotMatch(c, /GREATEST\(1,/, `${nome}: saldo_parcelas inventado (1 sem nenhuma parcela de saldo)`);
+  }
+  assert.match(corpoFuncao('fin_salvar_condicoes'), /IF v_total = v_ent_valor THEN\s+[\s\S]{0,120}PERFORM fin_descartar_abertas\(c\.id, 'saldo'\)/,
+    'saldo zerado na edição tem de descartar as parcelas de saldo em aberto');
+
+  // Re-leitura DEPOIS do lock no contrato confere deleted_at; UPDATE confere ROW_COUNT.
+  for (const nome of ['fin_baixar_parcela', 'fin_estornar_parcela', 'fin_editar_parcela']) {
+    const c = corpoFuncao(nome);
+    const releitura = c.indexOf('FROM parcelas WHERE id = p_parcela_id FOR UPDATE');
+    assert.ok(releitura > 0, `${nome}: re-leitura com lock sumiu`);
+    assert.match(c.slice(releitura), /^[^;]*;\s*IF p\.deleted_at IS NOT NULL THEN/, `${nome}: parcela refeita por "Editar contrato" passa como sucesso`);
+    assert.match(c, /GET DIAGNOSTICS v_linhas = ROW_COUNT;\s*IF v_linhas <> 1 THEN/, `${nome}: UPDATE de 0 linhas vira "sucesso" com evento fantasma`);
+  }
+  const baixa = corpoFuncao('fin_baixar_parcela');
+  assert.ok(baixa.indexOf('GET DIAGNOSTICS v_linhas') < baixa.indexOf("fin_registrar_evento(c.id, c.deal_id, 'parcela_baixada'"),
+    'conferência do UPDATE tem de vir antes do evento e da confirmação do sinal');
+
+  // Estorno em contrato cancelado reabriria a parcela e a régua cobraria quem cancelou.
+  const est = corpoFuncao('fin_estornar_parcela');
+  assert.match(est, /status = 'cancelado'[\s\S]{0,120}FIN_CONTRATO_CANCELADO/);
+  const painel = semComentarioTs(ler('apps', 'crm', 'src', 'components', 'financeiro', 'contrato', 'ContratoPainel.tsx'));
+  assert.match(painel, /p\.status === "recebido" && dados\.estado !== "cancelado"/, 'botão Estornar aparece em contrato cancelado');
+
+  // Regra 3 no "alterar o valor do contrato" pela parcela.
+  assert.match(corpoFuncao('fin_editar_parcela'), /valor_customizado = valor_total \+ v_delta,\s*justificativa_customizacao = v_just/);
+
+  // Cancelamento: parcelas canceladas (com erro checado) ANTES de mover o deal.
+  const fin = ler('apps', 'crm', 'src', 'lib', 'actions', 'financeiro.ts');
+  const canc = fin.slice(fin.indexOf('export async function solicitarCancelamento'));
+  const iParc = canc.indexOf('const { error: parcErr }');
+  const iDeal = canc.indexOf('etapa: "perdido"');
+  assert.ok(iParc > 0 && iDeal > iParc, 'parcelas precisam ser canceladas (com erro checado) antes do deal virar "perdido"');
+  assert.match(canc.slice(iParc, iDeal), /\.from\("parcelas"\)[\s\S]*if \(parcErr\) \{[\s\S]*return \{ success: false/, 'erro do cancelamento das parcelas engolido');
+});
+
+test('16. revisão do PR-07: leitura que falha não vira "sem contrato"; dinheiro inválido não vira 0', () => {
+  const acoes = ler('apps', 'crm', 'src', 'lib', 'actions', 'financeiro-contrato.ts');
+  const doDeal = acoes.slice(acoes.indexOf('export async function carregarContratoDoDeal('), acoes.indexOf('export async function carregarContrato('));
+  assert.match(doDeal, /if \(error\) falhaDeLeitura\(/, 'erro de leitura do contrato virava "Nenhum contrato financeiro"');
+  const ler1 = acoes.slice(acoes.indexOf('async function lerCatalogo('), acoes.indexOf('export async function listarCatalogoServicos('));
+  assert.match(ler1, /if \(error\) \{[\s\S]*throw new Error/, 'catálogo ilegível virava lista vazia e o Salvar sobrescrevia tudo');
+
+  const money = semComentarioTs(ler('apps', 'crm', 'src', 'components', 'ui', 'MoneyInput.tsx'));
+  assert.match(money, /onValueChange\(null, \{ invalido: true \}\)/, 'MoneyInput não distingue inválido de vazio');
+  const form = semComentarioTs(ler('apps', 'crm', 'src', 'components', 'financeiro', 'contrato', 'ContratoForm.tsx'));
+  assert.doesNotMatch(form, /onValueChange=\{\(x\) => field\.onChange\(x \?\? 0\)\}/, 'texto inválido no dinheiro virava R$ 0');
+  assert.match(form, /motivosDinheiro\.length > 0/, 'Enter num campo inválido enviaria o formulário');
+
+  const cac = semComentarioTs(ler('apps', 'crm', 'src', 'lib', 'cac-queries.ts'));
+  assert.match(cac, /const comPlano = contratos\.filter\(\(c\) => c\.plano !== null\);/, 'ticket médio do CAC conta contrato só com sinal');
+});

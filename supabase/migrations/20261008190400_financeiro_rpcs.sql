@@ -556,6 +556,12 @@ BEGIN
   IF v_total < v_ent_valor OR v_total <= 0 THEN
     RAISE EXCEPTION 'FIN_VALOR_TOTAL: valor total (%) menor que a entrada (%).', v_total, v_ent_valor;
   END IF;
+  -- Entrada = total (família pagou tudo na assinatura): não há saldo a
+  -- parcelar. Forma do saldo sem parcela gravaria saldo_parcelas = 0, que o
+  -- CHECK qtd_parcelas recusa (23514 → erro genérico na tela).
+  IF v_total = v_ent_valor THEN
+    v_sal_forma := NULL;
+  END IF;
   IF v_total - v_ent_valor > 0 AND v_sal_forma IS NOT NULL
      AND jsonb_array_length(COALESCE(v_sal -> 'parcelas', '[]'::jsonb)) = 0 THEN
     RAISE EXCEPTION 'FIN_CRONOGRAMA_SALDO: informe as parcelas do saldo.';
@@ -575,7 +581,7 @@ BEGIN
     entrada_parcelas = (SELECT count(*) FROM parcelas WHERE contrato_id = v_id AND tipo = 'entrada' AND deleted_at IS NULL),
     saldo_forma = v_sal_forma,
     saldo_parcelas = CASE WHEN v_sal_forma IS NULL THEN NULL
-                          ELSE (SELECT count(*) FROM parcelas WHERE contrato_id = v_id AND tipo = 'saldo' AND deleted_at IS NULL) END,
+                          ELSE NULLIF((SELECT count(*) FROM parcelas WHERE contrato_id = v_id AND tipo = 'saldo' AND deleted_at IS NULL), 0) END,
     inclui_psicologa = COALESCE((p_dados ->> 'inclui_psicologa')::boolean, false),
     custo_psicologa = CASE WHEN COALESCE((p_dados ->> 'inclui_psicologa')::boolean, false)
                            THEN COALESCE((p_dados ->> 'custo_psicologa')::numeric, 0) ELSE 0 END
@@ -807,7 +813,12 @@ BEGIN
   IF (v_total - v_ent_valor) < v_rec_sal THEN
     RAISE EXCEPTION 'FIN_SALDO_MENOR_RECEBIDO: o saldo ficaria menor que o já recebido (R$ %).', v_rec_sal;
   END IF;
-  IF v_sal_forma IS NULL AND v_vivas_sal > 0 THEN
+  IF v_total = v_ent_valor THEN
+    -- Saldo R$ 0 (entrada cobre o total): as parcelas de saldo em aberto deixam
+    -- de existir (recebidas aqui são 0 pela checagem acima) e não há forma.
+    PERFORM fin_descartar_abertas(c.id, 'saldo');
+    v_sal_forma := NULL;
+  ELSIF v_sal_forma IS NULL AND v_vivas_sal > 0 THEN
     RAISE EXCEPTION 'FIN_SALDO_FORMA_OBRIGATORIA: o saldo já tem parcelas — informe a forma.';
   END IF;
 
@@ -833,7 +844,7 @@ BEGIN
     entrada_parcelas = (SELECT count(*) FROM parcelas WHERE contrato_id = c.id AND tipo = 'entrada' AND deleted_at IS NULL AND status <> 'cancelado'),
     saldo_forma = v_sal_forma,
     saldo_parcelas = CASE WHEN v_sal_forma IS NULL THEN NULL
-                          ELSE GREATEST(1, (SELECT count(*) FROM parcelas WHERE contrato_id = c.id AND tipo = 'saldo' AND deleted_at IS NULL AND status <> 'cancelado')) END,
+                          ELSE NULLIF((SELECT count(*) FROM parcelas WHERE contrato_id = c.id AND tipo = 'saldo' AND deleted_at IS NULL AND status <> 'cancelado'), 0) END,
     inclui_psicologa = COALESCE((p_dados ->> 'inclui_psicologa')::boolean, c.inclui_psicologa),
     custo_psicologa = CASE WHEN COALESCE((p_dados ->> 'inclui_psicologa')::boolean, c.inclui_psicologa)
                            THEN COALESCE((p_dados ->> 'custo_psicologa')::numeric, c.custo_psicologa, 0) ELSE 0 END,
@@ -878,6 +889,7 @@ DECLARE
   v_resto_id uuid;
   v_entrada_agora boolean := false;
   v_sinal_agora boolean := false;
+  v_linhas int;
 BEGIN
   PERFORM fin_exigir_ceo();
   PERFORM set_audit_user();
@@ -892,6 +904,11 @@ BEGIN
     RAISE EXCEPTION 'FIN_NAO_ENCONTRADO: contrato não encontrado.';
   END IF;
   SELECT * INTO p FROM parcelas WHERE id = p_parcela_id FOR UPDATE;
+  -- Re-leitura DEPOIS do lock: "Editar contrato" concorrente pode ter refeito
+  -- o cronograma (soft delete desta parcela) enquanto esperávamos.
+  IF p.deleted_at IS NOT NULL THEN
+    RAISE EXCEPTION 'FIN_CONTRATO_MUDOU: o cronograma mudou em outra aba ou por outra pessoa — recarregue.';
+  END IF;
   IF p.status NOT IN ('previsto', 'atrasado') THEN
     RAISE EXCEPTION 'FIN_PARCELA_JA_BAIXADA: esta parcela não está em aberto (status %).', p.status;
   END IF;
@@ -928,6 +945,12 @@ BEGIN
     observacao = COALESCE(NULLIF(btrim(p_dados ->> 'observacao'), ''), observacao),
     parcelas_cartao = COALESCE(NULLIF(p_dados ->> 'parcelas_cartao', '')::smallint, parcelas_cartao)
   WHERE id = p.id AND status IN ('previsto', 'atrasado') AND deleted_at IS NULL;
+  -- Nenhuma linha baixada = nada de evento, "(restante)" ou sinal confirmado
+  -- (o RAISE desfaz o INSERT do restante).
+  GET DIAGNOSTICS v_linhas = ROW_COUNT;
+  IF v_linhas <> 1 THEN
+    RAISE EXCEPTION 'FIN_CONTRATO_MUDOU: a parcela mudou em outra aba ou por outra pessoa — recarregue.';
+  END IF;
 
   IF p.tipo = 'entrada' THEN
     v_entrada_agora := fin_recalcular_entrada_paga(c.id);
@@ -963,6 +986,7 @@ DECLARE
   v_removido boolean := false;
   v_descartado boolean := false;
   v_desconfirmado boolean := false;
+  v_linhas int;
 BEGIN
   PERFORM fin_exigir_ceo();
   PERFORM set_audit_user();
@@ -980,12 +1004,25 @@ BEGIN
     RAISE EXCEPTION 'FIN_NAO_ENCONTRADO: contrato não encontrado.';
   END IF;
   SELECT * INTO p FROM parcelas WHERE id = p_parcela_id FOR UPDATE;
+  IF p.deleted_at IS NOT NULL THEN
+    RAISE EXCEPTION 'FIN_CONTRATO_MUDOU: a parcela mudou em outra aba ou por outra pessoa — recarregue.';
+  END IF;
   IF p.status <> 'recebido' THEN
     RAISE EXCEPTION 'FIN_PARCELA_NAO_RECEBIDA: só parcelas recebidas podem ser estornadas.';
   END IF;
+  -- Contrato cancelado (mesma guarda de salvar/quitar): a parcela estornada
+  -- voltaria a ficar em aberto e a régua cobraria a família que cancelou.
+  -- Reembolso é tratado em Financeiro → Cancelamentos.
+  IF EXISTS (SELECT 1 FROM parcelas WHERE contrato_id = c.id AND status = 'cancelado' AND deleted_at IS NULL) THEN
+    RAISE EXCEPTION 'FIN_CONTRATO_CANCELADO: contrato cancelado — reembolso e parcelas são tratados em Financeiro → Cancelamentos.';
+  END IF;
 
   IF c.plano IS NULL AND p.tipo = 'entrada' THEN
-    UPDATE parcelas SET deleted_at = now() WHERE id = p.id;
+    UPDATE parcelas SET deleted_at = now() WHERE id = p.id AND deleted_at IS NULL;
+    GET DIAGNOSTICS v_linhas = ROW_COUNT;
+    IF v_linhas <> 1 THEN
+      RAISE EXCEPTION 'FIN_CONTRATO_MUDOU: a parcela mudou em outra aba ou por outra pessoa — recarregue.';
+    END IF;
     UPDATE contratos_financeiros SET
       entrada_valor = entrada_valor - p.valor,
       valor_total = valor_total - p.valor,
@@ -1011,7 +1048,11 @@ BEGIN
       regua_d3_at    = CASE WHEN p_novo_vencimento IS NOT NULL THEN NULL ELSE regua_d3_at END,
       regua_d7_at    = CASE WHEN p_novo_vencimento IS NOT NULL THEN NULL ELSE regua_d7_at END,
       regua_d15_at   = CASE WHEN p_novo_vencimento IS NOT NULL THEN NULL ELSE regua_d15_at END
-    WHERE id = p.id;
+    WHERE id = p.id AND status = 'recebido' AND deleted_at IS NULL;
+    GET DIAGNOSTICS v_linhas = ROW_COUNT;
+    IF v_linhas <> 1 THEN
+      RAISE EXCEPTION 'FIN_CONTRATO_MUDOU: a parcela mudou em outra aba ou por outra pessoa — recarregue.';
+    END IF;
   END IF;
 
   IF p.tipo = 'entrada' THEN
@@ -1062,6 +1103,7 @@ DECLARE
   v_metodo text := NULLIF(p_dados ->> 'metodo', '');
   v_modo text := COALESCE(NULLIF(p_dados ->> 'modo_valor', ''), 'ajustar_ultima');
   v_delta numeric := 0;
+  v_linhas int;
 BEGIN
   PERFORM fin_exigir_ceo();
   PERFORM set_audit_user();
@@ -1082,6 +1124,9 @@ BEGIN
     RAISE EXCEPTION 'FIN_CONTRATO_MUDOU: o contrato mudou em outra aba ou por outra pessoa — recarregue.';
   END IF;
   SELECT * INTO p FROM parcelas WHERE id = p_parcela_id FOR UPDATE;
+  IF p.deleted_at IS NOT NULL THEN
+    RAISE EXCEPTION 'FIN_CONTRATO_MUDOU: a parcela mudou em outra aba ou por outra pessoa — recarregue.';
+  END IF;
   IF p.status NOT IN ('previsto', 'atrasado') THEN
     RAISE EXCEPTION 'FIN_PARCELA_NAO_EDITAVEL: só parcelas em aberto podem ser editadas (estorne antes).';
   END IF;
@@ -1113,7 +1158,13 @@ BEGIN
       END IF;
       INSERT INTO contrato_itens (contrato_id, tipo, descricao, valor)
       VALUES (c.id, 'ajuste', left('Ajuste na parcela ' || p.numero_parcela || ': ' || v_just, 160), v_delta);
-      UPDATE contratos_financeiros SET valor_total = valor_total + v_delta WHERE id = c.id;
+      -- Regra 3 (= criar/salvar): ajuste fora da tabela marca o contrato como
+      -- negociado — selo "Fora da tabela", War Room e card do pipeline.
+      UPDATE contratos_financeiros SET
+        valor_total = valor_total + v_delta,
+        valor_customizado = valor_total + v_delta,
+        justificativa_customizacao = v_just
+      WHERE id = c.id;
     ELSE
       RAISE EXCEPTION 'FIN_VALOR: modo de ajuste inválido.';
     END IF;
@@ -1134,7 +1185,11 @@ BEGIN
     regua_d3_at    = CASE WHEN v_venc IS NOT NULL AND v_venc <> p.vencimento THEN NULL ELSE regua_d3_at END,
     regua_d7_at    = CASE WHEN v_venc IS NOT NULL AND v_venc <> p.vencimento THEN NULL ELSE regua_d7_at END,
     regua_d15_at   = CASE WHEN v_venc IS NOT NULL AND v_venc <> p.vencimento THEN NULL ELSE regua_d15_at END
-  WHERE id = p.id;
+  WHERE id = p.id AND status IN ('previsto', 'atrasado') AND deleted_at IS NULL;
+  GET DIAGNOSTICS v_linhas = ROW_COUNT;
+  IF v_linhas <> 1 THEN
+    RAISE EXCEPTION 'FIN_CONTRATO_MUDOU: a parcela mudou em outra aba ou por outra pessoa — recarregue.';
+  END IF;
 
   IF v_modo = 'alterar_total' AND v_delta <> 0 THEN
     PERFORM fin_validar_contrato(c.id);

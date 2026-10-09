@@ -99,6 +99,29 @@ test('estadoContrato: aguardando plano, condições pendentes, quitado, ativo', 
   assert.equal(estadoContrato({ plano: 'journey', valor_total: 26000 }, [ent, { ...sal, status: 'cancelado' }]), 'cancelado');
 });
 
+test('legado com centavos de arredondamento (6 × 3.583,33 = 25.999,98) não vira "condições pendentes"', async () => {
+  const { estadoContrato, resumoFinanceiro, faltaSemCronograma } = await carregar();
+  const contrato = { plano: 'journey', valor_total: 26000 };
+  const ent = { tipo: 'entrada', valor: 4500, status: 'recebido', vencimento: '2026-09-08' };
+  const saldo = Array.from({ length: 6 }, (_, i) => ({
+    tipo: 'saldo', valor: 3583.33, status: 'previsto', vencimento: `2026-1${i % 3}-08`,
+  }));
+  assert.equal(faltaSemCronograma(contrato, [ent, ...saldo]), 0);
+  assert.equal(estadoContrato(contrato, [ent, ...saldo]), 'ativo');
+  const r = resumoFinanceiro(contrato, [ent, ...saldo], '2026-10-08');
+  assert.equal(r.semCronograma, 0);
+  assert.equal(r.aQuitar, 21500, 'Quitar registra total − recebido (inclui os 0,02)');
+  // 100% recebido: chega a "quitado" mesmo faltando os 0,02 do arredondamento antigo.
+  const pagas = [ent, ...saldo.map((p) => ({ ...p, status: 'recebido' }))];
+  assert.equal(estadoContrato(contrato, pagas), 'quitado');
+  // Buraco material (saldo "definir depois") continua pendente.
+  assert.equal(estadoContrato(contrato, [ent]), 'condicoes_pendentes');
+  assert.equal(faltaSemCronograma(contrato, [ent]), 21500);
+  // Legado com centavos SOBRANDO (Amanda: 12 × 2.166,02) não é pendência.
+  const amanda = Array.from({ length: 12 }, () => ({ tipo: 'saldo', valor: 2166.02, status: 'previsto', vencimento: '2026-11-08' }));
+  assert.equal(faltaSemCronograma({ plano: 'journey', valor_total: 25992.2 }, amanda), 0);
+});
+
 test('margemAluno: psicóloga estimada só se não lançada como custo real', async () => {
   const { margemAluno } = await carregar();
   const semLanc = margemAluno({ valorTotal: 26000, custos: [{ valor: 800, categoria: 'taxas_escola', status: 'pago' }], incluiPsicologa: true, custoPsicologa: 1200 });

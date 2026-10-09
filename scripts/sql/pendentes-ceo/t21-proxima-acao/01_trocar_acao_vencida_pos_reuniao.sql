@@ -9,7 +9,7 @@
 --
 -- Como rodar (Supabase SQL editor ou API de query), em 3 passos:
 --   1) PRÉVIA  — só o SELECT do bloco 1; conferir a lista com o CEO.
---   2) EXECUÇÃO — o bloco 2 inteiro (BEGIN … COMMIT). Idempotente: re-rodar
+--   2) EXECUÇÃO — o bloco 2 inteiro (BEGIN … ROLLBACK; COMMIT só com o "pode aplicar"). Idempotente: re-rodar
 --      não acha mais nada (o filtro é o próprio texto antigo).
 --   3) CONFERÊNCIA — o SELECT do bloco 3 só pode listar colunas SEM ação
 --      padrão (hoje: custom_2 "Valor total pago", 2 deals).

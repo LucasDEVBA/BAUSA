@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui";
 import { MoneyInput } from "@/components/ui/MoneyInput";
-import { FinModal } from "@/components/financeiro/contrato/FinModal";
+import { FinModal, MotivoBloqueio } from "@/components/financeiro/contrato/FinModal";
 import { editarParcela, estornarParcela, quitarContrato } from "@/lib/actions/financeiro-contrato";
 import { formatarMoeda } from "@/lib/financeiro/calculo.mjs";
 import {
@@ -43,8 +43,14 @@ export function EstornoParcelaModal({
   const curta = just.trim().length < JUSTIFICATIVA_MIN;
   const hoje = hojeBRT();
   const vencida = !aguardandoPlano && parcela.vencimento < hoje;
+  const motivo = curta
+    ? `Informe a justificativa (mín. ${JUSTIFICATIVA_MIN} caracteres).`
+    : novoVenc && novoVenc < hoje
+      ? "O novo vencimento não pode estar no passado."
+      : null;
 
   const enviar = async () => {
+    if (motivo) return;
     setSalvando(true);
     try {
       const r = await estornarParcela({ parcelaId: parcela.id, justificativa: just, novoVencimento: novoVenc || null });
@@ -52,6 +58,9 @@ export function EstornoParcelaModal({
       for (const a of r.avisos) toast.warning(a, { description: athleteName });
       toast.success(r.data.sinalRemovido ? "Registro de sinal removido" : "Baixa estornada", { description: athleteName });
       onFeito();
+    } catch (err) {
+      console.error({ level: "error", action: "estorno_parcela_falhou", parcelaId: parcela.id, error: String(err) });
+      toast.error("Não foi possível estornar. Tente de novo.", { description: athleteName });
     } finally {
       setSalvando(false);
     }
@@ -68,10 +77,12 @@ export function EstornoParcelaModal({
       rodape={
         <>
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>Cancelar</Button>
-          <Button variant="destructive" onClick={enviar} disabled={salvando || curta} title={curta ? "Informe a justificativa" : undefined}>
+          <Button variant="destructive" onClick={enviar} disabled={salvando || motivo !== null}
+            aria-describedby={motivo ? `${id}-motivo` : undefined}>
             {salvando && <Loader2 className="animate-spin" />}
             {aguardandoPlano ? "Remover sinal" : "Estornar"}
           </Button>
+          <MotivoBloqueio id={`${id}-motivo`} motivo={motivo} />
         </>
       }
     >
@@ -120,6 +131,7 @@ export function EditarParcelaModal({
 }) {
   const id = useId();
   const [valor, setValor] = useState<number | null>(parcela.valor);
+  const [valorInvalido, setValorInvalido] = useState(false);
   const [venc, setVenc] = useState(parcela.vencimento);
   const [metodo, setMetodo] = useState<MetodoParcelaContrato>(parcela.metodo);
   const [modo, setModo] = useState<"ajustar_ultima" | "alterar_total">(temOutraAberta ? "ajustar_ultima" : "alterar_total");
@@ -127,12 +139,14 @@ export function EditarParcelaModal({
   const [salvando, setSalvando] = useState(false);
   const mudouValor = valor !== null && valor !== parcela.valor;
   const nadaMudou = !mudouValor && venc === parcela.vencimento && metodo === parcela.metodo;
-  const bloqueio = valor === null || valor <= 0 ? "Informe o valor." : nadaMudou ? "Nada mudou." :
+  const bloqueio = valorInvalido ? "Valor inválido — use o formato 7.800,00." :
+    valor === null || valor <= 0 ? "Informe o valor." : nadaMudou ? "Nada mudou." :
     just.trim().length < JUSTIFICATIVA_MIN ? "Informe a justificativa." :
     mudouValor && modo === "ajustar_ultima" && !temOutraAberta ? "Não há outra parcela em aberto para absorver a diferença." :
     mudouValor && modo === "alterar_total" && !podeAlterarTotal ? "Para mudar a entrada, use Editar contrato." : null;
 
   const enviar = async () => {
+    if (bloqueio) return;
     setSalvando(true);
     try {
       const r = await editarParcela({
@@ -145,6 +159,9 @@ export function EditarParcelaModal({
       if (!r.success) return void toast.error(r.error, { description: athleteName });
       toast.success("Parcela atualizada", { description: athleteName });
       onFeito();
+    } catch (err) {
+      console.error({ level: "error", action: "editar_parcela_falhou", parcelaId: parcela.id, error: String(err) });
+      toast.error("Não foi possível salvar a parcela. Tente de novo.", { description: athleteName });
     } finally {
       setSalvando(false);
     }
@@ -159,14 +176,16 @@ export function EditarParcelaModal({
       rodape={
         <>
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>Cancelar</Button>
-          <Button onClick={enviar} disabled={salvando || bloqueio !== null} title={bloqueio ?? undefined}>
+          <Button onClick={enviar} disabled={salvando || bloqueio !== null}
+            aria-describedby={bloqueio ? `${id}-motivo` : undefined}>
             {salvando && <Loader2 className="animate-spin" />}Salvar parcela
           </Button>
+          <MotivoBloqueio id={`${id}-motivo`} motivo={bloqueio} />
         </>
       }
     >
       <div className="space-y-3">
-        <MoneyInput label="Valor" value={valor} onValueChange={setValor} />
+        <MoneyInput label="Valor" value={valor} onValueChange={(x, { invalido }) => { setValor(x); setValorInvalido(invalido); }} />
         {mudouValor && (
           <fieldset className="space-y-1.5 text-xs">
             <legend className={rotulo}>A diferença de {formatarMoeda((valor ?? 0) - parcela.valor)}…</legend>
@@ -213,6 +232,7 @@ export function QuitarContratoModal({
   versao,
   aReceber,
   semCronograma,
+  aQuitar,
   athleteName,
   onFechar,
   onFeito,
@@ -221,6 +241,8 @@ export function QuitarContratoModal({
   versao: string;
   aReceber: number;
   semCronograma: number;
+  /** O que a RPC registra (total − recebido): o rótulo do botão não pode divergir. */
+  aQuitar: number;
   athleteName: string;
   onFechar: () => void;
   onFeito: () => void;
@@ -230,9 +252,16 @@ export function QuitarContratoModal({
   const [metodo, setMetodo] = useState<MetodoParcelaContrato | "">("");
   const [obs, setObs] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const motivo = !metodo
+    ? "Escolha o método."
+    : !data
+      ? "Informe a data do pagamento."
+      : data > hojeBRT()
+        ? "A data do pagamento não pode ser futura."
+        : null;
 
   const enviar = async () => {
-    if (!metodo) return;
+    if (!metodo || motivo) return;
     setSalvando(true);
     try {
       const r = await quitarContrato({ contratoId, versao, data, metodo, observacao: obs });
@@ -242,6 +271,9 @@ export function QuitarContratoModal({
         description: `${athleteName} · a etapa do negócio não muda`,
       });
       onFeito();
+    } catch (err) {
+      console.error({ level: "error", action: "quitar_contrato_falhou", contratoId, error: String(err) });
+      toast.error("Não foi possível quitar o contrato. Tente de novo.", { description: athleteName });
     } finally {
       setSalvando(false);
     }
@@ -256,9 +288,11 @@ export function QuitarContratoModal({
       rodape={
         <>
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>Cancelar</Button>
-          <Button onClick={enviar} disabled={salvando || !metodo || data > hojeBRT()} title={!metodo ? "Escolha o método" : undefined}>
-            {salvando && <Loader2 className="animate-spin" />}Quitar {formatarMoeda(aReceber + semCronograma)}
+          <Button onClick={enviar} disabled={salvando || motivo !== null}
+            aria-describedby={motivo ? `${id}-motivo` : undefined}>
+            {salvando && <Loader2 className="animate-spin" />}Quitar {formatarMoeda(aQuitar)}
           </Button>
+          <MotivoBloqueio id={`${id}-motivo`} motivo={motivo} />
         </>
       }
     >

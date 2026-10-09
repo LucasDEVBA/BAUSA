@@ -33,9 +33,12 @@ export function NfEditRow({
   const [data, setData] = useState(nfEmitidaAt?.split("T")[0] || "");
   // MoneyInput (T6/T9): o type="number" lia "7.800" como 7,8.
   const [valor, setValor] = useState<number | null>(nfValor ?? null);
+  const [valorInvalido, setValorInvalido] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const handleSave = () => {
+    // Texto inválido no valor apagaria o valor salvo (null): trava (o campo mostra o erro).
+    if (valorInvalido) return;
     startTransition(async () => {
       try {
         const result = await updateNfData({
@@ -64,6 +67,7 @@ export function NfEditRow({
     setNumero(nfNumero || "");
     setData(nfEmitidaAt?.split("T")[0] || "");
     setValor(nfValor ?? null);
+    setValorInvalido(false);
     setIsEditing(false);
   };
 
@@ -105,7 +109,10 @@ export function NfEditRow({
         <div className="w-32">
           <MoneyInput
             value={valor}
-            onValueChange={setValor}
+            onValueChange={(x, { invalido }) => {
+              setValor(x);
+              setValorInvalido(invalido);
+            }}
             placeholder="Valor"
             aria-label="Valor da NF"
             className="sm:h-7 sm:text-[11px]"
@@ -116,7 +123,7 @@ export function NfEditRow({
         <button
           type="button"
           onClick={handleSave}
-          disabled={isPending}
+          disabled={isPending || valorInvalido}
           className="rounded-md bg-sys-green p-1 text-white transition-colors hover:opacity-80 disabled:opacity-50"
           aria-label="Salvar NF"
         >
