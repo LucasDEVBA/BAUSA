@@ -161,7 +161,7 @@ sonner — toasts
 - Campos de família: `contract_value_brl`
 - Campos de financeiro: `mrr_brl`, `total_received_brl`, etc.
 - Exceção: `School` usa `min_budget_usd` / `strong_budget_usd` (orçamento da família em USD para fins de matching com escolas americanas)
-- **Campo de dinheiro com centavos = `MoneyInput`** (`@/components/ui`, 2026-10, T6): texto `inputMode="decimal"`, parse pt-BR (`7800`/`7.800` → 7800; `7.800,50`), formata `7.800,00` ao sair do campo, sem reformatar enquanto digita. **Nunca** `type="number"` para dinheiro (lia "7.800" como 7,8 — contrato da Amanda). `CurrencyInput` (reais inteiros) segue só em Parâmetros.
+- **Campo de dinheiro com centavos = `MoneyInput`** (`@/components/ui`, 2026-10, T6): texto `inputMode="decimal"`, parse pt-BR (`7800`/`7.800` → 7800; `7.800,50`), formata `7.800,00` ao sair do campo, sem reformatar enquanto digita; valor 0 começa vazio ao focar (com "0,00" no campo a digitação colava no fim e virava inválida). **Nunca** `type="number"` para dinheiro (lia "7.800" como 7,8 — contrato da Amanda). `CurrencyInput` (reais inteiros) segue só em Parâmetros.
 - Formatação/soma de dinheiro: `formatarMoeda`, `parseValorBRL`, `paraCentavos`/`deCentavos` de `@/lib/financeiro/calculo.mjs` (somar sempre em centavos).
 
 ---
@@ -518,6 +518,7 @@ badge.variant: "danger" | "warning" | "success" | "neutral"
 - Acessibilidade: `expect(await axe(container)).toHaveNoViolations()` (matcher registrado em `vitest.setup.ts`; contraste de cor não é checado no jsdom).
 - Teste não toca rede nem banco: server actions e Supabase entram como `vi.mock`.
 - Tipos do `jest-axe` vêm de `src/test/jest-axe.d.ts` (o pacote não publica .d.ts; não instale `@types/jest-axe`, que traz os globais do Jest).
+- Cobertura do contrato (T6): `components/ui/MoneyInput.test.tsx` (foco no MESMO nó a cada dígito, `7.800` → 7800, zero começa vazio, erro acessível) e `components/financeiro/contrato/ContratoForm.test.tsx` (form + `PlanoEscolhidoModal` com as actions mockadas: botão desabilitado com o motivo como descrição acessível, confirmação de entrada < R$ 100, Regra 3, valor que chega à action). Mexeu no form de dinheiro → rode os dois.
 
 ---
 

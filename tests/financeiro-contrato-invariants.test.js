@@ -26,6 +26,9 @@
 //      deal) é MoneyInput; contrato só com sinal (plano NULL) não entra em
 //      ticket médio / mix de planos / Top 5; /financeiro mostra margem REAL
 //      (custos do aluno), sem os custos fixos inventados.
+//  14. O critério RTL do T6 não some em silêncio: os testes Vitest do
+//      MoneyInput e do ContratoForm existem e provam foco, "7.800" → 7800,
+//      botão desabilitado com motivo, entrada < R$ 100 e axe.
 // ════════════════════════════════════════════════════════════════════════
 
 const { test } = require('node:test');
@@ -258,4 +261,19 @@ test('13. dinheiro fora do form é MoneyInput; contrato só com sinal fora das m
   assert.doesNotMatch(fin, /CUSTO_FIXO_MENSAL|calcularLucro/, 'custos fixos inventados voltaram ao "lucro" por contrato');
   assert.doesNotMatch(fin, /PLANO_VALORES/, '"customizado" voltou a comparar com a tabela do código');
   assert.match(fin, /await requirePapel\("ceo"\)/, '/financeiro sem requirePapel');
+});
+
+test('14. testes RTL do T6 (Vitest) existem e cobrem os critérios do formulário', () => {
+  const money = ler('apps', 'crm', 'src', 'components', 'ui', 'MoneyInput.test.tsx');
+  assert.match(money, /userEvent\.setup\(\)/);
+  assert.match(money, /toHaveFocus\(\)/, 'MoneyInput: foco a cada dígito não é testado');
+  assert.match(money, /\["7\.800", 7800, "7\.800,00"\]/, 'MoneyInput: "7.800" → 7800 não é testado');
+  assert.match(money, /await axe\(container\)\)\.toHaveNoViolations\(\)/);
+
+  const form = ler('apps', 'crm', 'src', 'components', 'financeiro', 'contrato', 'ContratoForm.test.tsx');
+  assert.match(form, /toHaveFocus\(\)/, 'ContratoForm: foco ao digitar 7800 não é testado');
+  assert.match(form, /toBeDisabled\(\)[\s\S]*toHaveAccessibleDescription\("Escolha a forma da entrada\."\)/, 'ContratoForm: botão sem forma não é testado');
+  assert.match(form, /Confirmo que o valor está certo/, 'ContratoForm: confirmação de entrada < R$ 100 não é testada');
+  assert.match(form, /await axe\(container\)\)\.toHaveNoViolations\(\)/);
+  assert.match(form, /vi\.mock\("@\/lib\/actions\/financeiro-contrato"/, 'ContratoForm: teste não pode tocar a server action real');
 });
