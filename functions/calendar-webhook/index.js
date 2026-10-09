@@ -1027,11 +1027,18 @@ const reconciliarEventos = async (diasAtras = 3, diasFrente = 60) => {
       }
       // CAS: se outra execução marcou no meio, não conta duas vezes.
       if (!(await markMeetingScheduled(lead.id))) continue;
-      const movido = await moveDealToReuniao(lead.id, event);
       resumo.vinculados++;
+      // Erro no move não pode pular o aviso: o CAS acima já marcou o lead, e
+      // as próximas varreduras só fazem resync — a reunião ficaria invisível.
+      let movido = null;
+      try {
+        movido = await moveDealToReuniao(lead.id, event);
+      } catch (err) {
+        log('WARN', 'reconcile_move_error', { eventId: event.id, error: err.message });
+      }
       // T14: push perdido + lead fora do pipeline = o CEO não recebeu NADA
       // (nem o WhatsApp "Nova reunião"). Aviso só no sininho — interno.
-      if (!movido && (await avisarReuniaoForaDoPipeline(lead, event, 'reconcile'))) {
+      if (movido !== true && (await avisarReuniaoForaDoPipeline(lead, event, 'reconcile'))) {
         resumo.fora_do_pipeline++;
       }
       log('INFO', 'reconcile_linked', {

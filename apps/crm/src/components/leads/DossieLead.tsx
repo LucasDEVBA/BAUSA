@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
 
@@ -25,12 +25,27 @@ type EstadoDossie =
  * Dossiê sob demanda (T8/T13): a lista de /leads e a faixa "Fora do
  * pipeline" só têm o resumo; o Lead completo vem do servidor no clique.
  * Resposta atrasada de um clique anterior é descartada (só o último abre).
+ * `leadInicial` (deep-link ?atleta=/?lead=) abre ao montar E quando o id muda.
  */
 export function useDossieLead(leadInicial: Lead | null = null) {
   const [estado, setEstado] = useState<EstadoDossie>(
     leadInicial ? { status: "aberto", lead: leadInicial } : { status: "fechado" },
   );
   const requisicao = useRef(0);
+
+  // O Next preserva o estado da página quando só a query muda: o sininho já
+  // em /leads (router.push("/leads?lead=Y")) traz um leadInicial novo sem
+  // remontar — e a notificação já saiu do sininho como lida. Abre pelo id.
+  const leadInicialId = leadInicial?.id ?? null;
+  const [leadInicialVisto, setLeadInicialVisto] = useState(leadInicialId);
+  if (leadInicialId !== leadInicialVisto) {
+    setLeadInicialVisto(leadInicialId);
+    if (leadInicial) setEstado({ status: "aberto", lead: leadInicial });
+  }
+  // Clique anterior ainda em voo não pode cobrir o dossiê do deep-link.
+  useEffect(() => {
+    if (leadInicialId) requisicao.current++;
+  }, [leadInicialId]);
 
   const abrir = useCallback(async (formSubmissionId: string) => {
     const minha = ++requisicao.current;

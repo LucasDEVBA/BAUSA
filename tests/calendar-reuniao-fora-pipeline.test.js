@@ -114,8 +114,20 @@ test('push do Google: aviso depois da confirmação, fora do toggle, só quando 
 
 test('reconciliação também avisa (push perdido = CEO não recebeu nada)', () => {
   const corpo = corpoDe('const reconciliarEventos', 'const listarAgenda');
-  assert.match(corpo, /const movido = await moveDealToReuniao\(lead\.id, event\)/);
   assert.match(corpo, /avisarReuniaoForaDoPipeline\(lead, event, 'reconcile'\)/);
+  // Exceção no move (502 HTML, timeout) não pode pular o aviso: o CAS já
+  // marcou meeting_scheduled e a varredura seguinte só faz resync.
+  assert.match(
+    corpo,
+    /let movido = null;\s*\n\s*try \{\s*\n\s*movido = await moveDealToReuniao\(lead\.id, event\);\s*\n\s*\} catch \(err\) \{\s*\n\s*log\('WARN', 'reconcile_move_error'/,
+    'moveDealToReuniao da reconciliação sem try/catch próprio — exceção pularia o aviso',
+  );
+  assert.match(corpo, /if \(movido !== true && \(await avisarReuniaoForaDoPipeline\(lead, event, 'reconcile'\)\)\)/,
+    'erro no move (movido = null) também tem de avisar, como no push');
+  const iCas = corpo.indexOf('await markMeetingScheduled(lead.id)');
+  const iMove = corpo.indexOf('movido = await moveDealToReuniao');
+  const iAviso = corpo.indexOf("avisarReuniaoForaDoPipeline(lead, event, 'reconcile')");
+  assert.ok(iCas >= 0 && iCas < iMove && iMove < iAviso, 'ordem CAS → move → aviso');
 });
 
 test('aviso é SÓ interno: nunca escreve aprovação/classe, nunca cria deal, nunca envia mensagem', () => {
@@ -171,6 +183,12 @@ test('deep-link /leads?lead=<id> abre o dossiê de lead SEM atleta/deal e não g
     'o link da notificação aponta para form_submission_id — não pode exigir atleta');
   const tabela = lerCrm('components', 'leads', 'LeadsTable.tsx');
   assert.match(tabela, /atleta: null, lead: null \}/, 'navegar na tabela tem que soltar os deep-links');
+  // O Next preserva o estado quando só a query muda: o sininho clicado já em
+  // /leads não remonta a tabela (comportamento coberto em DossieLead.test.tsx).
+  const hook = lerCrm('components', 'leads', 'DossieLead.tsx');
+  assert.match(hook, /if \(leadInicialId !== leadInicialVisto\) \{/, 'o dossiê só abria na montagem — o aviso do sininho não abria nada');
+  assert.match(tabela, /<DossieLeadView estado=\{dossie\.estado\} onClose=\{fecharDossie\} \/>/,
+    'fechar o dossiê tem de soltar o ?lead= da URL (senão o mesmo link não reabre)');
 });
 
 test('badge "Reunião detectada" do dossiê e do /leads vem do átomo único (contrato B4)', () => {

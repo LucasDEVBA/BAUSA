@@ -122,6 +122,14 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
     alvoRef.current = proximo;
     startNavegar(() => router.replace(urlFiltrosLeads(proximo), { scroll: false }));
   };
+  // Fechar solta o ?lead=/?atleta= da URL: com ele preso, clicar de novo no
+  // mesmo link (sininho, Execuções) não muda o id e o dossiê não reabre.
+  const fecharDossie = () => {
+    dossie.fechar();
+    if (filtros.lead || filtros.atleta) {
+      router.replace(urlFiltrosLeads(alvoRef.current), { scroll: false });
+    }
+  };
 
   // Busca: digita → 300 ms → URL (?q=) → servidor. Menos de 2 caracteres
   // úteis não filtra (mas apagar tudo limpa).
@@ -666,7 +674,7 @@ export function LeadsTable({ linhas, total, filtros, prioridades, aviso = null, 
       </div>
 
       {/* Dossiê sob demanda (mesmo LeadOrDealSheet do /pipeline) */}
-      <DossieLeadView estado={dossie.estado} onClose={dossie.fechar} />
+      <DossieLeadView estado={dossie.estado} onClose={fecharDossie} />
 
       {/* Confirmação de exclusão (soft delete) */}
       {leadParaExcluir && (
