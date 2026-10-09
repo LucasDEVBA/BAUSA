@@ -46,7 +46,9 @@ WITH p AS (
 ), fs_upd AS (
   UPDATE public.form_submissions fs
   SET birth_date = p.data_correta,
-      age        = date_part('year', age(fs.submitted_at::date, p.data_correta::date))::int,
+      -- ::timestamp: age(date, date) passaria por timestamptz e erraria 1 ano no
+      -- aniversário de quem nasceu no início do horário de verão (fuso BRT).
+      age        = date_part('year', age(fs.submitted_at::date::timestamp, p.data_correta::date::timestamp))::int,
       updated_at = now()
   FROM p
   WHERE fs.id = p.lead_id

@@ -81,8 +81,7 @@ BEGIN
     RETURN 'ausente';
   END IF;
   -- <input type="date"> aceita ano de 5-6 dígitos digitado ("20001-06-02").
-  -- [0-9] e não \d: só ISO 8601 puro, que o cast lê igual em qualquer DateStyle
-  -- (por isso a função pode ser IMMUTABLE).
+  -- [0-9] e não \d: só ISO 8601 puro, que o cast lê igual em qualquer DateStyle.
   IF p_birth_date !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN
     RETURN 'formato';
   END IF;
@@ -94,7 +93,16 @@ BEGIN
   IF v_data > p_ref THEN
     RETURN 'futuro';
   END IF;
-  v_idade := date_part('year', age(p_ref, v_data))::int;
+  -- Anos completos com a MESMA conta do front (calcularIdade), só com
+  -- extract(…, date). Nada de age(date, date): ele resolve para
+  -- age(timestamptz, timestamptz) e o cast date→timestamptz depende do
+  -- TimeZone da sessão — em America/Sao_Paulo a meia-noite do início do
+  -- horário de verão não existe e o aniversário saía 1 ano a menos. Sem
+  -- timestamptz a função é IMMUTABLE de fato.
+  v_idade := extract(year FROM p_ref)::int - extract(year FROM v_data)::int
+           - CASE WHEN (extract(month FROM p_ref), extract(day FROM p_ref))
+                     < (extract(month FROM v_data), extract(day FROM v_data))
+                  THEN 1 ELSE 0 END;
   v_faixa_serie := public.fs_faixa_idade_serie(p_school_year);
   v_faixa := coalesce(v_faixa_serie, ARRAY[5, 30]);  -- FAIXA_IDADE_ABSOLUTA do front
   IF v_idade < v_faixa[1] - v_folga OR v_idade > v_faixa[2] + v_folga THEN

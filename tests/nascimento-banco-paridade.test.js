@@ -101,6 +101,22 @@ test('o banco nunca é MAIS estrito que o front (folga de faixa e de fuso)', () 
   assert.ok(motivo.includes("'^[0-9]{4}-[0-9]{2}-[0-9]{2}$'"), 'formato ISO estrito sumiu');
 });
 
+test('a idade do banco é a mesma conta do front e não depende do TimeZone da sessão', () => {
+  const motivo = corpoFuncao('fs_motivo_nascimento_invalido').replace(/--[^\n]*/g, '');
+  // age(date, date) passa por timestamptz: em America/Sao_Paulo o aniversário de
+  // quem nasceu no início do horário de verão saía 1 ano a menos.
+  assert.doesNotMatch(motivo, /\bage\s*\(/, 'idade via age() depende do TimeZone da sessão');
+  assert.doesNotMatch(motivo, /timestamptz|with time zone/i, 'a validação não pode passar por timestamptz');
+  // calcularIdade do front: ano − ano − (ainda não fez aniversário no ano da referência).
+  assert.match(TS, /ref\.mes < nasc\.mes \|\| \(ref\.mes === nasc\.mes && ref\.dia < nasc\.dia\)/, 'calcularIdade do front mudou: revisar a conta do banco');
+  assert.match(
+    motivo,
+    /v_idade := extract\(year FROM p_ref\)::int - extract\(year FROM v_data\)::int\s*\n\s*- CASE WHEN \(extract\(month FROM p_ref\), extract\(day FROM p_ref\)\)\s*\n\s*< \(extract\(month FROM v_data\), extract\(day FROM v_data\)\)\s*\n\s*THEN 1 ELSE 0 END;/,
+    'idade do banco ≠ calcularIdade do front',
+  );
+  assert.match(SQL, /fs_motivo_nascimento_invalido\([\s\S]*?\)\s*\nRETURNS text\s*\nLANGUAGE plpgsql\s*\nIMMUTABLE/, 'função pura: IMMUTABLE');
+});
+
 test('a trava do banco vale SÓ para o formulário público (role anon) e só no INSERT', () => {
   const trg = corpoFuncao('fs_validar_nascimento_anon');
   assert.match(trg, /IF current_user <> 'anon' THEN\s*\n\s*RETURN NEW;/, 'CF/Engine não podem ser travados por dado legado');
