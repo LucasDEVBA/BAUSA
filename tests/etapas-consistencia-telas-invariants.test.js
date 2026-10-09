@@ -24,6 +24,18 @@
 //      assinatura (sinal, plano, admissão, colunas de ganho). Regra única:
 //      etapas de GANHO (getEtapasGanho), como /pipeline, funil e relatórios.
 //
+// 2ª rodada (revisão do fix, 09/10/2026):
+//   A'. A etapa atual OCULTA (aguardando_timing, admission_process) entrava
+//      no editor pela posição do board (depois de Perdido): sem "Avançar" e
+//      com todo o funil como "Retroceder". Agora entra pela ORDEM FIXA, como
+//      o servidor a compara; justificativa só quando o servidor marca
+//      retrocesso. A fila de aprovação (AprovacaoLeadsModal) e a /agenda
+//      também usam a config do board.
+//   B'. "Próximas Ações" do War Room pintava herdada de "ATRASADO".
+//   C'. A meta MENSAL "Contratos/Mês" comparava o ESTOQUE de ganhos (batida
+//      para sempre); agora usa a ENTRADA em ganho no mês. "Propostas" do
+//      funil inclui negociação/contrato enviado (sumiam de todos os baldes).
+//
 // O comportamento (próxima/anterior coluna, atraso) é EXECUTADO no Vitest:
 // apps/crm/src/lib/etapas-ordem.test.ts — este guard trava que ele exista.
 //
@@ -90,6 +102,8 @@ const EDITORES = [
   { nome: 'LeadsTable', arquivo: ['components', 'leads', 'LeadsTable.tsx'], minimo: 1 },
   { nome: 'RemarketingClient', arquivo: ['app', '(dashboard)', 'remarketing', 'client.tsx'], minimo: 1 },
   { nome: 'PipelineBoard', arquivo: ['components', 'pipeline', 'PipelineBoard.tsx'], minimo: 1 },
+  // Fila de aprovação/revisão: toasts e avisos citam a coluna (T17).
+  { nome: 'AprovacaoLeadsModal', arquivo: ['components', 'leads', 'AprovacoesLeads.tsx'], minimo: 6 },
 ];
 
 // ─── A. Editor do deal com a config do board em TODO lugar ────────────────
@@ -143,9 +157,14 @@ test('A: a config vem da MESMA mescla do board (overrides + regras)', () => {
 
 test('A: Avançar/Retroceder só por colunas VISÍVEIS, na ordem do board (sem fallback estático)', () => {
   const ordem = lerCrm('lib', 'etapas-ordem.ts');
-  const bloco = fatia(ordem, 'function colunasDoEditor', 'export function colunasAnterioresBoard');
-  assert.match(bloco, /orderedKanbanStages\(config\)\.filter\(\s*\(s\) => s === atual \|\| \(!config\[s\]\.oculta && s !== "perdido"\),?\s*\)/,
-    'o editor precisa oferecer só colunas visíveis (+ a atual), na ordem do board');
+  const bloco = fatia(ordem, 'function colunasDoEditor', 'export function proximaColunaBoard');
+  assert.match(bloco, /const board = orderedKanbanStages\(config\);/, 'o editor precisa partir da ordem do board');
+  assert.match(bloco, /!config\[s\]\.oculta && s !== "perdido"/, 'o editor só oferece colunas visíveis (sem Perdido)');
+  // A' — etapa atual oculta entra pela escala do SERVIDOR (ordem fixa), não
+  // pela posição do board (depois de Perdido → sem Avançar, tudo Retroceder).
+  assert.match(bloco, /ordemEtapaBoard\(atual, config\) !== null \|\| isColunaPersonalizada\(atual\)/,
+    'só a atual com ordem de board (ou coluna personalizada) usa a posição do board');
+  assert.match(bloco, /ordemEtapaFixa\(s\) < fixaAtual/, 'atual oculta tem de entrar pela ordem fixa, como no servidor');
   const prox = fatia(ordem, 'export function proximaColunaBoard', 'export function colunasAnterioresBoard');
   const ant = fatia(ordem, 'export function colunasAnterioresBoard');
   for (const [nome, src] of [['proximaColunaBoard', prox], ['colunasAnterioresBoard', ant]]) {
@@ -155,16 +174,50 @@ test('A: Avançar/Retroceder só por colunas VISÍVEIS, na ordem do board (sem f
   const sheet = lerCrm('components', 'pipeline', 'DealDetailSheet.tsx');
   assert.match(sheet, /proximaColunaBoard\(deal\.stage, stageConfigMap\)/);
   assert.match(sheet, /colunasAnterioresBoard\(deal\.stage, stageConfigMap\)/);
+  // A' — justificativa e "Retrocedido" só quando o SERVIDOR marca retrocesso
+  // (sair de Aguardando timing / coluna personalizada é isento: o motivo
+  // seria descartado e o toast mentiria).
+  assert.match(sheet, /const retrocessoExigeMotivo =\s*!retrocederStage \|\| isRetrocessoEtapa\(deal\.stage, retrocederStage, stageConfigMap\);/);
+  assert.match(sheet, /if \(retrocessoExigeMotivo && !retrocederMotivo\.trim\(\)\)/);
+  assert.match(sheet, /retrocessoReal \? `Retrocedido para \$\{destinoLabel\}` : `Movido para \$\{destinoLabel\}`/);
   // O comportamento é executado no Vitest (config real de PRD).
   const vitest = lerCrm('lib', 'etapas-ordem.test.ts');
   for (const caso of [
     'Valor total pago (custom_2) não avança para o slot oculto e sem nome custom_3',
     'Sinal pago avança para Plano escolhido',
     'nunca oferece coluna oculta nem Perdido como destino',
-    'etapa atual OCULTA conta na posição em que o board a desenha',
+    'etapa atual OCULTA entra pela ordem fixa, como no servidor: aguardando_timing avança para Reunião marcada',
+    'admission_process oculta avança para Admitido',
+    'paridade com o servidor: Avançar nunca é retrocesso e Retroceder nunca é avanço',
   ]) {
     assert.ok(vitest.includes(caso), `caso de comportamento sumiu do Vitest: "${caso}"`);
   }
+});
+
+test("A': fila de aprovação e /agenda com a config do board (nunca o rótulo estático)", () => {
+  const aprov = lerCrm('components', 'leads', 'AprovacoesLeads.tsx');
+  assert.ok(!/DEFAULT_DEAL_STAGE_DISPLAY/.test(aprov), 'fila de aprovação voltou ao default estático das colunas');
+  // Wrapper: página passa a config; o ícone do Header busca a mesma mescla.
+  assert.match(aprov, /\{ variant\?: "button"; count: number; stageConfig: DealStageConfigMap \}/,
+    'AprovacoesLeads (botão) precisa exigir stageConfig');
+  assert.match(fatia(aprov, 'const carregar = async', 'void carregar();'), /await getStageConfigDeal\(\)/,
+    'o ícone do Header precisa buscar a config das colunas');
+  const fontes = arquivosTsx(CRM_SRC).map((f) => ({ f: path.relative(raiz, f), src: fs.readFileSync(f, 'utf8') }));
+  let wrappers = 0;
+  for (const { f, src } of fontes) {
+    for (const tag of rendersDe(src, 'AprovacoesLeads')) {
+      wrappers++;
+      assert.ok(/\bstageConfig=\{/.test(tag) || /variant="icon"/.test(tag), `${f}: <AprovacoesLeads> sem stageConfig`);
+    }
+  }
+  assert.ok(wrappers >= 3, `esperava ≥ 3 <AprovacoesLeads> (Header, /leads, /war-room), achei ${wrappers}`);
+  const warPage = lerCrm('app', '(dashboard)', 'war-room', 'page.tsx');
+  assert.match(warPage, /getStageConfigDeal\(\)/);
+
+  const agenda = lerCrm('app', '(dashboard)', 'agenda', 'client.tsx');
+  assert.ok(!/DEAL_STAGE_CONFIG\[/.test(agenda), '/agenda voltou ao rótulo estático da etapa');
+  assert.equal(agenda.split('getStageDisplay(stageConfig,').length - 1, 3, '/agenda: os 3 rótulos de etapa pela config');
+  assert.match(lerCrm('app', '(dashboard)', 'agenda', 'page.tsx'), /getStageConfigDeal\(\)/);
 });
 
 test('A: editor lateral abre a escolha do plano ANTES de mover (contrato B1)', () => {
@@ -202,6 +255,15 @@ test('B: regra única de atraso — só ação da etapa atual (ou manual)', () =
 
   const tabela = lerCrm('components', 'pipeline', 'PipelineTableView.tsx');
   assert.match(tabela, /d\.next_action_date && !acaoHerdada/);
+
+  // B' — "Próximas Ações" do War Room: mesma regra (herdada nunca é ATRASADO).
+  const war = lerCrm('lib', 'war-room-queries.ts');
+  const prox = fatia(war, 'export async function fetchUpcomingActions', '// ─── Financial Summary');
+  assert.match(prox, /next_action_etapa, next_action_manual_em/, 'sem os metadados a herdada não é reconhecida');
+  assert.match(prox, /is_overdue: isAcaoAtrasadaDaEtapa\(meta, etapa, hoje\),/);
+  assert.ok(!/is_overdue: dateStr < hoje/.test(prox), 'atraso por data pura (conta herdada) voltou');
+  const secao = lerCrm('components', 'war-room', 'UpcomingActionsSection.tsx');
+  assert.match(secao, /action\.herdada_de \? "text-label-tertiary"/, 'herdada tem de aparecer neutra');
 });
 
 test('B: contador "Ações atrasadas" do /pipeline não conta herdada e diz isso', () => {
@@ -222,6 +284,8 @@ test('C: War Room conta contrato assinado em diante (ganho), nunca enviado/negoc
   assert.match(funil, /const contratosAssinados: DealStage\[\] = etapasGanho;/);
   assert.match(funil, /countByEtapa\(contratosAssinados\)/);
   assert.match(funil, /contracts_signed: contratos,/);
+  // C' — pós-proposta não ganho (inclui contrato enviado/negociação) no balde Propostas.
+  assert.match(funil, /countByEtapa\(\[\.\.\.ETAPAS_POS_PROPOSTA\]\)/, 'contrato enviado/negociação sumiram do funil');
   for (const etapa of ['contrato_enviado', 'negociacao']) {
     assert.ok(!new RegExp(`countByEtapa\\(\\[[^\\]]*"${etapa}"`).test(funil),
       `${etapa} voltou a contar como contrato assinado`);
@@ -229,9 +293,18 @@ test('C: War Room conta contrato assinado em diante (ganho), nunca enviado/negoc
   // Sinais pagos ⊂ contratos assinados (mesmo conjunto de ganho).
   assert.match(funil, /const sinaisPagos = etapasGanho\.filter\(/);
 
+  // C' — meta MENSAL = entrada em ganho NO MÊS; o estoque do funil nunca.
   const page = lerCrm('app', '(dashboard)', 'war-room', 'page.tsx');
-  assert.match(page, /pctSeguro\(funil\.contracts_signed, METAS_BAUSA\.contratos_por_mes\)/,
-    'meta Contratos/Mês tem de usar a mesma contagem do card');
+  assert.match(page, /const contratosMes = funil\.contracts_signed_month;/);
+  assert.match(page, /pctSeguro\(contratosMes, METAS_BAUSA\.contratos_por_mes\)/);
+  assert.ok(!/pctSeguro\(funil\.contracts_signed,/.test(page), 'meta mensal comparando o ESTOQUE de ganhos (batida para sempre)');
+  assert.ok(!/funil\.contracts_signed >= METAS_BAUSA/.test(page), 'cor da meta mensal pelo estoque de ganhos');
+  assert.match(funil, /contracts_signed_month: contratosMes,/);
+  const mes = fatia(war, 'async function contarContratosFechadosNoMes', '\n}\n');
+  assert.match(mes, /\.from\("audit_logs"\)/, 'entrada em ganho vem da trilha de etapa');
+  assert.match(mes, /\.gte\("created_at", inicioMesBrtIso\(\)\)/, 'corte do mês em BRT');
+  assert.match(mes, /linha\.operacao === "INSERT" \|\| !ganho\.has\(linha\.etapa_de \?\? ""\)/, 'só ENTRADA em ganho (não troca entre colunas de ganho)');
+  assert.match(mes, /\.filter\(\(d\) => ganho\.has\(d\.etapa\)\)/, 'só quem segue em ganho');
 
   // Mesma regra no /pipeline, no funil de conversão e nos relatórios.
   assert.match(lerCrm('app', '(dashboard)', 'pipeline', 'page.tsx'), /const signedStages: DealStage\[\] = etapasDeGanho;/);

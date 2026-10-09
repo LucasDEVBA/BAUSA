@@ -18,6 +18,8 @@ import {
   compararOrdemBoard,
   isDealStage,
   orderedKanbanStages,
+  ordemEtapaBoard,
+  ordemEtapaFixa,
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
 
@@ -115,15 +117,32 @@ export function deveAbrirShortlist(
 /**
  * Colunas que o editor lateral oferece, na ORDEM DO BOARD (orderedKanbanStages
  * — o mesmo cálculo que desenha o Kanban): só as VISÍVEIS (sem Perdido, que
- * tem botão próprio) + a etapa atual. A atual entra mesmo oculta porque o
- * board a desenha no lugar configurado enquanto tiver deals — é dali que se
+ * tem botão próprio), com a etapa atual inserida no lugar de onde se
  * avança/retrocede. Coluna oculta NUNCA é destino (slot custom sem nome,
  * etapa aposentada, plano_escolhido antes da migration de dados).
+ *
+ * Onde a atual entra segue a MESMA escala do servidor (compararOrdemBoard):
+ * - com ordem de board (visível e configurada) ou coluna personalizada (raia
+ *   livre, sem ordem de negócio): no lugar em que o board a desenha;
+ * - oculta / sem ordem configurada (aguardando_timing, admission_process…): o
+ *   servidor a compara pela ORDEM FIXA — logo depois da última coluna visível
+ *   de negócio que vem antes dela na ordem fixa. Pela posição do board ela
+ *   cairia depois de Perdido: sem "Avançar" e com todo o funil (até as
+ *   colunas de ganho) oferecido como "Retroceder" (auditoria 09/10/2026).
  */
 function colunasDoEditor(atual: DealStage, config: DealStageConfigMap): DealStage[] {
-  return orderedKanbanStages(config).filter(
-    (s) => s === atual || (!config[s].oculta && s !== "perdido"),
-  );
+  const board = orderedKanbanStages(config);
+  if (!board.includes(atual)) return [];
+  if (ordemEtapaBoard(atual, config) !== null || isColunaPersonalizada(atual)) {
+    return board.filter((s) => s === atual || (!config[s].oculta && s !== "perdido"));
+  }
+  const visiveis = board.filter((s) => s !== atual && !config[s].oculta && s !== "perdido");
+  const fixaAtual = ordemEtapaFixa(atual);
+  let corte = 0;
+  visiveis.forEach((s, i) => {
+    if (!isColunaPersonalizada(s) && ordemEtapaFixa(s) < fixaAtual) corte = i + 1;
+  });
+  return [...visiveis.slice(0, corte), atual, ...visiveis.slice(corte)];
 }
 
 /**

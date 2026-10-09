@@ -7,8 +7,15 @@ import {
   parseEtapasDealConfig,
   parseEtapasDealRegras,
 } from "@/lib/etapas-deal";
-import { colunasAnterioresBoard, proximaColunaBoard } from "@/lib/etapas-ordem";
+import {
+  colunasAnterioresBoard,
+  direcaoEtapa,
+  isColunaPersonalizada,
+  isRetrocessoEtapa,
+  proximaColunaBoard,
+} from "@/lib/etapas-ordem";
 import { isAcaoAtrasadaDaEtapa } from "@/lib/proxima-acao";
+import type { DealStage } from "@/types/deal";
 
 // Config de PRODUÇÃO em 09/10/2026 (configuracoes_sistema): Admitido =
 // custom_1, Valor total pago = custom_2 (ambas ganho), Plano escolhido
@@ -74,11 +81,23 @@ describe("editor do deal: Avançar/Retroceder pela ordem do board (T2/T17/T20)",
     }
   });
 
-  it("etapa atual OCULTA conta na posição em que o board a desenha (sem fallback estático)", () => {
-    // admission_process está oculta e DEPOIS de Perdido no board do CEO:
-    // não há coluna visível à frente; antes dela, só as visíveis, em ordem.
-    expect(proximaColunaBoard("admission_process", CONFIG_PRD)).toBeNull();
-    expect(colunasAnterioresBoard("admission_process", CONFIG_PRD)).toEqual([
+  it("etapa atual OCULTA entra pela ordem fixa, como no servidor: aguardando_timing avança para Reunião marcada", () => {
+    // aguardando_timing está oculta e DEPOIS de Perdido no board do CEO (order
+    // 17). Pela posição do board o editor perdia o "Avançar" e oferecia todo o
+    // funil (até Admitido/Valor total pago) como "Retroceder" — o servidor
+    // compara pela ordem fixa e trata tudo isso como avanço.
+    expect(proximaColunaBoard("aguardando_timing", CONFIG_PRD)).toBe("reuniao_marcada");
+    expect(colunasAnterioresBoard("aguardando_timing", CONFIG_PRD)).toEqual(["contato_feito", "lead"]);
+    for (const anterior of colunasAnterioresBoard("aguardando_timing", CONFIG_PRD)) {
+      expect(CONFIG_PRD[anterior].ganho, anterior).toBe(false);
+    }
+  });
+
+  it("admission_process oculta avança para Admitido e só retrocede para o que o servidor chama de retrocesso", () => {
+    expect(proximaColunaBoard("admission_process", CONFIG_PRD)).toBe("custom_1");
+    expect(isRetrocessoEtapa("admission_process", "custom_1", CONFIG_PRD)).toBe(false);
+    const anteriores = colunasAnterioresBoard("admission_process", CONFIG_PRD);
+    expect(anteriores).toEqual([
       "contato_feito",
       "lead",
       "reuniao_marcada",
@@ -88,9 +107,28 @@ describe("editor do deal: Avançar/Retroceder pela ordem do board (T2/T17/T20)",
       "contrato_assinado",
       "sinal_pago",
       "plano_escolhido",
-      "custom_1",
-      "custom_2",
     ]);
+    for (const anterior of anteriores) {
+      expect(isRetrocessoEtapa("admission_process", anterior, CONFIG_PRD), anterior).toBe(true);
+    }
+  });
+
+  it("paridade com o servidor: Avançar nunca é retrocesso e Retroceder nunca é avanço, de nenhuma etapa", () => {
+    for (const config of [CONFIG_PRD, DEFAULT_DEAL_STAGE_DISPLAY]) {
+      for (const atual of Object.keys(config) as DealStage[]) {
+        const proxima = proximaColunaBoard(atual, config);
+        if (proxima) {
+          expect(isRetrocessoEtapa(atual, proxima, config), `${atual} → ${proxima}`).toBe(false);
+          if (!isColunaPersonalizada(atual) && !isColunaPersonalizada(proxima)) {
+            expect(direcaoEtapa(atual, proxima, config), `${atual} → ${proxima}`).toBe(1);
+          }
+        }
+        for (const anterior of colunasAnterioresBoard(atual, config)) {
+          if (isColunaPersonalizada(atual) || isColunaPersonalizada(anterior)) continue;
+          expect(direcaoEtapa(atual, anterior, config), `${atual} ← ${anterior}`).toBe(-1);
+        }
+      }
+    }
   });
 
   it("Retroceder lista só as colunas visíveis antes da atual, na ordem do CEO", () => {

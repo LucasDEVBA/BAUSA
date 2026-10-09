@@ -906,6 +906,7 @@ export function PipelineBoard({
       {muitoCedoAberto && (
         <AprovacaoLeadsModal
           modo="muito_cedo"
+          stageConfig={stageConfig}
           leadIdInicial={muitoCedoAberto}
           onClose={() => setMuitoCedoAberto(null)}
           onDecidido={() => {
@@ -918,6 +919,7 @@ export function PipelineBoard({
       {/* Fila de aprovação aberta pelo card da primeira coluna */}
       {leadAprovacao && (
         <AprovacaoLeadsModal
+          stageConfig={stageConfig}
           leadIdInicial={leadAprovacao}
           onClose={() => setLeadAprovacao(null)}
           onDecidido={(id) => {

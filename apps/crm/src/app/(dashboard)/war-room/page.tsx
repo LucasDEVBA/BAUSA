@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { requirePapel } from "@/lib/auth";
-import { getFasesFamiliaConfigOverrides } from "@/lib/actions/configuracoes";
+import { getFasesFamiliaConfigOverrides, getStageConfigDeal } from "@/lib/actions/configuracoes";
 import { getParametrosSistema } from "@/lib/actions/parametros";
 import { mergeJourneyConfig } from "@/lib/fases-familia";
 import {
@@ -182,6 +182,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     fasesOverrides,
     leadsAguardandoAprovacao,
     parametros,
+    stageConfig,
   ] = await Promise.all([
     fetchWarRoomMetrics(),
     fetchMetaRevenue(),
@@ -207,6 +208,9 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
     getFasesFamiliaConfigOverrides(),
     fetchLeadsAguardandoAprovacao(),
     getParametrosSistema(),
+    // Mesma config de colunas do board: a fila de aprovação cita a etapa
+    // pelo nome da coluna do CEO.
+    getStageConfigDeal(),
   ]);
 
   const journeyConfig = mergeJourneyConfig(fasesOverrides);
@@ -236,13 +240,18 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
   const isPipelineHealthy =
     METAS_BAUSA.meta_mensal_brl > 0 &&
     parseFloat(pipelineRatio) >= METAS_BAUSA.pipeline_health_min;
-  const contratosPct = pctSeguro(funil.contracts_signed, METAS_BAUSA.contratos_por_mes);
+  // Meta MENSAL = entradas em ganho NO MÊS (contracts_signed_month). O
+  // contracts_signed do funil é estoque acumulado: comparado com a meta do
+  // mês, ela ficaria batida para sempre (auditoria 09/10/2026).
+  const contratosMes = funil.contracts_signed_month;
+  const contratosPct = contratosMes === null ? null : pctSeguro(contratosMes, METAS_BAUSA.contratos_por_mes);
+  const contratosMetaBatida = contratosMes !== null && contratosMes >= METAS_BAUSA.contratos_por_mes;
 
   const metas = [
     { label: "Meta Anual", value: kOuM(METAS_BAUSA.meta_anual_brl), sub: `${metaAnualPct}% atingido`, pct: metaAnualPct, color: "text-primary", bar: "bg-primary" },
     { label: "Meta Mensal", value: kOuM(METAS_BAUSA.meta_mensal_brl), sub: `${metaPct}% do mes`, pct: metaPct, color: metaPct >= 80 ? "text-sys-green" : metaPct >= 50 ? "text-sys-orange" : "text-sys-red", bar: metaPct >= 80 ? "bg-sys-green" : metaPct >= 50 ? "bg-sys-orange" : "bg-sys-red" },
     { label: "Ticket Medio (ref)", value: kOuM(METAS_BAUSA.ticket_medio_brl), sub: "base de referencia", pct: null as number | null, color: "text-plan-legacy", bar: "bg-plan-legacy" },
-    { label: "Contratos/Mes", value: `${METAS_BAUSA.contratos_por_mes}`, sub: `${funil.contracts_signed} fechados`, pct: contratosPct, color: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "text-sys-green" : "text-sys-orange", bar: funil.contracts_signed >= METAS_BAUSA.contratos_por_mes ? "bg-sys-green" : "bg-sys-orange" },
+    { label: "Contratos/Mes", value: `${METAS_BAUSA.contratos_por_mes}`, sub: contratosMes === null ? "— fechados no mes" : `${contratosMes} fechado${contratosMes !== 1 ? "s" : ""} no mes`, pct: contratosPct, color: contratosMetaBatida ? "text-sys-green" : "text-sys-orange", bar: contratosMetaBatida ? "bg-sys-green" : "bg-sys-orange" },
   ];
 
   // ─── Aba: Visao Geral (command center) ───
@@ -492,7 +501,7 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
   const header = (
     <div className="flex items-center gap-3">
       <Suspense fallback={null}>
-        <AprovacoesLeads count={leadsAguardandoAprovacao} />
+        <AprovacoesLeads count={leadsAguardandoAprovacao} stageConfig={stageConfig} />
       </Suspense>
       <Suspense fallback={null}>
         <SafraFilter safras={safras} />

@@ -90,7 +90,7 @@ export default async function LeadsPage({
           className="min-w-0 flex-1"
         />
         <Suspense fallback={null}>
-          <AprovacoesLeads count={kpis.pendentesAprovacao ?? 0} />
+          <AprovacoesLeads count={kpis.pendentesAprovacao ?? 0} stageConfig={stageConfig} />
         </Suspense>
       </div>
 
