@@ -32,6 +32,14 @@ const CAMPOS_PERMITIDOS = new Set([
   'form_started_at',
 ])
 
+// Mesmas mensagens (PT) do front e do trigger do banco.
+const MENSAGEM_NASCIMENTO: Record<string, string> = {
+  ausente: 'Data de nascimento é obrigatória',
+  formato: 'Data de nascimento inválida',
+  futuro: 'A data de nascimento não pode ser no futuro',
+  incoerente_serie:
+    'A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)',
+}
 
 const json = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), {
@@ -60,6 +68,20 @@ serve(async (req) => {
       return json({ error: 'submission_id, email e athlete_name são obrigatórios' }, 400)
     }
 
+    // Data de nascimento: a MESMA regra do banco (folga de 1 ano e referência
+    // = amanhã em BRT, igual ao trigger do role anon).
+    const amanhaBrt = new Date(Date.now() + 86_400_000)
+      .toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+    const { data: motivo, error: rpcError } = await supabaseClient.rpc('fs_motivo_nascimento_invalido', {
+      p_birth_date: typeof formData.birth_date === 'string' ? formData.birth_date : null,
+      p_school_year: typeof formData.school_year === 'string' ? formData.school_year : null,
+      p_ref: amanhaBrt,
+      p_folga_anos: 1,
+    })
+    if (rpcError) throw rpcError
+    if (typeof motivo === 'string' && motivo) {
+      return json({ error: MENSAGEM_NASCIMENTO[motivo] ?? MENSAGEM_NASCIMENTO.formato }, 400)
+    }
 
     console.log("Processing submission for:", formData.email)
 
