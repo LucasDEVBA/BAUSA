@@ -32,6 +32,7 @@ import { Badge, BrandTabs, Button, EmptyState, Skeleton } from "@/components/ui"
 import { ClassificadorV2Resumo } from "@/components/leads/ClassificadorV2Resumo";
 import { ConversaLeadPanel } from "@/components/whatsapp/ConversaLeadPanel";
 import { EmailsLeadSection } from "@/components/emails/EmailsLeadSection";
+import { ReuniaoDetectadaBadge } from "@/components/pipeline/ReuniaoDetectadaBadge";
 import {
   aprovarLead,
   aprovarLeadDaRevisao,
@@ -217,6 +218,10 @@ export function AprovacaoLeadsModal({
   // "Carregar mais" mede só o recorte da coluna: o lead da faixa (fora da
   // janela) contado aqui escondia o botão com 1 lead da janela por carregar.
   const carregadosNoRecorte = leads.reduce((n, l) => (foraDoRecorte.has(l.id) ? n : n + 1), 0);
+  // "Sem deal" só onde o recorte GARANTE que não há deal ativo (contrato B4):
+  // Frios/Incompletos filtram tem_deal_ativo=false no banco; a fila tem
+  // pendente com deal e "Muito cedo" é justamente quem está em Aguardando timing.
+  const revisaoSemDeal = modo === "frios" || modo === "incompletos";
 
   useEffect(() => {
     let ativo = true;
@@ -533,7 +538,7 @@ export function AprovacaoLeadsModal({
                     : modo === "frios"
                       ? `${total ?? leads.length} lead(s) frios nos últimos 90 dias — fora do funil até você resgatar`
                       : modo === "incompletos"
-                        ? `${total ?? leads.length} cadastro(s) sem os dados obrigatórios — complete na conversa e resgate quando fizer sentido`
+                        ? `${total ?? leads.length} cadastro(s) marcados como incompletos pelo classificador — confira os dados no dossiê e resgate quando fizer sentido`
                         : modo === "muito_cedo"
                           ? `${leads.length} lead(s) aprovados em Aguardando timing — mensagens automáticas desligadas; o contato é seu`
                           : `${leads.length} lead(s) aguardando decisão — nada é enviado sem aprovação`}
@@ -610,7 +615,12 @@ export function AprovacaoLeadsModal({
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {l.position ?? "—"} · {l.city_state ?? "—"}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-label-tertiary">Recebido {fmtData(l.submitted_at)}</p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <p className="text-[11px] text-label-tertiary">Recebido {fmtData(l.submitted_at)}</p>
+                        {l.meeting_scheduled === true && (
+                          <ReuniaoDetectadaBadge detectadaEm={l.meeting_scheduled_at} semDeal={revisaoSemDeal} />
+                        )}
+                      </div>
                     </button>
                   ))}
                   {total !== null && carregadosNoRecorte < total && (
@@ -681,6 +691,12 @@ export function AprovacaoLeadsModal({
                               <CalendarClock className="size-3" />
                               {TIMING_LABEL[selecionado.timing_status] ?? selecionado.timing_status}
                             </Badge>
+                          )}
+                          {selecionado.meeting_scheduled === true && (
+                            <ReuniaoDetectadaBadge
+                              detectadaEm={selecionado.meeting_scheduled_at}
+                              semDeal={revisaoSemDeal}
+                            />
                           )}
                         </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">

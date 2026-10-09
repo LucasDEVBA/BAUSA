@@ -386,6 +386,9 @@ export interface LeadPendenteAprovacao {
   device_type: string | null;
   form_started_at: string | null;
   submitted_at: string;
+  // T14: reunião detectada no Calendar — badge no dossiê da fila/revisão
+  meeting_scheduled: boolean | null;
+  meeting_scheduled_at: string | null;
 }
 
 // Todos os campos do formulário que ajudam na decisão — o CEO decide com o
@@ -406,7 +409,7 @@ const COLUNAS_FILA_APROVACAO =
   "sinais_reforco, sinais_alerta, prioridade_estrategica, acao_recomendada, " +
   "utm_source, utm_medium, utm_campaign, " +
   "utm_content, utm_term, referrer_url, landing_url, cta_source, device_type, form_started_at, " +
-  "submitted_at";
+  "submitted_at, meeting_scheduled, meeting_scheduled_at";
 
 /**
  * Contagem da fila para o ícone do Header global (client-side).

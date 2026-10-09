@@ -25,6 +25,7 @@ import { CountrySelect } from "@/components/ui/country-select";
 import { captureUTMs, getStoredUTMs } from "@/lib/tracking/utm";
 import { getOrCreateSessionId, captureLandingUrl, captureReferrer, getDeviceType } from "@/lib/tracking/session";
 import { trackFormStart, trackFormStep, trackFormSubmit, trackFormError } from "@/lib/tracking/events";
+import { MSG_NASCIMENTO, idadeEmAnos, limitesSeletorNascimento, validarNascimento } from "@/lib/forms/nascimento";
 
 // supabase é importado dinamicamente dentro do onSubmit para evitar
 // que a inicialização do cliente (que exige env vars) quebre o carregamento da página
@@ -40,7 +41,12 @@ const generateSubmissionId = (): string =>
 const formSchema = z.object({
   // Stage 1
   athleteName: z.string().min(1, "Nome é obrigatório"),
-  birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
+  // T23: obrigatória, formato estrito, nunca no futuro / no ano atual e dentro
+  // da faixa absoluta. A coerência com a série fica no superRefine abaixo.
+  birthDate: z.string().superRefine((valor, ctx) => {
+    const motivo = validarNascimento(valor, "");
+    if (motivo) ctx.addIssue({ code: z.ZodIssueCode.custom, message: MSG_NASCIMENTO[motivo] });
+  }),
   whatsapp: z
     .string()
     .min(1, "WhatsApp é obrigatório")
@@ -94,6 +100,13 @@ const formSchema = z.object({
   addressCity: z.string().optional(),
   addressState: z.string().optional(),
 }).superRefine((data, ctx) => {
+  // T23: idade coerente com a série (só quando a data já é válida por si —
+  // senão o campo mostraria duas mensagens).
+  if (data.schoolYear && validarNascimento(data.birthDate, "") === null) {
+    if (validarNascimento(data.birthDate, data.schoolYear) === "incoerente") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["birthDate"], message: MSG_NASCIMENTO.incoerente });
+    }
+  }
   // Segundo responsável "sim" → mesmos dados do responsável principal
   // (nome, profissão, WhatsApp válido, e-mail válido)
   if (data.hasSecondGuardian === "sim") {
@@ -239,6 +252,13 @@ const Forms = () => {
   const allFormValues = watch();
 
   const formStartedAtRef = useRef<string | null>(null);
+
+  // min/max do seletor de nascimento — calculados no navegador (fuso do
+  // usuário); no SSR ficam ausentes para não divergir na hidratação.
+  const [limitesNascimento, setLimitesNascimento] = useState<{ min: string; max: string } | null>(null);
+  useEffect(() => {
+    setLimitesNascimento(limitesSeletorNascimento());
+  }, []);
 
   // --- Tracking: captura UTMs, referrer e landing URL ---
   useEffect(() => {
@@ -469,17 +489,7 @@ const Forms = () => {
     try {
       const birthDateValue = data.birthDate?.trim() || null;
 
-      // Compute numeric age from birth date
-      let computedAge: number | null = null;
-      if (birthDateValue) {
-        const birth = new Date(birthDateValue);
-        const today = new Date();
-        computedAge = today.getFullYear() - birth.getFullYear();
-        const monthDiff = today.getMonth() - birth.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-          computedAge--;
-        }
-      }
+      const computedAge = birthDateValue ? idadeEmAnos(birthDateValue) : null;
 
       const submissionData = {
         submission_id: submissionIdRef.current,
@@ -736,7 +746,14 @@ const Forms = () => {
             </div>
             <div>
               <label className={labelClass}>{t("form.step1.birth.label")}</label>
-              <Input {...register("birthDate")} type="date" className={`${inputClass} [color-scheme:dark]`} />
+              <Input
+                {...register("birthDate")}
+                type="date"
+                min={limitesNascimento?.min}
+                max={limitesNascimento?.max}
+                aria-invalid={errors.birthDate ? true : undefined}
+                className={`${inputClass} [color-scheme:dark]`}
+              />
               <FieldError field="birthDate" />
             </div>
             <div>
@@ -752,7 +769,12 @@ const Forms = () => {
               <label className={labelClass}>{t("form.step1.schoolYear.label")}</label>
               <Select
                 value={watch("schoolYear")}
-                onValueChange={(v) => setValue("schoolYear", v, { shouldValidate: true })}
+                onValueChange={(v) => {
+                  setValue("schoolYear", v, { shouldValidate: true });
+                  // A coerência data × série mora no campo da data: trocar a
+                  // série revalida a data (o erro some na hora se ficou ok).
+                  if (errors.birthDate) void trigger("birthDate");
+                }}
               >
                 <SelectTrigger className="w-full bg-transparent border-0 border-b-2 border-white/30 hover:border-white/50 data-[state=open]:border-white rounded-none px-1 py-3.5 sm:py-4 text-[16px] sm:text-lg text-white ring-0 outline-none focus:ring-0 h-auto shadow-none transition-all duration-300 [&>span]:line-clamp-1 data-[placeholder]:text-white/45">
                   <SelectValue placeholder={t("form.step1.schoolYear.placeholder")} />
@@ -1423,7 +1445,7 @@ const Forms = () => {
                 <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-red-300 text-sm font-medium">{t("form.error.title")}</p>
-                  <p className="text-red-300/70 text-xs mt-0.5">{submissionError}</p>
+                  <p className="text-red-300/70 text-xs mt-0.5">{translateError(submissionError)}</p>
                 </div>
               </div>
             )}

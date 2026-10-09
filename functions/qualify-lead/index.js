@@ -585,6 +585,126 @@ const detectarDadoSujo = (data) => {
   return { flag: alertas.length > 0, alertas };
 };
 
+// ─── Coerência idade × série (T23) ────────────────────────────────────────
+// O Gemini lia "idade −1" (seletor de data do celular abre no ano atual) ou
+// "idade 54" (data do RESPONSÁVEL) como "incoerência grave" → INVALIDO → lead
+// real invisível (22/24 INVALIDO eram famílias reais, 05/10). Data incoerente
+// é ALERTA para o vendedor confirmar, nunca motivo de invalidar: com a idade
+// fora da faixa da série, o modelo NÃO recebe a idade (vai "não informado")
+// e o alerta é escrito em código.
+// PARIDADE: mesma tabela em apps/web/src/lib/forms/nascimento.ts e na função
+// SQL public.fs_faixa_idade_serie (guard tests/nascimento-serie-paridade.test.js).
+const FAIXA_IDADE_POR_SERIE = {
+  before_7th: { min: 6, max: 14 },
+  '8th_grade': { min: 11, max: 17 },
+  '9th_grade': { min: 12, max: 18 },
+  hs_1st: { min: 13, max: 20 },
+  hs_2nd: { min: 14, max: 21 },
+  hs_3rd: { min: 15, max: 22 },
+  graduated_last_year: { min: 16, max: 24 },
+  graduated_2plus: { min: 17, max: 30 },
+};
+const FAIXA_IDADE_ABSOLUTA = { min: 5, max: 30 };
+
+// Data civil em Brasília. O formulário valida com a data LOCAL do navegador;
+// com os getters UTC, um envio às 22h BRT na véspera do aniversário contava
+// 1 ano a mais e gravava alerta falso num lead que o próprio form aceitou.
+const FMT_DATA_BRASILIA = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const dataEmBrasilia = (instante) => {
+  const partes = FMT_DATA_BRASILIA.formatToParts(instante);
+  const parte = (tipo) => Number(partes.find((p) => p.type === tipo)?.value);
+  return { ano: parte('year'), mes: parte('month'), dia: parte('day') };
+};
+
+// Idade em anos completos na data de referência (envio do formulário, em BRT).
+// null = sem data utilizável (não é gate: idade não pontua no score).
+const avaliarIdadeAtleta = (data, referencia) => {
+  const ref = referencia instanceof Date && !Number.isNaN(referencia.getTime()) ? referencia : new Date();
+  let idade = null;
+  const m = String(data.birth_date || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const ano = Number(m[1]);
+    const mes = Number(m[2]);
+    const dia = Number(m[3]);
+    const nasc = new Date(Date.UTC(ano, mes - 1, dia));
+    if (nasc.getUTCFullYear() === ano && nasc.getUTCMonth() === mes - 1 && nasc.getUTCDate() === dia) {
+      const hoje = dataEmBrasilia(ref);
+      const antesDoAniversario = hoje.mes < mes || (hoje.mes === mes && hoje.dia < dia);
+      idade = hoje.ano - ano - (antesDoAniversario ? 1 : 0);
+    }
+  }
+  if (idade === null && data.age !== null && data.age !== undefined && data.age !== '' && Number.isFinite(Number(data.age))) {
+    idade = Math.trunc(Number(data.age)); // legado: só o campo age (calculado no navegador)
+  }
+  if (idade === null) return { idade: null, coerente: true, alerta: null };
+  const faixa = FAIXA_IDADE_POR_SERIE[data.school_year] || FAIXA_IDADE_ABSOLUTA;
+  const coerente = idade >= faixa.min && idade <= faixa.max;
+  return {
+    idade,
+    coerente,
+    alerta: coerente
+      ? null
+      : `data de nascimento incoerente com a série (idade ${idade}; esperado ${faixa.min}–${faixa.max}) — confirmar com a família; não invalida o lead`,
+  };
+};
+
+// ─── Gate determinístico de completude (T19) ──────────────────────────────
+// O prompt manda INCOMPLETO só quando profissão OU faixa faltam, mas o modelo
+// usava INCOMPLETO para "abaixo do piso" (85/85 INCOMPLETO tinham os dois
+// campos em 08/10) — e o mesmo motivo virava FRIO em outros leads. A regra
+// vive em CÓDIGO: dado ausente → INCOMPLETO; dado presente → nunca INCOMPLETO.
+const FAIXAS_INVESTIMENTO_VALIDAS = ['15k-20k', '20k-30k', '30k-40k', '40k-50k', '50k-70k', 'over-70k'];
+const RE_TEM_LETRAS = /\p{L}{2,}/u;
+
+const avaliarCompletude = (data) => {
+  const temProfissao = [data.guardian_profession, data.guardian_profession_2]
+    .some((p) => typeof p === 'string' && RE_TEM_LETRAS.test(p));
+  const temFaixa = FAIXAS_INVESTIMENTO_VALIDAS.includes(String(data.investment_range || '').trim());
+  const faltando = [];
+  if (!temProfissao) faltando.push('profissão do responsável');
+  if (!temFaixa) faltando.push('faixa de investimento');
+  return { completo: faltando.length === 0, faltando };
+};
+
+const ALERTA_INCOMPLETO_COM_DADOS = 'gate de código: INCOMPLETO do modelo com profissão e faixa presentes → FRIO';
+
+// Idempotente (aplicado antes e depois da 2ª passagem).
+const aplicarGateCompletude = (resultado, completude, corteFrio) => {
+  if (!completude.completo) {
+    // Dado sujo/injeção (INVALIDO) precede — mesma ordem da ETAPA 0 da spec.
+    if (resultado.classification === 'INVALIDO') return resultado;
+    const alerta = `gate de código: ${completude.faltando.join(' e ')} ausente → INCOMPLETO`;
+    return {
+      ...resultado,
+      classification: 'INCOMPLETO',
+      scoreFinanceiro: 0,
+      confidence: 'ALTA',
+      acaoRecomendada: ACAO_DEFAULT_POR_CLASSE.INCOMPLETO,
+      sinaisAlerta: resultado.sinaisAlerta.includes(alerta) ? resultado.sinaisAlerta : [...resultado.sinaisAlerta, alerta],
+      reason: resultado.classification === 'INCOMPLETO'
+        ? resultado.reason
+        : `Cadastro sem ${completude.faltando.join(' e ')} — dado obrigatório para a qualificação financeira.`,
+    };
+  }
+  if (resultado.classification !== 'INCOMPLETO') return resultado;
+  // Dados presentes + INCOMPLETO do modelo = "abaixo do piso" mal rotulado.
+  // FRIO conserva o score do modelo, com teto abaixo do corte (FRIO coerente
+  // com a faixa — nunca vira MORNO/fila por causa deste gate).
+  const teto = Math.max(0, corteFrio - 1);
+  return {
+    ...resultado,
+    classification: 'FRIO',
+    scoreFinanceiro: Math.min(resultado.scoreFinanceiro, teto),
+    acaoRecomendada: ACAO_DEFAULT_POR_CLASSE.FRIO,
+    sinaisAlerta: [...resultado.sinaisAlerta, `${ALERTA_INCOMPLETO_COM_DADOS} (score do modelo: ${resultado.scoreFinanceiro})`],
+  };
+};
+
 // ─── USER message (spec §6) — dados SEMPRE entre <dados_lead> ──────────────
 // sanitize() remove <> de cada valor: nenhum dado consegue fechar a tag e
 // virar instrução (o prompt trata o interno como DADO; injeção → INVALIDO).
@@ -593,7 +713,7 @@ const sanitize = (v) => {
   return String(v).replace(/[<>]/g, '').trim();
 };
 
-const montarDadosLeadV2 = (data, flagInfo) => {
+const montarDadosLeadV2 = (data, flagInfo, idadeInfo = null) => {
   const isBrazil = !data.address_country || data.address_country === 'BR';
   const campo = (v, vazio = 'não informado') => sanitize(v) || vazio;
   return `<dados_lead>
@@ -609,7 +729,7 @@ pais: ${campo(data.address_country, 'BR')}
 renda_media_setor_ibge: não disponível
 escola_atual: ${campo(data.current_school)}
 clube_atual_atleta: ${campo(data.club_history)}
-idade_atleta: ${campo(data.age)}
+idade_atleta: ${idadeInfo && !idadeInfo.coerente ? 'não informado' : (idadeInfo?.idade ?? campo(data.age))}
 atleta_ja_viajou_exterior: ${data.viajou_exterior === true ? 'sim' : data.viajou_exterior === false ? 'não' : 'não informado'}
 origem_do_lead: ${campo(data.como_conheceu || data.utm_source)}
 flag_dado_sujo: ${flagInfo.flag}
@@ -679,6 +799,18 @@ const ACAO_DEFAULT_POR_CLASSE = {
   INCOMPLETO: 'verificar dados',
 };
 
+// Resposta sem JSON utilizável E sem o campo "classificacao" → não inventa
+// classe (antes caía em INCOMPLETO silencioso — T19). O handler marca o lead
+// pendente e o retry-qualification reprocessa (visível na War Room).
+class ErroRespostaNaoParseavel extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErroRespostaNaoParseavel';
+  }
+}
+const RE_CAMPO_CLASSIFICACAO = /"classificacao"\s*:\s*"(QUENTE|MORNO|FRIO|INVALIDO|INCOMPLETO)"/;
+const RE_CAMPO_SCORE = /"score_financeiro"\s*:\s*(\d{1,3})/;
+
 const parseArrayStrings = (v) =>
   Array.isArray(v)
     ? v.filter((s) => typeof s === 'string' && s.trim()).map((s) => s.trim().substring(0, 200)).slice(0, 10)
@@ -714,21 +846,33 @@ const parseRespostaV2 = (cleanText, modelUsed) => {
       promptVersion: PROMPT_V2_VERSION,
     };
   } catch (parseError) {
-    log('WARN', 'gemini_v2_parse_fallback', { error: parseError.message, rawText: cleanText.substring(0, 300) });
-    // Fallback conservador por substring (mesma resiliência do v1). Ordem
-    // importa: INVALIDO/INCOMPLETO antes das faixas.
-    const porTexto = CLASSES_V2.find((c) => cleanText.includes(c)) || 'INCOMPLETO';
+    // Fallback ESTRUTURADO: JSON truncado/quebrado que ainda traz o campo
+    // "classificacao" com valor válido (thinking estourou o orçamento no meio
+    // da justificativa). Lê SÓ o campo — o antigo substring pegava a primeira
+    // classe que aparecesse no texto (inclusive o eco do schema
+    // "QUENTE | MORNO | ...") e, sem nenhuma, caía em INCOMPLETO calado.
+    const campo = cleanText.match(RE_CAMPO_CLASSIFICACAO);
+    if (!campo) {
+      log('WARN', 'gemini_v2_parse_sem_classe', { error: parseError.message, rawText: cleanText.substring(0, 300) });
+      throw new ErroRespostaNaoParseavel(`Resposta do modelo não parseável (${parseError.message})`);
+    }
+    const porCampo = campo[1];
+    const scoreMatch = cleanText.match(RE_CAMPO_SCORE);
+    const scoreLido = scoreMatch
+      ? Math.max(0, Math.min(100, parseInt(scoreMatch[1], 10)))
+      : SCORE_DEFAULT_POR_CLASSE[porCampo];
+    log('WARN', 'gemini_v2_parse_fallback', { classe: porCampo, error: parseError.message, rawText: cleanText.substring(0, 300) });
     return {
-      classification: porTexto,
-      reason: cleanText.substring(0, 200) || 'Resposta não parseável — revisão manual necessária.',
+      classification: porCampo,
+      reason: 'Resposta do modelo truncada — classe lida do campo "classificacao"; revisar no dossiê.',
       confidence: 'BAIXA',
       modelUsed,
-      scoreFinanceiro: SCORE_DEFAULT_POR_CLASSE[porTexto],
+      scoreFinanceiro: scoreLido,
       tierProfissao: 'INDEFINIDO',
       sinaisReforco: [],
-      sinaisAlerta: ['resposta do modelo não parseável'],
+      sinaisAlerta: ['resposta do modelo truncada — classe lida do campo classificacao'],
       prioridadeEstrategica: 'PADRAO',
-      acaoRecomendada: ACAO_DEFAULT_POR_CLASSE[porTexto],
+      acaoRecomendada: ACAO_DEFAULT_POR_CLASSE[porCampo],
       promptVersion: PROMPT_V2_VERSION,
     };
   }
@@ -764,6 +908,15 @@ const auditarFaixaDoMeio = async (systemPrompt, userMessage, primeira) => {
     const msg = `${AUDITORIA_V2_PROMPT}\n\nCLASSIFICACAO ORIGINAL:\n${classificacaoOriginal}\n\n${userMessage}`;
     const { cleanText, modelUsed } = await chamarClassificadorV2(systemPrompt, msg);
     const segunda = parseRespostaV2(cleanText, modelUsed);
+    // T19: a 2ª passagem só roda com profissão+faixa presentes (o gate de
+    // completude vem antes). INCOMPLETO aqui é o mesmo vício do modelo
+    // ("abaixo do piso" ≠ "faltam dados") — descarta e mantém a 1ª passagem.
+    if (segunda.classification === 'INCOMPLETO') {
+      log('WARN', 'v2_segunda_passagem_incompleto_descartada', {
+        antes: `${primeira.classification}/${primeira.scoreFinanceiro}`,
+      });
+      return primeira;
+    }
     log('INFO', 'v2_segunda_passagem', {
       antes: `${primeira.classification}/${primeira.scoreFinanceiro}`,
       depois: `${segunda.classification}/${segunda.scoreFinanceiro}`,
@@ -784,8 +937,17 @@ const qualifyWithGemini = async (leadData, cfgRaw = {}) => {
   const flagInfo = detectarDadoSujo(leadData);
   if (flagInfo.flag) log('WARN', 'v2_flag_dado_sujo', { alertas: flagInfo.alertas });
 
+  // T19: completude decidida em CÓDIGO (o modelo não rotula INCOMPLETO sozinho)
+  const completude = avaliarCompletude(leadData);
+  // T23: idade incoerente com a série → alerta (nunca INVALIDO)
+  const referenciaIdade = leadData.submitted_at ? new Date(leadData.submitted_at) : new Date();
+  const idadeInfo = avaliarIdadeAtleta(leadData, referenciaIdade);
+  if (!idadeInfo.coerente) {
+    log('WARN', 'v2_idade_incoerente', { idade: idadeInfo.idade, serie: leadData.school_year || null });
+  }
+
   const systemPrompt = montarSystemPromptV2(cfg);
-  const userMessage = montarDadosLeadV2(leadData, flagInfo);
+  const userMessage = montarDadosLeadV2(leadData, flagInfo, idadeInfo);
 
   const { cleanText, modelUsed } = await chamarClassificadorV2(systemPrompt, userMessage);
   log('INFO', 'gemini_raw_response', { modelUsed, rawText: cleanText.substring(0, 600) });
@@ -806,6 +968,10 @@ const qualifyWithGemini = async (leadData, cfgRaw = {}) => {
     };
   }
 
+  // Gate de completude ANTES da 2ª passagem: INCOMPLETO com dados vira FRIO
+  // (score < corte_frio → fora da faixa do meio, sem auditoria à toa).
+  resultado = aplicarGateCompletude(resultado, completude, corteFrio);
+
   // Segunda passagem — SOMENTE a faixa do meio [corteFrio, corteQuente).
   if (
     ['QUENTE', 'MORNO', 'FRIO'].includes(resultado.classification) &&
@@ -822,6 +988,13 @@ const qualifyWithGemini = async (leadData, cfgRaw = {}) => {
       resultado.scoreFinanceiro >= corteQuente ? 'QUENTE'
         : resultado.scoreFinanceiro >= corteFrio ? 'MORNO'
           : 'FRIO';
+  }
+
+  // Rede de segurança final (idempotente): nenhuma saída escapa da regra.
+  resultado = aplicarGateCompletude(resultado, completude, corteFrio);
+
+  if (idadeInfo.alerta && !resultado.sinaisAlerta.includes(idadeInfo.alerta)) {
+    resultado = { ...resultado, sinaisAlerta: [...resultado.sinaisAlerta, idadeInfo.alerta] };
   }
 
   return resultado;
@@ -1383,16 +1556,17 @@ const markQualificationPending = async (submissionId, errorMessage, { incrementA
   return result.statusCode < 400;
 };
 
-// ─── Notificar CEO + Head sobre pendência de qualificação ──────
+// ─── Notificar CEO/CTO sobre pendência de qualificação ─────────
 // Cria registros em `notificacoes` (tabela CRM) para que apareçam
-// no sininho do BAUSA Engine para os papéis ceo e head_sucesso.
+// no sininho do BAUSA Engine para os papéis ceo e cto. (Head fica de fora:
+// a ação — retry no War Room — é CEO-only; o link /war-room daria 403.)
 const notifyQualificationPending = async (leadData, errorMessage) => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
 
-  // Busca users ativos com papel ceo/head_sucesso para notificar
+  // Busca users ativos com papel ceo/cto para notificar
   const users = await supabaseRequest(
     'GET',
-    `user_profiles?papel=in.(ceo,head_sucesso)&ativo=is.true&select=id,nome,papel`
+    `user_profiles?papel=in.(ceo,cto)&ativo=is.true&select=id,nome,papel`
   );
 
   if (!Array.isArray(users) || users.length === 0) {
@@ -1401,26 +1575,30 @@ const notifyQualificationPending = async (leadData, errorMessage) => {
   }
 
   const titulo = `Lead aguardando qualificação: ${leadData.athlete_name}`;
-  const descricao = `O Gemini retornou erro repetido (tentativas esgotadas nos 2 modelos) ao qualificar este lead. `
+  const mensagem = `A qualificação automática não concluiu para este lead. `
     + `Erro: ${(errorMessage || '').substring(0, 300)}. `
     + `O sistema tentará novamente automaticamente em até 6 horas. Você também pode forçar `
     + `o retry manualmente no War Room → "Leads pendentes de qualificação".`;
 
+  // Colunas REAIS de notificacoes (destinatario_id/mensagem/tipo/severidade
+  // ∈ critica|alta|media|baixa). O payload antigo (user_id/descricao/
+  // modulo_origem/'aviso') falhava em 100% dos envios, calado (achado T19).
+  // dedupe_key por lead: o retry diário (até 10x) não vira spam no sininho.
   for (const user of users) {
     try {
       await supabaseRequest(
         'POST',
-        'notificacoes',
+        'notificacoes?on_conflict=destinatario_id,dedupe_key',
         {
-          user_id: user.id,
+          destinatario_id: user.id,
           titulo,
-          descricao,
-          severidade: 'aviso',
-          modulo_origem: 'comercial',
-          lida: false,
-          link: `/leads?filter=qualification_pending`,
+          mensagem,
+          tipo: 'qualificacao_pendente',
+          severidade: 'media',
+          link: '/war-room',
+          dedupe_key: `qualificacao_pendente:${leadData.id || leadData.email}`,
         },
-        { 'Prefer': 'return=minimal' }
+        { 'Prefer': 'resolution=ignore-duplicates,return=minimal' }
       );
       log('INFO', 'qualification_pending_notification_sent', { userId: user.id, papel: user.papel });
     } catch (notifErr) {
@@ -1695,6 +1873,9 @@ functions.http('qualifyLead', async (req, res) => {
 
       // Registro em automacao_runs (aba Execuções) — estado TERMINAL (erro).
       // Skip por toggle desligado (skipped_disabled acima) NÃO registra.
+      const motivoPendencia = geminiErr instanceof ErroRespostaNaoParseavel
+        ? 'Resposta do modelo não parseável'
+        : 'Gemini indisponível';
       await registrarRunSistema({
         automacaoId: RUN_QUALIFICACAO_ID,
         ok: false,
@@ -1702,7 +1883,7 @@ functions.http('qualifyLead', async (req, res) => {
         acoes: [{
           tipo: 'qualificacao',
           status: 'falha',
-          detalhe: `Gemini indisponível — lead pendente p/ retry: ${(geminiErr.message || '').substring(0, 200)}`,
+          detalhe: `${motivoPendencia} — lead pendente p/ retry: ${(geminiErr.message || '').substring(0, 200)}`,
         }],
       });
 

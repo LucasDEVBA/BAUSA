@@ -1115,6 +1115,66 @@ async function checkAprovacaoPendenteAntiga(supabase: Supabase): Promise<CheckRe
   };
 }
 
+/**
+ * T14 (vídeos do CEO 28/09): reunião detectada no Google Calendar
+ * (meeting_scheduled) de lead SEM deal ativo — a reunião existe e o funil não
+ * sabe. Casos reais: Samuel (INVALIDO, 21/09) e Clara (FRIO, 08/09).
+ * Paridade com o watchdog (monitor-health 'reuniao_sem_deal'): mesma regra —
+ * exclui reprovado (decisão consciente), sem janela de tempo, embed 1:1
+ * atletas (FK UNIQUE → OBJETO) normalizado.
+ */
+const REUNIAO_SEM_DEAL_LIMITE = 500;
+
+async function checkReuniaoSemDeal(supabase: Supabase): Promise<CheckResult> {
+  const id = "reuniao_sem_deal";
+  const titulo = "Reuniões de lead fora do pipeline";
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select(
+      "id, athlete_name, qualification_classification, aprovacao_status, meeting_scheduled_at, atletas(id, deleted_at, deals(id, deleted_at))",
+    )
+    .is("deleted_at", null)
+    .eq("meeting_scheduled", true)
+    .or("aprovacao_status.is.null,aprovacao_status.neq.reprovado")
+    .order("meeting_scheduled_at", { ascending: false })
+    .limit(REUNIAO_SEM_DEAL_LIMITE);
+  if (error) throw new Error(`form_submissions: ${error.message}`);
+
+  type DealEmb = { id: string; deleted_at: string | null };
+  type AtletaEmb = { id: string; deleted_at: string | null; deals: DealEmb[] | DealEmb | null };
+  type Row = {
+    id: string;
+    athlete_name: string;
+    qualification_classification: string | null;
+    aprovacao_status: string | null;
+    meeting_scheduled_at: string | null;
+    atletas: AtletaEmb[] | AtletaEmb | null;
+  };
+  const asArray = <T,>(v: T[] | T | null | undefined): T[] => (Array.isArray(v) ? v : v ? [v] : []);
+  const semDeal = ((data ?? []) as unknown as Row[]).filter(
+    (r) =>
+      !asArray(r.atletas).some(
+        (a) => a.deleted_at === null && asArray(a.deals).some((d) => d.deleted_at === null),
+      ),
+  );
+  const n = semDeal.length;
+  return {
+    id,
+    titulo,
+    status: n === 0 ? "ok" : "atencao",
+    resumo:
+      n === 0
+        ? "Toda reunião detectada no Calendar tem deal no pipeline."
+        : `${n} lead(s) com reunião detectada e SEM deal — a reunião existe e o funil não sabe. Abra o dossiê em Leads e decida (aprovar, resgatar ou reprovar).`,
+    detalhes: semDeal.slice(0, 10).map(
+      (r) =>
+        `${r.athlete_name} — ${r.qualification_classification ?? "sem classificação"} · ${
+          r.aprovacao_status ?? "sem decisão"
+        } · reunião detectada ${r.meeting_scheduled_at ? fmtQuando(r.meeting_scheduled_at) : "—"}`,
+    ),
+  };
+}
+
 async function checkChatbotErro(supabase: Supabase): Promise<CheckResult> {
   const id = "chatbot_erro";
   const titulo = "Chatbot autônomo (erros)";
@@ -1522,6 +1582,11 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
   const d1 = horasAtrasISO(24);
 
   const zapiPromise = checkZapiConexao();
+  // Fora do Promise.all abaixo de propósito: lá a desestruturação é por
+  // POSIÇÃO — inserir um item no meio desloca todas as variáveis seguintes.
+  const reuniaoSemDealPromise = seguro("reuniao_sem_deal", "Reuniões de lead fora do pipeline", () =>
+    checkReuniaoSemDeal(supabase),
+  );
 
   const [
     zapi,
@@ -1567,6 +1632,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
   ]);
 
   const cfs = cfsEDados as CheckResult[];
+  const reuniaoSemDeal = await reuniaoSemDealPromise;
 
   const [leadsRes, qualifRes, waRes, espelhadasRes, reunioesRes] = await Promise.all([
     supabase.from("form_submissions").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("submitted_at", d1),
@@ -1599,6 +1665,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
       transcricaoFaltante,
       weeklyReport,
       calendar,
+      reuniaoSemDeal,
     ],
     funil24h: {
       leads: leadsRes.count ?? 0,
