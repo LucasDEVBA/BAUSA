@@ -546,6 +546,7 @@ export function TarefasClient({
 
       {/* Kanban */}
       <DndContext
+        id="tarefas-kanban"
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}

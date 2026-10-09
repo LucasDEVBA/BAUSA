@@ -690,6 +690,7 @@ export function PipelineBoard({
 
       {view === "kanban" ? (
         <DndContext
+          id="pipeline-board"
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
