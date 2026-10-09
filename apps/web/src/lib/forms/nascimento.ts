@@ -6,14 +6,15 @@
  * responsável (1972). O classificador lia isso como "incoerência grave" →
  * INVALIDO → lead real invisível no Engine.
  *
- * PARIDADE (guard tests/nascimento-serie-paridade.test.js): a tabela
- * série → faixa de idade é IGUAL em functions/qualify-lead/index.js
- * (FAIXA_IDADE_POR_SERIE). Com o PR-09 entra a 3ª cópia — a migration
- * *_form_submissions_validar_nascimento.sql (public.fs_faixa_idade_serie) —,
- * travada em tests/nascimento-banco-paridade.test.js. Até lá o envio direto
- * ao banco NÃO valida a data no servidor.
- * As MENSAGENS (PT) são também as chaves de tradução em form.errors (en/es);
- * a partir do PR-09, o banco devolve as mesmas no envio direto.
+ * PARIDADE: a tabela série → faixa de idade é IGUAL em
+ *   - functions/qualify-lead/index.js (FAIXA_IDADE_POR_SERIE) — guard
+ *     tests/nascimento-serie-paridade.test.js
+ *   - supabase/migrations/*_form_submissions_validar_nascimento.sql
+ *     (public.fs_faixa_idade_serie + a absoluta no coalesce) — guard
+ *     tests/nascimento-banco-paridade.test.js
+ * As MENSAGENS (PT) são também as chaves de tradução em form.errors (en/es)
+ * e as que o banco devolve no envio direto (trigger só do role anon, com
+ * folga de 1 ano e referência = amanhã em BRT — nunca mais estrito que aqui).
  */
 
 export interface FaixaIdade {

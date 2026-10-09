@@ -345,9 +345,18 @@ adversarial na faixa do meio. Guard: `tests/qualificacao-v2-invariants.test.js`.
   inventada).
 - **Idade incoerente com a série (T23) é ALERTA, nunca INVALIDO:** o modelo
   recebe `idade_atleta: não informado` e o código grava o `sinal_alerta`.
-  Tabela série → idade em 3 lugares travados por guard
-  (`tests/nascimento-serie-paridade.test.js`): formulário, `qualify-lead` e
-  (PR-09) banco.
+  Tabela série → idade em 3 lugares travados por guard: formulário,
+  `qualify-lead` (`tests/nascimento-serie-paridade.test.js`) e banco
+  (`tests/nascimento-banco-paridade.test.js`).
+- **Trava de nascimento no banco (T23, migration
+  `*_form_submissions_validar_nascimento.sql`):** trigger
+  `fs_validar_nascimento_anon_trg` **só no INSERT do role `anon`** (o
+  formulário) em public/uat/dev, com a função `public.fs_motivo_nascimento_invalido`
+  (folga de 1 ano e referência = amanhã em BRT → nunca mais estrita que o
+  front); recusa com `23514` e a mesma mensagem PT do front. CFs
+  (service_role) e Engine (authenticated) nunca são travados por dado legado;
+  falha interna da validação aceita o envio com WARNING. A edge function
+  legada `form-handler` valida pela MESMA função (RPC).
 - **Requalificação em massa**: `retry-qualification` modo
   `{mode:'requalify', cutoff:ISO, limit}` — cursor por `qualified_at`,
   retomável; decisão humana (aprovado/reprovado) NUNCA sobrescrita.

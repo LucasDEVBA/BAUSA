@@ -70,7 +70,7 @@ test('edge function legada form-handler (service role): whitelist + só insere (
   const fh = fs.readFileSync(path.join(__dirname, '..', 'supabase/functions/form-handler/index.ts'), 'utf8');
   assert.match(fh, /const CAMPOS_PERMITIDOS = new Set\(\[/, 'whitelist de campos sumiu (mass-assignment com service role)');
   assert.match(fh, /\.filter\(\(\[campo\]\) => CAMPOS_PERMITIDOS\.has\(campo\)\)/);
-  // A validação de nascimento por RPC é travada em nascimento-banco-paridade (PR 2).
+  // A validação de nascimento por RPC é travada em nascimento-banco-paridade.
   assert.match(
     fh,
     /onConflict: 'submission_id', ignoreDuplicates: true/,

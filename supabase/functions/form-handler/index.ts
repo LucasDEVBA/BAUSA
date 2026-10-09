@@ -5,10 +5,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4"
 // com a anon key — não passa por aqui. Esta função segue publicada (o deploy
 // de supabase/** a republica) e usa a SERVICE ROLE, então é um segundo
 // caminho de escrita que não passa pelas travas do role anon. Endurecida no
-// T23: só aceita os campos do formulário (mass-assignment) e SÓ INSERE (nunca
-// sobrescreve lead). AINDA NÃO valida a data de nascimento: a checagem no
-// servidor (RPC public.fs_motivo_nascimento_invalido) chega no PR-09, junto
-// com a migration *_form_submissions_validar_nascimento.sql.
+// T23: só aceita os campos do formulário (mass-assignment), SÓ INSERE (nunca
+// sobrescreve lead) e valida a data de nascimento com A MESMA função do banco
+// (RPC public.fs_motivo_nascimento_invalido, migration
+// *_form_submissions_validar_nascimento.sql — o deploy roda o db push antes
+// de republicar esta função).
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,6 +33,15 @@ const CAMPOS_PERMITIDOS = new Set([
   'form_started_at',
 ])
 
+// Mesmas mensagens (PT) do front e do trigger do banco, por motivo da RPC.
+const MENSAGEM_NASCIMENTO: Record<string, string> = {
+  ausente: 'Data de nascimento é obrigatória',
+  formato: 'Data de nascimento inválida',
+  futuro: 'A data de nascimento não pode ser no futuro',
+  incoerente_serie:
+    'A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)',
+  fora_faixa: 'Confira o ano de nascimento do atleta (não o do responsável)',
+}
 
 const json = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), {
@@ -60,8 +70,36 @@ serve(async (req) => {
       return json({ error: 'submission_id, email e athlete_name são obrigatórios' }, 400)
     }
 
+    // Data de nascimento: a MESMA regra do banco (folga de 1 ano e referência
+    // = amanhã em BRT, igual ao trigger do role anon).
+    const amanhaBrt = new Date(Date.now() + 86_400_000)
+      .toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+    const { data: motivo, error: rpcError } = await supabaseClient.rpc('fs_motivo_nascimento_invalido', {
+      p_birth_date: typeof formData.birth_date === 'string' ? formData.birth_date : null,
+      p_school_year: typeof formData.school_year === 'string' ? formData.school_year : null,
+      p_ref: amanhaBrt,
+      p_folga_anos: 1,
+    })
+    if (rpcError) {
+      // Sem a função do banco não há como validar: recusa (nenhum caller
+      // legítimo usa esta função; o formulário grava direto no PostgREST).
+      console.error(JSON.stringify({
+        level: 'error', action: 'form_handler_nascimento_rpc_falhou',
+        submission_id: formData.submission_id, code: rpcError.code,
+      }))
+      return json({ error: 'Não foi possível validar a data de nascimento' }, 503)
+    }
+    if (typeof motivo === 'string' && motivo) {
+      console.warn(JSON.stringify({
+        level: 'warn', action: 'form_handler_nascimento_invalido',
+        submission_id: formData.submission_id, motivo,
+      }))
+      return json({ error: MENSAGEM_NASCIMENTO[motivo] ?? MENSAGEM_NASCIMENTO.formato }, 400)
+    }
 
-    console.log("Processing submission for:", formData.email)
+    console.log(JSON.stringify({
+      level: 'info', action: 'form_handler_submission', submission_id: formData.submission_id,
+    }))
 
     // 1. Salvar no Banco de Dados (Postgres)
     // SÓ INSERE (ignoreDuplicates → ON CONFLICT DO NOTHING): com a service
