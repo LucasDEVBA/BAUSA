@@ -589,6 +589,11 @@ O BAUSA Engine é a plataforma de operações usada pelo CEO/Head. Compartilha o
 > `*_plano_escolhido_ordem_board_retrocesso`, `*_deals_next_action_meta`).**
 > - Enum `status_deal` ganhou **`plano_escolhido`** (entre `sinal_pago` e `admission_process`).
 >   Retrocesso = regra única `etapa_e_retrocesso` (SQL) ⇄ `lib/etapas-ordem.ts` (TS).
+> - A coluna **"Plano escolhido"** do board é a etapa `plano_escolhido` desde a migration de dados
+>   `*_plano_escolhido_coluna_board` (só pôde entrar DEPOIS do código acima em produção); antes era
+>   um rótulo sobre `negociacao`, que voltou a ser pré-venda **oculta**. Nunca rotular `negociacao`
+>   de novo como "Plano escolhido": o deal que já pagou o sinal volta a contar como pré-venda
+>   ("Negociação parada", remarketing "proposta sem resposta", probabilidade de negociação).
 > - **Comportamento por coluna** mora na chave **`etapas_deal_regras`** (upsert), NUNCA em
 >   `etapas_deal_config` (o código antigo a regrava): `ganho` (só `custom_*`; conta como negócio
 >   ganho em métricas/War Room/remarketing/chatbot), `pede_plano` (soltar o card abre

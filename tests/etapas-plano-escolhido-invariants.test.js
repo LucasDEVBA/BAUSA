@@ -322,7 +322,29 @@ test('migration de dados: move o rótulo sem apagar as outras colunas', { skip: 
   assert.match(migColuna, /v_cfg := v_cfg \|\| jsonb_build_object\(/, 'merge com || (preserva as demais chaves)');
   assert.ok(!/SET valor = '\{/.test(migColuna), 'a migration não pode sobrescrever a config inteira');
   assert.match(migColuna, /'plano escolhido'/, 'gatilho da migração é negociacao rotulada "Plano escolhido"');
+  // Sem btrim, um rótulo com espaço nas pontas caía no ramo "coluna nova" e o
+  // board ficava com DUAS colunas "Plano escolhido" visíveis.
+  assert.match(migColuna, /lower\(btrim\(regexp_replace\(COALESCE\(v_neg ->> 'label'/, 'rótulo normalizado (caixa, espaços internos e nas pontas)');
   assert.match(migColuna, /jsonb_build_object\('oculta', true, 'order'/, 'negociacao volta a ser pré-venda oculta');
+});
+
+test('migration de dados: no-op só com plano_escolhido VISÍVEL e avisos cobrem deals e mover_deal', { skip: migColuna ? false : 'PR-2 (124400) ainda não mergeado' }, () => {
+  // Reordenar o board ou salvar a aba Pipelines grava plano_escolhido OCULTA
+  // antes desta migration: "a chave existe" como no-op deixava a coluna do
+  // T2/T10 escondida para sempre se negociacao tivesse sido renomeada.
+  assert.ok(!/ELSIF v_cfg \? 'plano_escolhido'/.test(migColuna), 'no-op por mera existência da chave voltou');
+  assert.match(migColuna, /ELSIF \(v_cfg -> 'plano_escolhido' -> 'oculta'\) = 'false'::jsonb THEN/,
+    'no-op tem de exigir oculta:false explícito');
+  assert.match(migColuna,
+    /v_plano := jsonb_build_object\('label', 'Plano escolhido', 'accent', 'orange'\)\s*\|\| COALESCE\(\s*CASE WHEN jsonb_typeof\(v_cfg -> 'plano_escolhido'\) = 'object'[\s\S]*?\|\| '\{"oculta": false\}'::jsonb;/,
+    'ramo "coluna nova" mescla sobre a entrada oculta existente e força oculta:false');
+  // mover_deal grava o destino em acoes/passos (automation-engine: p.etapa_destino).
+  assert.match(migColuna, /acoes::text LIKE '%"negociacao"%'/, 'aviso de automações ignora mover_deal em acoes');
+  assert.match(migColuna, /COALESCE\(passos::text, ''\) LIKE '%"negociacao"%'/, 'aviso de automações ignora o fluxo por passos');
+  // Janela R13: deal solto na coluna antiga vira pré-venda oculta sem aviso.
+  assert.match(migColuna, /FROM public\.deals\s+WHERE etapa::text = 'negociacao' AND deleted_at IS NULL;/,
+    'aviso de deals em negociacao sumiu');
+  assert.ok(!/UPDATE public\.deals/.test(migColuna), 'a migration de apresentação nunca move deal');
 });
 
 test('visibilidade: quem grava etapas_deal_config inteira preserva coluna visível de padrão oculto', () => {
