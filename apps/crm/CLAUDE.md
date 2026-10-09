@@ -161,6 +161,8 @@ sonner — toasts
 - Campos de família: `contract_value_brl`
 - Campos de financeiro: `mrr_brl`, `total_received_brl`, etc.
 - Exceção: `School` usa `min_budget_usd` / `strong_budget_usd` (orçamento da família em USD para fins de matching com escolas americanas)
+- **Campo de dinheiro com centavos = `MoneyInput`** (`@/components/ui`, 2026-10, T6): texto `inputMode="decimal"`, parse pt-BR (`7800`/`7.800` → 7800; `7.800,50`), formata `7.800,00` ao sair do campo, sem reformatar enquanto digita; valor 0 começa vazio ao focar (com "0,00" no campo a digitação colava no fim e virava inválida). **Nunca** `type="number"` para dinheiro (lia "7.800" como 7,8 — contrato da Amanda). `CurrencyInput` (reais inteiros) segue só em Parâmetros.
+- Formatação/soma de dinheiro: `formatarMoeda`, `parseValorBRL`, `paraCentavos`/`deCentavos` de `@/lib/financeiro/calculo.mjs` (somar sempre em centavos).
 
 ---
 
@@ -184,7 +186,9 @@ Este projeto está **totalmente integrado** com o Supabase do BAUSA. Não usa ma
 |---------|---------|
 | `leads.ts` | promoverLead (manual, legado) |
 | `deals.ts` | moverDeal, atualizarDeal |
-| `financeiro.ts` | criarContrato, confirmarPagamento, confirmarSinalPago |
+| `financeiro.ts` | updateNfData, solicitarCancelamento, excluirContratoSemPagamento (wrapper de `fin_descartar_contrato`) |
+| `financeiro-contrato.ts` | **Toda escrita de contrato/parcela** via RPC `fin_*` (2026-10): carregarContrato(DoDeal), criarContratoCompleto, registrarSinal, salvarCondicoesContrato (escolher plano/editar), baixarParcela, estornarParcela, editarParcela, quitarContrato, lancar/removerCustoAluno, listar/salvarCatalogoServicos. Resultado `AcaoResult { success, code, error, avisos, gamificacao }` |
+| `contratos.ts` | getContratos (carteira; situação pela MESMA regra `estadoContrato` do contrato), getContratoDetalhe |
 | `experiencia.ts` | registrarContato, atualizarExperiencia, escalonarCEO |
 | `escolas.ts` | criarEscola, atualizarEscola, sugerirEscolas, calcularMatch |
 | `automacoes.ts` | criarTarefa, marcarTarefaConcluida, getNotificacoesNaoLidas |
@@ -402,6 +406,20 @@ type ProductTier = "Legacy" | "Journey" | "Start";
 - `DealStageConfig.isLost` controla estilo diferenciado do estágio "perdido"
 - Todo deal ativo deve ter `next_action` + `next_action_date` preenchidos
 
+> **Atualização 2026-10 (PR-07 — T2/T10/T17/T20/T21), normativa sobre o bloco acima:**
+> - Enum novo **`plano_escolhido`** depois de `sinal_pago` (prob. 97%). Ordem do board e retrocesso:
+>   `compararOrdemBoard` (`@/lib/etapas-deal`) e `isRetrocessoEtapa`/`deveMoverParaSinalPago`
+>   (`@/lib/etapas-ordem`) — espelho do SQL `etapa_e_retrocesso`. Nunca comparar `ETAPA_ORDEM` à mão.
+> - Config da coluna = `mergeDealStageConfig(overrides, regras)` → `DealStageDisplayConfig`
+>   (`oculta`, `ganho`, `pedePlano`, `acaoPadrao`, `ordemConfigurada`). Exibição em
+>   `etapas_deal_config`; comportamento em **`etapas_deal_regras`** (`salvarEtapaPipeline` preserva
+>   as flags não informadas). Server: `getConfigEtapasDeal()`, `getEtapasGanho()`, `getRotulosEtapas()`.
+> - Coluna com `pedePlano`: o board/editor abre `PlanoEscolhidoModal` ANTES de `moverDeal`; Cancelar = nada muda.
+> - Rótulo de etapa em toast/aviso/modal: `labelEtapa(etapa, stageConfig)` — nunca a chave do enum.
+> - Valor do card: resolver único `@/lib/valor-deal` (contratado > negociado > estimado; contrato
+>   "aguardando plano" = "Sinal R$ X pago · total a definir"; desconto contra `valor_base_plano` e a
+>   tabela configurada). Embed do contrato SEMPRE por `EMBED_CONTRATO_VALOR(_LEVE)` (1:1 = objeto).
+
 ---
 
 ## Família — Modelo de Experiência
@@ -500,6 +518,7 @@ badge.variant: "danger" | "warning" | "success" | "neutral"
 - Acessibilidade: `expect(await axe(container)).toHaveNoViolations()` (matcher registrado em `vitest.setup.ts`; contraste de cor não é checado no jsdom).
 - Teste não toca rede nem banco: server actions e Supabase entram como `vi.mock`.
 - Tipos do `jest-axe` vêm de `src/test/jest-axe.d.ts` (o pacote não publica .d.ts; não instale `@types/jest-axe`, que traz os globais do Jest).
+- Cobertura do contrato (T6): `components/ui/MoneyInput.test.tsx` (foco no MESMO nó a cada dígito, `7.800` → 7800, zero começa vazio, erro acessível) e `components/financeiro/contrato/ContratoForm.test.tsx` (form + `PlanoEscolhidoModal` com as actions mockadas: botão desabilitado com o motivo como descrição acessível, confirmação de entrada < R$ 100, Regra 3, valor que chega à action). Mexeu no form de dinheiro → rode os dois.
 
 ---
 
@@ -524,6 +543,9 @@ badge.variant: "danger" | "warning" | "success" | "neutral"
 - [x] Banco de Escolas (/escolas) — KPIs, filtros por tipo
 - [x] Motor de Match (/matching) — score 0–100, algoritmo de 4 dimensões
 - [x] Financeiro (/financeiro) — contratos, parcelas, confirmação de pagamento
+- [x] Contrato editável de ponta a ponta (2026-10): sinal antes do plano, escolha do plano no board,
+      edição/baixa/estorno/quitação por RPC `fin_*`, itens e custos por aluno, "Margem direta" real,
+      `/contratos` com situações "Aguardando plano" e "Condições pendentes"
 - [x] Integração Supabase completa (todos os mocks removidos)
 - [x] Autenticação (Supabase Auth + middleware + requirePapel)
 - [x] Server Actions para todas as operações de escrita

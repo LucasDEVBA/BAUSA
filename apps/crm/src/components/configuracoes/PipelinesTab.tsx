@@ -58,6 +58,9 @@ interface DealRowState {
   /** "" = manter a cor original da etapa (sem override de acento). */
   accent: "" | EtapaDealAccent;
   order: number;
+  /** `order` explícito na config (CEO reordenou o board). Explícito decide o
+   *  retrocesso pela ORDEM DO BOARD — salvar esta aba nunca pode apagá-lo. */
+  ordemConfigurada: boolean;
   oculta: boolean;
   probabilidade: number;
 }
@@ -130,6 +133,7 @@ function buildInitialDealRows(
       label: cfg.label,
       accent: overrides[stage]?.accent ?? "",
       order: cfg.order,
+      ordemConfigurada: cfg.ordemConfigurada,
       oculta: cfg.oculta,
       // Etapa sem valor em config nem fallback (edge — seed 20260401000300
       // ausente): exibe 0 e a probabilidade fica explícita ao salvar.
@@ -179,7 +183,12 @@ export function PipelinesTab({
       ...prev,
       dealRows: {
         ...prev.dealRows,
-        [stage]: { ...prev.dealRows[stage], [campo]: valor },
+        [stage]: {
+          ...prev.dealRows[stage],
+          [campo]: valor,
+          // Ordem digitada aqui é escolha do CEO, mesmo igual ao padrão.
+          ...(campo === "order" ? { ordemConfigurada: true } : {}),
+        },
       },
     }));
   };
@@ -280,8 +289,17 @@ export function PipelinesTab({
       const label = row.label.trim();
       if (label !== base.label) override.label = label;
       if (row.accent !== "") override.accent = row.accent;
-      if (row.order !== base.order) override.order = row.order;
-      if (row.oculta) override.oculta = true;
+      // Ordem explícita continua explícita (mesmo coincidindo com o padrão):
+      // sem ela a etapa sai da ORDEM DO BOARD e um avanço no board vira
+      // "retrocesso" pela ordem fixa (T2 — "a regra segue a nova ordem").
+      if (row.ordemConfigurada || row.order !== base.order) override.order = row.order;
+      // Visibilidade grava quando difere do PADRÃO da etapa (mesma regra do
+      // salvarEtapaPipeline): slots custom e plano_escolhido nascem ocultos —
+      // sem o `oculta:false` explícito, salvar esta aba escondia "Admitido",
+      // "Valor total pago" e "Plano escolhido" (e tirava a coluna da ordem do
+      // board na regra de retrocesso).
+      const ocultaPorPadrao = base.isCustomSlot === true || base.ocultaPorPadrao === true;
+      if (row.oculta !== ocultaPorPadrao) override.oculta = row.oculta;
       if (Object.keys(override).length > 0) etapas[stage] = override;
       probabilidade[stage] = row.probabilidade;
     }

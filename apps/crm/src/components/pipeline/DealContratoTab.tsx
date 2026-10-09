@@ -1,881 +1,228 @@
 "use client";
 
-import Link from "next/link";
-
-import { useState, useEffect, useTransition, useRef } from "react";
-import {
-  Loader2,
-  FileText,
-  CheckCircle2,
-  DollarSign,
-  CreditCard,
-  Upload,
-  ExternalLink,
-  AlertTriangle,
-  Send,
-  PenTool,
-  Receipt,
-  Save,
-} from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, ExternalLink, Loader2, PenTool, Receipt, Save, Send, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import {
-  PLANO_VALORES,
-  ENTRADA_PADRAO,
-  type ContratoFinanceiro,
-  type Parcela,
-} from "@/types/crm";
-import {
-  criarContrato,
-  confirmarPagamento,
-  excluirContratoSemPagamento,
-  getContratoByDeal,
-  updateNfData,
-} from "@/lib/actions/financeiro";
-import { GAMIFICACAO_TIPO_LABEL } from "@/lib/gamificacao-labels";
-import { celebrar } from "@/lib/gamificacao-store";
+
+import { Button } from "@/components/ui";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import { ContratoPainel } from "@/components/financeiro/contrato/ContratoPainel";
+import { GanhoEscolasModal } from "@/components/pipeline/GanhoEscolasModal";
+import { updateNfData } from "@/lib/actions/financeiro";
+import { carregarContratoDoDeal } from "@/lib/actions/financeiro-contrato";
+import { formatarMoeda } from "@/lib/financeiro/calculo.mjs";
 import { uploadDocumento } from "@/lib/upload";
+import { cn } from "@/lib/utils";
+import type { ContratoCompleto } from "@/types/contrato";
 
 interface DealContratoTabProps {
   dealId: string;
   atletaId?: string;
-  /** Contrato criado/refeito ou pagamento confirmado: o valor, o plano e o
-   *  sinal do deal mudaram. Quem busca o deal no cliente (/leads,
-   *  /remarketing) rebusca — o revalidatePath só repinta o /pipeline. */
+  /** Contrato/sinal/parcela mudou: o valor, o plano e o sinal do deal mudaram.
+   *  Quem busca o deal no cliente (/leads, /remarketing) rebusca — o
+   *  revalidatePath/router.refresh só repinta o /pipeline. */
   onAtualizado?: () => void;
 }
 
-type PlanoKey = "journey" | "legacy" | "start";
-/** Plano do formulário: os 3 fixos ou o negociado caso a caso (2026-09-10). */
-type PlanoSelecionado = PlanoKey | "personalizado";
-type FormaPagamento = "padrao" | "pix_avista";
-type FormaEntrada = "pix" | "getnet_parcelado";
-type FormaSaldo = "pix_avista" | "getnet_parcelado";
-
-const PLANO_LABELS: Record<PlanoSelecionado, string> = {
-  journey: "Journey R$ 26k",
-  legacy: "Legacy R$ 32k",
-  start: "Start R$ 18k",
-  personalizado: "Personalizado",
-};
-
-function formatCurrency(value: number): string {
-  return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-}
-
-function isOverdue(vencimento: string): boolean {
-  return new Date(vencimento).getTime() < Date.now();
-}
-
+/**
+ * Aba Contrato do deal (DealDetailModal/DealDetailSheet) — API inalterada.
+ * O financeiro (sinal, plano, parcelas, baixa/estorno/quitação, itens,
+ * custos, histórico) vive no ContratoPainel compartilhado com /contratos/[id].
+ * Aqui ficam só Assinatura e Nota fiscal (comportamento anterior preservado).
+ */
 export function DealContratoTab({ dealId, atletaId, onAtualizado }: DealContratoTabProps) {
-  const [contrato, setContrato] = useState<ContratoFinanceiro | null>(null);
-  const [parcelas, setParcelas] = useState<Parcela[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const [dados, setDados] = useState<ContratoCompleto | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [ganho, setGanho] = useState(false);
 
-  // Create form state
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [plano, setPlano] = useState<PlanoSelecionado>("journey");
-  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("padrao");
-  const [entradaValor, setEntradaValor] = useState(ENTRADA_PADRAO);
-  const [entradaForma, setEntradaForma] = useState<FormaEntrada>("pix");
-  const [entradaParcelas, setEntradaParcelas] = useState(1);
-  const [saldoForma, setSaldoForma] = useState<FormaSaldo>("getnet_parcelado");
-  const [saldoParcelas, setSaldoParcelas] = useState(6);
-  const [incluiPsicologa, setIncluiPsicologa] = useState(true);
-  // Customização total (2026-09-10): null = seguir a tabela do plano.
-  // Trocar plano/forma volta para a tabela (reset nos onChange, não em effect).
-  const [valorTotalCustom, setValorTotalCustom] = useState<number | null>(null);
-  const [justificativa, setJustificativa] = useState("");
-  const [custoPsicologa, setCustoPsicologa] = useState(1200);
-  const [primeiroVencimento, setPrimeiroVencimento] = useState(
-    () => new Date().toISOString().split("T")[0],
-  );
-
-  // Docusign state
-  const [docusignStatus, setDocusignStatus] = useState<string>("nao_enviado");
-  const [uploadingContrato, setUploadingContrato] = useState(false);
-  const [contratoFileUrl, setContratoFileUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // NF state
-  const [nfNumero, setNfNumero] = useState("");
-  const [nfData, setNfData] = useState("");
-  const [nfValor, setNfValor] = useState(0);
-
-  const fetchData = async () => {
+  const carregar = useCallback(async () => {
     try {
-      const result = await getContratoByDeal(dealId);
-      setContrato(result.contrato as ContratoFinanceiro | null);
-      setParcelas((result.parcelas ?? []) as Parcela[]);
-      if (result.contrato) {
-        const c = result.contrato as Record<string, unknown>;
-        setDocusignStatus((c.docusign_status as string) ?? "nao_enviado");
-        setContratoFileUrl((c.contrato_assinado_url as string) ?? null);
-        setNfNumero((c.nf_numero as string) ?? "");
-        setNfData((c.nf_emitida_at as string)?.split("T")[0] ?? "");
-        setNfValor((c.nf_valor as number) ?? 0);
+      const r = await carregarContratoDoDeal(dealId);
+      if (!r) setErro("Sem permissão para ver o financeiro deste negócio.");
+      else {
+        setErro(null);
+        setDados(r);
       }
-    } catch {
-      toast.error("Erro ao carregar contrato");
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error({ level: "error", action: "aba_contrato_carga", dealId, error: String(err) });
+      setErro("Erro ao carregar contrato.");
     }
-  };
-
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
 
-  // Computed values for the create form. Tabela do plano é só o ponto de
-  // partida — o valor efetivo é 100% editável (Regra 3: fora da tabela ou
-  // plano personalizado, a justificativa é obrigatória e vai ao audit).
-  const planoConfig = plano === "personalizado" ? null : PLANO_VALORES[plano];
-  const valorTabela = planoConfig
-    ? (formaPagamento === "pix_avista" ? planoConfig.pix : planoConfig.padrao)
-    : null;
-  const valorTotal = valorTotalCustom ?? valorTabela ?? 0;
-  const isCustomizado = valorTabela === null || valorTotal !== valorTabela;
-  const faltaJustificativa = isCustomizado && !justificativa.trim();
-  const faltaValor = plano === "personalizado" && valorTotal <= 0;
-  const saldoRemanescente = valorTotal - entradaValor;
-
-  const trocarPlano = (novo: PlanoSelecionado) => {
-    setPlano(novo);
-    setValorTotalCustom(null);
-    const cfg = novo === "personalizado" ? null : PLANO_VALORES[novo];
-    setIncluiPsicologa(cfg?.psicologa ?? false);
-  };
-
-  const handleCreateContrato = () => {
-    startTransition(async () => {
-      const result = await criarContrato(dealId, {
-        plano,
-        forma_pagamento_plano: formaPagamento,
-        valor_total: isCustomizado ? valorTotal : undefined,
-        justificativa_customizacao: isCustomizado ? justificativa : undefined,
-        entrada_valor: entradaValor,
-        entrada_forma: entradaForma,
-        entrada_parcelas: entradaForma === "getnet_parcelado" ? entradaParcelas : 1,
-        saldo_forma: saldoForma,
-        saldo_parcelas: saldoForma === "getnet_parcelado" ? saldoParcelas : 1,
-        inclui_psicologa: incluiPsicologa,
-        custo_psicologa: incluiPsicologa ? custoPsicologa : 0,
-        primeiro_vencimento: primeiroVencimento || undefined,
+  // Carga inicial no padrão do GanhoEscolasModal (promise + flag "vivo"):
+  // descarta resposta de um dealId antigo se o modal trocar de deal.
+  useEffect(() => {
+    let vivo = true;
+    carregarContratoDoDeal(dealId)
+      .then((r) => {
+        if (!vivo) return;
+        if (r) setDados(r);
+        else setErro("Sem permissão para ver o financeiro deste negócio.");
+      })
+      .catch((err: unknown) => {
+        console.error({ level: "error", action: "aba_contrato_carga", dealId, error: String(err) });
+        if (vivo) setErro("Erro ao carregar contrato.");
       });
-      if (result.success) {
-        toast.success("Contrato criado com sucesso");
-        celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.contrato_criado);
-        setShowCreateForm(false);
-        await fetchData();
-        onAtualizado?.();
-      } else {
-        toast.error(result.error ?? "Erro ao criar contrato");
-      }
-    });
-  };
+    return () => {
+      vivo = false;
+    };
+  }, [dealId]);
 
-  const handleRefazerContrato = () => {
-    if (!contrato) return;
-    if (!window.confirm(
-      "Refazer o contrato? O atual (sem nenhum pagamento) será descartado e você cria outro do zero.",
-    )) return;
+  if (erro) {
+    return (
+      <div className="space-y-2 py-6 text-center text-sm">
+        <p role="alert" className="text-sys-red">{erro}</p>
+        <Button size="sm" variant="secondary" onClick={() => void carregar()}>Tentar de novo</Button>
+      </div>
+    );
+  }
+  if (!dados) {
+    return (
+      <div className="flex items-center justify-center py-12" aria-busy="true">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Carregando contrato" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <ContratoPainel
+        dados={dados}
+        onAlterado={() => {
+          void carregar();
+          router.refresh(); // card/coluna do board refletem valor/plano/etapa
+          onAtualizado?.();
+        }}
+        onGanho={() => (atletaId ?? dados.atletaId) && setGanho(true)}
+      />
+      {dados.contrato && <AssinaturaENf dados={dados} atletaId={atletaId} onSalvo={() => void carregar()} />}
+      {ganho && (atletaId ?? dados.atletaId) && (
+        <GanhoEscolasModal
+          atletaId={(atletaId ?? dados.atletaId) as string}
+          athleteName={dados.atletaNome ?? ""}
+          onClose={() => setGanho(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Assinatura (estado local, como antes) + NF (agora com máscara BRL — T6). */
+function AssinaturaENf({ dados, atletaId, onSalvo }: { dados: ContratoCompleto; atletaId?: string; onSalvo: () => void }) {
+  const c = dados.contrato;
+  const [docusignStatus, setDocusignStatus] = useState("nao_enviado");
+  const [uploading, setUploading] = useState(false);
+  const [contratoFileUrl, setContratoFileUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [nfNumero, setNfNumero] = useState(c?.nf_numero ?? "");
+  const [nfData, setNfData] = useState(c?.nf_emitida_at?.split("T")[0] ?? "");
+  const [nfValor, setNfValor] = useState<number | null>(c?.nf_valor ?? null);
+  const [nfValorInvalido, setNfValorInvalido] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  if (!c) return null;
+
+  const salvarNf = () => {
+    // Texto inválido no valor apagaria o valor salvo (null): trava.
+    if (nfValorInvalido) return;
     startTransition(async () => {
-      const result = await excluirContratoSemPagamento(contrato.id);
-      if (result.success) {
-        toast.success("Contrato descartado — crie o novo com as condições negociadas.");
-        setShowCreateForm(true);
-        await fetchData();
-        onAtualizado?.();
-      } else {
-        toast.error(result.error ?? "Erro ao refazer contrato");
+      try {
+        const r = await updateNfData({
+          contractId: c.id,
+          nfNumero: nfNumero || null,
+          nfEmitidaAt: nfData || null,
+          nfValor,
+          nfStatus: nfNumero ? "emitida" : "pendente",
+        });
+        if (r.success) {
+          toast.success("Dados da NF salvos");
+          onSalvo();
+        } else toast.error(r.error ?? "Erro ao salvar NF");
+      } catch (err) {
+        console.error({ level: "error", action: "aba_contrato_salvar_nf", contratoId: c.id, error: String(err) });
+        toast.error("Não foi possível salvar a NF. Tente de novo.");
       }
     });
   };
 
-  const handleConfirmarPagamento = (parcelaId: string) => {
-    startTransition(async () => {
-      const result = await confirmarPagamento(parcelaId);
-      if (result.success) {
-        toast.success("Pagamento confirmado");
-        celebrar(result.gamificacao, GAMIFICACAO_TIPO_LABEL.pagamento_confirmado);
-        await fetchData();
-        onAtualizado?.();
-      } else {
-        toast.error(result.error ?? "Erro ao confirmar pagamento");
-      }
-    });
-  };
-
-  const handleUploadContrato = async (file: File) => {
-    if (!atletaId) return;
-    setUploadingContrato(true);
+  const upload = async (file: File) => {
+    const alvo = atletaId ?? dados.atletaId;
+    if (!alvo) return;
+    setUploading(true);
     try {
-      const url = await uploadDocumento(atletaId, "contrato_assinado", file);
-      setContratoFileUrl(url);
+      setContratoFileUrl(await uploadDocumento(alvo, "contrato_assinado", file));
       toast.success("Contrato assinado enviado");
     } catch {
       toast.error("Erro ao fazer upload do contrato");
     } finally {
-      setUploadingContrato(false);
+      setUploading(false);
     }
   };
 
-  const handleSaveNf = () => {
-    if (!contrato) return;
-    startTransition(async () => {
-      const result = await updateNfData({
-        contractId: contrato.id,
-        nfNumero: nfNumero || null,
-        nfEmitidaAt: nfData || null,
-        nfValor: nfValor || null,
-        nfStatus: nfNumero ? "emitida" : "pendente",
-      });
-      if (result.success) {
-        toast.success("Dados da NF salvos");
-        await fetchData();
-      } else {
-        toast.error(result.error ?? "Erro ao salvar NF");
-      }
-    });
-  };
-
-  const inputClass =
-    "w-full rounded-md border border-border bg-popover py-2 px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30";
-  const selectClass =
-    "w-full rounded-md border border-border bg-popover py-2 px-3 text-sm text-foreground outline-none focus:border-primary appearance-none";
-  const labelClass = "text-xs font-medium text-muted-foreground";
-  const cardClass = "rounded-lg border border-border/70 bg-card/60 p-3";
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  // No contract exists
-  if (!contrato) {
-    return (
-      <div className="space-y-5">
-        {!showCreateForm ? (
-          <div className="flex flex-col items-center gap-4 py-8">
-            <FileText className="h-10 w-10 text-label-tertiary" />
-            <p className="text-sm text-muted-foreground">
-              Nenhum contrato financeiro criado para este deal.
-            </p>
-            <button
-              onClick={() => setShowCreateForm(true)}
-              className="flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <DollarSign className="h-4 w-4" />
-              Criar Contrato
-            </button>
-          </div>
-        ) : (
-          <CreateContratoForm />
-        )}
-      </div>
-    );
-  }
-
-  // Contract exists — render full view
-  const totalRecebido = parcelas
-    .filter((p) => p.status === "recebido")
-    .reduce((sum, p) => sum + p.valor, 0);
-  const saldoPendente = contrato.valor_total - totalRecebido;
-
+  const card = "rounded-lg border border-border/70 bg-card/60 p-3";
   return (
-    <div className="space-y-5">
-      {/* Summary card */}
-      <div className={cardClass}>
-        <div className="flex items-center gap-2 mb-3">
-          <DollarSign className="h-4 w-4 text-sys-green" />
-          <h3 className="text-sm font-semibold text-foreground">
-            Resumo do Contrato
-          </h3>
-          {/* A visão completa (parcelas, contratante, fiscal) vive em
-              /contratos — aqui fica o essencial + as ações do dia a dia. */}
-          <Link
-            href={`/contratos/${contrato.id}`}
-            className="ml-auto rounded-md bg-secondary px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Ver contrato completo
-          </Link>
-          {/* Refazer: só enquanto NENHUM pagamento entrou (o server valida de novo) */}
-          {!contrato.entrada_paga && totalRecebido === 0 && (
-            <button
-              type="button"
-              onClick={handleRefazerContrato}
-              disabled={isPending}
-              title="Descarta este contrato (sem pagamentos) para criar outro com as condições negociadas"
-              className="rounded-md px-2 py-1 text-[11px] font-medium text-sys-red transition-colors hover:bg-sys-red/10 disabled:opacity-50"
-            >
-              Refazer contrato
-            </button>
+    <>
+      <section className={card} aria-labelledby="ass-titulo">
+        <h3 id="ass-titulo" className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <PenTool className="size-4 text-plan-legacy" aria-hidden />Assinatura do contrato
+        </h3>
+        <div className="flex flex-wrap gap-2">
+          {docusignStatus === "nao_enviado" && (
+            <Button size="sm" variant="secondary" onClick={() => setDocusignStatus("enviado")}><Send />Marcar como enviado</Button>
+          )}
+          {docusignStatus === "enviado" && (
+            <Button size="sm" variant="secondary" onClick={() => setDocusignStatus("assinado")}><CheckCircle2 />Marcar como assinado</Button>
+          )}
+          {docusignStatus === "assinado" && <span className="text-xs font-medium text-sys-green">Assinado</span>}
+        </div>
+        <div className="mt-3 border-t border-border pt-3">
+          {contratoFileUrl ? (
+            <a href={contratoFileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-primary">
+              <ExternalLink className="size-3" aria-hidden />Ver contrato assinado
+            </a>
+          ) : (
+            <>
+              <Button size="sm" variant="secondary" className="w-full border-dashed" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="animate-spin" /> : <Upload />}Enviar PDF do contrato assinado
+              </Button>
+              <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
+            </>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <p className={labelClass}>Plano</p>
-            <p className="text-foreground font-medium">
-              {PLANO_LABELS[contrato.plano as PlanoSelecionado] ?? contrato.plano}
-            </p>
-          </div>
-          <div>
-            <p className={labelClass}>Valor total</p>
-            <p className="text-sys-green font-bold">
-              {formatCurrency(contrato.valor_total)}
-            </p>
-          </div>
-          <div>
-            <p className={labelClass}>Entrada</p>
-            <p className="text-foreground">
-              {formatCurrency(contrato.entrada_valor)}
-              <span className="ml-1 text-xs text-muted-foreground">
-                ({contrato.entrada_paga ? "Pago" : "Pendente"})
-              </span>
-            </p>
-          </div>
-          <div>
-            <p className={labelClass}>Saldo pendente</p>
-            <p className={cn(
-              "font-medium",
-              saldoPendente > 0 ? "text-sys-orange" : "text-sys-green",
-            )}>
-              {formatCurrency(saldoPendente)}
-            </p>
-          </div>
-          {contrato.inclui_psicologa && (
-            <div>
-              <p className={labelClass}>Psicologa</p>
-              <p className="text-foreground">
-                Incluso ({formatCurrency(contrato.custo_psicologa)})
-              </p>
-            </div>
-          )}
-          <div>
-            <p className={labelClass}>NF</p>
-            <p className="text-foreground capitalize">
-              {contrato.nf_status.replace("_", " ")}
-            </p>
-          </div>
-        </div>
-      </div>
+      </section>
 
-      {/* Parcelas table */}
-      <div className={cardClass}>
-        <div className="flex items-center gap-2 mb-3">
-          <CreditCard className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">Parcelas</h3>
-        </div>
-        <div className="space-y-2">
-          {parcelas.map((p) => {
-            const overdue =
-              (p.status === "previsto" || p.status === "atrasado") &&
-              isOverdue(p.vencimento);
-            return (
-              <div
-                key={p.id}
-                className={cn(
-                  "flex items-center justify-between rounded-lg border px-3 py-2.5",
-                  overdue
-                    ? "border-sys-red/20 bg-sys-red/5"
-                    : p.status === "recebido"
-                      ? "border-sys-green/20 bg-sys-green/5"
-                      : p.status === "cancelado"
-                        ? "border-border bg-secondary opacity-50"
-                        : "border-border bg-popover",
-                )}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-foreground">
-                      {p.numero_parcela}
-                    </span>
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold",
-                        p.status === "recebido"
-                          ? "bg-sys-green/15 text-sys-green"
-                          : overdue
-                            ? "bg-sys-red/15 text-sys-red"
-                            : p.status === "cancelado"
-                              ? "bg-secondary text-muted-foreground"
-                              : "bg-secondary text-muted-foreground",
-                      )}
-                    >
-                      {overdue && p.status !== "cancelado" ? "Atrasado" : p.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground">
-                    <span>{formatCurrency(p.valor)}</span>
-                    <span>
-                      Venc.{" "}
-                      {new Date(p.vencimento).toLocaleDateString("pt-BR")}
-                    </span>
-                    <span className="uppercase">{p.metodo}</span>
-                  </div>
-                </div>
-                {(p.status === "previsto" || p.status === "atrasado") && (
-                  <button
-                    onClick={() => handleConfirmarPagamento(p.id)}
-                    disabled={isPending}
-                    className="flex items-center gap-1 rounded-md bg-sys-green/15 px-2.5 py-1.5 text-[10px] font-medium text-sys-green hover:bg-sys-green/25 transition-colors flex-shrink-0"
-                  >
-                    {isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-3 w-3" />
-                    )}
-                    Confirmar
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Assinatura do contrato */}
-      <div className={cardClass}>
-        <div className="flex items-center gap-2 mb-3">
-          <PenTool className="h-4 w-4 text-plan-legacy" />
-          <h3 className="text-sm font-semibold text-foreground">
-            Assinatura do Contrato
-          </h3>
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className={labelClass}>Status:</span>
-            <span
-              className={cn(
-                "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold",
-                docusignStatus === "assinado"
-                  ? "bg-sys-green/15 text-sys-green border-sys-green/20"
-                  : docusignStatus === "enviado"
-                    ? "bg-sys-blue/15 text-sys-blue border-sys-blue/20"
-                    : "bg-secondary text-muted-foreground border-border",
-              )}
-            >
-              {docusignStatus === "assinado"
-                ? "Assinado"
-                : docusignStatus === "enviado"
-                  ? "Enviado"
-                  : "Nao enviado"}
-            </span>
-          </div>
-
-          <div className="flex gap-2">
-            {docusignStatus === "nao_enviado" && (
-              <button
-                onClick={() => setDocusignStatus("enviado")}
-                className="flex items-center gap-1.5 rounded-md bg-sys-blue/15 px-3 py-1.5 text-xs font-medium text-sys-blue hover:bg-sys-blue/25 transition-colors"
-              >
-                <Send className="h-3 w-3" />
-                Marcar como Enviado
-              </button>
-            )}
-            {docusignStatus === "enviado" && (
-              <button
-                onClick={() => setDocusignStatus("assinado")}
-                className="flex items-center gap-1.5 rounded-md bg-sys-green/15 px-3 py-1.5 text-xs font-medium text-sys-green hover:bg-sys-green/25 transition-colors"
-              >
-                <CheckCircle2 className="h-3 w-3" />
-                Marcar como Assinado
-              </button>
-            )}
-          </div>
-
-          {/* Upload contrato assinado */}
-          <div className="pt-2 border-t border-border">
-            <p className="text-xs text-muted-foreground mb-2">
-              Upload contrato assinado (PDF)
-            </p>
-            {contratoFileUrl ? (
-              <a
-                href={contratoFileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Ver contrato assinado
-              </a>
-            ) : (
-              <>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingContrato}
-                  className="flex items-center gap-1.5 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors w-full justify-center"
-                >
-                  {uploadingContrato ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Upload className="h-3.5 w-3.5" />
-                  )}
-                  Enviar PDF
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUploadContrato(file);
-                  }}
-                />
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* NF Section */}
-      <div className={cardClass}>
-        <div className="flex items-center gap-2 mb-3">
-          <Receipt className="h-4 w-4 text-sys-orange" />
-          <h3 className="text-sm font-semibold text-foreground">Nota Fiscal</h3>
-        </div>
-        {contrato.nf_status === "emitida" ? (
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <p className={labelClass}>Numero</p>
-              <p className="text-foreground">{contrato.nf_numero ?? "---"}</p>
-            </div>
-            <div>
-              <p className={labelClass}>Data emissao</p>
-              <p className="text-foreground">
-                {contrato.nf_emitida_at
-                  ? new Date(contrato.nf_emitida_at).toLocaleDateString("pt-BR")
-                  : "---"}
-              </p>
-            </div>
-            <div>
-              <p className={labelClass}>Valor NF</p>
-              <p className="text-foreground">
-                {contrato.nf_valor ? formatCurrency(contrato.nf_valor) : "---"}
-              </p>
-            </div>
-          </div>
+      <section className={card} aria-labelledby="nf-titulo">
+        <h3 id="nf-titulo" className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Receipt className="size-4 text-sys-orange" aria-hidden />Nota fiscal
+        </h3>
+        {c.nf_status === "emitida" ? (
+          <p className="text-sm text-foreground">
+            Nº {c.nf_numero ?? "—"} · {c.nf_emitida_at ? new Date(c.nf_emitida_at).toLocaleDateString("pt-BR") : "—"} · {formatarMoeda(c.nf_valor)}
+          </p>
         ) : (
           <div className="space-y-3">
-            <div>
-              <label className={labelClass}>Numero NF</label>
-              <input
-                type="text"
-                value={nfNumero}
-                onChange={(e) => setNfNumero(e.target.value)}
-                placeholder="Ex: NF-00123"
-                className={cn(inputClass, "mt-1")}
-              />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="nf-numero" className="block text-xs font-medium text-muted-foreground">Número da NF</label>
+                <input id="nf-numero" value={nfNumero} onChange={(e) => setNfNumero(e.target.value)} placeholder="Ex.: NF-00123"
+                  className="h-10 w-full rounded-lg border border-input bg-card px-3 text-base sm:h-9 sm:text-sm" />
+              </div>
+              <div>
+                <label htmlFor="nf-data" className="block text-xs font-medium text-muted-foreground">Data de emissão</label>
+                <input id="nf-data" type="date" value={nfData} onChange={(e) => setNfData(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-input bg-card px-3 text-base sm:h-9 sm:text-sm" />
+              </div>
             </div>
-            <div>
-              <label className={labelClass}>Data emissao</label>
-              <input
-                type="date"
-                value={nfData}
-                onChange={(e) => setNfData(e.target.value)}
-                className={cn(inputClass, "mt-1")}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Valor NF</label>
-              <input
-                type="number"
-                value={nfValor || ""}
-                onChange={(e) => setNfValor(Number(e.target.value))}
-                placeholder="0.00"
-                className={cn(inputClass, "mt-1")}
-              />
-            </div>
-            <button
-              onClick={handleSaveNf}
-              disabled={isPending}
-              className="flex items-center gap-1.5 rounded-md bg-sys-orange/15 px-3 py-2 text-xs font-medium text-sys-orange hover:bg-sys-orange/25 disabled:opacity-50 transition-colors"
-            >
-              {isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
-              )}
-              Salvar dados NF
-            </button>
+            <MoneyInput label="Valor da NF" value={nfValor}
+              onValueChange={(x, { invalido }) => { setNfValor(x); setNfValorInvalido(invalido); }} />
+            <Button size="sm" variant="secondary" onClick={salvarNf} disabled={isPending || nfValorInvalido} className={cn("text-sys-orange")}>
+              {isPending ? <Loader2 className="animate-spin" /> : <Save />}Salvar dados da NF
+            </Button>
           </div>
         )}
-      </div>
-    </div>
+      </section>
+    </>
   );
-
-  // Nested create form component (uses parent state)
-  function CreateContratoForm() {
-    return (
-      <div className="space-y-5">
-        <div className={cardClass}>
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Criar Contrato Financeiro
-          </h3>
-          <div className="space-y-3">
-            {/* Plano — a tabela é só o ponto de partida; tudo é editável */}
-            <div>
-              <label className={labelClass}>Plano</label>
-              <select
-                value={plano}
-                onChange={(e) => trocarPlano(e.target.value as PlanoSelecionado)}
-                className={cn(selectClass, "mt-1")}
-              >
-                <option value="journey">Journey - R$ 26.000</option>
-                <option value="legacy">Legacy - R$ 32.000</option>
-                <option value="start">Start - R$ 18.000</option>
-                <option value="personalizado">Personalizado — valor negociado</option>
-              </select>
-            </div>
-
-            {/* Forma pagamento (nos planos fixos define o valor de tabela) */}
-            {plano !== "personalizado" && (
-              <div>
-                <label className={labelClass}>Forma de pagamento</label>
-                <select
-                  value={formaPagamento}
-                  onChange={(e) => {
-                    setFormaPagamento(e.target.value as FormaPagamento);
-                    setValorTotalCustom(null);
-                  }}
-                  className={cn(selectClass, "mt-1")}
-                >
-                  <option value="padrao">Padrao</option>
-                  <option value="pix_avista">Pix a vista</option>
-                </select>
-              </div>
-            )}
-
-            {/* Valor total — editável sempre */}
-            <div>
-              <label className={labelClass}>Valor total (R$)</label>
-              <input
-                type="number"
-                min={0}
-                value={valorTotal}
-                onChange={(e) => setValorTotalCustom(Number(e.target.value))}
-                className={cn(inputClass, "mt-1")}
-              />
-              {valorTabela !== null && isCustomizado && (
-                <p className="mt-1 text-[11px] text-sys-orange">
-                  Fora da tabela do plano ({formatCurrency(valorTabela)}) — justificativa obrigatória.
-                </p>
-              )}
-            </div>
-
-            {/* Justificativa da customização (Regra 3 — audit trail) */}
-            {isCustomizado && (
-              <div>
-                <label className={labelClass}>Justificativa da customização</label>
-                <textarea
-                  value={justificativa}
-                  onChange={(e) => setJustificativa(e.target.value)}
-                  placeholder={
-                    plano === "personalizado"
-                      ? "O que foi negociado e por quê (fica no audit trail)"
-                      : "Por que o valor difere da tabela (fica no audit trail)"
-                  }
-                  rows={2}
-                  className={cn(inputClass, "mt-1 resize-none")}
-                />
-              </div>
-            )}
-
-            {/* Primeira cobrança */}
-            <div>
-              <label className={labelClass}>Data da 1ª cobrança</label>
-              <input
-                type="date"
-                value={primeiroVencimento}
-                onChange={(e) => setPrimeiroVencimento(e.target.value)}
-                className={cn(inputClass, "mt-1")}
-              />
-            </div>
-
-            {/* Entrada */}
-            <div>
-              <label className={labelClass}>
-                Valor entrada (R$)
-              </label>
-              <input
-                type="number"
-                value={entradaValor}
-                onChange={(e) => setEntradaValor(Number(e.target.value))}
-                className={cn(inputClass, "mt-1")}
-              />
-            </div>
-
-            <div>
-              <label className={labelClass}>Forma de entrada</label>
-              <select
-                value={entradaForma}
-                onChange={(e) => setEntradaForma(e.target.value as FormaEntrada)}
-                className={cn(selectClass, "mt-1")}
-              >
-                <option value="pix">Pix</option>
-                <option value="getnet_parcelado">GetNet parcelado</option>
-              </select>
-            </div>
-
-            {entradaForma === "getnet_parcelado" && (
-              <div>
-                <label className={labelClass}>Parcelas entrada</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={entradaParcelas}
-                  onChange={(e) => setEntradaParcelas(Number(e.target.value))}
-                  className={cn(inputClass, "mt-1")}
-                />
-              </div>
-            )}
-
-            {/* Saldo */}
-            <div>
-              <label className={labelClass}>Forma do saldo</label>
-              <select
-                value={saldoForma}
-                onChange={(e) => setSaldoForma(e.target.value as FormaSaldo)}
-                className={cn(selectClass, "mt-1")}
-              >
-                <option value="pix_avista">Pix a vista</option>
-                <option value="getnet_parcelado">GetNet parcelado</option>
-              </select>
-            </div>
-
-            {saldoForma === "getnet_parcelado" && (
-              <div>
-                <label className={labelClass}>Parcelas saldo</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={24}
-                  value={saldoParcelas}
-                  onChange={(e) => setSaldoParcelas(Number(e.target.value))}
-                  className={cn(inputClass, "mt-1")}
-                />
-              </div>
-            )}
-
-            {/* Psicologa toggle (custo editável quando incluída) */}
-            <div className="flex items-center justify-between">
-              <label className={labelClass}>Inclui psicologa</label>
-              <button
-                type="button"
-                onClick={() => setIncluiPsicologa(!incluiPsicologa)}
-                className={cn(
-                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                  incluiPsicologa ? "bg-primary" : "bg-secondary",
-                )}
-                role="switch"
-                aria-checked={incluiPsicologa}
-              >
-                <span
-                  className={cn(
-                    "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
-                    incluiPsicologa ? "translate-x-4" : "translate-x-0.5",
-                  )}
-                />
-              </button>
-            </div>
-
-            {incluiPsicologa && (
-              <div>
-                <label className={labelClass}>Custo psicologa (R$)</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={custoPsicologa}
-                  onChange={(e) => setCustoPsicologa(Number(e.target.value))}
-                  className={cn(inputClass, "mt-1")}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Summary card */}
-        <div className={cn(cardClass, "border-primary/20")}>
-          <h4 className="text-xs font-semibold text-primary mb-3">
-            Resumo
-          </h4>
-          <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Valor total</span>
-              <span className="text-foreground font-medium">
-                {formatCurrency(valorTotal)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Entrada</span>
-              <span className="text-foreground">
-                {formatCurrency(entradaValor)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Saldo</span>
-              <span className="text-foreground">
-                {formatCurrency(saldoRemanescente > 0 ? saldoRemanescente : 0)}
-              </span>
-            </div>
-            {incluiPsicologa && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Psicologa</span>
-                <span className="text-foreground">
-                  {formatCurrency(custoPsicologa)} (incluso)
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">1ª cobrança</span>
-              <span className="text-foreground">
-                {primeiroVencimento.split("-").reverse().join("/")}
-              </span>
-            </div>
-            {isCustomizado && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Condições</span>
-                <span className="font-medium text-sys-orange">Customizadas</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={handleCreateContrato}
-            disabled={isPending || faltaJustificativa || faltaValor}
-            title={
-              faltaValor
-                ? "Informe o valor negociado"
-                : faltaJustificativa
-                  ? "Preencha a justificativa da customização"
-                  : undefined
-            }
-            className="flex-1 flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
-            {isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <DollarSign className="h-4 w-4" />
-            )}
-            Criar Contrato
-          </button>
-          <button
-            onClick={() => setShowCreateForm(false)}
-            className="rounded-md px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Cancelar
-          </button>
-        </div>
-      </div>
-    );
-  }
 }

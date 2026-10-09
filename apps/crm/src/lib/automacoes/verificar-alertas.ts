@@ -1,7 +1,10 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getRotulosEtapas } from "@/lib/actions/configuracoes";
 
 export async function verificarAlertas() {
   const supabase = await createServerSupabaseClient();
+  // T17: a mensagem mostra o NOME DA COLUNA (rótulo do CEO), nunca o código.
+  const rotulos: Record<string, string> = await getRotulosEtapas();
   const alertas: Array<{ tipo: string; titulo: string; mensagem: string; deal_id?: string; severidade: string }> = [];
 
   const agora = new Date();
@@ -16,11 +19,12 @@ export async function verificarAlertas() {
     .lt("updated_at", limite48h)
     .not("etapa", "in", "(perdido,concluido,cancelamento_solicitado,admission_process)");
 
-  (semAction || []).forEach((d: any) => {
+  type DealSemAcao = { id: string; etapa: string; atleta: { nome_completo: string | null } | null };
+  ((semAction ?? []) as unknown as DealSemAcao[]).forEach((d) => {
     alertas.push({
       tipo: "sem_next_action",
       titulo: "Deal sem proxima acao",
-      mensagem: `${d.atleta?.nome_completo || "Atleta"} — etapa ${d.etapa} sem next action ha 48h+`,
+      mensagem: `${d.atleta?.nome_completo || "Atleta"} — coluna "${rotulos[d.etapa] ?? d.etapa}" sem próxima ação há 48h+`,
       deal_id: d.id,
       severidade: "alta",
     });

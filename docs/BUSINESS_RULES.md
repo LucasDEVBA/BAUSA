@@ -51,6 +51,8 @@
 
 **Observacao:** A validacao de justificativa obrigatoria quando `valor_customizado != NULL` nao e feita via CHECK constraint no banco — depende da camada de aplicacao. Atualmente o `criarContrato()` nao aceita `valor_customizado` como parametro (usa sempre os valores padrao do plano), entao a customizacao ainda nao tem fluxo de UI implementado.
 
+**Atualizacao 2026-10 (T6/T9/T10/T18 — normativo):** o contrato e escrito SO pelas RPCs `fin_*` (`20261008190400`), que aplicam a Regra 3 no BANCO: e "negociado" (exige justificativa ≥ 5 caracteres, grava `valor_customizado = valor_total` e `justificativa_customizacao`) quando o preco base difere da tabela (`fin_valor_tabela` le `configuracoes_sistema.planos` — mudar o preco na tabela NAO marca contrato como customizado), quando ha itens (`contrato_itens`: servico/desconto/ajuste) ou quando o sinal e cobrado a parte. Editar contrato que ja tem plano exige justificativa SEMPRE (o servidor decide pelo banco, nunca pelo client). O mesmo schema Zod (`lib/financeiro/schemas.ts`) valida client e server. `customizarValorDeal` (valor NEGOCIADO do deal, sem contrato) segue exigindo justificativa e recusa (`TEM_CONTRATO`) quando ha contrato com plano e valor.
+
 ---
 
 ### Regra 4: Apenas CEO pode silenciar notificacoes
@@ -77,6 +79,8 @@
 - **Trigger `trg_deals_check_etapa`** em `20260401000600` (linhas 96-100): detecta retrocesso no banco e seta `flag_retrocedido = true`. O comentario na migration diz: "motivo_retrocesso e validado na camada de aplicacao".
 - **Campos no banco**: `motivo_retrocesso TEXT` e `flag_retrocedido BOOLEAN NOT NULL DEFAULT false` na tabela `deals`.
 - **Audit trail**: trigger `trg_audit_deals` registra a mudanca com `dados_anteriores` e `dados_novos`.
+
+**Atualizacao 2026-10 (T2 — normativo):** retrocesso tem UMA regra, em dois espelhos com paridade travada por guard: `public.etapa_e_retrocesso(de, para, cfg)` (SQL, usada pelo trigger) e `lib/etapas-ordem.ts` (TS, usada pelo `moverDeal`/board). Isentas: `perdido`, `cancelamento_solicitado`, `projeto_futuro`, `aguardando_timing`, `custom_*`. Com as duas etapas VISIVEIS e com ordem configurada, vale a ordem do board; senao, a ordem fixa de negocio nas DUAS (sair de "Sinal pago" para uma etapa oculta anterior continua retrocesso). A etapa `plano_escolhido` vem DEPOIS de `sinal_pago` — mover de Sinal pago para Plano escolhido nao e retrocesso. Escritores automaticos (CFs, financeiro) nunca puxam o deal para tras.
 
 ---
 
@@ -111,6 +115,8 @@
   5. Envia notificacoes para CEO e Head de Sucesso.
 - **Trigger `confirmarPagamento()`** em `financeiro.ts` (linhas 169-174): ao confirmar parcela de entrada, chama `confirmarSinalPago()` automaticamente.
 - **Constraint UNIQUE** em `crm_experiencia.atleta_id` (`20260401001200`) garante 1:1 atleta-experiencia.
+
+**Atualizacao 2026-10 (T5/T11 — normativo):** `confirmarSinalPago`/`confirmarPagamento` foram substituidos pelas RPCs `fin_registrar_sinal`/`fin_baixar_parcela` + `aplicarEfeitosDoSinal` (`lib/financeiro/sinal-deal.ts`): (1) a prova do sinal e `deals.sinal_pago_confirmado_por` (gravada pela RPC), nunca `sinal_pago_at` (o arraste preenche); (2) a etapa SO AVANCA para "Sinal pago" se o deal estiver antes dela na ordem do board (`deveMoverParaSinalPago` + `getConfigEtapasDeal()`; config ilegivel → nao move; colunas custom e etapas posteriores nunca se movem; quitar nunca move); (3) handoff e XP uma vez so. Entrar em `plano_escolhido` tambem abre a jornada (trigger de handoff).
 
 ---
 
@@ -331,6 +337,11 @@ Retorna: `experiencia_id, atleta_nome, dias_sem_contato, fase, threshold`.
 | Perdido exige motivo | ✅ | `moverDeal()` em `deals.ts` (linhas 56-59) |
 | Contrato Assinado exige contrato financeiro | ⚠️ | Nao validado em `moverDeal()`. A coluna `contrato_assinado_at` e setada pelo trigger, mas nao ha verificacao de que `contratos_financeiros` existe para o deal. |
 | Toda transicao no audit trail | ✅ | Trigger `trg_audit_deals` em `20260401000800` |
+| Coluna que pede o plano (`pede_plano`) | ✅ (2026-10) | Soltar o card abre "Escolher plano" (`PlanoEscolhidoModal`) ANTES de mover; Cancelar = card fica na origem. Default ligado em `plano_escolhido` |
+| Coluna que conta como ganho (`ganho`) | ✅ (2026-10) | So `custom_*` (seed: "Admitido", "Valor total pago"). Conta em metricas, War Room, remarketing e chatbot (fail-closed onde envia mensagem) |
+| Proxima acao padrao da coluna (`acao_padrao`) | ✅ (2026-10) | Trigger `trg_deals_next_action_meta` troca a acao ao mudar de etapa — so se a acao atual for de sistema (nunca sobre acao escrita a mao), nunca vazia |
+
+> As tres regras por coluna moram em `configuracoes_sistema.etapas_deal_regras` (upsert), separadas de `etapas_deal_config` (rotulo/cor/ordem/oculta). Rotulo de etapa em mensagens: `getRotulosEtapas()` / `labelEtapa()` (T17).
 
 ### Movimentacoes automaticas
 
@@ -374,7 +385,27 @@ Retorna: `experiencia_id, atleta_nome, dias_sem_contato, fase, threshold`.
 
 ---
 
+## 7a. Contrato Financeiro (2026-10 — T5, T6, T9, T10, T11, T18)
+
+**Status:** ✅ Implementado (PR-07). Escrita SO pelas RPCs `fin_*`; leitura sempre com `.is("deleted_at", null)` (a policy ALL do CEO enxerga linhas excluidas).
+
+| Regra | Implementacao |
+|---|---|
+| Sinal antes do plano (T11) | "Registrar sinal" cria o contrato **aguardando plano** na MESMA linha do deal (`plano IS NULL`, `valor_total = Σ sinais`, parcela de entrada RECEBIDA na data real — entra no caixa/DRE). Valor variavel, Pix/Getnet com nº de vezes. O card mostra "Sinal R$ X pago · total a definir" |
+| Escolher o plano (T10) | Altera o contrato existente no lugar (nunca exclui/recria). Se ja houve pagamento alem do sinal, exige confirmacao. Preco = `configuracoes_sistema.planos` |
+| Entrada paga (T5) | `entrada_paga = true` so quando TODAS as parcelas de entrada estao recebidas; o estorno desfaz |
+| Editar contrato (T9) | So abertas sao refeitas (soft delete + ids novos); recebidas nunca mudam; soma ao centavo com o `valor_total`; vencimentos no mesmo dia do mes; justificativa obrigatoria; CAS por versao |
+| Baixa / estorno / quitacao (T9) | Baixa com data e metodo reais (valor irrisorio < R$ 100 ou < 1% exige confirmacao — o servidor relê o valor do banco); estorno com justificativa e novo vencimento opcional (zera os marcos da regua) — recusado em contrato cancelado (reembolso e em Financeiro → Cancelamentos); quitar nao move o deal |
+| Descartar contrato | So sem nenhum pagamento (`fin_descartar_contrato`, atomico). `excluir_lead` recusa lead com contrato vivo — inclusive o aguardando plano |
+| Condicoes por aluno (T18a) | `contrato_itens` (servico/desconto/ajuste) compoem o `valor_total`, com justificativa; catalogo `servicos_adicionais` editavel em Configuracoes |
+| Custos por aluno (T18b) | `despesas.contrato_id` (categorias psicologa, taxas_escola, testes_idioma, traducao, viagem) → "Margem direta" = receita − custos lancados − psicologa estimada (se nao lancada). Sem rateio de custo fixo. Contrato aguardando plano mostra "—" |
+| Leitores de valor | Ticket medio, mix de planos e Top 5 ignoram contrato so com sinal (`plano IS NULL`) |
+
+---
+
 ## 8. Regua de Cobranca
+
+> **Atualizacao 2026-10:** a CF `billing-reminders` existe (D-3 a D+15, CAS por marco) e esta **PAUSADA** ate a limpeza dos contratos (scripts `pendentes-ceo/financeiro` 03 → 02 → 04, com autorizacao do CEO). Ela ignora parcelas com soft delete e nunca cobra o sinal ja recebido (parcela `recebido`). O texto abaixo e o estado anterior.
 
 **Status:** 🔜 Pendente de integracao externa
 

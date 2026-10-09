@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import {
   TrendingUp,
   AlertTriangle,
@@ -8,6 +9,7 @@ import {
   XCircle,
   RotateCcw,
 } from "lucide-react";
+import { requirePapel } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
   PLAN_CONFIG,
@@ -27,8 +29,14 @@ import { SaidasView } from "@/components/financeiro/SaidasView";
 import { FolhaView } from "@/components/financeiro/FolhaView";
 import { ResultadoView } from "@/components/financeiro/ResultadoView";
 import { getFinanceiroMetrics, type FinanceiroMetrics } from "@/lib/financeiro-metrics";
+import {
+  estadoContrato,
+  faltaSemCronograma,
+  formatarMoeda,
+  margemAluno,
+  type ParcelaParaCalculo,
+} from "@/lib/financeiro/calculo.mjs";
 import { dedupInvestimentos, type InvestimentoRow } from "@/lib/marketing-spend";
-import { PLANO_VALORES } from "@/types/crm";
 import { DESPESA_CATEGORIA_LABEL, type Despesa, type Colaborador, type EmpresaDados } from "@/types/financeiro";
 import { ContractsExportButton, ParcelasExportButton } from "@/components/financeiro/FinanceiroExportButtons";
 
@@ -39,7 +47,7 @@ function formatBRL(val: number) {
 // Mapeia parcela Supabase para Receivable do componente
 function mapParcelaToReceivable(
   p: Record<string, unknown>,
-  contratoMap: Map<string, { plano: string; atletaNome: string }>
+  contratoMap: Map<string, { plano: string | null; atletaNome: string }>
 ): Receivable {
   const contrato = contratoMap.get(p.contrato_id as string);
   const status = p.status as string;
@@ -49,18 +57,11 @@ function mapParcelaToReceivable(
   // Se previsto e vencida, marcar como atrasado visualmente
   const effectiveStatus = (status === "previsto" && vencimento < hoje) ? "atrasado" : status;
 
-  const planMap: Record<string, PlanType> = {
-    journey: "Journey",
-    legacy: "Legacy",
-    start: "Start",
-    personalizado: "Personalizado",
-  };
-
   return {
     id: p.id as string,
     contract_id: (p.contrato_id as string) ?? "",
     client_name: contrato?.atletaNome ?? "Cliente",
-    plan: planMap[contrato?.plano ?? ""] ?? "Journey",
+    plan: planoDoContrato(contrato?.plano ?? null),
     description: (p.numero_parcela as string) ?? "Parcela",
     installment: 0,
     total_installments: 0,
@@ -116,41 +117,69 @@ const MOTIVO_PERDA_LABELS: Record<string, string> = {
   outro: "Outro",
 };
 
-// Constantes de custo para calculo de lucro por cliente
-const CUSTO_FIXO_MENSAL = 12050;
-const MESES_PROCESSO = 3;
-const CLIENTES_BASE = 6;
-const CUSTO_FIXO_POR_CLIENTE = Math.round((CUSTO_FIXO_MENSAL * MESES_PROCESSO) / CLIENTES_BASE);
-const CUSTO_VARIAVEL_JOURNEY_LEGACY = 2000;
-const CUSTO_VARIAVEL_START = 1500;
-const CUSTO_PSICOLOGA = 1200;
+const PLANO_TIPO: Record<string, PlanType> = {
+  journey: "Journey",
+  legacy: "Legacy",
+  start: "Start",
+  personalizado: "Personalizado",
+};
 
-function isCustomizado(c: ContractWithNf): boolean {
-  if (c.valor_customizado != null && c.valor_customizado > 0) return true;
-  const planoKey = c.plano as keyof typeof PLANO_VALORES;
-  const config = PLANO_VALORES[planoKey];
-  if (!config) return false;
-  return c.valor_total !== config.padrao && c.valor_total !== config.pix;
+/** null = contrato aguardando plano (só o sinal — T11). */
+function planoDoContrato(plano: string | null): PlanType {
+  if (!plano) return "A definir";
+  return PLANO_TIPO[plano] ?? "Personalizado";
 }
 
-function calcularLucro(c: ContractWithNf): { lucro: number; margem: number } {
-  const custoFixo = CUSTO_FIXO_POR_CLIENTE;
-  const custoVariavel = c.plano === "start" ? CUSTO_VARIAVEL_START : CUSTO_VARIAVEL_JOURNEY_LEGACY;
-  const custoPsicologa = c.inclui_psicologa ? CUSTO_PSICOLOGA : 0;
-  const custoTotal = custoFixo + custoVariavel + custoPsicologa;
-  const lucro = c.valor_total - custoTotal;
-  const margem = c.valor_total > 0 ? Math.round((lucro / c.valor_total) * 100) : 0;
-  return { lucro, margem };
+// Preço de tabela = valor_base_plano (gravado pela RPC na escolha do plano);
+// total diferente dele = itens/desconto/sinal à parte, todos com justificativa.
+function isCustomizado(c: ContractWithNf): boolean {
+  if (c.valor_customizado != null) return true;
+  return c.valor_base_plano != null && c.valor_total !== c.valor_base_plano;
+}
+
+interface CustoDoAluno {
+  valor: number;
+  categoria: string;
+  status: string;
+}
+
+/**
+ * Margem DIRETA real (T18b): receita contratada − custos lançados do aluno
+ * (despesas.contrato_id) − psicóloga estimada se ainda não lançada. Sem rateio
+ * de custo fixo — os números inventados (custo fixo/variável por cliente)
+ * saíram. Contrato aguardando plano não tem receita definida → null ("—").
+ */
+function margemDireta(c: ContractWithNf, custos: CustoDoAluno[]): { margem: number; margemPct: number | null } | null {
+  if (c.plano === null) return null;
+  const m = margemAluno({
+    valorTotal: c.valor_total,
+    custos,
+    incluiPsicologa: c.inclui_psicologa,
+    custoPsicologa: c.custo_psicologa,
+  });
+  return { margem: m.margem, margemPct: m.margemPct };
+}
+
+const MARGEM_DIRETA_AJUDA =
+  "Receita contratada − custos lançados do aluno − psicóloga estimada (se não lançada). Sem rateio de custos fixos.";
+
+function classeMargem(pct: number): string {
+  if (pct >= 50) return "border-sys-green/20 bg-sys-green/10 text-sys-green";
+  if (pct >= 30) return "border-sys-orange/20 bg-sys-orange/10 text-sys-orange";
+  return "border-sys-red/20 bg-sys-red/10 text-sys-red";
 }
 
 interface ContractWithNf {
   id: string;
   atletaNome: string;
-  plano: string;
+  /** null = aguardando plano. */
+  plano: string | null;
   valor_total: number;
+  valor_base_plano: number | null;
   valor_customizado: number | null;
   justificativa_customizacao: string | null;
   inclui_psicologa: boolean;
+  custo_psicologa: number | null;
   nf_status: "pendente" | "emitida" | "nao_aplicavel";
   nf_numero: string | null;
   nf_emitida_at: string | null;
@@ -163,6 +192,9 @@ interface PageProps {
 }
 
 export default async function FinanceiroPage({ searchParams }: PageProps) {
+  // Defense-in-depth: a nav esconde o link de quem não é CEO/CTO, mas a página
+  // abria pela URL (e Saídas/Folha não dependem só da RLS de contratos).
+  await requirePapel("ceo");
   const supabase = await createServerSupabaseClient();
   const params = await searchParams;
   const activeTab = params.tab || "geral";
@@ -171,14 +203,14 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   // Buscar contratos com deal + atleta para pegar nomes
   const { data: rawContratos } = await supabase
     .from("contratos_financeiros")
-    .select("id, deal_id, plano, valor_total, valor_customizado, justificativa_customizacao, inclui_psicologa, nf_status, nf_numero, nf_emitida_at, nf_valor, entrada_paga, forma_pagamento_plano, deals:deal_id(atleta:atletas(nome_completo))")
+    .select("id, deal_id, plano, valor_total, valor_base_plano, custo_psicologa, valor_customizado, justificativa_customizacao, inclui_psicologa, nf_status, nf_numero, nf_emitida_at, nf_valor, entrada_paga, forma_pagamento_plano, deals:deal_id(atleta:atletas(nome_completo))")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   // Mapa contrato_id -> { plano, atletaNome, deal_id }
   const contratoMap = new Map<
     string,
-    { plano: string; atletaNome: string; deal_id: string | null }
+    { plano: string | null; atletaNome: string; deal_id: string | null }
   >();
   const contractsWithNf: ContractWithNf[] = [];
 
@@ -190,7 +222,7 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     const atletaNome = (atleta?.nome_completo as string) ?? "Cliente";
 
     contratoMap.set(c.id as string, {
-      plano: (c.plano as string) ?? "",
+      plano: (c.plano as string | null) ?? null,
       atletaNome,
       deal_id: (c.deal_id as string) ?? null,
     });
@@ -198,11 +230,13 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     contractsWithNf.push({
       id: c.id as string,
       atletaNome,
-      plano: (c.plano as string) ?? "",
+      plano: (c.plano as string | null) ?? null,
       valor_total: Number(c.valor_total) || 0,
+      valor_base_plano: c.valor_base_plano != null ? Number(c.valor_base_plano) : null,
       valor_customizado: c.valor_customizado != null ? Number(c.valor_customizado) : null,
       justificativa_customizacao: (c.justificativa_customizacao as string | null) ?? null,
       inclui_psicologa: (c.inclui_psicologa as boolean) ?? false,
+      custo_psicologa: c.custo_psicologa != null ? Number(c.custo_psicologa) : null,
       nf_status: (c.nf_status as ContractWithNf["nf_status"]) ?? "nao_aplicavel",
       nf_numero: c.nf_numero as string | null,
       nf_emitida_at: c.nf_emitida_at as string | null,
@@ -214,9 +248,34 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   // Buscar todas as parcelas
   const { data: rawParcelas } = await supabase
     .from("parcelas")
-    .select("id, contrato_id, valor, vencimento, status, metodo, numero_parcela, recebido_at")
+    .select("id, contrato_id, tipo, valor, vencimento, status, metodo, numero_parcela, recebido_at")
     .is("deleted_at", null)
     .order("vencimento", { ascending: true });
+
+  const parcelasPorContrato = new Map<string, ParcelaParaCalculo[]>();
+  for (const p of rawParcelas ?? []) {
+    const lista = parcelasPorContrato.get(p.contrato_id as string) ?? [];
+    lista.push({
+      tipo: p.tipo === "entrada" || p.tipo === "saldo" ? p.tipo : undefined,
+      valor: Number(p.valor) || 0,
+      status: p.status as ParcelaParaCalculo["status"],
+      vencimento: p.vencimento as string,
+    });
+    parcelasPorContrato.set(p.contrato_id as string, lista);
+  }
+
+  // Saldo sem parcelas que o cubram (T9): a régua não cobra o que não existe,
+  // então o buraco precisa aparecer para alguém montar o cronograma.
+  const condicoesPendentes = contractsWithNf
+    .map((c) => {
+      const parcelas = parcelasPorContrato.get(c.id) ?? [];
+      const contrato = { plano: c.plano, valor_total: c.valor_total };
+      if (estadoContrato(contrato, parcelas) !== "condicoes_pendentes") return null;
+      // Mesma regra da aba do contrato (tolera centavos de arredondamento legado).
+      return { id: c.id, atletaNome: c.atletaNome, semParcela: faltaSemCronograma(contrato, parcelas) };
+    })
+    .filter((c): c is { id: string; atletaNome: string; semParcela: number } => c !== null && c.semParcela > 0);
+  const totalSemParcela = condicoesPendentes.reduce((s, c) => s + c.semParcela, 0);
 
   const receivables: Receivable[] = (rawParcelas ?? []).map((p) =>
     mapParcelaToReceivable(p as Record<string, unknown>, contratoMap)
@@ -243,8 +302,9 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
   let folhaMensal = 0;
   let marketingMensal = 0;
   const custosRecorrentes: { nome: string; valor: number; categoria: string }[] = [];
+  const custosPorContrato = new Map<string, CustoDoAluno[]>();
   if (activeTab === "geral") {
-    const [colabRes, recorrRes, mktRes] = await Promise.all([
+    const [colabRes, recorrRes, mktRes, custosAlunoRes] = await Promise.all([
       supabase.from("colaboradores").select("custo_mensal_brl").eq("ativo", true).is("deleted_at", null),
       supabase
         .from("despesas")
@@ -258,7 +318,19 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
         .select("mes, canal, valor_gasto, source")
         .eq("mes", `${mesAtual}-01`)
         .is("deleted_at", null),
+      // Custos internos por aluno (T18b) — base da "Margem direta".
+      supabase
+        .from("despesas")
+        .select("contrato_id, valor_brl, categoria, status")
+        .not("contrato_id", "is", null)
+        .is("deleted_at", null),
     ]);
+    for (const d of custosAlunoRes.data ?? []) {
+      const id = d.contrato_id as string;
+      const lista = custosPorContrato.get(id) ?? [];
+      lista.push({ valor: Number(d.valor_brl) || 0, categoria: d.categoria as string, status: d.status as string });
+      custosPorContrato.set(id, lista);
+    }
     folhaMensal = (colabRes.data ?? []).reduce((s, c) => s + Number(c.custo_mensal_brl), 0);
     marketingMensal = dedupInvestimentos((mktRes.data as InvestimentoRow[] | null) ?? [])
       .reduce((s, m) => s + Number(m.valor_gasto), 0);
@@ -274,12 +346,10 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
     : 100;
 
   // Contratos por plano
-  const planMap: Record<string, PlanType> = { journey: "Journey", legacy: "Legacy", start: "Start", personalizado: "Personalizado" };
-  const contractsByPlan: Record<PlanType, number> = { Legacy: 0, Journey: 0, Start: 0, Personalizado: 0 };
-  for (const c of rawContratos ?? []) {
-    const plan = planMap[c.plano as string];
-    if (plan) contractsByPlan[plan]++;
-  }
+  const contractsByPlan: Record<PlanType, number> = { Legacy: 0, Journey: 0, Start: 0, Personalizado: 0, "A definir": 0 };
+  for (const c of contractsWithNf) contractsByPlan[planoDoContrato(c.plano)]++;
+
+  const margens = new Map(contractsWithNf.map((c) => [c.id, margemDireta(c, custosPorContrato.get(c.id) ?? [])]));
 
   const summary: FinancialSummary = {
     mrr_brl: receitaRecebidaMes,
@@ -386,7 +456,8 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
               </thead>
               <tbody>
                 {nfPendentes.map((c) => {
-                  const planCfg = PLAN_CONFIG[planMap[c.plano] ?? "Journey"];
+                  const plano = planoDoContrato(c.plano);
+                  const planCfg = PLAN_CONFIG[plano];
                   return (
                     <tr key={c.id} className="border-b border-border transition-colors hover:bg-accent">
                       <td className="py-3 pl-4 pr-3">
@@ -394,10 +465,12 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                       </td>
                       <td className="px-3 py-3">
                         <span className={cn("inline-flex rounded-md border px-2 py-0.5 text-[10px] font-semibold", planCfg.bg, planCfg.color)}>
-                          {planMap[c.plano] ?? c.plano}
+                          {plano}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-sm font-semibold text-foreground">{formatBRL(c.valor_total)}</td>
+                      <td className="px-3 py-3 text-sm font-semibold text-foreground">
+                        {c.plano === null ? `Sinal ${formatBRL(c.valor_total)}` : formatBRL(c.valor_total)}
+                      </td>
                       <td className="px-3 py-3">
                         <NfEditRow
                           contractId={c.id}
@@ -577,6 +650,16 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                     </div>
                   );
                 })}
+                {contractsByPlan["A definir"] > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn("rounded-md border px-2 py-0.5 text-[10px] font-bold", PLAN_CONFIG["A definir"].bg, PLAN_CONFIG["A definir"].color)}>
+                      Aguardando plano
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {contractsByPlan["A definir"]} contrato{contractsByPlan["A definir"] !== 1 ? "s" : ""} só com o sinal
+                    </span>
+                  </div>
+                )}
               </ScrollList>
             </div>
 
@@ -666,7 +749,31 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          {/* Contratos com NF Status + Lucro */}
+          {condicoesPendentes.length > 0 && (
+            <div role="status" className="rounded-xl border border-sys-orange/20 bg-sys-orange/5 px-4 py-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-sys-orange" aria-hidden />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-sys-orange">
+                    {condicoesPendentes.length} contrato{condicoesPendentes.length !== 1 ? "s" : ""} com saldo sem parcelas (condições pendentes): {formatarMoeda(totalSemParcela)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    A régua não cobra o que não tem parcela. Monte o cronograma em:{" "}
+                    {condicoesPendentes.map((c, i) => (
+                      <span key={c.id}>
+                        {i > 0 && ", "}
+                        <Link href={`/contratos/${c.id}`} className="font-medium text-foreground underline-offset-2 hover:underline">
+                          {c.atletaNome}
+                        </Link>
+                      </span>
+                    ))}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Contratos com NF Status + Margem direta */}
           <div className="border border-border/70 bg-card/60 rounded-xl overflow-hidden">
             <div className="border-b border-border px-5 py-4">
               <div className="flex items-center justify-between">
@@ -674,7 +781,9 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                   <h2 className="text-sm font-semibold text-foreground">Contratos — Controle de NF e Rentabilidade</h2>
                   <p className="mt-0.5 text-xs text-muted-foreground">{contractsWithNf.length} contratos registrados</p>
                 </div>
-                <ContractsExportButton contracts={contractsWithNf} />
+                <ContractsExportButton
+                  contracts={contractsWithNf.map((c) => ({ ...c, plano: planoDoContrato(c.plano) }))}
+                />
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -684,7 +793,12 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                     <th className="py-2.5 pl-4 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Cliente</th>
                     <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Plano</th>
                     <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Valor Total</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Lucro Est.</th>
+                    <th
+                      className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary"
+                      title={MARGEM_DIRETA_AJUDA}
+                    >
+                      Margem direta
+                    </th>
                     <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Margem</th>
                     <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">Entrada</th>
                     <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-label-tertiary">NF</th>
@@ -692,9 +806,10 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                 </thead>
                 <tbody>
                   {contractsWithNf.slice(0, 20).map((c) => {
-                    const pCfg = PLAN_CONFIG[planMap[c.plano] ?? "Journey"];
+                    const plano = planoDoContrato(c.plano);
+                    const pCfg = PLAN_CONFIG[plano];
                     const custom = isCustomizado(c);
-                    const { lucro, margem } = calcularLucro(c);
+                    const margem = margens.get(c.id) ?? null;
                     return (
                       <tr key={c.id} className="border-b border-border transition-colors hover:bg-accent">
                         <td className="py-3 pl-4 pr-3">
@@ -711,22 +826,28 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                         </td>
                         <td className="px-3 py-3">
                           <span className={cn("inline-flex rounded-md border px-2 py-0.5 text-[10px] font-semibold", pCfg.bg, pCfg.color)}>
-                            {planMap[c.plano] ?? c.plano}
+                            {c.plano === null ? "Aguardando plano" : plano}
                           </span>
                         </td>
-                        <td className="px-3 py-3 text-sm font-semibold text-foreground">{formatBRL(c.valor_total)}</td>
-                        <td className="px-3 py-3 text-sm font-semibold text-sys-green">{formatBRL(lucro)}</td>
+                        <td className="px-3 py-3 text-sm font-semibold text-foreground">
+                          {c.plano === null ? `Sinal ${formatBRL(c.valor_total)}` : formatBRL(c.valor_total)}
+                        </td>
+                        <td
+                          className={cn(
+                            "px-3 py-3 text-sm font-semibold",
+                            margem === null ? "text-label-tertiary" : margem.margem >= 0 ? "text-sys-green" : "text-sys-red",
+                          )}
+                        >
+                          {margem === null ? "—" : formatBRL(margem.margem)}
+                        </td>
                         <td className="px-3 py-3">
-                          <span className={cn(
-                            "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold",
-                            margem >= 50
-                              ? "border-sys-green/20 bg-sys-green/10 text-sys-green"
-                              : margem >= 30
-                              ? "border-sys-orange/20 bg-sys-orange/10 text-sys-orange"
-                              : "border-sys-red/20 bg-sys-red/10 text-sys-red"
-                          )}>
-                            {margem}%
-                          </span>
+                          {margem?.margemPct != null ? (
+                            <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold", classeMargem(margem.margemPct))}>
+                              {margem.margemPct}%
+                            </span>
+                          ) : (
+                            <span className="text-xs text-label-tertiary">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-3">
                           <span className={cn(
@@ -750,26 +871,24 @@ export default async function FinanceiroPage({ searchParams }: PageProps) {
                       </tr>
                     );
                   })}
-                  {/* Margem media summary row */}
-                  {contractsWithNf.length > 0 && (() => {
-                    const allProfits = contractsWithNf.map(calcularLucro);
-                    const avgMargin = Math.round(allProfits.reduce((s, p) => s + p.margem, 0) / allProfits.length);
-                    const totalLucro = allProfits.reduce((s, p) => s + p.lucro, 0);
+                  {/* Margem média: só contratos com plano (aguardando plano = "—", fora da média) */}
+                  {(() => {
+                    const comMargem = contractsWithNf
+                      .map((c) => margens.get(c.id) ?? null)
+                      .filter((m): m is { margem: number; margemPct: number } => m !== null && m.margemPct !== null);
+                    if (comMargem.length === 0) return null;
+                    const avgMargin = Math.round(comMargem.reduce((s, m) => s + m.margemPct, 0) / comMargem.length);
+                    const totalMargem = comMargem.reduce((s, m) => s + m.margem, 0);
                     return (
                       <tr className="border-t-2 border-primary/30 bg-popover">
                         <td colSpan={3} className="py-3 pl-4 pr-3 text-xs font-bold text-foreground">
-                          Margem media (todos os contratos)
+                          Margem direta média (contratos com plano)
                         </td>
-                        <td className="px-3 py-3 text-sm font-bold text-sys-green">{formatBRL(totalLucro)}</td>
+                        <td className={cn("px-3 py-3 text-sm font-bold", totalMargem >= 0 ? "text-sys-green" : "text-sys-red")}>
+                          {formatBRL(totalMargem)}
+                        </td>
                         <td className="px-3 py-3">
-                          <span className={cn(
-                            "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold",
-                            avgMargin >= 50
-                              ? "border-sys-green/20 bg-sys-green/10 text-sys-green"
-                              : avgMargin >= 30
-                              ? "border-sys-orange/20 bg-sys-orange/10 text-sys-orange"
-                              : "border-sys-red/20 bg-sys-red/10 text-sys-red"
-                          )}>
+                          <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold", classeMargem(avgMargin))}>
                             {avgMargin}%
                           </span>
                         </td>

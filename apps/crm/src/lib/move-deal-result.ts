@@ -6,6 +6,8 @@
  */
 
 import type { StatusDeal } from "@/types/crm";
+// import type puro — etapas-deal é módulo puro (client-safe).
+import type { DealStageConfigMap } from "@/lib/etapas-deal";
 // import type puro — apagado na compilação, seguro em client components
 // (o módulo @/lib/gamificacao em si é server-only).
 import type { ResultadoGamificacao } from "@/lib/gamificacao";
@@ -18,6 +20,7 @@ export type MoveDealErrorCode =
   | "MISSING_CONTRACT"
   | "REQUIRE_RETROCESSO_REASON"
   | "REQUIRE_LOST_REASON"
+  | "DEAL_CHANGED"
   | "DB_ERROR";
 
 export type MoveDealAction =
@@ -38,6 +41,8 @@ export type MoveDealSuccess = {
   novaEtapa: StatusDeal;
   /** XP registrado quando o movimento foi um avanço real (fail-open: pode ser null). */
   gamificacao?: ResultadoGamificacao | null;
+  /** Próxima ação padrão aplicada pela coluna de destino (T21) — null = mantida. */
+  proximaAcao?: string | null;
 };
 
 export type MoveDealFailure = {
@@ -55,9 +60,16 @@ export type MoveDealResult = MoveDealSuccess | MoveDealFailure;
 export function okMove(
   dealId: string,
   novaEtapa: StatusDeal,
-  gamificacao?: ResultadoGamificacao | null
+  gamificacao?: ResultadoGamificacao | null,
+  proximaAcao?: string | null,
 ): MoveDealSuccess {
-  return { success: true, dealId, novaEtapa, gamificacao: gamificacao ?? null };
+  return {
+    success: true,
+    dealId,
+    novaEtapa,
+    gamificacao: gamificacao ?? null,
+    proximaAcao: proximaAcao ?? null,
+  };
 }
 
 export function failMove(
@@ -91,10 +103,12 @@ export const DEFAULT_ERROR_LABEL: Record<MoveDealErrorCode, string> = {
   REQUIRE_RETROCESSO_REASON:
     "Retrocesso exige justificativa obrigatória.",
   REQUIRE_LOST_REASON: "Marcar como perdido exige motivo.",
+  DEAL_CHANGED: "O deal mudou de etapa em outra aba. Recarregue o pipeline e tente de novo.",
   DB_ERROR: "Erro ao mover deal. Tente novamente em instantes.",
 };
 
-// Mapeamento de etapa → label amigável (usa o tipo do crm.ts)
+// Rótulos ESTÁTICOS — só fallback. O nome que o CEO vê é o da config
+// (stageConfig[etapa].label); passe o mapa para labelEtapa sempre que tiver.
 export const ETAPA_LABEL: Record<string, string> = {
   contato_feito: "Contato feito",
   lead: "Lead",
@@ -109,13 +123,26 @@ export const ETAPA_LABEL: Record<string, string> = {
   contrato_enviado: "Contrato Enviado",
   contrato_assinado: "Contrato Assinado",
   sinal_pago: "Sinal Pago",
+  plano_escolhido: "Plano escolhido",
   admission_process: "Admission Process",
   concluido: "Concluído",
   perdido: "Perdido",
   cancelamento_solicitado: "Cancelamento",
   projeto_futuro: "Projeto Futuro",
+  custom_1: "Coluna personalizada 1",
+  custom_2: "Coluna personalizada 2",
+  custom_3: "Coluna personalizada 3",
+  custom_4: "Coluna personalizada 4",
+  custom_5: "Coluna personalizada 5",
+  custom_6: "Coluna personalizada 6",
 };
 
-export function labelEtapa(etapa: string): string {
-  return ETAPA_LABEL[etapa] ?? etapa;
+/**
+ * Nome da COLUNA para exibição (T17): rótulo configurado pelo CEO quando o
+ * mapa é passado; senão o rótulo estático; nunca o código interno quando há
+ * qualquer rótulo conhecido.
+ */
+export function labelEtapa(etapa: string, config?: DealStageConfigMap | null): string {
+  const configurado = (config as Partial<Record<string, { label: string }>> | null | undefined)?.[etapa]?.label;
+  return configurado ?? ETAPA_LABEL[etapa] ?? etapa;
 }

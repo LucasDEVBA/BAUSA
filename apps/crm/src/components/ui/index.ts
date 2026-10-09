@@ -49,3 +49,4 @@ export {
   formatBRL,
   formatBRLCompacto,
 } from "./NumericInputs";
+export { MoneyInput, type MoneyInputProps } from "./MoneyInput";

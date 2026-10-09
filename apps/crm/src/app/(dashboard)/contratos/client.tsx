@@ -11,22 +11,38 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { Badge, Card, EmptyState, Input, PageHeader, StatCard } from "@/components/ui";
+import { Badge, Card, EmptyState, Input, PageHeader, StatCard, type BadgeTone } from "@/components/ui";
 import type { ContratoLista, ResumoCarteira, SituacaoContrato } from "@/lib/actions/contratos";
 import { cn } from "@/lib/utils";
 
-const SITUACAO = {
-  em_dia: { label: "Em dia", tone: "green" as const },
-  atrasado: { label: "Em atraso", tone: "red" as const },
-  quitado: { label: "Quitado", tone: "blue" as const },
-  cancelado: { label: "Cancelado", tone: "neutral" as const },
+const SITUACAO: Record<SituacaoContrato, { label: string; tone: BadgeTone }> = {
+  em_dia: { label: "Em dia", tone: "green" },
+  atrasado: { label: "Em atraso", tone: "red" },
+  quitado: { label: "Quitado", tone: "blue" },
+  cancelado: { label: "Cancelado", tone: "neutral" },
+  aguardando_plano: { label: "Aguardando plano", tone: "orange" },
+  condicoes_pendentes: { label: "Condições pendentes", tone: "orange" },
 };
+
+const FILTROS: Array<"todos" | SituacaoContrato> = [
+  "todos",
+  "em_dia",
+  "atrasado",
+  "aguardando_plano",
+  "condicoes_pendentes",
+  "quitado",
+  "cancelado",
+];
 
 const PLANO_LABEL: Record<string, string> = {
   legacy: "Legacy",
   journey: "Journey",
   start: "Start",
+  personalizado: "Personalizado",
 };
+
+/** Contrato aguardando plano (só o sinal — T11) não tem plano ainda. */
+const rotuloPlano = (plano: string | null) => (plano ? (PLANO_LABEL[plano] ?? plano) : "A definir");
 
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -66,7 +82,11 @@ export function ContratosClient({
           value={brl(resumo.valorContratado)}
           icon={FileSignature}
           accent="brand"
-          context={`${resumo.contratos} contrato(s)`}
+          context={
+            resumo.aguardandoPlano > 0
+              ? `${resumo.contratos} contrato(s) · ${resumo.aguardandoPlano} aguardando plano`
+              : `${resumo.contratos} contrato(s)`
+          }
         />
         <StatCard
           label="Recebido"
@@ -109,10 +129,11 @@ export function ContratosClient({
             className="pl-8"
           />
         </div>
-        {(["todos", "em_dia", "atrasado", "quitado", "cancelado"] as const).map((f) => (
+        {FILTROS.map((f) => (
           <button
             key={f}
             type="button"
+            aria-pressed={filtro === f}
             onClick={() => setFiltro(f)}
             className={cn(
               "rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
@@ -172,10 +193,10 @@ export function ContratosClient({
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {PLANO_LABEL[c.plano] ?? c.plano}
+                      {rotuloPlano(c.plano)}
                     </td>
                     <td className="px-4 py-3 text-xs tabular-nums text-foreground">
-                      {brl(c.valorTotal)}
+                      {c.plano ? brl(c.valorTotal) : `Sinal ${brl(c.valorTotal)}`}
                     </td>
                     <td className="px-4 py-3 text-xs tabular-nums text-muted-foreground">
                       {brl(c.recebido)}
@@ -221,7 +242,7 @@ export function ContratosClient({
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">{c.atleta}</p>
                       <p className="mt-0.5 text-[11px] text-label-tertiary">
-                        {PLANO_LABEL[c.plano] ?? c.plano} · {brl(c.valorTotal)}
+                        {rotuloPlano(c.plano)} · {c.plano ? brl(c.valorTotal) : `Sinal ${brl(c.valorTotal)}`}
                       </p>
                     </div>
                     <Badge tone={SITUACAO[c.situacao].tone} size="sm">

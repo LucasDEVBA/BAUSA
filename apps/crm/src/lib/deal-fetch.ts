@@ -2,8 +2,10 @@ import { parseSinaisV2 } from "@/lib/classificador-v2";
 import { rotuloFaixaInvestimento } from "@/lib/faixa-investimento";
 import { createBrowserClient } from "@/lib/supabase-browser";
 import {
+  CHAVE_CONFIG_PLANOS,
   EMBED_CONTRATO_VALOR,
   camposValorDeal,
+  tabelaPlanosDe,
   type ContratoValorEmbed,
 } from "@/lib/valor-deal";
 import { type Deal, type DealStage } from "@/types/deal";
@@ -25,43 +27,51 @@ function mapClassificacao(cls: string | null): LeadClassification {
 export async function fetchDeal(dealId: string): Promise<Deal | null> {
   const supabase = createBrowserClient();
 
-  const { data } = await supabase
-    .from("deals")
-    .select(`
-      id, etapa, valor_estimado, next_action, data_proxima_acao,
-      responsavel_id,
-      created_at, updated_at, motivo_perda, detalhe_perda,
-      flag_retrocedido, motivo_retrocesso, notas_reuniao,
-      contrato_assinado_at, sinal_pago_at,
-      pode_reativar, data_reativacao,
-      projeto_futuro_ano, projeto_futuro_data_reativacao,
-      deleted_at, flag_valores_customizados, justificativa_customizacao,
-      reuniao_agendada_at, reuniao_link, reuniao_data,
-      ${EMBED_CONTRATO_VALOR},
-      atleta:atletas(
-        id, nome_completo, posicao, esporte, serie_escolar,
-        lead_classificacao, whatsapp, faixa_investimento, cidade_estado,
-        lead_score, qualificado_gemini, classificacao_gemini,
-        motivo_gemini, confianca_gemini, qualificado_gemini_at,
-        nivel_ingles, nivel_competitivo, instagram, video_highlights_url,
-        escola_atual, desempenho_academico, historico_clubes, conquistas,
-        data_nascimento, email, comprometimento, decisao_familiar,
-        modelo_educacional, momento_inicio,
-        responsavel_id, consentimento_lgpd,
-        form_submission:form_submissions(
-          submitted_at, whatsapp_sent_at, followup_1_sent_at,
-          followup_2_sent_at, meeting_scheduled, meeting_scheduled_at,
-          qualification_reason, qualification_confidence, qualified_at,
-          guardian_name, guardian_profession, guardian_email, investment_range,
-          score_financeiro, tier_profissao, sinais_reforco, sinais_alerta,
-          prioridade_estrategica, acao_recomendada
+  // Preço de tabela configurado em paralelo: só o selo de desconto depende dele.
+  const [{ data }, cfgPlanos] = await Promise.all([
+    supabase
+      .from("deals")
+      .select(`
+        id, etapa, valor_estimado, next_action, data_proxima_acao,
+        next_action_etapa, next_action_manual_em,
+        responsavel_id,
+        created_at, updated_at, motivo_perda, detalhe_perda,
+        flag_retrocedido, motivo_retrocesso, notas_reuniao,
+        contrato_assinado_at, sinal_pago_at, sinal_pago_confirmado_por,
+        pode_reativar, data_reativacao,
+        projeto_futuro_ano, projeto_futuro_data_reativacao,
+        deleted_at, flag_valores_customizados, justificativa_customizacao,
+        reuniao_agendada_at, reuniao_link, reuniao_data,
+        ${EMBED_CONTRATO_VALOR},
+        atleta:atletas(
+          id, nome_completo, posicao, esporte, serie_escolar,
+          lead_classificacao, whatsapp, faixa_investimento, cidade_estado,
+          lead_score, qualificado_gemini, classificacao_gemini,
+          motivo_gemini, confianca_gemini, qualificado_gemini_at,
+          nivel_ingles, nivel_competitivo, instagram, video_highlights_url,
+          escola_atual, desempenho_academico, historico_clubes, conquistas,
+          data_nascimento, email, comprometimento, decisao_familiar,
+          modelo_educacional, momento_inicio,
+          responsavel_id, consentimento_lgpd,
+          form_submission:form_submissions(
+            submitted_at, whatsapp_sent_at, followup_1_sent_at,
+            followup_2_sent_at, meeting_scheduled, meeting_scheduled_at,
+            qualification_reason, qualification_confidence, qualified_at,
+            guardian_name, guardian_profession, guardian_email, investment_range,
+            score_financeiro, tier_profissao, sinais_reforco, sinais_alerta,
+            prioridade_estrategica, acao_recomendada
+          )
         )
-      )
-    `)
-    .eq("id", dealId)
-    .single();
+      `)
+      .eq("id", dealId)
+      .single(),
+    supabase.from("configuracoes_sistema").select("valor").eq("chave", CHAVE_CONFIG_PLANOS).maybeSingle(),
+  ]);
 
   if (!data) return null;
+  if (cfgPlanos.error) {
+    console.warn({ level: "warn", action: "deal_fetch_tabela_planos", error: cfgPlanos.error.message });
+  }
 
   const row = data as Record<string, unknown>;
   const atleta = row.atleta as Record<string, unknown> | null;
@@ -82,7 +92,7 @@ export async function fetchDeal(dealId: string): Promise<Deal | null> {
       valor_estimado: row.valor_estimado as number | string | null,
       flag_valores_customizados: row.flag_valores_customizados as boolean | null,
       contrato: row.contrato as ContratoValorEmbed | ContratoValorEmbed[] | null,
-    }),
+    }, tabelaPlanosDe(cfgPlanos.data?.valor)),
     justificativa_valor: (row.justificativa_customizacao as string) ?? undefined,
     stage: row.etapa as DealStage,
     classification: mapClassificacao((atleta?.lead_classificacao as string) ?? null),
@@ -91,12 +101,15 @@ export async function fetchDeal(dealId: string): Promise<Deal | null> {
     stage_updated_at: row.updated_at as string,
     next_action: (row.next_action as string) ?? undefined,
     next_action_date: (row.data_proxima_acao as string) ?? undefined,
+    next_action_etapa: (row.next_action_etapa as string) ?? undefined,
+    next_action_manual: Boolean(row.next_action_manual_em),
     notes: (row.notas_reuniao as string) ?? undefined,
     flag_retrocedido: (row.flag_retrocedido as boolean) ?? undefined,
     motivo_retrocesso: (row.motivo_retrocesso as string) ?? undefined,
     lost_reason: (row.detalhe_perda as string) ?? (row.motivo_perda as string) ?? undefined,
     contract_signed_at: (row.contrato_assinado_at as string) ?? undefined,
     signal_paid_at: (row.sinal_pago_at as string) ?? undefined,
+    signal_confirmed: Boolean(row.sinal_pago_confirmado_por),
     is_future_lead: (row.pode_reativar as boolean) ?? undefined,
     future_project_year: (row.projeto_futuro_ano as number) ?? undefined,
     future_reactivation_date: (row.projeto_futuro_data_reativacao as string) ?? undefined,

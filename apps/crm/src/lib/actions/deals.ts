@@ -4,29 +4,33 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAuditedSupabaseClient } from "@/lib/supabase-audit";
 import { getUserPapel } from "@/lib/auth";
-import { ETAPA_ORDEM, type StatusDeal } from "@/types/crm";
+import { type StatusDeal } from "@/types/crm";
 import {
   failMove,
   okMove,
   type MoveDealResult,
 } from "@/lib/move-deal-result";
-import { getProbabilidadePorEtapa } from "@/lib/actions/configuracoes";
+import { getConfigEtapasDeal } from "@/lib/actions/configuracoes";
 import { registrarEventoGamificacao } from "@/lib/gamificacao";
 import { JUSTIFICATIVA_VALOR_MAX, VALOR_DEAL_MAXIMO } from "@/lib/valor-deal";
+import { mergeDealStageConfig } from "@/lib/etapas-deal";
+import { isAvancoReal, isRetrocessoEtapa } from "@/lib/etapas-ordem";
 
-// Destinos que nunca pontuam XP mesmo com ordem maior: perdas e
-// estacionamentos têm ordem alta em ETAPA_ORDEM mas não são progresso.
-const ETAPAS_SEM_XP: StatusDeal[] = [
-  "perdido",
-  "cancelamento_solicitado",
-  "projeto_futuro",
-  "aguardando_timing",
-];
+// Ordem/retrocesso/XP: regra ÚNICA em @/lib/etapas-ordem (espelho do trigger
+// SQL trg_deals_check_etapa → public.etapa_e_retrocesso). Probabilidade por
+// etapa, rótulos e regras por coluna (ganho/pede plano/ação padrão) vêm de
+// configuracoes_sistema numa leitura só (getConfigEtapasDeal); os mapas
+// hardcoded são só FALLBACK — ver @/lib/etapas-deal.
 
-// Probabilidade por etapa: configurável pelo CEO via chave
-// `probabilidade_por_etapa` de configuracoes_sistema (lida em
-// getProbabilidadePorEtapa). O mapa hardcoded histórico virou o FALLBACK —
-// ver PROBABILIDADE_ETAPA_FALLBACK em @/lib/etapas-deal.
+// Campos que o editor do deal pode gravar (atualizarDeal é chamável do client:
+// whitelist contra mass assignment).
+const CAMPOS_EDITAVEIS_DEAL = [
+  "next_action",
+  "data_proxima_acao",
+  "notas_reuniao",
+  "probabilidade_fechamento",
+  "status_decisao_familia",
+] as const;
 
 export interface StructuredLossData {
   motivo_perda: string;
@@ -63,22 +67,26 @@ export async function moverDeal(
     return failMove("DEAL_NOT_FOUND", { action: { type: "reload" } });
   }
 
-  const ordemAtual = ETAPA_ORDEM[deal.etapa as StatusDeal] || 0;
-  const ordemNova = ETAPA_ORDEM[novaEtapa] || 0;
-  // aguardando_timing é estacionamento (lead muito cedo aguardando novembro):
-  // entrar ou sair dele nunca é retrocesso — mesma regra do trigger SQL
-  // (migration 20260706173000)
-  const isRetrocesso =
-    ordemNova < ordemAtual &&
-    novaEtapa !== "perdido" &&
-    novaEtapa !== "cancelamento_solicitado" &&
-    novaEtapa !== "projeto_futuro" &&
-    novaEtapa !== "aguardando_timing" &&
-    deal.etapa !== "aguardando_timing" &&
-    // Colunas personalizadas são raias livres do CEO — entrar/sair delas
-    // nunca é retrocesso (mesma isenção do trigger SQL, 20260904120000)
-    !novaEtapa.startsWith("custom_") &&
-    !String(deal.etapa).startsWith("custom_");
+  // Config das etapas (ordem do board, regras por coluna, probabilidade)
+  // numa leitura só. Falha → ordem FIXA (mesmo fallback do trigger SQL).
+  const cfgEtapas = await getConfigEtapasDeal();
+  if (!cfgEtapas.lida) {
+    console.error({
+      level: "error",
+      action: "mover_deal_config_fallback",
+      dealId,
+      detalhe: "etapas_deal_config ilegível — retrocesso pela ordem fixa",
+    });
+  }
+  const etapaAtual = String(deal.etapa);
+  // Config mesclada (ordem/visibilidade do board + regras por coluna) — a
+  // mesma que o board usa para desenhar as colunas.
+  const stageMap = mergeDealStageConfig(cfgEtapas.overrides, cfgEtapas.regras);
+  // Regra ÚNICA (espelho do trigger trg_deals_check_etapa): isenções de
+  // sempre (perdido/cancelamento/projeto_futuro/aguardando_timing/custom_*) e
+  // ordem do BOARD quando as duas etapas estão visíveis — "Sinal pago →
+  // Plano escolhido" é avanço porque é assim que o CEO ordenou as colunas.
+  const isRetrocesso = isRetrocessoEtapa(etapaAtual, novaEtapa, stageMap);
 
   // Decisão do CEO (2026-08-19): o pipeline é LIVRE — nenhum gate rígido de
   // avanço. Os antigos bloqueios (próxima ação preenchida, notas da reunião
@@ -91,8 +99,8 @@ export async function moverDeal(
   if (isRetrocesso && !motivo) {
     console.error("[moverDeal] retrocesso reason required", {
       dealId,
-      ordemAtual,
-      ordemNova,
+      de: etapaAtual,
+      para: novaEtapa,
     });
     return failMove("REQUIRE_RETROCESSO_REASON", {
       action: {
@@ -116,9 +124,8 @@ export async function moverDeal(
     etapa_anterior: deal.etapa,
   };
 
-  const probabilidadePorEtapa = await getProbabilidadePorEtapa();
-  if (probabilidadePorEtapa[novaEtapa] !== undefined) {
-    updateData.probabilidade_fechamento = probabilidadePorEtapa[novaEtapa];
+  if (cfgEtapas.probabilidade[novaEtapa] !== undefined) {
+    updateData.probabilidade_fechamento = cfgEtapas.probabilidade[novaEtapa];
   }
 
   if (isRetrocesso) {
@@ -138,10 +145,22 @@ export async function moverDeal(
     }
   }
 
-  const { error: updateError } = await supabase
+  // ─── Próxima ação padrão da coluna de destino (T21) ─────────────────────
+  // Aplicada pelo TRIGGER trg_deals_next_action_meta (migration
+  // *_deals_next_action_meta) — fonte ÚNICA para o Engine e para as CFs que mudam a
+  // etapa sozinhas (meeting-transcripts → Reunião realizada, sinal, automações).
+  // NUNCA sobrescreve ação escrita à mão e NUNCA esvazia (Regra 2). Aqui o
+  // moverDeal NÃO toca em next_action: só lê o resultado para o toast.
+
+  // CAS na etapa LIDA: retrocesso foi decidido sobre ela — se outra aba moveu
+  // o deal no meio, não grava em cima.
+  const { data: movidos, error: updateError } = await supabase
     .from("deals")
     .update(updateData)
-    .eq("id", dealId);
+    .eq("id", dealId)
+    .eq("etapa", deal.etapa)
+    .is("deleted_at", null)
+    .select("id, next_action");
 
   if (updateError) {
     console.error("[moverDeal] update failed", {
@@ -153,18 +172,29 @@ export async function moverDeal(
       error: `Erro ao mover deal: ${updateError.message}`,
     });
   }
+  if (!movidos || movidos.length === 0) {
+    console.error("[moverDeal] CAS perdeu — deal mudou de etapa", {
+      dealId,
+      de: etapaAtual,
+      para: novaEtapa,
+    });
+    return failMove("DEAL_CHANGED", { action: { type: "reload" } });
+  }
+  const acaoDepois = (movidos[0] as { next_action?: string | null }).next_action ?? null;
+  const proximaAcao =
+    acaoDepois && acaoDepois !== (deal.next_action as string | null) ? acaoDepois : null;
 
   // ─── Loop de aprendizado do classificador v2 (spec §10, best-effort) ─────
   // desfecho_real permite cruzar previsto × realizado a cada ciclo de 90d.
-  // fechou = contrato assinado em diante; perdeu = perdido. Nunca bloqueia.
-  const DESFECHO_POR_ETAPA: Partial<Record<StatusDeal, string>> = {
-    contrato_assinado: "fechou",
-    sinal_pago: "fechou",
-    admission_process: "fechou",
-    concluido: "fechou",
-    perdido: "perdeu",
-  };
-  const desfechoReal = DESFECHO_POR_ETAPA[novaEtapa];
+  // fechou = qualquer etapa de GANHO (contrato assinado em diante, Plano
+  // escolhido e colunas personalizadas marcadas como ganho); perdeu = perdido.
+  // Nunca bloqueia.
+  const desfechoReal =
+    novaEtapa === "perdido"
+      ? "perdeu"
+      : stageMap[novaEtapa]?.ganho
+        ? "fechou"
+        : undefined;
   if (desfechoReal && deal.atleta_id) {
     try {
       const { data: atletaFs } = await supabase
@@ -312,14 +342,13 @@ export async function moverDeal(
   }
   revalidatePath("/pipeline");
 
-  // Gamificação: XP SOMENTE em avanço real (ordemNova > ordemAtual e destino
-  // que não é perda/estacionamento). Retrocesso/perdido nunca pontuam.
-  const isAvancoReal = ordemNova > ordemAtual && !ETAPAS_SEM_XP.includes(novaEtapa);
-  const gamificacao = isAvancoReal
+  // Gamificação: XP SOMENTE em avanço real (mesma escala da regra de
+  // retrocesso; destino que não é perda/estacionamento). Voltar nunca pontua.
+  const gamificacao = isAvancoReal(etapaAtual, novaEtapa, stageMap)
     ? await registrarEventoGamificacao("deal_avancado", { tipo: "deal", id: dealId })
     : null;
 
-  return okMove(dealId, novaEtapa, gamificacao);
+  return okMove(dealId, novaEtapa, gamificacao, proximaAcao);
 }
 
 const customizarValorSchema = z.object({
@@ -444,9 +473,35 @@ export async function atualizarDeal(
 
   const supabase = await createAuditedSupabaseClient();
 
+  // Whitelist (mass assignment): só os campos do editor passam.
+  const payload: Record<string, unknown> = {};
+  for (const campo of CAMPOS_EDITAVEIS_DEAL) {
+    if (data[campo] !== undefined) payload[campo] = data[campo];
+  }
+  if (Object.keys(payload).length === 0) return { success: true };
+
+  // T21: ação escrita à mão (texto ou data diferente do atual) ganha a marca
+  // manual — a ação padrão da coluna nunca a sobrescreve ao mover o deal.
+  // Re-salvar o mesmo texto (ex.: salvar só as notas) NÃO marca.
+  if (payload.next_action !== undefined || payload.data_proxima_acao !== undefined) {
+    const { data: atual, error: lerErr } = await supabase
+      .from("deals")
+      .select("next_action, data_proxima_acao")
+      .eq("id", dealId)
+      .maybeSingle();
+    if (lerErr) return { success: false, error: lerErr.message };
+    const textoAtual = ((atual?.next_action as string | null) ?? "").trim();
+    const dataAtual = (atual?.data_proxima_acao as string | null) ?? "";
+    const mudouTexto =
+      typeof payload.next_action === "string" && payload.next_action.trim() !== textoAtual;
+    const mudouData =
+      typeof payload.data_proxima_acao === "string" && payload.data_proxima_acao !== dataAtual;
+    if (mudouTexto || mudouData) payload.next_action_manual_em = new Date().toISOString();
+  }
+
   const { error } = await supabase
     .from("deals")
-    .update(data)
+    .update(payload)
     .eq("id", dealId);
 
   if (error) {

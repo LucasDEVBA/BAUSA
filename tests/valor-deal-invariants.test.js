@@ -27,6 +27,11 @@
 //      salvar o valor E depois de mudar contrato/pagamento.
 //  10. Modal de valor: Esc fecha só ele (abre dentro do detalhe do deal),
 //      foco preso, corpo rolável e os mesmos limites do servidor no campo.
+//  11. Desconto (revisão R2, PR-07): base = valor_base_plano (legado:
+//      valor_total) contra o preço CONFIGURADO em configuracoes_sistema.planos
+//      (fallback PLANO_VALORES, mesma regra da RPC fin_valor_tabela), mais
+//      itens 'desconto' vivos. Sinal à parte e serviços extras não escondem
+//      desconto; mudar o preço da tabela não inventa desconto.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -50,8 +55,8 @@ const blocoGuardJs = (arquivo, nome) => {
 
 const ARQ = 'apps/crm/src/lib/valor-deal.ts';
 // eslint-disable-next-line no-new-func
-const { resolverValorDealCore, contratoAguardandoPlano, sinalPagoAntesDoPlano } = new Function(
-  `${blocoGuardJs(ARQ, 'valor-deal')}\nreturn { resolverValorDealCore, contratoAguardandoPlano, sinalPagoAntesDoPlano };`,
+const { resolverValorDealCore, contratoAguardandoPlano, sinalPagoAntesDoPlano, tabelaPlanosDaConfig } = new Function(
+  `${blocoGuardJs(ARQ, 'valor-deal')}\nreturn { resolverValorDealCore, contratoAguardandoPlano, sinalPagoAntesDoPlano, tabelaPlanosDaConfig };`,
 )();
 
 // Espelho de PLANO_VALORES (types/crm.ts) — conferido abaixo contra o fonte.
@@ -157,6 +162,122 @@ test('desconto só abaixo da tabela da forma escolhida (pix à vista não é des
   assert.deepEqual([pers.origem, pers.plano, pers.temDesconto], ['contratado', 'Personalizado', false]);
 });
 
+// ─── Desconto (revisão R2) ───────────────────────────────────────
+const item = (tipo, valor, deleted_at = null) => ({ tipo, valor, deleted_at });
+
+test('R2: sinal cobrado à parte não esconde o desconto (base = valor_base_plano)', () => {
+  // Journey negociado a 24k com sinal de 4,5k NÃO abatido: total 28,5k.
+  const r = resolver({
+    valor_estimado: 0,
+    contrato: contratoJourney({ valor_base_plano: 24000, valor_total: 28500 }),
+  });
+  assert.equal(r.valor, 28500, 'o valor exibido continua o total do contrato');
+  assert.deepEqual([r.temDesconto, r.descontoPct], [true, 8]);
+  // Base no preço de tabela + serviço extra (+1.200): total acima da tabela, sem desconto.
+  const extra = resolver({
+    valor_estimado: 0,
+    contrato: contratoJourney({ valor_base_plano: 26000, valor_total: 27200, itens: [item('servico', 1200)] }),
+  });
+  assert.deepEqual([extra.temDesconto, extra.descontoPct], [false, null]);
+  // Legado (valor_base_plano nulo): base = valor_total, como antes.
+  const legado = resolver({ valor_estimado: 0, contrato: contratoJourney({ valor_base_plano: null, valor_total: 24000 }) });
+  assert.deepEqual([legado.temDesconto, legado.descontoPct], [true, 8]);
+  // numeric como string (PostgREST)
+  const str = resolver({ valor_estimado: 0, contrato: contratoJourney({ valor_base_plano: '24000.00', valor_total: '28500.00' }) });
+  assert.deepEqual([str.temDesconto, str.descontoPct], [true, 8]);
+});
+
+test('R2: item de desconto vivo conta (objeto ou array); soft-deleted e ajuste não', () => {
+  const comItem = resolver({
+    valor_estimado: 0,
+    contrato: contratoJourney({ valor_base_plano: 26000, valor_total: 24000, itens: [item('desconto', -2000)] }),
+  });
+  assert.deepEqual([comItem.temDesconto, comItem.descontoPct, comItem.valor], [true, 8, 24000]);
+  const objeto = resolver({
+    valor_estimado: 0,
+    contrato: contratoJourney({ valor_base_plano: 26000, valor_total: 24000, itens: item('desconto', '-2000.00') }),
+  });
+  assert.deepEqual([objeto.temDesconto, objeto.descontoPct], [true, 8]);
+  // Desconto da base E item somam (26k − 24k = 2k; + 1,3k de item = 3,3k / 26k ≈ 13%).
+  const soma = resolver({
+    valor_estimado: 0,
+    contrato: contratoJourney({ valor_base_plano: 24000, valor_total: 22700, itens: [item('desconto', -1300)] }),
+  });
+  assert.deepEqual([soma.temDesconto, soma.descontoPct], [true, 13]);
+  const apagado = resolver({
+    valor_estimado: 0,
+    contrato: contratoJourney({ valor_base_plano: 26000, valor_total: 26000, itens: [item('desconto', -2000, '2026-10-01T00:00:00Z')] }),
+  });
+  assert.deepEqual([apagado.temDesconto, apagado.descontoPct], [false, null]);
+  const ajuste = resolver({
+    valor_estimado: 0,
+    contrato: contratoJourney({ valor_base_plano: 26000, valor_total: 25500, itens: [item('ajuste', -500)] }),
+  });
+  assert.equal(ajuste.temDesconto, false, 'ajuste não é desconto (só tipo "desconto")');
+  // Personalizado não tem tabela: só item de desconto conta, sobre a base negociada.
+  const pers = resolver({
+    valor_estimado: 0,
+    contrato: contratoJourney({ plano: 'personalizado', valor_base_plano: 30000, valor_total: 27000, itens: [item('desconto', -3000)] }),
+  });
+  assert.deepEqual([pers.temDesconto, pers.descontoPct], [true, 10]);
+});
+
+test('R2: preço vem da tabela CONFIGURADA (configuracoes_sistema.planos) com fallback por forma', () => {
+  const cfg = {
+    journey: { valor: 30000, valor_pix: 27000, psicologa: true },
+    legacy: { valor: '34000', valor_pix: 0, psicologa: true },
+    start: { valor: -1, valor_pix: 'abc' },
+  };
+  const tabela = tabelaPlanosDaConfig(cfg, TABELA);
+  assert.deepEqual(tabela.journey, { padrao: 30000, pix: 27000 });
+  assert.deepEqual(tabela.legacy, { padrao: 34000, pix: 28500 }, 'pix 0 → fallback (igual à fin_valor_tabela)');
+  assert.deepEqual(tabela.start, { padrao: 18000, pix: 16000 }, 'inválido/negativo → fallback');
+  assert.equal(Object.prototype.hasOwnProperty.call(tabela, 'personalizado'), false, 'personalizado não tem tabela');
+  for (const vazio of [null, undefined, [], 'x', 42, {}]) {
+    assert.deepEqual(tabelaPlanosDaConfig(vazio, TABELA), TABELA, `config ${JSON.stringify(vazio)} → PLANO_VALORES`);
+  }
+  // Preço subiu para 30k: contrato a 26k agora é desconto (13%).
+  const r = resolverValorDealCore({ valor_estimado: 0, contrato: contratoJourney({ valor_base_plano: 26000 }) }, tabela);
+  assert.deepEqual([r.temDesconto, r.descontoPct], [true, 13]);
+  // Contrato no preço novo NÃO é desconto ("mudar preço ≠ customizado").
+  const novo = resolverValorDealCore({ valor_estimado: 0, contrato: contratoJourney({ valor_base_plano: 30000, valor_total: 30000 }) }, tabela);
+  assert.deepEqual([novo.temDesconto, novo.descontoPct], [false, null]);
+  // O valor exibido não depende da tabela.
+  assert.equal(r.valor, resolver({ valor_estimado: 0, contrato: contratoJourney({ valor_base_plano: 26000 }) }).valor);
+});
+
+test('R2: fallback e chaves da tabela iguais às da RPC fin_valor_tabela', () => {
+  const dir = path.join(raiz, 'supabase', 'migrations');
+  const arq = fs.readdirSync(dir).find((f) => f.endsWith('_financeiro_rpcs.sql'));
+  assert.ok(arq, 'migration *_financeiro_rpcs.sql sumiu');
+  const sql = fs.readFileSync(path.join(dir, arq), 'utf8');
+  const i = sql.indexOf('FUNCTION public.fin_valor_tabela');
+  assert.ok(i >= 0, 'fin_valor_tabela sumiu');
+  const fn = sql.slice(i, sql.indexOf('$$;', i));
+  assert.match(fn, /chave = 'planos'/);
+  assert.match(fn, /->> 'valor_pix'/);
+  assert.match(fn, /->> 'valor'\)/);
+  assert.match(fn, /v IS NULL OR v <= 0/, 'SQL deixou de cair no fallback com preço <= 0');
+  for (const [plano, { padrao, pix }] of Object.entries(TABELA)) {
+    assert.match(fn, new RegExp(`'${plano}:padrao'\\s+THEN ${padrao}\\b`), `${plano} padrão diverge do PLANO_VALORES`);
+    assert.match(fn, new RegExp(`'${plano}:pix_avista'\\s+THEN ${pix}\\b`), `${plano} pix diverge do PLANO_VALORES`);
+  }
+  const vd = ler(ARQ);
+  assert.match(vd, /export const CHAVE_CONFIG_PLANOS = "planos";/);
+  assert.match(vd, /precoPositivo\(linha\.valor\)/);
+  assert.match(vd, /precoPositivo\(linha\.valor_pix\)/);
+});
+
+test('R2: board e detalhe medem o desconto pela tabela configurada', () => {
+  for (const arq of ['apps/crm/src/app/(dashboard)/pipeline/page.tsx', 'apps/crm/src/lib/deal-fetch.ts']) {
+    const src = ler(arq);
+    assert.match(src, /\.from\("configuracoes_sistema"\)\.select\("valor"\)\.eq\("chave", CHAVE_CONFIG_PLANOS\)/, `${arq}: não lê a tabela configurada`);
+    assert.match(src, /tabelaPlanosDe\(cfgPlanos\.data\?\.valor\)/, `${arq}: tabela configurada não chega ao resolver`);
+  }
+  assert.match(ler('apps/crm/src/app/(dashboard)/pipeline/page.tsx'), /\.\.\.camposValorDeal\(row, tabelaPlanos\)/);
+  assert.match(ler('apps/crm/src/lib/deal-fetch.ts'), /\}, tabelaPlanosDe\(cfgPlanos\.data\?\.valor\)\)/);
+});
+
 test('contrato AGUARDANDO PLANO (plano nulo ou valor 0) não é valor contratado, mas o sinal aparece', () => {
   for (const extra of [{ plano: null, valor_total: null }, { plano: null, valor_total: 4500 }, { plano: 'journey', valor_total: 0 }, { plano: 'a_definir', valor_total: 26000 }]) {
     const r = resolver({
@@ -247,6 +368,23 @@ test('embed com hint de FK explícito (PGRST201 silencioso derrubou 6 telas)', (
     assert.match(embed(nome), /^contrato:contratos_financeiros!contratos_financeiros_deal_id_fkey\(/, `${nome}: hint da FK deal→contrato sumiu`);
   }
   assert.match(embed('EMBED_CONTRATO_VALOR'), /parcelas!parcelas_contrato_id_fkey\(/, 'hint da FK contrato→parcelas sumiu');
+  // R2: base do desconto + itens (colunas que só existem a partir da migration do financeiro).
+  for (const nome of ['EMBED_CONTRATO_VALOR', 'EMBED_CONTRATO_VALOR_LEVE']) {
+    assert.match(embed(nome), /\bvalor_base_plano\b/, `${nome}: valor_base_plano sumiu (desconto volta a olhar o total)`);
+  }
+  assert.match(
+    embed('EMBED_CONTRATO_VALOR'),
+    /itens:contrato_itens!contrato_itens_contrato_id_fkey\(tipo, valor, deleted_at\)/,
+    'itens do contrato (desconto) sumiram do embed ou perderam o hint de FK',
+  );
+  // As colunas embutidas existem na migration do financeiro (senão o /pipeline cai com 400).
+  const dir = path.join(raiz, 'supabase', 'migrations');
+  const mig = fs.readdirSync(dir).find((f) => f.endsWith('_financeiro_contrato_flexivel.sql'));
+  assert.ok(mig, 'migration *_financeiro_contrato_flexivel.sql sumiu');
+  const sql = fs.readFileSync(path.join(dir, mig), 'utf8');
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS valor_base_plano/);
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.contrato_itens \(/);
+  assert.match(sql, /contrato_id\s+UUID NOT NULL REFERENCES public\.contratos_financeiros\(id\)/);
 });
 
 test('deal buscado no cliente é rebuscado após salvar o valor (/leads e /remarketing)', () => {

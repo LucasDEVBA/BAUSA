@@ -50,6 +50,7 @@ import {
 import { type Deal } from "@/types/deal";
 import {
   DEFAULT_DEAL_STAGE_DISPLAY,
+  getStageDisplay,
   type DealStageConfigMap,
 } from "@/lib/etapas-deal";
 import { cn, formatInvestmentRange } from "@/lib/utils";
@@ -390,7 +391,7 @@ export function DealDetailModal({
     );
   }
 
-  const stageCfg = stageConfig[deal.stage];
+  const stageCfg = getStageDisplay(stageConfig, deal.stage);
   const diasEtapa = diasAtras(deal.stage_updated_at) ?? 0;
   const diasNoPipeline = diasAtras(deal.created_at) ?? 0;
 
@@ -892,7 +893,7 @@ function ComercialSection({
   onAbrirContrato?: () => void;
   onValorAtualizado?: () => void;
 }) {
-  const stageCfg = stageConfig[deal.stage];
+  const stageCfg = getStageDisplay(stageConfig, deal.stage);
   // Customização do valor direto do modal (2026-09-11) — sem passar pelo
   // editor lateral antigo. Com contrato, o valor é editado no contrato (T3).
   const [customizando, setCustomizando] = useState(false);
@@ -1084,7 +1085,11 @@ function ComercialSection({
           />
           <Field
             label="Sinal pago em"
-            value={fmtDateTime(deal.signal_paid_at)}
+            value={
+              deal.signal_paid_at && !deal.signal_confirmed
+                ? `${fmtDateTime(deal.signal_paid_at)} · sem registro de pagamento`
+                : fmtDateTime(deal.signal_paid_at)
+            }
           />
           <Field
             label="Matrícula em"
