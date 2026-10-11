@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Award, Brain, Shield, ArrowRight, Globe } from "lucide-react";
-import leandroPhoto from "@/assets/leandro-ribeiro.jpg";
+import leandroPhoto from "@/assets/leandro-palestra.jpg";
 import logoBadgeDark from "@/assets/logo-badge-dark.png";
 import { Link } from "@/i18n/navigation";
 import { useScrollReveal, revealClass } from "@/hooks/useScrollReveal";
