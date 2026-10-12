@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
 
   images: {
     formats: ["image/avif", "image/webp"],
+    // Pôsteres dos vídeos do canal (facade): servidos otimizados pelo next/image
+    remotePatterns: [{ protocol: "https", hostname: "i.ytimg.com", pathname: "/vi/**" }],
   },
 
   async headers() {

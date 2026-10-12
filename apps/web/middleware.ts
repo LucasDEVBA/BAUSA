@@ -1,6 +1,7 @@
 import createMiddleware from "next-intl/middleware";
 import { NextResponse, type NextRequest } from "next/server";
 import { routing } from "./src/i18n/routing";
+import { RESERVED_ROOT_SEGMENTS } from "./src/config/routes";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -9,22 +10,11 @@ const intlMiddleware = createMiddleware(routing);
 // path de UM segmento que não é idioma nem rota do site é reescrito para
 // /l/<slug>, que consulta links_curtos, conta o clique e redireciona (slug
 // inexistente → home, nunca quebra). Os links /l/<slug> continuam valendo.
-// Rotas reais têm precedência via RESERVED — manter em sincronia com
-// app/[locale]/* e com RESERVED_SLUGS do Engine (links-curtos.ts).
-const RESERVED = new Set<string>([
-  ...routing.locales,
-  "acesso",
-  "forms",
-  "links",
-  "l",
-  "api",
-  "debug",
-  // Páginas legais. Sem estas duas linhas o encurtador engole a rota: o path
-  // vira /l/privacidade, o slug não existe e o visitante cai na home achando
-  // que leu a política. Foi exatamente o que acontecia antes delas existirem.
-  "privacidade",
-  "exclusao-de-dados",
-]);
+// Rotas reais têm precedência via RESERVED, derivado de src/config/routes.ts
+// (fonte única, conferida contra app/[locale]/* e o SLUGS_RESERVADOS do Engine
+// pelo guard tests/web-rotas-reservadas-invariants.test.js). Rota fora dessa
+// lista é engolida pelo encurtador SÓ em PT: /metodo vira /l/metodo e cai na home.
+const RESERVED = new Set<string>(RESERVED_ROOT_SEGMENTS);
 const SLUG_RE = /^\/([A-Za-z0-9_-]{3,40})$/;
 
 export default function middleware(req: NextRequest) {

@@ -3,6 +3,12 @@ import type { Translations } from "./pt";
 
 const en: Translations = {
   header: {
+    navHome: "Home",
+    navStories: "Stories",
+    navSchools: "Schools",
+    navAbout: "About",
+    dockLabel: "Quick navigation",
+    dockApply: "Apply",
     navMethod: "Method",
     navAuthority: "Authority",
     navTestimonials: "Testimonials",

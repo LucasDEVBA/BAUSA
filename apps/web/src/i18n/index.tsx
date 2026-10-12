@@ -46,7 +46,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const setLang = useCallback(
     (newLang: Lang) => {
-      router.replace(pathname, { locale: newLang });
+      // Mantém a query (UTMs de anúncio) ao trocar de idioma; antes ela era descartada
+      const search = typeof window === "undefined" ? "" : window.location.search;
+      router.replace(`${pathname}${search}`, { locale: newLang });
     },
     [router, pathname],
   );

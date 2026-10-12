@@ -25,9 +25,15 @@ export function trackFormError(step: number, errorMessage: string): void {
   });
 }
 
-export function trackCtaClick(
-  source: "hero" | "final" | "header" | "links",
-): void {
+/**
+ * Origem do clique no CTA (vai para form_submissions.cta_source, coluna text
+ * sem CHECK). "dock" = barra de navegação mobile; os nomes de página marcam o
+ * CTA de cada página de conteúdo do multipage.
+ */
+export const CTA_SOURCES = ["hero", "final", "header", "links", "dock", "metodo", "historias", "escolas", "sobre"] as const;
+export type CtaSource = (typeof CTA_SOURCES)[number];
+
+export function trackCtaClick(source: CtaSource): void {
   pushEvent("cta_click", { cta_source: source });
 
   if (typeof window !== "undefined") {

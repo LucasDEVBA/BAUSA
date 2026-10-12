@@ -1,6 +1,12 @@
 // ─── Fonte da verdade — Português Brasileiro ──────────────────────
 export const pt = {
   header: {
+    navHome: "Início",
+    navStories: "Histórias",
+    navSchools: "Escolas",
+    navAbout: "Sobre",
+    dockLabel: "Navegação rápida",
+    dockApply: "Avaliação",
     navMethod: "Método",
     navAuthority: "Autoridade",
     navTestimonials: "Depoimentos",

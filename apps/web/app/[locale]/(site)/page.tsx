@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import { SITE_URL, SEO_DEFAULTS, PAGE_SEO, getSeoText, getOgLocale, getAlternateLocales } from "@/config/seo";
+import { SITE_URL, SEO_DEFAULTS, buildPageMetadata } from "@/config/seo";
 import { JsonLd } from "@/lib/jsonld";
 import HomeContent from "@/components/HomeContent";
 
@@ -10,47 +10,8 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale } = await params;
-  const seo = PAGE_SEO.home;
-  const title = getSeoText(seo.title, locale);
-  const description = getSeoText(seo.description, locale);
-
   return {
-    title,
-    description,
-    alternates: {
-      canonical: seo.canonicalPath,
-      languages: {
-        "pt-BR": "/",
-        en: "/en",
-        es: "/es",
-      },
-    },
-    openGraph: {
-      title,
-      description,
-      url: seo.canonicalPath,
-      type: "website",
-      locale: getOgLocale(locale),
-      alternateLocale: getAlternateLocales(locale),
-      images: [
-        {
-          url: SEO_DEFAULTS.ogImage,
-          width: 1200,
-          height: 630,
-          alt: SEO_DEFAULTS.ogImageAlt,
-        },
-      ],
-    },
-    twitter: {
-      // card / site / creator herdam do root layout. Sobrescrever nested
-      // limparia esses campos (Next.js faz shallow merge no objeto `twitter`).
-      card: "summary_large_image",
-      site: "@BolsaAtletaUSA",
-      creator: "@BolsaAtletaUSA",
-      title,
-      description,
-      images: [{ url: SEO_DEFAULTS.ogImage, alt: SEO_DEFAULTS.ogImageAlt }],
-    },
+    ...buildPageMetadata("home", locale, { absoluteTitle: true }),
     keywords:
       "bolsa atleta, bolsa esportiva, universidade americana, NCAA, estudar nos EUA, atleta universitário, high school EUA, educação esportiva",
   };
@@ -81,15 +42,7 @@ const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: SEO_DEFAULTS.siteName,
-  url: SITE_URL,
-  potentialAction: {
-    "@type": "SearchAction",
-    target: {
-      "@type": "EntryPoint",
-      urlTemplate: `${SITE_URL}/?q={search_term_string}`,
-    },
-    "query-input": "required name=search_term_string",
-  },
+  url: SITE_URL
 };
 
 const faqSchema = {

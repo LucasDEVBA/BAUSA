@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import { SITE_URL, SEO_DEFAULTS, PAGE_SEO, getSeoText, getOgLocale, getAlternateLocales } from "@/config/seo";
+import { SITE_URL, buildPageMetadata } from "@/config/seo";
 import { JsonLd } from "@/lib/jsonld";
 import LegalContent from "@/components/LegalContent";
 import { EXCLUSAO, localeLegal } from "@/content/legal";
@@ -11,39 +11,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale } = await params;
-  const seo = PAGE_SEO.exclusaoDados;
-  const title = getSeoText(seo.title, locale);
-  const description = getSeoText(seo.description, locale);
-
-  return {
-    title,
-    description,
-    alternates: {
-      canonical: seo.canonicalPath,
-      languages: {
-        "pt-BR": "/exclusao-de-dados",
-        en: "/en/exclusao-de-dados",
-        es: "/es/exclusao-de-dados",
-      },
-    },
-    openGraph: {
-      title,
-      description,
-      url: seo.canonicalPath,
-      type: "article",
-      locale: getOgLocale(locale),
-      alternateLocale: getAlternateLocales(locale),
-      images: [
-        {
-          url: SEO_DEFAULTS.ogImage,
-          width: 1200,
-          height: 630,
-          alt: SEO_DEFAULTS.ogImageAlt,
-        },
-      ],
-    },
-    twitter: { title, description },
-  };
+  return buildPageMetadata("exclusaoDados", locale);
 }
 
 const breadcrumbSchema = {
