@@ -3,6 +3,11 @@ import type { Translations } from "./pt";
 
 const es: Translations = {
   header: {
+    navMethod: "Método",
+    navAuthority: "Autoridad",
+    navTestimonials: "Testimonios",
+    openMenu: "Abrir menú",
+    closeMenu: "Cerrar menú",
     contact: "Contáctenos",
     protectedData: "Datos protegidos",
   },
@@ -37,11 +42,11 @@ const es: Translations = {
         label: "Grado / Año actual",
         placeholder: "Seleccione su grado",
         opt_before_7th:  "Anterior al 7º Año",
-        opt_8th:         "8º Año — Secundaria",
-        opt_9th:         "9º Año — Secundaria",
-        opt_hs1:         "1º Año — Bachillerato",
-        opt_hs2:         "2º Año — Bachillerato",
-        opt_hs3:         "3º Año — Bachillerato",
+        opt_8th:         "8º Año · Secundaria",
+        opt_9th:         "9º Año · Secundaria",
+        opt_hs1:         "1º Año · Bachillerato",
+        opt_hs2:         "2º Año · Bachillerato",
+        opt_hs3:         "3º Año · Bachillerato",
         opt_grad_last:   "Me gradué el año pasado",
         opt_grad_2plus:  "Me gradué hace más de dos años",
       },
@@ -89,7 +94,7 @@ const es: Translations = {
     },
 
     stage2: {
-      badge: "Etapa 2 — Lectura Estratégica",
+      badge: "Etapa 2 · Lectura Estratégica",
       title1: "Alineamiento",
       title2: "de Perfil",
       line1: "En esta etapa profundizamos en la comprensión del joven y de la estructura familiar que sustenta esta decisión.",
@@ -224,8 +229,8 @@ const es: Translations = {
       "Data de nascimento é obrigatória": "La fecha de nacimiento es obligatoria",
       "Data de nascimento inválida": "Fecha de nacimiento inválida",
       "A data de nascimento não pode ser no futuro": "La fecha de nacimiento no puede ser futura",
-      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Verifique el año de nacimiento del atleta — la fecha elegida es de este año",
-      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "La fecha de nacimiento no coincide con el grado elegido — verifique el año de nacimiento del atleta (no el del responsable)",
+      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Verifique el año de nacimiento del atleta: la fecha elegida es de este año",
+      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "La fecha de nacimiento no coincide con el grado elegido: verifique el año de nacimiento del atleta (no el del responsable)",
       "Confira o ano de nascimento do atleta (não o do responsável)": "Verifique el año de nacimiento del atleta (no el del responsable)",
       "WhatsApp é obrigatório": "El WhatsApp es obligatorio",
       "Série é obrigatória": "El grado es obligatorio",
@@ -254,11 +259,20 @@ const es: Translations = {
 
   landing: {
     brandName: "BAU Global",
+    closeVideo: "Cerrar video",
     eeiName: "Educación Deportiva Inteligente®",
     common: {
       swipeHint: "Desliza para ver más",
     },
     hero: {
+      eyebrow: "Asesoría deportiva de alto nivel",
+      secondaryCta: "Conoce el método",
+      trustBefore: "Atletas brasileños en",
+      trustBold: "high schools y universidades",
+      trustAfter: "estadounidenses",
+      chip: "High School · Universidad · EE. UU.",
+      sealSub: "De la elección de la escuela a la adaptación",
+      safeSub: "Cuatro pilares de decisión",
       activeTracking: "Acompañamiento activo en cada etapa",
       headline1: "Educación Deportiva",
       headline2: "Inteligente®",
@@ -283,6 +297,12 @@ const es: Translations = {
       vision: "Visión",
     },
     safeMethod: {
+      humanPillar: "Pilar humano",
+      ctaShort: "Iniciar evaluación",
+      tags: {
+        a0: "Inglés", a1: "Historial escolar", a2: "Ambición universitaria",
+        f0: "Viabilidad", f1: "Previsibilidad", f2: "Coherencia",
+      },
       badge: "EL MÉTODO",
       subtitle: "El método que sustenta la Educación Deportiva Inteligente®",
       heading: "Método",
@@ -378,6 +398,9 @@ const es: Translations = {
       },
     },
     founder: {
+      chipTitle: "Beca completa",
+      chipSub: "Estudiante-atleta en EE. UU.",
+      ctaNote: "Conversación estratégica con el equipo",
       badge: "Autoridad",
       title1: "Guiado por quien",
       title2: "domina el sistema",

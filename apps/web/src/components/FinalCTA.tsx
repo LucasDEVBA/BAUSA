@@ -1,86 +1,104 @@
 "use client";
 
 import { memo } from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
-import { Link } from "@/i18n/navigation";
-import logoWatermark from "@/assets/logo-watermark.png";
+import Image, { type StaticImageData } from "next/image";
+
+import athleteJulia from "@/assets/athlete-julia.png";
+import athleteMatheus from "@/assets/athlete-matheus.png";
+import athleteHelena from "@/assets/athlete-helena.png";
 import { useLanguage } from "@/i18n";
-import { trackCtaClick } from "@/lib/tracking/events";
+import BrandCta from "./brand/BrandCta";
+
+const CAMPUS_IMAGE_URL = "/hero-campus.jpg";
+
+interface FloatingPortrait {
+  src: StaticImageData;
+  position: string;
+  depth: number;
+  float: "ba-float-a" | "ba-float-b";
+  d: number;
+}
+
+// Retratos reais orbitando o painel: só em telas largas, onde há margem para eles sem cobrir o texto
+const PORTRAITS: FloatingPortrait[] = [
+  { src: athleteJulia, position: "left-[2%] top-[14%] w-[150px] rotate-[-6deg]", depth: 18, float: "ba-float-a", d: 2 },
+  { src: athleteMatheus, position: "right-[3%] top-[6%] w-[132px] rotate-[5deg]", depth: 26, float: "ba-float-b", d: 3 },
+  { src: athleteHelena, position: "right-[1%] bottom-[2%] w-[118px] rotate-[-3deg]", depth: 12, float: "ba-float-a", d: 4 },
+];
+
+const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 
 const FinalCTA = memo(() => {
   const { t } = useLanguage();
 
   return (
-    <section className="py-16 sm:py-28 md:py-36 relative overflow-hidden">
-      {/* Premium Dark Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--navy-deep))] via-[hsl(var(--navy-medium))] to-[hsl(var(--navy-deep))]" />
-
-      {/* Radial Glow */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[hsl(var(--burgundy)/0.12)] rounded-full blur-[200px]" />
+    <section
+      className="ba-dark relative isolate overflow-hidden rounded-t-[clamp(28px,4vw,48px)] pb-[clamp(64px,8vw,112px)] pt-[clamp(80px,10vw,140px)]"
+      aria-labelledby="final-cta-title"
+    >
+      {/* O campus do hero volta aqui, tingido de navy: a página termina onde a jornada começou */}
+      <div aria-hidden="true" className="absolute inset-0 -z-[1]">
+        <Image src={CAMPUS_IMAGE_URL} alt="" fill sizes="100vw" className="object-cover object-[50%_40%] opacity-[0.32]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.78)_0%,rgba(10,26,69,0.88)_55%,var(--ba-navy-2)_100%)]" />
       </div>
+      <div aria-hidden="true" className="ba-glow left-[-160px] top-[-120px] h-[420px] w-[420px] sm:h-[560px] sm:w-[560px] animate-[ba-drift1_30s_ease-in-out_infinite_alternate] bg-[rgba(71,107,192,0.5)]" />
+      <div aria-hidden="true" className="ba-glow bottom-[8%] right-[-200px] h-[340px] w-[340px] opacity-70 sm:right-[-140px] sm:h-[520px] sm:w-[520px] sm:opacity-100 animate-[ba-drift3_34s_ease-in-out_infinite_alternate] bg-[rgba(144,36,52,0.5)]" />
+      <div aria-hidden="true" className="ba-lines" />
+      {/* Funde o fim da seção no navy do rodapé: sem isso o halo bordô termina num corte reto */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[clamp(120px,16vw,240px)] bg-[linear-gradient(180deg,transparent,var(--ba-navy-2))]" />
 
-      {/* Watermark Logos - Dark Premium (+50% size, +30% opacity) */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[5%] left-[3%] w-14 sm:w-20 md:w-28 opacity-[0.065] rotate-[-10deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[8%] right-[8%] w-16 sm:w-24 md:w-32 opacity-[0.072] rotate-[15deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[25%] left-[15%] w-12 sm:w-20 md:w-24 opacity-[0.052] rotate-[8deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[30%] right-[12%] w-14 sm:w-20 md:w-28 opacity-[0.065] rotate-[-12deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[50%] left-[5%] w-14 sm:w-20 md:w-28 opacity-[0.072] rotate-[20deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[55%] right-[5%] w-16 sm:w-24 md:w-32 opacity-[0.078] rotate-[-8deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[30%] left-[25%] w-12 sm:w-20 md:w-24 opacity-[0.052] rotate-[-5deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[25%] right-[20%] w-14 sm:w-20 md:w-28 opacity-[0.065] rotate-[10deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[10%] left-[8%] w-14 sm:w-20 md:w-28 opacity-[0.072] rotate-[15deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[5%] right-[35%] w-12 sm:w-20 md:w-24 opacity-[0.052] rotate-[-10deg]" />
-      </div>
+      <div className="ba-wrap relative z-[2]" data-tilt-stage>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 hidden xl:block">
+          {PORTRAITS.map(({ src, position, depth, float, d }) => (
+            <div key={src.src} className={`absolute ${position}`} data-depth={depth}>
+              <div className={`ba-glass-dark ba-rv-scale ${float} aspect-[3/4] rounded-[22px] p-[6px]`} style={delay(d)}>
+                <div className="relative h-full overflow-hidden rounded-[17px]">
+                  <Image src={src} alt="" fill sizes="150px" className="object-cover object-[50%_25%]" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
 
-      {/* Subtle Pattern */}
-      <div className="absolute inset-0 opacity-[0.03]">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
-            backgroundSize: '40px 40px'
-          }}
-        />
-      </div>
+        <div className="ba-glass-dark ba-rv-scale relative mx-auto max-w-[920px] overflow-hidden rounded-[28px] px-5 py-12 text-center sm:rounded-[36px] sm:px-[clamp(32px,6vw,88px)] sm:py-[clamp(56px,7vw,92px)]">
+          {/* Luz especular no topo do painel: reforça a leitura de vidro sobre o escuro */}
+          <div aria-hidden="true" className="absolute inset-x-[12%] top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.7),transparent)]" />
+          <div aria-hidden="true" className="ba-glow left-1/2 top-[-140px] h-[280px] w-[520px] -translate-x-1/2 bg-[rgba(169,192,242,0.22)]" />
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="max-w-3xl mx-auto text-center">
-          {/* Premium Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-white/10 mb-8 sm:mb-10">
-            <Sparkles className="w-4 h-4 text-[hsl(var(--burgundy-glow))]" />
-            <span className="text-xs sm:text-sm font-medium text-white/80">{t("landing.finalCTA.badge")}</span>
-          </div>
+          <span
+            className="ba-eyebrow ba-glass-dark ba-rv relative !text-[#cfdcff] max-sm:!px-3 max-sm:!text-[10.5px] max-sm:!tracking-[0.1em]"
+            style={delay(1)}
+          >
+            <span className="ba-dot" />
+            {t("landing.finalCTA.badge")}
+          </span>
 
-          {/* Main Headline */}
-          <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-10 sm:mb-14">
+          <h2
+            id="final-cta-title"
+            className="ba-rv relative mx-auto mb-9 mt-6 max-w-[760px] text-balance font-[family-name:var(--ba-display)] text-[clamp(36px,6.2vw,80px)] font-bold leading-[1.02] tracking-[-0.045em] sm:mb-11 sm:mt-8"
+            style={delay(2)}
+          >
             {t("landing.finalCTA.title1")}{" "}
-            <span className="text-gradient-on-dark">
-              {t("landing.finalCTA.title2")}
-            </span>
-            .
+            <span className="ba-serif ba-grad-text-dark text-[1.12em] leading-[0.9]">{t("landing.finalCTA.title2")}</span>.
           </h2>
 
-          {/* Main CTA Button */}
-          <div>
-            <Link
-              href="/forms"
-              onClick={() => trackCtaClick("final")}
-              className="group relative inline-flex items-center gap-3 sm:gap-4 px-8 sm:px-12 md:px-16 py-4 sm:py-5 md:py-6 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] text-white font-bold text-base sm:text-lg md:text-xl shadow-2xl hover:shadow-[0_0_60px_hsl(var(--burgundy)/0.5)] transition-all duration-500 hover:-translate-y-1"
-            >
-              <span>{t("landing.finalCTA.cta")}</span>
-              <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 group-hover:translate-x-2 transition-transform" />
+          <div className="ba-rv relative flex flex-col items-center gap-5" style={delay(3)}>
+            <div className="relative">
+              <div aria-hidden="true" className="ba-glow inset-[-18px] bg-[rgba(169,192,242,0.35)] blur-[34px]" />
+              <BrandCta
+                variant="light"
+                source="final"
+                className="relative min-h-[60px] px-8 text-[16px] sm:min-h-[64px] sm:px-10 sm:text-[17px]"
+              >
+                {t("landing.finalCTA.cta")}
+              </BrandCta>
+            </div>
 
-              {/* Glow Effect */}
-              <div className="absolute inset-0 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] blur-xl opacity-40 group-hover:opacity-60 transition-opacity -z-10" />
-            </Link>
+            <p className="max-w-[440px] text-balance text-[13.5px] font-medium leading-[1.5] text-[rgba(232,238,255,0.8)]">
+              <span className="ba-pulse mr-2.5 inline-block align-[1px]" aria-hidden="true" />
+              {t("landing.finalCTA.note")}
+            </p>
           </div>
-
-          {/* Subtle bottom note */}
-          <p className="mt-6 sm:mt-8 text-white/50 text-xs">
-            {t("landing.finalCTA.note")}
-          </p>
         </div>
       </div>
     </section>

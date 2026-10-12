@@ -6,14 +6,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ChevronRight, ChevronLeft, Lock, CheckCircle2, Loader2, ArrowRight, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import logoWhite from "@/assets/logo-white.png";
-import logoFormColor from "@/assets/logo-form-color.png";
-import logoFormWhite from "@/assets/logo-form-white.png";
+import logoHorizontal from "@/assets/logo-horizontal.png";
 import { Link } from "@/i18n/navigation";
 import { toast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
@@ -26,6 +23,7 @@ import { captureUTMs, getStoredUTMs } from "@/lib/tracking/utm";
 import { getOrCreateSessionId, captureLandingUrl, captureReferrer, getDeviceType } from "@/lib/tracking/session";
 import { trackFormStart, trackFormStep, trackFormSubmit, trackFormError } from "@/lib/tracking/events";
 import { MSG_NASCIMENTO, idadeEmAnos, limitesSeletorNascimento, validarNascimento } from "@/lib/forms/nascimento";
+import MeshBackground from "@/components/brand/MeshBackground";
 
 // supabase é importado dinamicamente dentro do onSubmit para evitar
 // que a inicialização do cliente (que exige env vars) quebre o carregamento da página
@@ -644,26 +642,25 @@ const Forms = () => {
   const getCurrentStage = () => currentStep <= STAGE_1_END ? 1 : 2;
 
   // --- Background components ---
-  const BackgroundLogos = () => (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <img src={logoFormWhite.src} alt="" loading="lazy" className="absolute top-[3%] right-[-8%] sm:right-[3%] w-[180px] sm:w-[300px] lg:w-[400px] h-auto opacity-[0.04] sm:opacity-[0.05]" aria-hidden="true" />
-      <img src={logoFormColor.src} alt="" loading="lazy" className="absolute top-[8%] left-[-12%] sm:left-[-5%] w-[160px] sm:w-[250px] lg:w-[320px] h-auto opacity-[0.025] sm:opacity-[0.035] rotate-[-10deg]" aria-hidden="true" />
-      <img src={logoFormWhite.src} alt="" loading="lazy" className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] lg:w-[700px] h-auto opacity-[0.025] sm:opacity-[0.035]" aria-hidden="true" />
-      <img src={logoFormWhite.src} alt="" loading="lazy" className="absolute bottom-[12%] left-[-10%] sm:left-[2%] w-[200px] sm:w-[280px] lg:w-[350px] h-auto opacity-[0.04] sm:opacity-[0.05] rotate-[-15deg]" aria-hidden="true" />
-      <img src={logoFormColor.src} alt="" loading="lazy" className="absolute bottom-[5%] right-[-8%] sm:right-[5%] w-[180px] sm:w-[260px] lg:w-[330px] h-auto opacity-[0.02] sm:opacity-[0.03] rotate-[12deg]" aria-hidden="true" />
-    </div>
+  // Elemento (não componente) para não remontar a malha a cada tecla e reiniciar a animação
+  const formBackground = (
+    <>
+      <div className="absolute inset-0 bg-[var(--ba-bg)]" aria-hidden="true" />
+      <MeshBackground grid className="motion-reduce:[&_.ba-blob]:!animate-none" />
+    </>
   );
 
-  const ChevronPattern = () => (
-    <svg className="absolute inset-0 w-full h-full opacity-[0.015] sm:opacity-[0.025]" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <pattern id="chevrons" x="0" y="0" width="60" height="40" patternUnits="userSpaceOnUse">
-          <polyline points="0,20 30,0 60,20" fill="none" stroke="white" strokeWidth="1" />
-          <polyline points="0,40 30,20 60,40" fill="none" stroke="white" strokeWidth="1" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#chevrons)" />
-    </svg>
+  // O arquivo do logo tem margem interna; o recorte por CSS evita redesenhar a marca
+  const brandLogo = (
+    <Link href="/" aria-label="Bolsa Atleta USA" className="relative block h-[42px] w-[88px] flex-none overflow-hidden touch-manipulation sm:h-[50px] sm:w-[104px]">
+      <img
+        src={logoHorizontal.src}
+        alt="Bolsa Atleta USA"
+        width={757}
+        height={506}
+        className="absolute -left-2 -top-3 h-auto w-[104px] max-w-none sm:-left-[9px] sm:-top-3.5 sm:w-[124px]"
+      />
+    </Link>
   );
 
   // --- Animation ---
@@ -674,15 +671,25 @@ const Forms = () => {
   };
 
   // --- Shared input styles ---
-  const inputClass = "w-full bg-transparent border-0 border-b-2 border-white/30 focus:border-white rounded-none px-1 py-3.5 sm:py-4 text-[16px] sm:text-lg text-white placeholder:text-white/45 focus:ring-0 focus:outline-none transition-all duration-300";
-  const labelClass = "text-white/80 text-sm font-medium mb-1.5 block";
+  // Superfície única dos campos: branco translúcido sobre o vidro, foco com anel azul
+  const fieldSurfaceClass = "w-full rounded-2xl border border-[var(--ba-stroke)] bg-white/75 text-[16px] md:text-[17px] text-[var(--ba-ink)] shadow-[inset_0_1px_2px_rgba(15,35,87,0.05)] transition-[border-color,box-shadow,background-color] duration-300 hover:border-[rgba(31,63,163,0.26)] focus:outline-none focus-visible:outline-none focus:border-[var(--ba-blue-2)] focus:bg-white focus:ring-4 focus:ring-[rgba(71,107,192,0.18)] focus-visible:ring-4 focus-visible:ring-[rgba(71,107,192,0.18)] focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[var(--ba-wine)]";
+  const inputClass = `${fieldSurfaceClass} h-[54px] sm:h-[58px] px-4 placeholder:text-[var(--ba-ink-3)]/75`;
+  const textareaClass = `${fieldSurfaceClass} px-4 py-3.5 placeholder:text-[var(--ba-ink-3)]/75 resize-none`;
+  const selectTriggerClass = `${fieldSurfaceClass} h-[54px] sm:h-[58px] px-4 py-0 ring-offset-0 data-[state=open]:border-[var(--ba-blue-2)] data-[state=open]:ring-4 data-[state=open]:ring-[rgba(71,107,192,0.18)] data-[placeholder]:text-[var(--ba-ink-3)] [&>span]:line-clamp-1 [&>svg]:text-[var(--ba-ink-3)] [&>svg]:opacity-100`;
+  const selectContentClass = "bg-white/95 backdrop-blur-2xl border border-[var(--ba-stroke)] text-[var(--ba-ink)] rounded-2xl p-1.5 shadow-[var(--ba-shadow-lg)] z-[100] w-[var(--radix-select-trigger-width)] max-h-[280px] overflow-hidden";
+  const selectItemClass = "text-[var(--ba-ink-2)] focus:bg-[rgba(31,63,163,0.07)] focus:text-[var(--ba-navy)] cursor-pointer text-[16px] sm:text-[15px] py-3.5 sm:py-3 pl-4 pr-12 rounded-xl transition-colors duration-200 outline-none my-0.5 data-[state=checked]:text-[var(--ba-blue)] data-[state=checked]:font-semibold data-[state=checked]:bg-[rgba(31,63,163,0.05)] active:bg-[rgba(31,63,163,0.1)]";
+  const phoneInputClass = "rounded-2xl border border-[var(--ba-stroke)] bg-white/75 px-3 shadow-[inset_0_1px_2px_rgba(15,35,87,0.05)] hover:border-[rgba(31,63,163,0.26)] focus-within:border-[var(--ba-blue-2)] focus-within:bg-white focus-within:ring-4 focus-within:ring-[rgba(71,107,192,0.18)]";
+  const labelClass = "text-[var(--ba-ink-2)] text-[13.5px] sm:text-sm font-semibold mb-2 block";
+  const optionalClass = "font-normal text-[var(--ba-ink-3)]";
+  const questionClass = "font-[family-name:var(--ba-display)] text-[var(--ba-ink)] text-[21px] sm:text-[26px] font-semibold tracking-[-0.03em] leading-[1.2]";
   const fieldGroupClass = "space-y-5 sm:space-y-6";
 
   const FieldError = ({ field }: { field: keyof FormData }) => {
     const err = errors[field];
     if (!err) return null;
     return (
-      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[hsl(var(--burgundy-glow))] text-sm mt-1.5">
+      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 flex items-start gap-1.5 text-[13.5px] font-medium leading-snug text-[var(--ba-wine)]">
+        <AlertCircle className="mt-[1px] h-4 w-4 flex-none" aria-hidden="true" />
         {translateError(err.message as string)}
       </motion.p>
     );
@@ -705,11 +712,13 @@ const Forms = () => {
             }, 350);
           }
         }}
-        className={`flex items-center gap-4 p-4 sm:p-5 rounded-xl border cursor-pointer transition-all duration-200 active:scale-[0.98] min-h-[52px] ${isSelected ? "border-white/50 bg-white/10" : "border-white/25 hover:border-white/40 hover:bg-white/5"
+        className={`flex items-center gap-3.5 px-4 py-3.5 sm:px-5 sm:py-4 rounded-2xl border cursor-pointer transition-[border-color,background-color,box-shadow,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.985] min-h-[56px] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-[rgba(71,107,192,0.28)] ${isSelected
+          ? "border-[var(--ba-blue-2)] bg-[rgba(233,239,252,0.92)] shadow-[0_0_0_1px_var(--ba-blue-2),0_10px_26px_-14px_rgba(31,63,163,0.55)]"
+          : "border-[var(--ba-stroke)] bg-white/70 shadow-[var(--ba-shadow-sm)] hover:-translate-y-px hover:border-[rgba(31,63,163,0.3)] hover:bg-white"
           }`}
       >
-        <RadioGroupItem value={value} className="border-white/50 text-white min-w-[22px] min-h-[22px]" />
-        <span className="text-white text-[15px] sm:text-base leading-snug">{label}</span>
+        <RadioGroupItem value={value} className="h-[22px] w-[22px] min-w-[22px] min-h-[22px] border-2 border-[rgba(52,66,106,0.4)] bg-white text-[var(--ba-blue)] data-[state=checked]:border-[var(--ba-blue)] focus-visible:ring-0 focus-visible:ring-offset-0" />
+        <span className={`text-[15px] sm:text-base leading-snug ${isSelected ? "font-semibold text-[var(--ba-navy)]" : "font-medium text-[var(--ba-ink)]"}`}>{label}</span>
       </label>
     );
   };
@@ -752,7 +761,7 @@ const Forms = () => {
                 min={limitesNascimento?.min}
                 max={limitesNascimento?.max}
                 aria-invalid={errors.birthDate ? true : undefined}
-                className={`${inputClass} [color-scheme:dark]`}
+                className={`${inputClass} [color-scheme:light]`}
               />
               <FieldError field="birthDate" />
             </div>
@@ -762,6 +771,7 @@ const Forms = () => {
                 value={watch("whatsapp")}
                 onChange={(v) => setValue("whatsapp", v, { shouldValidate: true })}
                 placeholder="(11) 99999-9999"
+                className={phoneInputClass}
               />
               <FieldError field="whatsapp" />
             </div>
@@ -776,14 +786,14 @@ const Forms = () => {
                   if (errors.birthDate) void trigger("birthDate");
                 }}
               >
-                <SelectTrigger className="w-full bg-transparent border-0 border-b-2 border-white/30 hover:border-white/50 data-[state=open]:border-white rounded-none px-1 py-3.5 sm:py-4 text-[16px] sm:text-lg text-white ring-0 outline-none focus:ring-0 h-auto shadow-none transition-all duration-300 [&>span]:line-clamp-1 data-[placeholder]:text-white/45">
+                <SelectTrigger className={selectTriggerClass}>
                   <SelectValue placeholder={t("form.step1.schoolYear.placeholder")} />
                 </SelectTrigger>
                 <SelectContent 
                   position="popper"
                   side="bottom"
                   sideOffset={8}
-                  className="bg-[#0A1024]/90 backdrop-blur-2xl border border-white/10 text-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] z-[100] w-[var(--radix-select-trigger-width)] max-h-[280px] overflow-hidden"
+                  className={selectContentClass}
                 >
                   {[
                     { value: "before_7th",          label: t("form.step1.schoolYear.opt_before_7th") },
@@ -798,7 +808,7 @@ const Forms = () => {
                     <SelectItem
                       key={opt.value}
                       value={opt.value}
-                      className="text-white/70 focus:bg-white/10 focus:text-white cursor-pointer text-[16px] sm:text-[15px] py-4 sm:py-3.5 pl-4 pr-12 rounded-xl transition-colors duration-200 outline-none my-0.5 data-[state=checked]:text-white data-[state=checked]:font-medium data-[state=checked]:bg-white/5 active:bg-white/10"
+                      className={selectItemClass}
                     >
                       {opt.label}
                     </SelectItem>
@@ -861,29 +871,29 @@ const Forms = () => {
               <Textarea
                 {...register("clubHistory")}
                 placeholder={t("form.step3.clubs.placeholder")}
-                className="w-full bg-white/5 border border-white/25 focus:border-white/40 rounded-xl px-4 py-4 text-[16px] sm:text-lg text-white placeholder:text-white/45 focus:ring-0 focus:outline-none transition-all duration-300 min-h-[100px] resize-none"
+                className={`${textareaClass} min-h-[110px]`}
               />
               <FieldError field="clubHistory" />
             </div>
             <div>
               <label className={labelClass}>
-                {t("form.step3.achievements.label")} <span className="text-white/40">({t("form.optional")})</span>
+                {t("form.step3.achievements.label")} <span className={optionalClass}>({t("form.optional")})</span>
               </label>
               <Textarea
                 {...register("achievements")}
                 placeholder={t("form.step3.achievements.placeholder")}
-                className="w-full bg-white/5 border border-white/25 focus:border-white/40 rounded-xl px-4 py-4 text-[16px] sm:text-lg text-white placeholder:text-white/45 focus:ring-0 focus:outline-none transition-all duration-300 min-h-[80px] resize-none"
+                className={`${textareaClass} min-h-[88px]`}
               />
             </div>
             <div>
               <label className={labelClass}>
-                {t("form.step3.instagram.label")} <span className="text-white/40">({t("form.optional")})</span>
+                {t("form.step3.instagram.label")} <span className={optionalClass}>({t("form.optional")})</span>
               </label>
               <Input {...register("instagram")} placeholder={t("form.step3.instagram.placeholder")} className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>
-                {t("form.step3.video.label")} <span className="text-white/40">({t("form.optional")})</span>
+                {t("form.step3.video.label")} <span className={optionalClass}>({t("form.optional")})</span>
               </label>
               <Input
                 {...register("videoHighlights")}
@@ -892,7 +902,7 @@ const Forms = () => {
                 className={inputClass}
               />
               <FieldError field="videoHighlights" />
-              <p className="text-white/40 text-xs mt-1.5">
+              <p className="text-[var(--ba-ink-3)] text-xs mt-2">
                 {t("form.step3.video.helper")}
               </p>
             </div>
@@ -904,7 +914,7 @@ const Forms = () => {
         return (
           <div className={fieldGroupClass}>
             <StepHeader title={t("form.step4.header")} />
-            <h2 className="text-white text-lg sm:text-xl font-semibold leading-snug">
+            <h2 className={questionClass}>
               {t("form.step4.question")}
             </h2>
             <RadioGroup
@@ -930,7 +940,7 @@ const Forms = () => {
         return (
           <div className={fieldGroupClass}>
             <StepHeader title={t("form.step5.header")} />
-            <h2 className="text-white text-lg sm:text-xl font-semibold leading-snug">
+            <h2 className={questionClass}>
               {t("form.step5.question")}
             </h2>
             <RadioGroup
@@ -955,29 +965,40 @@ const Forms = () => {
       // ===== STAGE 2 INTRO =====
       case STAGE_2_INTRO:
         return (
-          <div className="space-y-5 sm:space-y-6">
-            <div className="flex items-center gap-2 sm:gap-3 mb-2">
-              <div className="h-5 sm:h-7 w-1 bg-gradient-to-b from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] rounded-full" />
-              <span className="text-white/60 text-xs sm:text-sm font-medium uppercase tracking-wider">
-                {t("form.stage2.badge")}
+          <div className="relative space-y-5 sm:space-y-7 py-1 sm:py-3">
+            <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(184,54,74,0.16),rgba(184,54,74,0)_68%)] blur-2xl" />
+            {/* Marco visual da virada de etapa: a 1 concluída, a 2 começando */}
+            <div className="relative flex items-center gap-2.5" aria-hidden="true">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(31,63,163,0.07)] px-3 py-1.5 text-[12px] font-semibold text-[var(--ba-blue)] shadow-[inset_0_0_0_1px_var(--ba-stroke)]">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {t("form.stage1Badge")}
+              </span>
+              <span className="h-px w-8 bg-gradient-to-r from-[var(--ba-blue-2)] to-[var(--ba-wine-2)] sm:w-14" />
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[var(--ba-blue)] to-[var(--ba-wine)] px-3 py-1.5 text-[12px] font-semibold text-white shadow-[0_8px_20px_-10px_rgba(144,36,52,0.7)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                {t("form.stage2Badge")}
               </span>
             </div>
-            <h1 className="text-[1.4rem] sm:text-2xl lg:text-3xl font-bold text-white leading-tight">
+            <span className="ba-eyebrow relative bg-[rgba(31,63,163,0.06)] shadow-[inset_0_0_0_1px_var(--ba-stroke)]">
+              <span className="ba-dot" aria-hidden="true" />
+              {t("form.stage2.badge")}
+            </span>
+            <h1 className="relative font-[family-name:var(--ba-display)] text-[clamp(34px,8.5vw,52px)] font-bold leading-[1.04] tracking-[-0.04em] text-[var(--ba-ink)]">
               {t("form.stage2.title1")}{" "}
-              <span className="text-[hsl(var(--burgundy-glow))]">{t("form.stage2.title2")}</span>
+              <span className="ba-serif ba-grad-text">{t("form.stage2.title2")}</span>
             </h1>
-            <div className="space-y-4 text-white/70 text-[15px] sm:text-base leading-relaxed">
+            <div className="ba-lead relative max-w-[52ch] space-y-4">
               <p>{t("form.stage2.line1")}</p>
               <p>{t("form.stage2.line2")}</p>
             </div>
-            <Button
+            <button
               type="button"
               onClick={nextStep}
-              className="w-full bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] text-white border-0 px-6 py-5 sm:py-6 text-[16px] sm:text-lg font-semibold hover:opacity-90 transition-all duration-300 active:scale-[0.98] min-h-[56px] rounded-xl shadow-lg shadow-[hsl(var(--burgundy)/0.3)] mt-4"
+              className="ba-btn ba-btn-primary relative mt-2 w-full !min-h-[56px] !text-[16px] touch-manipulation sm:w-auto sm:!px-8"
             >
               {t("form.stage2.cta")}
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
+              <span className="ba-arrow"><ArrowRight /></span>
+            </button>
           </div>
         );
 
@@ -1030,7 +1051,7 @@ const Forms = () => {
         return (
           <div className={fieldGroupClass}>
             <StepHeader title={t("form.step8.header")} />
-            <h2 className="text-white text-lg sm:text-xl font-semibold leading-snug">
+            <h2 className={questionClass}>
               {t("form.step8.question")}
             </h2>
             <RadioGroup
@@ -1055,7 +1076,7 @@ const Forms = () => {
         return (
           <div className={fieldGroupClass}>
             <StepHeader title={t("form.step9.header")} />
-            <h2 className="text-white text-lg sm:text-xl font-semibold leading-snug">
+            <h2 className={questionClass}>
               {t("form.step9.question")}
             </h2>
             <RadioGroup
@@ -1080,7 +1101,7 @@ const Forms = () => {
         return (
           <div className={fieldGroupClass}>
             <StepHeader title={t("form.step10.header")} />
-            <h2 className="text-white text-lg sm:text-xl font-semibold leading-snug">
+            <h2 className={questionClass}>
               {t("form.step10.question")}
             </h2>
             <RadioGroup
@@ -1122,16 +1143,16 @@ const Forms = () => {
         return (
           <div className={fieldGroupClass}>
             <StepHeader title={t("form.step11.header")} />
-            <p className="text-white/70 text-sm leading-relaxed">
+            <p className="text-[var(--ba-ink-2)] text-[14.5px] leading-relaxed">
               {t("form.step11.desc1")}
             </p>
-            <p className="text-white/60 text-[13px] leading-relaxed">
+            <p className="text-[var(--ba-ink-3)] text-[13.5px] leading-relaxed">
               {t("form.step11.desc2")}
             </p>
-            <h2 className="text-white text-lg sm:text-xl font-semibold leading-snug pt-2">
+            <h2 className={`${questionClass} pt-2`}>
               {t("form.step11.question")}
             </h2>
-            <p className="text-white/40 text-xs italic">{t("form.step11.helper")}</p>
+            <p className="text-[var(--ba-ink-3)] text-[13px] italic">{t("form.step11.helper")}</p>
             <RadioGroup
               onValueChange={(v) => handleRadioChange("investmentRange", v, 11)}
               value={watch("investmentRange")}
@@ -1141,7 +1162,7 @@ const Forms = () => {
                 <RadioOption key={r.value} field="investmentRange" value={r.value} label={r.label} onReselect={() => nextStep()} />
               ))}
             </RadioGroup>
-            <p className="text-white/40 text-[11px] text-center pt-2">
+            <p className="text-[var(--ba-ink-3)] text-xs text-center pt-2">
               {t("form.step11.footer")}
             </p>
             <FieldError field="investmentRange" />
@@ -1170,6 +1191,7 @@ const Forms = () => {
                 value={watch("guardianWhatsapp")}
                 onChange={(v) => setValue("guardianWhatsapp", v, { shouldValidate: true })}
                 placeholder="(11) 99999-9999"
+                className={phoneInputClass}
               />
               <FieldError field="guardianWhatsapp" />
             </div>
@@ -1220,6 +1242,7 @@ const Forms = () => {
                     value={watch("guardianWhatsapp2") ?? ""}
                     onChange={(v) => setValue("guardianWhatsapp2", v, { shouldValidate: true })}
                     placeholder="(11) 99999-9999"
+                    className={phoneInputClass}
                   />
                   <FieldError field="guardianWhatsapp2" />
                 </div>
@@ -1232,7 +1255,7 @@ const Forms = () => {
             )}
             <div>
               <label className={labelClass}>
-                {t("form.step12.travel.label")} <span className="text-white/40">({t("form.optional")})</span>
+                {t("form.step12.travel.label")} <span className={optionalClass}>({t("form.optional")})</span>
               </label>
               <RadioGroup
                 onValueChange={(v) => setValue("viajouExterior", v)}
@@ -1249,20 +1272,20 @@ const Forms = () => {
             </div>
             <div>
               <label className={labelClass}>
-                {t("form.step12.source.label")} <span className="text-white/40">({t("form.optional")})</span>
+                {t("form.step12.source.label")} <span className={optionalClass}>({t("form.optional")})</span>
               </label>
               <Select
                 value={watch("comoConheceu")}
                 onValueChange={(v) => setValue("comoConheceu", v)}
               >
-                <SelectTrigger className="w-full bg-transparent border-0 border-b-2 border-white/30 hover:border-white/50 data-[state=open]:border-white rounded-none px-1 py-3.5 sm:py-4 text-[16px] sm:text-lg text-white ring-0 outline-none focus:ring-0 h-auto shadow-none transition-all duration-300 [&>span]:line-clamp-1 data-[placeholder]:text-white/45">
+                <SelectTrigger className={selectTriggerClass}>
                   <SelectValue placeholder={t("form.step12.source.placeholder")} />
                 </SelectTrigger>
                 <SelectContent
                   position="popper"
                   side="bottom"
                   sideOffset={8}
-                  className="bg-[#0A1024]/90 backdrop-blur-2xl border border-white/10 text-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] z-[100] w-[var(--radix-select-trigger-width)] max-h-[280px] overflow-hidden"
+                  className={selectContentClass}
                 >
                   {[
                     { value: "indicacao", label: t("form.step12.source.referral") },
@@ -1275,7 +1298,7 @@ const Forms = () => {
                     <SelectItem
                       key={opt.value}
                       value={opt.value}
-                      className="text-white/70 focus:bg-white/10 focus:text-white cursor-pointer text-[16px] sm:text-[15px] py-4 sm:py-3.5 pl-4 pr-12 rounded-xl transition-colors duration-200 outline-none my-0.5 data-[state=checked]:text-white data-[state=checked]:font-medium data-[state=checked]:bg-white/5 active:bg-white/10"
+                      className={selectItemClass}
                     >
                       {opt.label}
                     </SelectItem>
@@ -1298,6 +1321,7 @@ const Forms = () => {
               <CountrySelect
                 value={watch("country") || "BR"}
                 onChange={(v) => setValue("country", v, { shouldValidate: true })}
+                className={`${fieldSurfaceClass} h-[54px] sm:h-[58px] px-4 py-0 data-[state=open]:border-[var(--ba-blue-2)] data-[state=open]:ring-4 data-[state=open]:ring-[rgba(71,107,192,0.18)] [&>svg]:text-[var(--ba-ink-3)]`}
               />
               <FieldError field="country" />
             </div>
@@ -1324,13 +1348,13 @@ const Forms = () => {
                     disabled={isFetchingCep}
                   />
                   {isFetchingCep && (
-                    <p className="text-white/50 text-xs mt-1.5 flex items-center gap-1.5">
+                    <p className="text-[var(--ba-ink-3)] text-xs mt-2 flex items-center gap-1.5">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       {t("form.step13.cep.searching")}
                     </p>
                   )}
                   {cepError && (
-                    <p className="text-[hsl(var(--burgundy-glow))] text-sm mt-1.5">{cepError}</p>
+                    <p className="text-[var(--ba-wine)] text-[13.5px] font-medium mt-2">{cepError}</p>
                   )}
                   <FieldError field="addressCep" />
                 </div>
@@ -1359,7 +1383,7 @@ const Forms = () => {
                   </div>
                   <div>
                     <label className={labelClass}>
-                      {t("form.step13.complement.label")} <span className="text-white/40">({t("form.optional")})</span>
+                      {t("form.step13.complement.label")} <span className={optionalClass}>({t("form.optional")})</span>
                     </label>
                     <Input
                       {...register("addressComplement")}
@@ -1418,7 +1442,7 @@ const Forms = () => {
 
                 <div>
                   <label className={labelClass}>
-                    {t("form.step13.postalCode.label")} <span className="text-white/40">({t("form.optional")})</span>
+                    {t("form.step13.postalCode.label")} <span className={optionalClass}>({t("form.optional")})</span>
                   </label>
                   <Input
                     {...register("addressCep")}
@@ -1429,7 +1453,7 @@ const Forms = () => {
 
                 <div>
                   <label className={labelClass}>
-                    {t("form.step13.address.label")} <span className="text-white/40">({t("form.optional")})</span>
+                    {t("form.step13.address.label")} <span className={optionalClass}>({t("form.optional")})</span>
                   </label>
                   <Input
                     {...register("addressStreet")}
@@ -1441,11 +1465,11 @@ const Forms = () => {
             )}
 
             {submissionError && (
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <div role="alert" className="flex items-start gap-3 p-4 rounded-2xl bg-[rgba(144,36,52,0.06)] border border-[rgba(144,36,52,0.22)]">
+                <AlertCircle className="w-5 h-5 text-[var(--ba-wine)] flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-red-300 text-sm font-medium">{t("form.error.title")}</p>
-                  <p className="text-red-300/70 text-xs mt-0.5">{translateError(submissionError)}</p>
+                  <p className="text-[var(--ba-wine)] text-sm font-semibold">{t("form.error.title")}</p>
+                  <p className="text-[var(--ba-ink-2)] text-[13px] mt-0.5">{translateError(submissionError)}</p>
                 </div>
               </div>
             )}
@@ -1459,9 +1483,11 @@ const Forms = () => {
 
   // Step header component
   const StepHeader = ({ title }: { title: string }) => (
-    <div className="flex items-center gap-2 sm:gap-3 mb-1">
-      <div className="h-4 sm:h-6 w-1 bg-gradient-to-b from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] rounded-full" />
-      <span className="text-white/80 text-xs sm:text-sm font-medium uppercase tracking-wider">{title}</span>
+    <div className="mb-2 sm:mb-3">
+      <span className="ba-eyebrow bg-[rgba(31,63,163,0.06)] !py-[7px] !text-[11.5px] shadow-[inset_0_0_0_1px_var(--ba-stroke)] sm:!text-[12px]">
+        <span className="ba-dot" aria-hidden="true" />
+        {title}
+      </span>
     </div>
   );
 
@@ -1482,69 +1508,67 @@ const Forms = () => {
   // ===== WELCOME INTRO =====
   if (showIntro) {
     return (
-      <div className="min-h-[100dvh] relative flex flex-col overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--navy-deep))] via-[hsl(var(--navy-medium))] to-[hsl(var(--burgundy)/0.3)]" />
-        <BackgroundLogos />
-        <ChevronPattern />
-        <header className="relative z-50 flex-shrink-0 py-4 sm:py-5 px-5 sm:px-8">
-          <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <Link href="/" className="flex items-center touch-manipulation">
-              <img src={logoWhite.src} alt="Bolsa Atleta USA" className="h-9 sm:h-11 w-auto" />
-            </Link>
-            <div className="flex items-center gap-3 sm:gap-4">
-              <LanguageSelector variant="dark" size="default" />
-              <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-white/60">
-                <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+      <div className="min-h-[100dvh] relative isolate flex flex-col overflow-hidden text-[var(--ba-ink)] font-[family-name:var(--ba-body)]">
+        {formBackground}
+        <header className="relative z-50 flex-shrink-0 px-4 pt-3 sm:px-8 sm:pt-4">
+          <div className="ba-glass mx-auto flex h-[58px] max-w-6xl items-center justify-between rounded-full pl-3.5 pr-2 sm:h-[66px] sm:pl-5 sm:pr-3">
+            {brandLogo}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <LanguageSelector variant="light" size="default" />
+              <div className="flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1.5 text-xs font-medium text-[var(--ba-ink-2)] shadow-[inset_0_0_0_1px_var(--ba-stroke)] sm:gap-2 sm:px-3 sm:text-[13px]">
+                <Lock className="w-3.5 h-3.5 text-[var(--ba-blue)]" />
                 <span className="hidden sm:inline">{t("header.protectedData")}</span>
               </div>
             </div>
           </div>
         </header>
-        <main className="relative z-10 flex-1 flex flex-col justify-center px-5 sm:px-8 py-6 sm:py-10">
+        <main className="relative z-10 flex-1 flex flex-col justify-center px-4 sm:px-8 py-6 sm:py-12">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-            className="w-full max-w-lg mx-auto"
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            className="ba-glass relative w-full max-w-[640px] mx-auto overflow-hidden rounded-[28px] px-[18px] py-7 sm:rounded-[32px] sm:px-12 sm:py-12"
           >
-            <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
-              <div className="h-5 sm:h-7 w-1 bg-gradient-to-b from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] rounded-full" />
-              <span className="text-white/60 text-xs sm:text-sm font-medium uppercase tracking-wider">
-                {t("form.welcome.badge")}
-              </span>
-            </div>
+            <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(143,168,236,0.45),rgba(143,168,236,0)_68%)] blur-2xl" />
+            <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(184,54,74,0.14),rgba(184,54,74,0)_68%)] blur-2xl" />
 
-            <h1 className="text-[1.5rem] sm:text-3xl font-bold text-white mb-5 sm:mb-6 leading-tight">
+            <span className="ba-eyebrow relative mb-5 bg-[rgba(31,63,163,0.06)] shadow-[inset_0_0_0_1px_var(--ba-stroke)] sm:mb-6">
+              <span className="ba-dot" aria-hidden="true" />
+              {t("form.welcome.badge")}
+            </span>
+
+            <h1 className="relative mb-5 font-[family-name:var(--ba-display)] text-[clamp(30px,7.6vw,46px)] font-bold leading-[1.06] tracking-[-0.04em] text-[var(--ba-ink)] sm:mb-7">
               {t("form.welcome.title1")}<br />
-              <span className="text-[hsl(var(--burgundy-glow))]">{t("form.welcome.title2")}</span>
+              <span className="ba-serif ba-grad-text text-[1.08em]">{t("form.welcome.title2")}</span>
             </h1>
 
-            <div className="space-y-4 text-white/70 text-[15px] sm:text-base leading-relaxed mb-8 sm:mb-10">
+            <div className="relative space-y-4 text-[15.5px] leading-[1.65] text-[var(--ba-ink-2)] sm:text-[17px] mb-8 sm:mb-10">
               <p>{t("form.welcome.line1")}</p>
               <p>
-                {t("form.welcome.line2")} <strong className="text-white/90">{t("form.welcome.line2Bold")}</strong>
+                {t("form.welcome.line2")} <strong className="font-semibold text-[var(--ba-ink)]">{t("form.welcome.line2Bold")}</strong>
               </p>
               <p>{t("form.welcome.line3")}</p>
               <p>{t("form.welcome.line4")}</p>
             </div>
 
-            <Button
+            <button
+              type="button"
               onClick={() => {
                 setShowIntro(false);
                 if (currentStep === STAGE_1_INTRO) {
                   setCurrentStep(STAGE_1_START);
                 }
               }}
-              className="w-full bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] text-white border-0 px-6 py-5 sm:py-6 text-[16px] sm:text-lg font-semibold hover:opacity-90 transition-all duration-300 active:scale-[0.98] min-h-[56px] sm:min-h-[60px] rounded-xl shadow-lg shadow-[hsl(var(--burgundy)/0.3)]"
+              className="ba-btn ba-btn-primary relative w-full !min-h-[58px] !px-4 !text-[14.5px] touch-manipulation max-[360px]:!whitespace-normal sm:!px-8 sm:!text-[16px]"
             >
               {t("form.welcome.cta")}
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
+              <span className="ba-arrow !hidden sm:!grid"><ArrowRight /></span>
+            </button>
           </motion.div>
         </main>
-        <footer className="relative z-10 flex-shrink-0 py-4 sm:py-5 px-5 sm:px-8 pb-[max(env(safe-area-inset-bottom),16px)]">
-          <p className="text-white/40 text-[11px] sm:text-xs text-center flex items-center justify-center gap-1.5">
-            <Lock className="w-3 h-3" />
+        <footer className="relative z-10 flex-shrink-0 py-4 sm:py-5 px-4 sm:px-8 pb-[max(env(safe-area-inset-bottom),16px)]">
+          <p className="text-[var(--ba-ink-3)] text-xs leading-snug text-center text-balance">
+            <Lock className="mr-1 inline-block h-3 w-3 align-[-2px]" />
             {t("form.welcome.footer")}
           </p>
         </footer>
@@ -1555,30 +1579,28 @@ const Forms = () => {
   // ===== COMPLETION SCREEN =====
   if (isComplete) {
     return (
-      <div className="min-h-[100dvh] relative flex items-center justify-center p-5 sm:p-6 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--navy-deep))] via-[hsl(var(--navy-medium))] to-[hsl(var(--burgundy)/0.3)]" />
-        <BackgroundLogos />
-        <ChevronPattern />
+      <div className="min-h-[100dvh] relative isolate flex items-center justify-center px-4 py-8 sm:p-6 overflow-hidden text-[var(--ba-ink)] font-[family-name:var(--ba-body)]">
+        {formBackground}
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-          className="relative z-10 w-full max-w-[420px] sm:max-w-xl"
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="ba-glass relative z-10 w-full max-w-[440px] sm:max-w-xl rounded-[28px] px-6 py-9 sm:rounded-[32px] sm:px-12 sm:py-12"
         >
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 180, damping: 15 }}
-            className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-5 sm:mb-6 rounded-full bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center"
+            className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-5 sm:mb-6 rounded-full bg-gradient-to-b from-[#e7f8ef] to-[#d2f0e0] shadow-[0_0_0_8px_rgba(16,150,90,0.08),0_14px_30px_-14px_rgba(16,150,90,0.6)] flex items-center justify-center"
           >
-            <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-400" />
+            <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10 text-[#0f8a53]" />
           </motion.div>
 
           <motion.h2
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="text-[1.5rem] sm:text-2xl font-bold text-white mb-6 text-center"
+            className="font-[family-name:var(--ba-display)] text-[28px] sm:text-[36px] font-bold tracking-[-0.035em] leading-[1.1] text-[var(--ba-ink)] mb-6 text-center"
           >
             {t("form.success.title")}
           </motion.h2>
@@ -1587,13 +1609,13 @@ const Forms = () => {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-white/70 text-[15px] sm:text-base leading-[1.7] space-y-4 mb-8 text-left px-1"
+            className="text-[var(--ba-ink-2)] text-[15.5px] sm:text-[17px] leading-[1.7] space-y-4 mb-8 text-left px-1"
           >
             <p>{t("form.success.line1")}</p>
 
             <p>{t("form.success.line2")}</p>
 
-            <p className="text-white/80 font-medium pt-4">{t("form.success.team")}</p>
+            <p className="text-[var(--ba-ink)] font-semibold pt-4">{t("form.success.team")}</p>
           </motion.div>
 
 
@@ -1602,7 +1624,7 @@ const Forms = () => {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
             onClick={handleEditResponse}
-            className="block mx-auto text-white/40 hover:text-white/70 text-sm underline underline-offset-4 transition-all duration-300 py-2 px-4"
+            className="block mx-auto rounded-full text-[var(--ba-ink-3)] hover:text-[var(--ba-blue)] text-sm font-medium underline underline-offset-4 transition-colors duration-300 py-2 px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ba-blue-2)]"
           >
             {t("form.success.edit")}
           </motion.button>
@@ -1615,33 +1637,29 @@ const Forms = () => {
   const nav = getNavConfig();
 
   return (
-    <div className="fixed inset-0 flex flex-col">
-      <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--navy-deep))] via-[hsl(var(--navy-medium))] to-[hsl(var(--burgundy)/0.3)]" />
-      <BackgroundLogos />
-      <ChevronPattern />
+    <div className="fixed inset-0 isolate flex flex-col text-[var(--ba-ink)] font-[family-name:var(--ba-body)]">
+      {formBackground}
 
       {/* Header */}
-      <header className="relative z-50 flex-shrink-0 py-4 sm:py-5 px-5 sm:px-8">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center touch-manipulation">
-            <img src={logoWhite.src} alt="Bolsa Atleta USA" className="h-9 sm:h-11 w-auto" />
-          </Link>
+      <header className="relative z-50 flex-shrink-0 px-4 pt-3 sm:px-8 sm:pt-4">
+        <div className="ba-glass mx-auto flex h-[58px] max-w-6xl items-center justify-between gap-2 rounded-full pl-3.5 pr-2 sm:h-[66px] sm:pl-5 sm:pr-3">
+          {brandLogo}
           {/* 2-stage progress */}
           <div className="flex items-center gap-2 sm:gap-3">
             {[1, 2].map(stage => (
               <div key={stage} className="flex flex-col items-center gap-1">
-                <span className={`text-[10px] sm:text-xs font-medium ${getCurrentStage() >= stage ? "text-white/70" : "text-white/30"}`}>
+                <span className={`text-[10px] sm:text-xs font-semibold tracking-[0.02em] transition-colors duration-500 ${getCurrentStage() >= stage ? "text-[var(--ba-ink)]" : "text-[var(--ba-ink-3)]"}`}>
                   {stage === 1 ? t("form.stage1Badge") : t("form.stage2Badge")}
                 </span>
-                <div className={`w-12 sm:w-20 h-1 rounded-full transition-all duration-500 ${getCurrentStage() > stage ? "bg-white" : getCurrentStage() === stage ? "bg-white/70" : "bg-white/20"
+                <div className={`w-11 sm:w-20 h-1.5 rounded-full transition-all duration-500 ${getCurrentStage() > stage ? "bg-[var(--ba-blue)]" : getCurrentStage() === stage ? "bg-gradient-to-r from-[var(--ba-blue)] to-[var(--ba-wine)]" : "bg-[rgba(31,63,163,0.12)]"
                   }`} />
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <LanguageSelector variant="dark" size="default" />
-            <div className="flex items-center gap-1.5 text-xs text-white/60">
-              <Lock className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-1 sm:gap-3">
+            <LanguageSelector variant="light" size="default" />
+            <div className="flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1.5 text-xs font-medium text-[var(--ba-ink-2)] shadow-[inset_0_0_0_1px_var(--ba-stroke)] sm:px-3 sm:text-[13px]">
+              <Lock className="w-3.5 h-3.5 text-[var(--ba-blue)]" />
               <span className="hidden sm:inline">{t("header.protectedData")}</span>
             </div>
           </div>
@@ -1649,8 +1667,8 @@ const Forms = () => {
       </header>
 
       {/* Main */}
-      <main className="relative z-10 flex-1 flex flex-col px-5 sm:px-8 py-3 sm:py-6 overflow-y-auto">
-        <div className="w-full max-w-2xl mx-auto mt-0 sm:my-auto">
+      <main className="relative z-10 flex-1 flex flex-col px-4 sm:px-8 py-4 sm:py-8 overflow-y-auto overflow-x-hidden">
+        <div className="ba-glass w-full max-w-2xl mx-auto mt-0 sm:my-auto rounded-[28px] px-[18px] py-6 sm:rounded-[32px] sm:px-10 sm:py-10">
           <form onSubmit={handleSubmit(onSubmit)} className="min-h-[400px] flex flex-col">
             {/* Content container with fixed height to prevent button jumping */}
             <div className="flex-1">
@@ -1673,40 +1691,40 @@ const Forms = () => {
             <div className="pt-6 sm:pt-8 min-h-[72px] flex items-center">
               <div className="flex items-center justify-between w-full gap-3">
                 {nav.showBack ? (
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
                     onClick={prevStep}
-                    className="text-white/60 hover:text-white hover:bg-white/10 px-3 sm:px-4 py-2.5 touch-manipulation min-h-[48px]"
+                    aria-label={t("form.nav.back")}
+                    className="ba-btn ba-btn-ghost !w-[52px] !px-0 touch-manipulation sm:!w-auto sm:!pl-4 sm:!pr-5"
                   >
-                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    <ChevronLeft className="!h-5 !w-5" />
                     <span className="hidden sm:inline">{t("form.nav.back")}</span>
-                  </Button>
+                  </button>
                 ) : <div />}
 
                 {nav.showNext && (
-                  <Button
+                  <button
                     type="button"
                     onClick={nextStep}
-                    className="flex-1 sm:flex-none bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] text-white border-0 px-5 sm:px-6 py-4 sm:py-5 text-[14px] sm:text-base font-semibold hover:opacity-90 transition-all duration-300 active:scale-[0.98] min-h-[52px] rounded-xl"
+                    className="ba-btn ba-btn-primary flex-1 touch-manipulation sm:flex-none sm:!px-7"
                   >
                     {nav.nextLabel}
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
+                    <span className="ba-arrow"><ChevronRight /></span>
+                  </button>
                 )}
 
                 {nav.showSubmit && (
-                  <Button
+                  <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 sm:flex-none bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] text-white border-0 px-5 sm:px-6 py-4 sm:py-5 text-[14px] sm:text-base font-semibold hover:opacity-90 transition-all duration-300 active:scale-[0.98] min-h-[52px] rounded-xl shadow-lg shadow-[hsl(var(--burgundy)/0.3)]"
+                    className="ba-btn ba-btn-primary flex-1 touch-manipulation disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 sm:flex-none sm:!px-7"
                   >
                     {isSubmitting ? (
-                      <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> {t("form.nav.submitting")}</>
+                      <><Loader2 className="animate-spin" /> {t("form.nav.submitting")}</>
                     ) : (
-                      <>{t("form.nav.submit")} <ArrowRight className="ml-2 w-5 h-5" /></>
+                      <>{t("form.nav.submit")} <span className="ba-arrow"><ArrowRight /></span></>
                     )}
-                  </Button>
+                  </button>
                 )}
               </div>
             </div>
@@ -1715,26 +1733,26 @@ const Forms = () => {
       </main>
 
       {/* Footer Progress */}
-      <footer className="relative z-10 flex-shrink-0 py-3 sm:py-5 px-5 sm:px-8 pb-[max(env(safe-area-inset-bottom),12px)]">
+      <footer className="relative z-10 flex-shrink-0 py-3 sm:py-5 px-4 sm:px-8 pb-[max(env(safe-area-inset-bottom),12px)]">
         <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-white/40 text-[11px] sm:text-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[var(--ba-ink-2)] text-[11px] sm:text-xs font-semibold">
               {getCurrentStage() === 1 ? t("form.stage1Badge") : t("form.stage2Badge")} {t("form.stageOf")} 2
             </span>
-            <span className="text-white/40 text-[11px] sm:text-xs">
+            <span className="text-[var(--ba-ink-2)] text-[11px] sm:text-xs font-semibold tabular-nums">
               {Math.round(getProgress())}{t("form.complete")}
             </span>
           </div>
-          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-[rgba(31,63,163,0.1)] rounded-full overflow-hidden shadow-[inset_0_1px_1px_rgba(15,35,87,0.06)]">
             <motion.div
-              className="h-full bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] rounded-full"
+              className="h-full bg-gradient-to-r from-[var(--ba-blue)] via-[#3a5fc9] to-[var(--ba-wine)] rounded-full"
               initial={{ width: 0 }}
               animate={{ width: `${getProgress()}%` }}
               transition={{ duration: 0.4, ease: "easeOut" }}
             />
           </div>
-          <p className="text-white/40 text-[10px] sm:text-xs text-center mt-3 flex items-center justify-center gap-1.5">
-            <Lock className="w-3 h-3" />
+          <p className="text-[var(--ba-ink-3)] text-[10.5px] leading-snug sm:text-xs text-center text-balance mt-2.5">
+            <Lock className="mr-1 inline-block h-3 w-3 align-[-2px]" />
             {t("form.welcome.footer")}
           </p>
         </div>

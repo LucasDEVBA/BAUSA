@@ -1,6 +1,11 @@
 // ─── Fonte da verdade — Português Brasileiro ──────────────────────
 export const pt = {
   header: {
+    navMethod: "Método",
+    navAuthority: "Autoridade",
+    navTestimonials: "Depoimentos",
+    openMenu: "Abrir menu",
+    closeMenu: "Fechar menu",
     contact: "Fale Conosco",
     protectedData: "Dados protegidos",
   },
@@ -35,11 +40,11 @@ export const pt = {
         label: "Série / Ano atual",
         placeholder: "Selecione sua série",
         opt_before_7th:  "Anterior ao 7º Ano",
-        opt_8th:         "8º Ano — Ensino Fundamental",
-        opt_9th:         "9º Ano — Ensino Fundamental",
-        opt_hs1:         "1º Ano — Ensino Médio",
-        opt_hs2:         "2º Ano — Ensino Médio",
-        opt_hs3:         "3º Ano — Ensino Médio",
+        opt_8th:         "8º Ano · Ensino Fundamental",
+        opt_9th:         "9º Ano · Ensino Fundamental",
+        opt_hs1:         "1º Ano · Ensino Médio",
+        opt_hs2:         "2º Ano · Ensino Médio",
+        opt_hs3:         "3º Ano · Ensino Médio",
         opt_grad_last:   "Concluí o Ensino Médio no último ano",
         opt_grad_2plus:  "Concluí o Ensino Médio há mais de dois anos",
       },
@@ -87,7 +92,7 @@ export const pt = {
     },
 
     stage2: {
-      badge: "Etapa 2 — Leitura Estratégica",
+      badge: "Etapa 2 · Leitura Estratégica",
       title1: "Alinhamento",
       title2: "do Perfil",
       line1: "Nesta etapa aprofundamos a compreensão do jovem e da estrutura familiar que sustenta essa decisão.",
@@ -223,8 +228,8 @@ export const pt = {
       "Data de nascimento é obrigatória": "Data de nascimento é obrigatória",
       "Data de nascimento inválida": "Data de nascimento inválida",
       "A data de nascimento não pode ser no futuro": "A data de nascimento não pode ser no futuro",
-      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Confira o ano de nascimento do atleta — a data escolhida é deste ano",
-      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)",
+      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Confira o ano de nascimento do atleta: a data escolhida é deste ano",
+      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "A data de nascimento não combina com a série escolhida: confira o ano de nascimento do atleta (não o do responsável)",
       "Confira o ano de nascimento do atleta (não o do responsável)": "Confira o ano de nascimento do atleta (não o do responsável)",
       "WhatsApp é obrigatório": "WhatsApp é obrigatório",
       "Série é obrigatória": "Série é obrigatória",
@@ -252,11 +257,20 @@ export const pt = {
   },
   landing: {
     brandName: "Bolsa Atleta USA",
+    closeVideo: "Fechar vídeo",
     eeiName: "Educação Esportiva Inteligente®",
     common: {
       swipeHint: "Deslize para ver mais",
     },
     hero: {
+      eyebrow: "Assessoria esportiva de alto padrão",
+      secondaryCta: "Conheça o método",
+      trustBefore: "Atletas brasileiros em",
+      trustBold: "high schools e universidades",
+      trustAfter: "americanas",
+      chip: "High School · Universidade · EUA",
+      sealSub: "Da escolha da escola à adaptação",
+      safeSub: "Quatro pilares de decisão",
       activeTracking: "Acompanhamento ativo em cada etapa",
       headline1: "Educação Esportiva",
       headline2: "Inteligente®",
@@ -281,6 +295,12 @@ export const pt = {
       vision: "Visão",
     },
     safeMethod: {
+      humanPillar: "Pilar humano",
+      ctaShort: "Iniciar avaliação",
+      tags: {
+        a0: "Inglês", a1: "Histórico escolar", a2: "Ambição universitária",
+        f0: "Viabilidade", f1: "Previsibilidade", f2: "Coerência",
+      },
       badge: "O MÉTODO",
       subtitle: "O método que sustenta a Educação Esportiva Inteligente®",
       heading: "Método",
@@ -376,6 +396,9 @@ export const pt = {
       },
     },
     founder: {
+      chipTitle: "Bolsista integral",
+      chipSub: "Estudante-atleta nos EUA",
+      ctaNote: "Conversa estratégica com a equipe",
       badge: "Autoridade",
       title1: "Guiado por quem",
       title2: "domina o sistema",
@@ -448,7 +471,7 @@ export const pt = {
     limitedSpots: "Número limitado de famílias por ciclo",
     officialSite: "Site Oficial",
     card1: {
-      label: "Exclusive",
+      label: "Exclusivo",
       title1: "Avaliação",
       title2: "Estratégica",
       description: "Conversa individual com o fundador",

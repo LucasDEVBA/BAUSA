@@ -1,327 +1,214 @@
 "use client";
 
-import { memo, useState, useEffect, useCallback, useMemo } from "react";
-import { GraduationCap, Eye, TrendingUp, Building2, ChevronRight } from "lucide-react";
-import logoBadgeDark from "@/assets/logo-badge-dark.png";
-import { useScrollReveal, revealClass } from "@/hooks/useScrollReveal";
-import useEmblaCarousel from "embla-carousel-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { memo, useMemo } from "react";
+import Image from "next/image";
+import { GraduationCap, Eye, TrendingUp, Building2, Check, type LucideIcon } from "lucide-react";
+
+import athleteLin from "@/assets/athlete-lin.jpeg";
+import athleteLiz from "@/assets/athlete-liz.jpeg";
 import { useLanguage } from "@/i18n";
+import MeshBackground from "./brand/MeshBackground";
 
-// Cor ativa do dot reflete a cor do card correspondente
-const dotActiveColors = [
-  "bg-[hsl(var(--navy-deep))]",    // Card 0 — Navy
-  "bg-[hsl(var(--burgundy))]",     // Card 1 — Burgundy
-  "bg-[hsl(var(--navy-deep))]",    // Card 2 — Navy
-  "bg-[hsl(var(--burgundy))]",     // Card 3 — Burgundy
-];
+interface Highlight {
+  key: string;
+  icon: LucideIcon;
+  title: string;
+  subtitle?: string;
+  topics: string[];
+}
 
-const CarouselDots = ({ count, active }: { count: number; active: number }) => (
-  <div className="flex justify-center gap-2 mt-5 md:hidden">
-    {Array.from({ length: count }).map((_, i) => (
-      <div
-        key={i}
-        className={`h-1.5 rounded-full transition-all duration-300 ${i === active
-          ? `w-6 ${dotActiveColors[i]}`
-          : "w-1.5 bg-slate-300"
+const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
+
+/** Destaca o percentual que já existe no texto traduzido, sem alterar uma vírgula (o ES começa com "El 96%"). */
+function splitStat(text: string) {
+  const match = text.match(/\d+([.,]\d+)?%/);
+  if (!match || match.index === undefined) return null;
+  return {
+    before: text.slice(0, match.index).trim(),
+    stat: match[0],
+    after: text.slice(match.index + match[0].length).trim(),
+  };
+}
+
+const TopicList = ({ topics, dark = false }: { topics: string[]; dark?: boolean }) => (
+  <ul className="mt-4 space-y-2.5" role="list">
+    {topics.map((topic) => (
+      <li key={topic} className="flex items-start gap-3">
+        <span
+          className={`mt-[2px] grid h-5 w-5 flex-none place-items-center rounded-full ${
+            dark ? "bg-white/[0.14] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]" : "bg-[rgba(31,63,163,0.08)] text-[var(--ba-blue)] shadow-[inset_0_0_0_1px_rgba(31,63,163,0.12)]"
           }`}
-      />
+        >
+          <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+        </span>
+        <span className={`text-[15px] leading-[1.55] ${dark ? "text-white/[0.86]" : "text-[var(--ba-ink-2)]"}`}>{topic}</span>
+      </li>
     ))}
-  </div>
+  </ul>
 );
-
-// Variantes de estilo por card — mobile only (alternância Navy / Burgundy)
-const mobileCardVariants = [
-  {
-    // Card 0: Navy — identidade original
-    gradient: "from-[hsl(var(--navy-deep))] to-[hsl(var(--navy-medium))]",
-    iconBg: "bg-white/10 group-hover:bg-white/15",
-    dot: "from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))]",
-    subtitleBorder: "border-[hsl(var(--burgundy-bright))]",
-  },
-  {
-    // Card 1: Burgundy — variante vermelha (Efeito Espelhado Suave)
-    gradient: "from-[hsl(var(--burgundy))] via-[hsl(var(--burgundy-glow))] to-[hsl(var(--burgundy))]",
-    iconBg: "bg-white/15 group-hover:bg-white/20",
-    dot: "from-white to-white/80",
-    subtitleBorder: "border-white/60",
-  },
-  {
-    // Card 2: Navy — volta ao azul
-    gradient: "from-[hsl(var(--navy-deep))] to-[hsl(var(--navy-medium))]",
-    iconBg: "bg-white/10 group-hover:bg-white/15",
-    dot: "from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))]",
-    subtitleBorder: "border-[hsl(var(--burgundy-bright))]",
-  },
-  {
-    // Card 3: Burgundy — alterna de volta ao vinho (Efeito Espelhado Suave)
-    gradient: "from-[hsl(var(--burgundy))] via-[hsl(var(--burgundy-glow))] to-[hsl(var(--burgundy))]",
-    iconBg: "bg-white/15 group-hover:bg-white/20",
-    dot: "from-white to-white/80",
-    subtitleBorder: "border-white/60",
-  },
-] as const;
 
 const WhyHighSchoolSection = memo(() => {
   const { t } = useLanguage();
-  const headerReveal = useScrollReveal();
-  const contentReveal = useScrollReveal();
-  const gridReveal = useScrollReveal();
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [showHint, setShowHint] = useState(true);
 
-  const highlights = useMemo(() => [
-    {
-      icon: GraduationCap,
-      title: t("landing.whyHighSchool.highlights.academic.title"),
-      topics: [
-        t("landing.whyHighSchool.highlights.academic.topic0"),
-        t("landing.whyHighSchool.highlights.academic.topic1"),
-        t("landing.whyHighSchool.highlights.academic.topic2"),
-      ],
-    },
-    {
-      icon: TrendingUp,
-      title: t("landing.whyHighSchool.highlights.athletic.title"),
-      topics: [
-        t("landing.whyHighSchool.highlights.athletic.topic0"),
-        t("landing.whyHighSchool.highlights.athletic.topic1"),
-        t("landing.whyHighSchool.highlights.athletic.topic2"),
-      ],
-    },
-    {
-      icon: Building2,
-      title: t("landing.whyHighSchool.highlights.adaptation.title"),
-      topics: [
-        t("landing.whyHighSchool.highlights.adaptation.topic0"),
-        t("landing.whyHighSchool.highlights.adaptation.topic1"),
-        t("landing.whyHighSchool.highlights.adaptation.topic2"),
-      ],
-    },
-    {
-      icon: Eye,
-      title: t("landing.whyHighSchool.highlights.visibility.title"),
-      subtitle: t("landing.whyHighSchool.highlights.visibility.subtitle"),
-      topics: [
-        t("landing.whyHighSchool.highlights.visibility.topic0"),
-        t("landing.whyHighSchool.highlights.visibility.topic1"),
-      ],
-    },
-  ], [t]);
-
-  const [emblaRef, emblaApi] = useEmblaCarousel({
-    align: "start",
-    containScroll: "trimSnaps",
-    loop: false,
-    skipSnaps: false,
-    // dragFree: momentum/inércia — scroll mais fluído no mobile
-    dragFree: true,
-    dragThreshold: 10,
-  });
-
-  const onSelect = useCallback(() => {
-    if (!emblaApi) return;
-    setSelectedIndex(emblaApi.selectedScrollSnap());
-  }, [emblaApi]);
-
-  useEffect(() => {
-    if (!emblaApi) return;
-    emblaApi.on("select", onSelect);
-    emblaApi.on("pointerDown", () => setShowHint(false));
-    onSelect();
-    return () => {
-      emblaApi.off("select", onSelect);
-    };
-  }, [emblaApi, onSelect]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setShowHint(false), 4000);
-    return () => clearTimeout(timer);
-  }, []);
+  const highlights = useMemo<Highlight[]>(
+    () => [
+      {
+        key: "academic",
+        icon: GraduationCap,
+        title: t("landing.whyHighSchool.highlights.academic.title"),
+        topics: [0, 1, 2].map((i) => t(`landing.whyHighSchool.highlights.academic.topic${i}`)),
+      },
+      {
+        key: "athletic",
+        icon: TrendingUp,
+        title: t("landing.whyHighSchool.highlights.athletic.title"),
+        topics: [0, 1, 2].map((i) => t(`landing.whyHighSchool.highlights.athletic.topic${i}`)),
+      },
+      {
+        key: "adaptation",
+        icon: Building2,
+        title: t("landing.whyHighSchool.highlights.adaptation.title"),
+        topics: [0, 1, 2].map((i) => t(`landing.whyHighSchool.highlights.adaptation.topic${i}`)),
+      },
+      {
+        key: "visibility",
+        icon: Eye,
+        title: t("landing.whyHighSchool.highlights.visibility.title"),
+        subtitle: t("landing.whyHighSchool.highlights.visibility.subtitle"),
+        topics: [0, 1].map((i) => t(`landing.whyHighSchool.highlights.visibility.topic${i}`)),
+      },
+    ],
+    [t],
+  );
 
   return (
-    <section className="relative py-16 sm:py-24 md:py-32 overflow-hidden">
-      {/* Premium Light Background with Accent */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-100" />
+    <section className="relative isolate overflow-hidden py-[clamp(80px,10vw,140px)]" aria-labelledby="high-school-title">
+      <MeshBackground blobs={["b1", "b3"]} className="[&_.ba-b1]:!left-[-20vw] [&_.ba-b1]:!top-[20%] [&_.ba-b1]:!opacity-60 [&_.ba-b3]:!left-auto [&_.ba-b3]:!right-[-10vw] [&_.ba-b3]:!top-[55%] [&_.ba-b3]:!opacity-30" />
 
-      {/* Decorative Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-[hsl(var(--burgundy)/0.03)] to-transparent" />
-        <div className="absolute bottom-0 left-0 w-1/3 h-1/2 bg-gradient-to-tr from-[hsl(var(--navy-deep)/0.03)] to-transparent" />
-      </div>
-
-      {/* Watermark Logos - Light Premium (+50% size, +70% opacity) */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[3%] left-[2%] w-14 sm:w-20 md:w-28 opacity-[0.068] rotate-[-10deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[5%] right-[8%] w-16 sm:w-24 md:w-32 opacity-[0.077] rotate-[15deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[18%] left-[18%] w-12 sm:w-20 md:w-24 opacity-[0.06] rotate-[8deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[25%] right-[15%] w-14 sm:w-20 md:w-28 opacity-[0.068] rotate-[-12deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[40%] left-[5%] w-14 sm:w-20 md:w-28 opacity-[0.077] rotate-[20deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[45%] right-[5%] w-16 sm:w-24 md:w-32 opacity-[0.068] rotate-[-8deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[60%] left-[25%] w-12 sm:w-20 md:w-24 opacity-[0.06] rotate-[-5deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[65%] right-[22%] w-14 sm:w-20 md:w-28 opacity-[0.068] rotate-[10deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute bottom-[20%] left-[8%] w-14 sm:w-20 md:w-28 opacity-[0.077] rotate-[15deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute bottom-[15%] right-[10%] w-16 sm:w-24 md:w-32 opacity-[0.068] rotate-[-12deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute bottom-[5%] left-[45%] w-12 sm:w-20 md:w-24 opacity-[0.06] rotate-[5deg]" />
-      </div>
-
-      {/* Subtle Pattern */}
-      <div className="absolute inset-0 opacity-[0.02]">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--navy-deep)) 1px, transparent 0)`,
-            backgroundSize: '32px 32px',
-          }}
-        />
-      </div>
-
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {/* Header */}
-        <div
-          ref={headerReveal.ref}
-          className={`${revealClass(headerReveal.isRevealed)} text-center mb-12 sm:mb-16`}
-        >
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[hsl(var(--navy-deep)/0.06)] border border-[hsl(var(--navy-deep)/0.1)] mb-5 sm:mb-6">
-            <GraduationCap className="w-4 h-4 text-[hsl(var(--navy-deep))]" />
-            <span className="text-xs sm:text-sm font-semibold text-[hsl(var(--navy-deep))] tracking-wide">{t("landing.whyHighSchool.badge")}</span>
-          </div>
-
-          <p className="text-[hsl(var(--burgundy))] text-sm sm:text-base font-medium mb-3">
-            {t("landing.whyHighSchool.tagline")}
-          </p>
-
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[hsl(var(--navy-deep))] mb-4 sm:mb-6 leading-tight">
-            {t("landing.whyHighSchool.title1")}{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))]">
-              {t("landing.whyHighSchool.title2")}
+      <div className="ba-wrap relative z-[2]">
+        {/* Cabeçalho editorial: título à esquerda, tese à direita */}
+        <header className="grid grid-cols-1 items-end gap-6 lg:grid-cols-12 lg:gap-12">
+          <div className="lg:col-span-7">
+            <span className="ba-eyebrow ba-glass ba-rv" style={delay(0)}>
+              <span className="ba-dot" />
+              {t("landing.whyHighSchool.badge")}
             </span>
-          </h2>
-
-          <p className="text-base sm:text-lg md:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
+            <p className="ba-rv mt-6 text-[15px] font-semibold text-[var(--ba-wine)]" style={delay(1)}>
+              {t("landing.whyHighSchool.tagline")}
+            </p>
+            <h2 id="high-school-title" className="ba-h2 ba-rv mt-3 text-[var(--ba-navy)]" style={delay(2)}>
+              {t("landing.whyHighSchool.title1")} <span className="ba-serif ba-grad-text text-[1.14em]">{t("landing.whyHighSchool.title2")}</span>
+            </h2>
+          </div>
+          <p className="ba-lead ba-rv lg:col-span-5 lg:pb-2" style={delay(3)}>
             {t("landing.whyHighSchool.subtitle")}
           </p>
-        </div>
+        </header>
 
-        {/* Main Content Card */}
-        <div
-          ref={contentReveal.ref}
-          className={`${revealClass(contentReveal.isRevealed)} max-w-4xl mx-auto mb-12 sm:mb-16`}
-        >
-          <div className="relative p-6 sm:p-10 md:p-12 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-xl shadow-[hsl(var(--navy-deep)/0.06)]">
-            {/* Top Accent */}
-            <div className="absolute top-0 left-8 right-8 h-1 bg-gradient-to-r from-transparent via-[hsl(var(--burgundy))] to-transparent rounded-b-full" />
-
-            <div className="space-y-5 sm:space-y-6">
-              <p className="text-[15px] sm:text-lg md:text-xl text-[hsl(var(--navy-deep))] leading-relaxed">
-                {t("landing.whyHighSchool.p1Before")}<span className="font-semibold text-[hsl(var(--burgundy))]">{t("landing.eeiName")}</span>{" "}{t("landing.whyHighSchool.p1After")}
-              </p>
-
-              <p className="text-[15px] sm:text-lg text-slate-600 leading-relaxed">
-                {t("landing.whyHighSchool.p2Before")} <span className="text-[hsl(var(--navy-deep))] font-medium">{t("landing.whyHighSchool.p2Bold")}</span>{" "}{t("landing.whyHighSchool.p2After")}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop: Grid 4 colunas — visão completa dos 4 pilares */}
-        <div
-          ref={gridReveal.ref}
-          className={`${revealClass(gridReveal.isRevealed)} hidden md:grid md:grid-cols-4 gap-5 max-w-6xl mx-auto`}
-        >
-          {highlights.map((item) => (
-            <div key={item.title} className="group">
-              <div className="h-full p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[hsl(var(--navy-deep))] to-[hsl(var(--navy-medium))] border border-white/10 hover:shadow-xl hover:shadow-[hsl(var(--navy-deep)/0.2)] transition-all duration-500 hover:-translate-y-1">
-                {/* Icon + Title — horizontal compacto para 4 colunas */}
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 group-hover:bg-white/15 transition-colors">
-                    <item.icon className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="text-[15px] font-bold text-white leading-snug pt-0.5">{item.title}</h3>
+        <div className="mt-[clamp(48px,6vw,80px)] grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-[clamp(40px,4vw,64px)]">
+          {/* Pôsteres em camadas + texto-base num vidro sobreposto */}
+          <div className="lg:sticky lg:top-28 lg:col-span-5 lg:self-start">
+            <div className="ba-rv-scale relative mx-auto h-[400px] max-w-[460px] sm:h-[500px] lg:h-[460px]" style={delay(1)} data-tilt-stage aria-hidden="true">
+              <div className="ba-glow left-[10%] top-[12%] h-[70%] w-[80%] bg-[rgba(71,107,192,0.35)]" />
+              <div className="absolute right-[2%] top-[2%] w-[54%]" data-depth="8">
+                <div className="relative aspect-[9/16] rotate-[7deg] overflow-hidden rounded-[22px] shadow-[var(--ba-shadow-lg),0_0_0_1px_rgba(255,255,255,0.6)]">
+                  <Image src={athleteLiz} alt="" fill sizes="(max-width: 1024px) 50vw, 240px" className="object-cover" />
                 </div>
-
-                {"subtitle" in item && item.subtitle && (
-                  <p className="text-[13px] text-white/90 font-medium mb-3 leading-relaxed border-l-2 border-[hsl(var(--burgundy))] pl-3">
-                    {item.subtitle}
-                  </p>
-                )}
-
-                <ul className="space-y-1.5">
-                  {item.topics.map((topic, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] mt-1.5 flex-shrink-0" />
-                      <span className="text-[13px] text-white/70 leading-relaxed">{topic}</span>
-                    </li>
-                  ))}
-                </ul>
+              </div>
+              <div className="absolute left-[4%] top-[8%] w-[58%]" data-depth="20">
+                <div className="relative aspect-[9/16] -rotate-[4deg] overflow-hidden rounded-[24px] shadow-[0_40px_80px_-30px_rgba(15,35,87,0.55),0_0_0_1px_rgba(255,255,255,0.9)]">
+                  <Image src={athleteLin} alt="" fill sizes="(max-width: 1024px) 55vw, 260px" className="object-cover" />
+                </div>
+              </div>
+              <div className="absolute right-[6%] top-[48%]" data-depth="30">
+                <span className="ba-glass ba-float-b inline-flex items-center gap-2.5 whitespace-nowrap rounded-full py-2 pl-2 pr-4 text-[13px] font-semibold text-[var(--ba-navy)]">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-[linear-gradient(150deg,#4a6dd0,var(--ba-blue))] text-white">
+                    <GraduationCap className="h-4 w-4" />
+                  </span>
+                  High School
+                </span>
               </div>
             </div>
-          ))}
-        </div>
 
-        {/* Mobile: Carousel com Peek + Cores alternadas */}
-        <div className="md:hidden -mx-4 px-4">
-          <div className="overflow-hidden" ref={emblaRef}>
-            <div className="flex gap-3">
-              {highlights.map((item, index) => {
-                const style = mobileCardVariants[index];
-                return (
-                  <div
-                    key={item.title}
-                    className="group min-w-0 flex-[0_0_85%] first:pl-0 last:pr-4"
-                  >
-                    <div className={`h-full p-5 rounded-2xl bg-gradient-to-br ${style.gradient} border border-white/10 shadow-xl`}>
-                      {/* Icon + Title horizontal no mobile */}
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className={`w-11 h-11 rounded-xl ${style.iconBg} flex items-center justify-center flex-shrink-0 transition-colors`}>
-                          <item.icon className="w-5 h-5 text-white" />
-                        </div>
-                        <h3 className="text-[15px] font-bold text-white flex-1 leading-snug">{item.title}</h3>
-                      </div>
-
-                      {"subtitle" in item && item.subtitle && (
-                        <p className={`text-[13px] text-white/90 font-medium mb-4 leading-relaxed border-l-2 ${style.subtitleBorder} pl-3`}>
-                          {item.subtitle}
-                        </p>
-                      )}
-
-                      <ul className="space-y-2">
-                        {item.topics.map((topic, i) => (
-                          <li key={i} className="flex items-start gap-2.5">
-                            <span className={`w-1.5 h-1.5 rounded-full bg-gradient-to-r ${style.dot} mt-[5px] flex-shrink-0`} />
-                            <span className="text-[13px] text-white/80 leading-relaxed">{topic}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="ba-glass ba-rv relative z-[3] -mt-24 rounded-[26px] p-6 sm:mx-6 sm:-mt-28 sm:rounded-[28px] sm:p-7" style={delay(2)}>
+              <p className="m-0 text-[16px] leading-[1.6] text-[var(--ba-ink)] sm:text-[17px]">
+                {t("landing.whyHighSchool.p1Before")}
+                <strong className="font-semibold text-[var(--ba-blue)]">{t("landing.eeiName")}</strong> {t("landing.whyHighSchool.p1After")}
+              </p>
+              <p className="mb-0 mt-4 text-[15px] leading-[1.6] text-[var(--ba-ink-2)]">
+                {t("landing.whyHighSchool.p2Before")} <strong className="font-semibold text-[var(--ba-wine)]">{t("landing.whyHighSchool.p2Bold")}</strong>{" "}
+                {t("landing.whyHighSchool.p2After")}
+              </p>
             </div>
           </div>
 
-          <CarouselDots count={highlights.length} active={selectedIndex} />
+          {/* Trilha dos quatro destaques */}
+          <ol className="relative lg:col-span-7" role="list">
+            <span
+              aria-hidden="true"
+              className="absolute bottom-10 left-[25px] top-6 hidden w-[2px] sm:block rounded-full bg-[linear-gradient(180deg,rgba(31,63,163,0.05),var(--ba-blue-2)_18%,var(--ba-blue)_55%,var(--ba-wine)_100%)] opacity-40"
+            />
+            {highlights.map((item, index) => {
+              const Icon = item.icon;
+              const isLast = index === highlights.length - 1;
+              const stat = item.subtitle ? splitStat(item.subtitle) : null;
+              return (
+                <li key={item.key} className="ba-rv group relative grid grid-cols-1 pb-4 last:pb-0 sm:grid-cols-[52px_1fr] sm:gap-5 sm:pb-5" style={delay(index + 1)}>
+                  <span
+                    className={`relative z-[1] mt-5 hidden h-11 w-11 place-items-center rounded-full font-[family-name:var(--ba-display)] text-[13px] font-bold transition-[box-shadow,background-color] duration-700 sm:grid sm:h-[52px] sm:w-[52px] sm:text-sm ${
+                      isLast
+                        ? "bg-[linear-gradient(150deg,var(--ba-wine-2),var(--ba-wine))] text-white shadow-[0_0_0_6px_rgba(144,36,52,0.1),inset_0_1px_0_rgba(255,255,255,0.35)]"
+                        : "ba-glass text-[var(--ba-blue)] group-data-[in]:shadow-[0_0_0_6px_rgba(31,63,163,0.08),var(--ba-shadow-sm)]"
+                    }`}
+                  >
+                    0{index + 1}
+                  </span>
 
-          {/* Swipe Hint */}
-          <AnimatePresence>
-            {showHint && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -5 }}
-                className="flex items-center justify-center gap-1.5 mt-3 text-slate-400 text-xs"
-              >
-                <span>{t("landing.whyHighSchool.swipeHint")}</span>
-                <motion.div
-                  animate={{ x: [0, 6, 0] }}
-                  transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  {isLast ? (
+                    <article className="relative overflow-hidden rounded-[26px] p-6 text-white shadow-[var(--ba-shadow-lg),inset_0_1px_0_rgba(255,255,255,0.18)] [background:radial-gradient(100%_80%_at_100%_0%,rgba(71,107,192,0.7)_0%,rgba(71,107,192,0)_58%),radial-gradient(80%_70%_at_0%_100%,rgba(144,36,52,0.65)_0%,rgba(144,36,52,0)_60%),linear-gradient(160deg,#13296b,var(--ba-navy-2))] sm:rounded-[30px] sm:p-8">
+                      <div className="ba-lines" />
+                      <div className="relative flex items-center gap-3">
+                        <span className="grid h-11 w-11 flex-none place-items-center rounded-[14px] bg-white/[0.14] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),inset_0_0_0_1px_rgba(255,255,255,0.2)] backdrop-blur-[14px]">
+                          <Icon className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <h3 className="ba-h3 text-[clamp(20px,1.8vw,24px)]">{item.title}</h3>
+                        <span className="ml-auto text-xs font-semibold tracking-[0.14em] text-white/70 sm:hidden">0{index + 1}</span>
+                      </div>
+                      {item.subtitle && (
+                        <p className="relative mb-0 mt-6 border-l-2 border-[#f0b1bb]/70 pl-4 text-[16px] leading-[1.5] text-white/[0.9] sm:text-[17px]">
+                          {stat ? (
+                            <>
+                              <span className="mb-2 flex items-baseline gap-2.5">
+                                {stat.before && <span>{stat.before}</span>}
+                                <span className="ba-grad-text-dark font-[family-name:var(--ba-display)] text-[clamp(56px,6.4vw,84px)] font-bold leading-[0.9] tracking-[-0.05em]">{stat.stat}</span>
+                              </span>
+                              <span className="block max-w-[520px]">{stat.after}</span>
+                            </>
+                          ) : (
+                            item.subtitle
+                          )}
+                        </p>
+                      )}
+                      <div className="relative">
+                        <TopicList topics={item.topics} dark />
+                      </div>
+                    </article>
+                  ) : (
+                    <article className="ba-glass rounded-[26px] p-6 transition-[translate,box-shadow] duration-500 [transition-timing-function:var(--ba-ease)] hover:-translate-y-1 hover:shadow-[var(--ba-shadow-lg)] sm:rounded-[30px] sm:p-7">
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-11 w-11 flex-none place-items-center rounded-[14px] bg-[linear-gradient(150deg,#4a6dd0,var(--ba-blue)_60%,#172f7d)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_12px_24px_-10px_rgba(31,63,163,0.7)]">
+                          <Icon className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <h3 className="ba-h3 text-[clamp(20px,1.8vw,24px)] text-[var(--ba-navy)]">{item.title}</h3>
+                        <span className="ml-auto self-start text-xs font-semibold tracking-[0.14em] text-[var(--ba-ink-3)] sm:hidden">0{index + 1}</span>
+                      </div>
+                      <TopicList topics={item.topics} />
+                    </article>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         </div>
       </div>
     </section>

@@ -94,7 +94,7 @@ function CustomCountrySelect({
         className={cn(
           "flex items-center gap-1 px-1 rounded-md",
           "bg-transparent focus:ring-0 focus:outline-none border-0",
-          "text-white hover:bg-white/10 active:bg-white/15 transition-colors cursor-pointer",
+          "text-[var(--ba-ink)] hover:bg-[rgba(31,63,163,0.06)] active:bg-[rgba(31,63,163,0.1)] transition-colors cursor-pointer",
           "py-3.5 sm:py-4 min-h-[44px] flex-shrink-0",
           disabled && "opacity-50 cursor-not-allowed pointer-events-none",
         )}
@@ -104,7 +104,7 @@ function CustomCountrySelect({
         </span>
         <ChevronDown
           className={cn(
-            "h-3 w-3 text-white/50 transition-transform duration-200",
+            "h-3 w-3 text-[var(--ba-ink-3)] transition-transform duration-200",
             open && "rotate-180",
           )}
         />
@@ -122,8 +122,8 @@ function CustomCountrySelect({
             "z-[9999]",
             // Nunca ultrapassa a viewport em mobile
             "w-[min(320px,calc(100vw-24px))]",
-            "overflow-hidden rounded-xl border border-white/15",
-            "bg-[hsl(222,70%,13%)] text-white shadow-2xl shadow-black/60",
+            "overflow-hidden rounded-2xl border border-[var(--ba-stroke)]",
+            "bg-white/95 backdrop-blur-xl text-[var(--ba-ink)] shadow-[var(--ba-shadow-lg)]",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -131,8 +131,8 @@ function CustomCountrySelect({
           )}
         >
           {/* Barra de busca */}
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/10">
-            <Search className="h-4 w-4 text-white/40 flex-shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--ba-stroke)]">
+            <Search className="h-4 w-4 text-[var(--ba-ink-3)] flex-shrink-0" />
             <input
               ref={searchRef}
               type="text"
@@ -140,13 +140,13 @@ function CustomCountrySelect({
               onChange={(e) => setSearch(e.target.value)}
               placeholder="País ou +DDI…"
               // font-size >= 16px evita zoom automático no iOS
-              className="flex-1 bg-transparent text-white text-[16px] placeholder:text-white/35 outline-none border-0"
+              className="flex-1 bg-transparent text-[var(--ba-ink)] text-[16px] placeholder:text-[var(--ba-ink-3)] outline-none border-0"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="text-white/40 hover:text-white transition-colors p-0.5 rounded"
+                className="text-[var(--ba-ink-3)] hover:text-[var(--ba-navy)] transition-colors p-0.5 rounded"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -160,7 +160,7 @@ function CustomCountrySelect({
             className="overflow-y-auto max-h-[min(224px,55vh)] p-1.5"
           >
             {filtered.length === 0 ? (
-              <p className="text-white/40 text-sm text-center py-6">
+              <p className="text-[var(--ba-ink-3)] text-sm text-center py-6">
                 Nenhum resultado
               </p>
             ) : (
@@ -180,14 +180,14 @@ function CustomCountrySelect({
                     "min-h-[44px] text-left text-[15px] cursor-pointer outline-none",
                     "transition-colors duration-100",
                     country.value === value
-                      ? "bg-white/12 text-white"
-                      : "text-white/80 hover:bg-white/10 hover:text-white active:bg-white/15",
+                      ? "bg-[rgba(31,63,163,0.08)] font-semibold text-[var(--ba-navy)]"
+                      : "text-[var(--ba-ink-2)] hover:bg-[rgba(31,63,163,0.06)] hover:text-[var(--ba-navy)] active:bg-[rgba(31,63,163,0.1)]",
                   )}
                 >
                   {/* Check indicator */}
                   <span className="w-4 flex-shrink-0 flex items-center justify-center">
                     {country.value === value && (
-                      <Check className="h-3.5 w-3.5 text-[hsl(var(--burgundy-glow))]" />
+                      <Check className="h-3.5 w-3.5 text-[var(--ba-blue)]" />
                     )}
                   </span>
                   {/* Bandeira */}
@@ -200,7 +200,7 @@ function CustomCountrySelect({
                   </span>
                   {/* DDI */}
                   {country.dial && (
-                    <span className="text-xs font-mono text-white/45 flex-shrink-0 ml-auto">
+                    <span className="text-xs font-mono text-[var(--ba-ink-3)] flex-shrink-0 ml-auto">
                       {country.dial}
                     </span>
                   )}
@@ -223,7 +223,7 @@ const DarkInput = forwardRef<
     ref={ref}
     className={cn(
       "flex-1 min-w-0 bg-transparent border-0 py-3.5 sm:py-4",
-      "text-[16px] sm:text-lg text-white placeholder:text-white/45",
+      "text-[16px] sm:text-lg text-[var(--ba-ink)] placeholder:text-[var(--ba-ink-3)]",
       "focus:ring-0 focus:outline-none",
       className,
     )}
@@ -254,7 +254,7 @@ const FormPhoneInput = ({
     <div
       data-phone-input
       className={cn(
-        "flex items-center border-b-2 border-white/30 focus-within:border-white transition-all duration-300 px-1",
+        "flex items-center border-b-2 border-[var(--ba-stroke)] focus-within:border-[var(--ba-blue-2)] transition-all duration-300 px-1",
         disabled && "opacity-50 pointer-events-none",
         className,
       )}

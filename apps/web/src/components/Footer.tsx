@@ -1,75 +1,88 @@
 "use client";
 
 import { memo } from "react";
-import { Instagram, Linkedin, Youtube, Mail } from "lucide-react";
+import Image from "next/image";
+import { Instagram, Youtube, Mail } from "lucide-react";
+
 import { Link } from "@/i18n/navigation";
-import logoBau from "@/assets/logo-bau.png";
-import { Button } from "./ui/button";
+import logoWhite from "@/assets/logo-white.png";
 import { useLanguage } from "@/i18n";
 
-const Footer = memo(() => {
+const CONTACT_EMAIL = "contato@bolsaatletausa.com";
+
+const SOCIAL_LINKS = [
+  { label: "Instagram", href: "https://instagram.com/bolsaatletausa", icon: Instagram },
+  { label: "YouTube", href: "https://youtube.com/@bolsaatletausa", icon: Youtube },
+] as const;
+
+interface FooterProps {
+  /**
+   * "attached": continua o CTA final escuro da home sem emenda.
+   * "standalone": em páginas claras (legais), ganha cantos e respiro próprios.
+   */
+  variant?: "attached" | "standalone";
+}
+
+const SOCIAL_BUTTON_CLASS =
+  "ba-glass-dark grid h-11 w-11 place-items-center rounded-full text-white/80 transition-[transform,background-color,color] duration-500 hover:-translate-y-0.5 hover:bg-white/[0.14] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a9c0f2]";
+
+const LEGAL_LINK_CLASS =
+  "rounded-sm text-[rgba(232,238,255,0.72)] underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a9c0f2]";
+
+const Footer = memo(({ variant = "attached" }: FooterProps) => {
   const { t } = useLanguage();
+  const standalone = variant === "standalone";
 
   return (
-    <footer className="py-8 sm:py-12 border-t border-border/50">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center gap-5 sm:gap-6 md:flex-row md:justify-between">
-          {/* Logo */}
-          <div className="text-center md:text-left">
-            <img
-              src={logoBau.src}
-              alt="Bolsa Atleta USA"
-              className="h-14 sm:h-16 w-auto"
-            />
+    <footer
+      className={`ba-dark relative isolate overflow-hidden ${
+        standalone ? "rounded-t-[clamp(28px,4vw,48px)] pt-[clamp(56px,7vw,88px)]" : "pt-2"
+      } pb-[max(32px,env(safe-area-inset-bottom))]`}
+    >
+      <div aria-hidden="true" className="ba-glow bottom-[-220px] left-[30%] h-[420px] w-[620px] bg-[rgba(31,63,163,0.35)]" />
+
+      <div className="ba-wrap relative z-[2]">
+        <div className={`flex flex-col gap-9 pb-10 md:flex-row md:items-end md:justify-between ${standalone ? "" : "border-t border-white/[0.1] pt-12"}`}>
+          <div className="max-w-[380px]">
+            {/* O PNG tem muita margem transparente: a moldura recorta só a marca */}
+            <div className="relative h-[85px] w-[160px] overflow-hidden">
+              <Image src={logoWhite} alt="Bolsa Atleta USA" width={188} className="absolute left-[-14px] top-[-16px] h-auto w-[188px] max-w-none" />
+            </div>
+            <p className="mt-5 text-[14.5px] leading-[1.6] text-[rgba(232,238,255,0.72)]">{t("links.subtitle")}</p>
           </div>
 
-          {/* Social Links */}
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex flex-col gap-4 md:items-end">
+            <div className="flex items-center gap-2.5">
+              {SOCIAL_LINKS.map(({ label, href, icon: Icon }) => (
+                <a key={label} href={href} aria-label={label} target="_blank" rel="noopener noreferrer" className={SOCIAL_BUTTON_CLASS}>
+                  <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                </a>
+              ))}
+            </div>
             <a
-              href="#"
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted flex items-center justify-center hover:bg-burgundy/20 transition-colors"
+              href={`mailto:${CONTACT_EMAIL}`}
+              className="ba-glass-dark inline-flex w-fit items-center gap-2.5 rounded-full py-2.5 pl-3 pr-4 text-[14px] font-medium text-white/90 transition-[transform,background-color] duration-500 hover:-translate-y-0.5 hover:bg-white/[0.14] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a9c0f2]"
             >
-              <Instagram className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground hover:text-burgundy" />
-            </a>
-            <a
-              href="#"
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted flex items-center justify-center hover:bg-burgundy/20 transition-colors"
-            >
-              <Linkedin className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground hover:text-burgundy" />
-            </a>
-            <a
-              href="#"
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted flex items-center justify-center hover:bg-burgundy/20 transition-colors"
-            >
-              <Youtube className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground hover:text-burgundy" />
-            </a>
-            <a
-              href="mailto:contato@bolsaatletausa.com"
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted flex items-center justify-center hover:bg-burgundy/20 transition-colors"
-            >
-              <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground hover:text-burgundy" />
+              <Mail className="h-[17px] w-[17px] text-[#cfdcff]" aria-hidden="true" />
+              {CONTACT_EMAIL}
             </a>
           </div>
+        </div>
 
-
-          {/* Copyright + legal */}
-          <div className="text-center md:text-right">
-            <p className="text-[10px] sm:text-sm text-muted-foreground">
-              {t("landing.footer.copyright")}
-            </p>
-            {/* A Meta exige política de privacidade alcançável a partir do site
-                para aprovar o app do Instagram — e, independente disso, é o
-                lugar onde qualquer pessoa espera encontrar. */}
-            <p className="mt-2 text-[10px] sm:text-xs text-muted-foreground">
-              <Link href="/privacidade" className="hover:text-burgundy transition-colors">
-                {t("landing.footer.privacidade")}
-              </Link>
-              <span className="mx-2 opacity-40">·</span>
-              <Link href="/exclusao-de-dados" className="hover:text-burgundy transition-colors">
-                {t("landing.footer.exclusaoDados")}
-              </Link>
-            </p>
-          </div>
+        <div className="flex flex-col gap-3 border-t border-white/[0.1] pt-6 text-[12.5px] sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[rgba(232,238,255,0.62)]">{t("landing.footer.copyright")}</p>
+          {/* A Meta exige política de privacidade alcançável a partir do site
+              para aprovar o app do Instagram e, independente disso, é o
+              lugar onde qualquer pessoa espera encontrar. */}
+          <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Link href="/privacidade" className={LEGAL_LINK_CLASS}>
+              {t("landing.footer.privacidade")}
+            </Link>
+            <span aria-hidden="true" className="text-white/30">·</span>
+            <Link href="/exclusao-de-dados" className={LEGAL_LINK_CLASS}>
+              {t("landing.footer.exclusaoDados")}
+            </Link>
+          </nav>
         </div>
       </div>
     </footer>

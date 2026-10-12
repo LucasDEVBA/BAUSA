@@ -1,135 +1,125 @@
 "use client";
 
 import { memo } from "react";
-import { Lightbulb, Target, Compass, ArrowRight } from "lucide-react";
-import logoFullColor from "@/assets/logo-full-color.jpg";
-import logoWatermark from "@/assets/logo-watermark.png";
-import { useScrollReveal, revealClass } from "@/hooks/useScrollReveal";
+import Image from "next/image";
+import { Target, Compass, ArrowUpRight, Sparkles } from "lucide-react";
+
+import logoWhite from "@/assets/logo-white.png";
 import { useLanguage } from "@/i18n";
+import MeshBackground from "./brand/MeshBackground";
+
+const CONCEPTS = [
+  { key: "criteria", icon: Target, chip: "bg-[linear-gradient(150deg,#4a6dd0,var(--ba-blue)_60%,#172f7d)] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_12px_24px_-10px_rgba(31,63,163,0.7)]", bar: "from-[var(--ba-blue-2)] to-[var(--ba-blue)]" },
+  { key: "guidance", icon: Compass, chip: "bg-[linear-gradient(150deg,var(--ba-wine-2),var(--ba-wine)_60%,#5e1621)] shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_12px_24px_-10px_rgba(144,36,52,0.7)]", bar: "from-[var(--ba-wine-2)] to-[var(--ba-wine)]" },
+  { key: "vision", icon: ArrowUpRight, chip: "bg-[linear-gradient(150deg,#2b3f7d,var(--ba-navy)_60%,#081333)] shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_12px_24px_-10px_rgba(15,35,87,0.7)]", bar: "from-[var(--ba-blue)] to-[var(--ba-wine)]" },
+] as const;
+
+const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
+
+/** No itálico serifado o ® vira um círculo enorme: reduz a marca a sobrescrito discreto. */
+const withSmallRegistered = (text: string) =>
+  text.split("®").flatMap((part, i) => (i === 0 ? [part] : [<sup key={i} className="ml-0.5 align-super font-[family-name:var(--ba-body)] text-[0.32em] not-italic">®</sup>, part]));
 
 const WhatIsEEISection = memo(() => {
-  const logoReveal = useScrollReveal();
-  const textReveal = useScrollReveal();
-  const contentReveal = useScrollReveal();
   const { t } = useLanguage();
 
   return (
-    <section id="o-que-e" className="relative py-16 sm:py-24 md:py-32 overflow-hidden">
-      {/* Dark Premium Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--navy-deep))] via-[hsl(var(--navy-medium))] to-[hsl(var(--navy-deep))]" />
+    <section id="o-que-e" className="relative isolate overflow-hidden py-[clamp(80px,10vw,140px)]" aria-labelledby="o-que-e-title">
+      <MeshBackground blobs={["b2", "b4"]} className="[&_.ba-b2]:!opacity-40 [&_.ba-b4]:!opacity-70" />
 
-      {/* Radial Glow */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[hsl(var(--burgundy)/0.08)] rounded-full blur-[200px]" />
-      </div>
+      <div className="ba-wrap">
+        <div className="relative z-[2] grid grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-[clamp(40px,5vw,80px)]">
+          {/* Manifesto */}
+          <div className="lg:col-span-7">
+            <span className="ba-eyebrow ba-glass ba-rv" style={delay(0)}>
+              <span className="ba-dot" />
+              {t("landing.whatIsEEI.badge")}
+            </span>
 
-      {/* Watermark Logos - Dark Premium (+50% size, +30% opacity) */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[3%] left-[2%] w-14 sm:w-20 md:w-28 opacity-[0.065] rotate-[-12deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[6%] right-[8%] w-16 sm:w-24 md:w-32 opacity-[0.072] rotate-[18deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[18%] left-[20%] w-12 sm:w-20 md:w-24 opacity-[0.052] rotate-[8deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[25%] right-[15%] w-14 sm:w-20 md:w-28 opacity-[0.059] rotate-[-10deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[40%] left-[5%] w-14 sm:w-20 md:w-28 opacity-[0.065] rotate-[15deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[45%] right-[5%] w-16 sm:w-24 md:w-32 opacity-[0.072] rotate-[-8deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[60%] left-[25%] w-12 sm:w-20 md:w-24 opacity-[0.052] rotate-[-5deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[65%] right-[22%] w-14 sm:w-20 md:w-28 opacity-[0.065] rotate-[12deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[20%] left-[8%] w-14 sm:w-20 md:w-28 opacity-[0.072] rotate-[22deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[15%] right-[10%] w-16 sm:w-24 md:w-32 opacity-[0.078] rotate-[-12deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[5%] left-[45%] w-12 sm:w-20 md:w-24 opacity-[0.052] rotate-[5deg]" />
-      </div>
-
-      {/* Subtle Grid Pattern */}
-      <div className="absolute inset-0 opacity-[0.03]">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
-            backgroundSize: '40px 40px',
-          }}
-        />
-      </div>
-
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {/* Logo + Header - Asymmetric Layout */}
-        <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-10 md:gap-12 lg:gap-16 mb-12 sm:mb-16">
-          {/* Logo Side */}
-          <div
-            ref={logoReveal.ref}
-            className={`${revealClass(logoReveal.isRevealed, "left")} flex-shrink-0 relative`}
-          >
-            {/* Decorative Frame Behind Logo */}
-            <div className="absolute -inset-3 sm:-inset-5 border-2 border-white/10 rounded-2xl sm:rounded-3xl -rotate-3" />
-            <div className="absolute -inset-3 sm:-inset-5 border-2 border-[hsl(var(--burgundy)/0.3)] rounded-2xl sm:rounded-3xl rotate-2" />
-
-            <div className="relative bg-white/10 backdrop-blur-sm rounded-xl sm:rounded-2xl p-6 sm:p-10 border border-white/20 shadow-xl">
-              <img
-                src={logoFullColor.src}
-                alt="Bolsa Atleta USA"
-                className="w-28 sm:w-40 md:w-52 h-auto"
-              />
-            </div>
-          </div>
-
-          {/* Text Side */}
-          <div
-            ref={textReveal.ref}
-            className={`${revealClass(textReveal.isRevealed, "right")} text-center md:text-left flex-1`}
-          >
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 backdrop-blur-sm border border-white/10 mb-4 sm:mb-6">
-              <Lightbulb className="w-3.5 h-3.5 text-[hsl(var(--burgundy-glow))]" />
-              <span className="text-xs sm:text-sm font-semibold text-white/80">{t("landing.whatIsEEI.badge")}</span>
-            </div>
-
-            <h2 className="text-[1.65rem] sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 sm:mb-6 leading-tight">
+            <h2 id="o-que-e-title" className="ba-h2 ba-rv mt-6 text-[var(--ba-navy)]" style={delay(1)}>
               {t("landing.whatIsEEI.title1")}{" "}
-              <span className="block text-gradient-on-dark">
-                {t("landing.whatIsEEI.title2")}
-              </span>
+              <span className="ba-serif ba-grad-text block text-[1.12em] leading-[1.02]">{withSmallRegistered(t("landing.whatIsEEI.title2"))}</span>
             </h2>
+
+            <p className="ba-rv mt-7 max-w-[620px] font-[family-name:var(--ba-display)] text-[clamp(18px,1.7vw,23px)] font-medium leading-[1.45] tracking-[-0.02em] text-[var(--ba-ink)]" style={delay(2)}>
+              {t("landing.whatIsEEI.p1Before")}
+              <strong className="font-semibold text-[var(--ba-blue)]">{t("landing.eeiName")}</strong> {t("landing.whatIsEEI.p1After")}
+            </p>
+
+            <p className="ba-lead ba-rv mt-5 max-w-[580px]" style={delay(3)}>
+              {t("landing.whatIsEEI.p2Before")} <strong className="font-semibold text-[var(--ba-wine)]">{t("landing.whatIsEEI.p2Bold")}</strong>
+              {t("landing.whatIsEEI.p2After")}
+            </p>
+
+            <ul className="mt-9 grid grid-cols-3 gap-2.5 sm:gap-3.5" role="list">
+              {CONCEPTS.map(({ key, icon: Icon, chip, bar }, index) => (
+                <li key={key} className="ba-rv group" style={delay(4 + index)}>
+                  <div className="ba-glass relative flex h-full flex-col gap-4 overflow-hidden rounded-[22px] p-3.5 transition-[translate,box-shadow] duration-500 [transition-timing-function:var(--ba-ease)] group-hover:-translate-y-1 group-hover:shadow-[var(--ba-shadow-lg)] sm:rounded-[26px] sm:p-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className={`grid h-10 w-10 place-items-center rounded-[14px] text-white transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:-rotate-6 group-hover:scale-110 sm:h-12 sm:w-12 sm:rounded-2xl ${chip}`}>
+                      <Icon className="h-5 w-5 sm:h-[22px] sm:w-[22px]" aria-hidden="true" />
+                    </span>
+                    <span className="text-[11px] font-semibold tracking-[0.14em] text-[var(--ba-ink-3)]">0{index + 1}</span>
+                  </div>
+                  <h3 className="ba-h3 text-[15px] text-[var(--ba-navy)] sm:text-[19px]">{t(`landing.whatIsEEI.${key}`)}</h3>
+                  {/* A barra "desenha" depois que o cartão aparece: ritmo de leitura 1, 2, 3 */}
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-x-0 bottom-0 h-[3px] origin-left scale-x-0 bg-gradient-to-r transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-data-[in]:scale-x-100 ${bar}`}
+                    style={{ transitionDelay: `${600 + index * 220}ms` }}
+                  />
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
 
-        {/* Main Content */}
-        <div
-          ref={contentReveal.ref}
-          className={`${revealClass(contentReveal.isRevealed)} max-w-4xl mx-auto`}
-        >
-          <div className="relative p-6 sm:p-10 md:p-12 rounded-2xl sm:rounded-3xl bg-white/[0.03] backdrop-blur-sm border border-white/[0.08]">
-            {/* Accent Line */}
-            <div className="absolute top-0 left-6 right-6 sm:left-10 sm:right-10 h-1 bg-gradient-to-r from-[hsl(var(--burgundy))] via-[hsl(var(--burgundy-glow))] to-[hsl(var(--burgundy))] rounded-b-full" />
+          {/* Emblema em órbita: profundidade sem repetir fotos do Hero */}
+          <div className="ba-rv-scale lg:col-span-5" style={delay(2)}>
+            <div className="relative mx-auto h-[400px] max-w-[520px] sm:h-[520px] lg:h-[580px]" data-tilt-stage>
+              <div
+                className="absolute inset-0 overflow-hidden rounded-[30px] text-white shadow-[var(--ba-shadow-lg),inset_0_1px_0_rgba(255,255,255,0.18)] [background:radial-gradient(90%_70%_at_85%_0%,rgba(71,107,192,0.7)_0%,rgba(71,107,192,0)_60%),radial-gradient(80%_60%_at_0%_100%,rgba(144,36,52,0.6)_0%,rgba(144,36,52,0)_62%),linear-gradient(165deg,#13296b,var(--ba-navy-2))] sm:rounded-[32px]"
+                data-depth="6"
+              >
+                <div className="ba-lines" />
+                <div className="ba-glow left-1/2 top-[34%] sm:top-[44%] h-[280px] w-[280px] -translate-x-1/2 -translate-y-1/2 bg-[rgba(120,150,235,0.35)]" />
 
-            <div className="space-y-6 sm:space-y-8">
-              <p className="text-[15px] sm:text-lg md:text-xl text-white leading-relaxed">
-                {t("landing.whatIsEEI.p1Before")}<span className="font-semibold text-[hsl(var(--burgundy-glow))]">{t("landing.eeiName")}</span>{" "}
-                {t("landing.whatIsEEI.p1After")}
-              </p>
-
-              <p className="text-[15px] sm:text-lg md:text-xl text-white/85 leading-relaxed">
-                {t("landing.whatIsEEI.p2Before")} <span className="text-white font-medium">{t("landing.whatIsEEI.p2Bold")}</span>{t("landing.whatIsEEI.p2After")}
-              </p>
-            </div>
-
-            {/* Visual Indicators */}
-            <div className="grid grid-cols-3 gap-3 sm:gap-6 mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-white/[0.08]">
-              <div className="text-center">
-                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] flex items-center justify-center mx-auto mb-2 sm:mb-3 shadow-lg shadow-[hsl(var(--burgundy)/0.3)]">
-                  <Target className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
+                {/* Anéis concêntricos: critério, orientação e visão girando em torno do mesmo centro */}
+                <div className="absolute left-1/2 top-[34%] -translate-x-1/2 -translate-y-1/2 sm:top-[44%]" aria-hidden="true">
+                  <div className="absolute left-1/2 top-1/2 h-[330px] w-[330px] -translate-x-1/2 -translate-y-1/2 animate-[spin_60s_linear_infinite] rounded-full border border-white/[0.08] sm:h-[400px] sm:w-[400px]">
+                    <span className="absolute left-1/2 top-[-4px] h-2 w-2 -translate-x-1/2 rounded-full bg-[#f0b1bb] shadow-[0_0_14px_3px_rgba(240,177,187,0.6)]" />
+                  </div>
+                  <div className="absolute left-1/2 top-1/2 h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 animate-[spin_40s_linear_infinite_reverse] rounded-full border border-dashed border-white/[0.14] sm:h-[300px] sm:w-[300px]">
+                    <span className="absolute bottom-[-4px] left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-[#b8caf7] shadow-[0_0_14px_3px_rgba(184,202,247,0.6)]" />
+                  </div>
+                  <div className="absolute left-1/2 top-1/2 h-[172px] w-[172px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.18] sm:h-[204px] sm:w-[204px]" />
                 </div>
-                <span className="text-xs sm:text-sm font-medium text-white">{t("landing.whatIsEEI.criteria")}</span>
               </div>
-              <div className="text-center">
-                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] flex items-center justify-center mx-auto mb-2 sm:mb-3 shadow-lg shadow-[hsl(var(--burgundy)/0.3)]">
-                  <Compass className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
+
+              <div className="absolute left-1/2 top-[34%] z-[2] -translate-x-1/2 -translate-y-1/2 sm:top-[44%]">
+                <div data-depth="16">
+                  <div className="ba-glass-dark ba-float-a grid h-[136px] w-[136px] place-items-center rounded-full sm:h-[160px] sm:w-[160px]">
+                    <Image src={logoWhite} alt="Bolsa Atleta USA" sizes="120px" className="h-auto w-[104px] sm:w-[122px]" />
+                  </div>
                 </div>
-                <span className="text-xs sm:text-sm font-medium text-white">{t("landing.whatIsEEI.guidance")}</span>
               </div>
-              <div className="text-center">
-                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] flex items-center justify-center mx-auto mb-2 sm:mb-3 shadow-lg shadow-[hsl(var(--burgundy)/0.3)]">
-                  <ArrowRight className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
+
+              <div className="absolute right-4 top-4 z-[3] sm:right-6 sm:top-6" data-depth="22">
+                <span className="ba-glass-dark inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold text-white">
+                  <span className="ba-pulse" />
+                  {t("landing.eeiName")}
+                </span>
+              </div>
+
+              <figure className="absolute inset-x-4 bottom-4 z-[3] m-0 sm:inset-x-6 sm:bottom-6" data-depth="28">
+                <div className="ba-glass rounded-[22px] !bg-white/[0.9] p-5 sm:rounded-[24px] sm:p-6">
+                  <Sparkles className="mb-3 h-5 w-5 text-[var(--ba-wine)]" aria-hidden="true" />
+                  <blockquote className="m-0 font-[family-name:var(--ba-display)] text-[clamp(18px,1.6vw,22px)] font-medium leading-[1.3] tracking-[-0.02em] text-[var(--ba-navy)]">
+                    <span className="ba-serif text-[1.15em] text-[var(--ba-wine)]">{t("landing.whatIsEEI.p2Bold")}</span>
+                  </blockquote>
+                  <figcaption className="mt-3 text-[13px] font-semibold text-[var(--ba-ink-3)]">{t("landing.eeiName")}</figcaption>
                 </div>
-                <span className="text-xs sm:text-sm font-medium text-white">{t("landing.whatIsEEI.vision")}</span>
-              </div>
+              </figure>
             </div>
           </div>
         </div>
