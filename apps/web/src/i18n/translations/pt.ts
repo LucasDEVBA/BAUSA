@@ -1,6 +1,11 @@
 // ─── Fonte da verdade — Português Brasileiro ──────────────────────
 export const pt = {
   header: {
+    navMethod: "Método",
+    navAuthority: "Autoridade",
+    navTestimonials: "Depoimentos",
+    openMenu: "Abrir menu",
+    closeMenu: "Fechar menu",
     contact: "Fale Conosco",
     protectedData: "Dados protegidos",
   },
@@ -257,6 +262,14 @@ export const pt = {
       swipeHint: "Deslize para ver mais",
     },
     hero: {
+      eyebrow: "Assessoria esportiva de alto padrão",
+      secondaryCta: "Conheça o método",
+      trustBefore: "Atletas brasileiros em",
+      trustBold: "high schools e universidades",
+      trustAfter: "americanas",
+      chip: "High School · Universidade · EUA",
+      sealSub: "Da escolha da escola à adaptação",
+      safeSub: "Quatro pilares de decisão",
       activeTracking: "Acompanhamento ativo em cada etapa",
       headline1: "Educação Esportiva",
       headline2: "Inteligente®",
@@ -281,6 +294,12 @@ export const pt = {
       vision: "Visão",
     },
     safeMethod: {
+      humanPillar: "Pilar humano",
+      ctaShort: "Iniciar avaliação",
+      tags: {
+        a0: "Inglês", a1: "Histórico escolar", a2: "Ambição universitária",
+        f0: "Viabilidade", f1: "Previsibilidade", f2: "Coerência",
+      },
       badge: "O MÉTODO",
       subtitle: "O método que sustenta a Educação Esportiva Inteligente®",
       heading: "Método",
@@ -376,6 +395,9 @@ export const pt = {
       },
     },
     founder: {
+      chipTitle: "Bolsista integral",
+      chipSub: "Estudante-atleta nos EUA",
+      ctaNote: "Conversa estratégica com a equipe",
       badge: "Autoridade",
       title1: "Guiado por quem",
       title2: "domina o sistema",

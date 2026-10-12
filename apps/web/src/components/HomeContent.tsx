@@ -3,8 +3,8 @@
 import { lazy, Suspense } from "react";
 import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
+import { useBrandMotion } from "@/components/brand/useBrandMotion";
 
-const UniversityCarousel = lazy(() => import("@/components/UniversityCarousel"));
 const WhatIsEEISection = lazy(() => import("@/components/WhatIsEEISection"));
 const SAFEMethodSection = lazy(() => import("@/components/SAFEMethodSection"));
 const TestimonialsCarousel = lazy(() => import("@/components/TestimonialsCarousel"));
@@ -17,15 +17,16 @@ const FinalCTA = lazy(() => import("@/components/FinalCTA"));
 const Footer = lazy(() => import("@/components/Footer"));
 
 export default function HomeContent() {
+  useBrandMotion();
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="ba-page min-h-screen">
       <Header />
 
-      <main className="pt-16">
+      <main>
         <HeroSection />
 
         <Suspense fallback={null}>
-          <UniversityCarousel />
           <WhatIsEEISection />
           <SAFEMethodSection />
           <TestimonialsCarousel />

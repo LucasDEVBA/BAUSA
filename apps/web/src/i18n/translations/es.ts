@@ -3,6 +3,11 @@ import type { Translations } from "./pt";
 
 const es: Translations = {
   header: {
+    navMethod: "Método",
+    navAuthority: "Autoridad",
+    navTestimonials: "Testimonios",
+    openMenu: "Abrir menú",
+    closeMenu: "Cerrar menú",
     contact: "Contáctenos",
     protectedData: "Datos protegidos",
   },
@@ -259,6 +264,14 @@ const es: Translations = {
       swipeHint: "Desliza para ver más",
     },
     hero: {
+      eyebrow: "Asesoría deportiva de alto nivel",
+      secondaryCta: "Conoce el método",
+      trustBefore: "Atletas brasileños en",
+      trustBold: "high schools y universidades",
+      trustAfter: "estadounidenses",
+      chip: "High School · Universidad · EE. UU.",
+      sealSub: "De la elección de la escuela a la adaptación",
+      safeSub: "Cuatro pilares de decisión",
       activeTracking: "Acompañamiento activo en cada etapa",
       headline1: "Educación Deportiva",
       headline2: "Inteligente®",
@@ -283,6 +296,12 @@ const es: Translations = {
       vision: "Visión",
     },
     safeMethod: {
+      humanPillar: "Pilar humano",
+      ctaShort: "Iniciar evaluación",
+      tags: {
+        a0: "Inglés", a1: "Historial escolar", a2: "Ambición universitaria",
+        f0: "Viabilidad", f1: "Previsibilidad", f2: "Coherencia",
+      },
       badge: "EL MÉTODO",
       subtitle: "El método que sustenta la Educación Deportiva Inteligente®",
       heading: "Método",
@@ -378,6 +397,9 @@ const es: Translations = {
       },
     },
     founder: {
+      chipTitle: "Beca completa",
+      chipSub: "Estudiante-atleta en EE. UU.",
+      ctaNote: "Conversación estratégica con el equipo",
       badge: "Autoridad",
       title1: "Guiado por quien",
       title2: "domina el sistema",

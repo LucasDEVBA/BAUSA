@@ -3,6 +3,11 @@ import type { Translations } from "./pt";
 
 const en: Translations = {
   header: {
+    navMethod: "Method",
+    navAuthority: "Authority",
+    navTestimonials: "Testimonials",
+    openMenu: "Open menu",
+    closeMenu: "Close menu",
     contact: "Contact Us",
     protectedData: "Protected data",
   },
@@ -259,6 +264,14 @@ const en: Translations = {
       swipeHint: "Swipe to see more",
     },
     hero: {
+      eyebrow: "High-end sports advisory",
+      secondaryCta: "Discover the method",
+      trustBefore: "Brazilian athletes at American",
+      trustBold: "high schools and universities",
+      trustAfter: "",
+      chip: "High School · University · USA",
+      sealSub: "From choosing the school to settling in",
+      safeSub: "Four decision pillars",
       activeTracking: "Active guidance at every step",
       headline1: "Sports Education",
       headline2: "Intelligent®",
@@ -283,6 +296,12 @@ const en: Translations = {
       vision: "Vision",
     },
     safeMethod: {
+      humanPillar: "Human pillar",
+      ctaShort: "Start evaluation",
+      tags: {
+        a0: "English", a1: "Academic record", a2: "University goals",
+        f0: "Feasibility", f1: "Predictability", f2: "Consistency",
+      },
       badge: "THE METHOD",
       subtitle: "The method that supports Smart Sports Education®",
       heading: "Method",
@@ -378,6 +397,9 @@ const en: Translations = {
       },
     },
     founder: {
+      chipTitle: "Full scholarship",
+      chipSub: "Student-athlete in the USA",
+      ctaNote: "Strategic conversation with the team",
       badge: "Authority",
       title1: "Guided by someone who",
       title2: "masters the system",

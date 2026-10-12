@@ -5,11 +5,12 @@ import { setRequestLocale, getMessages } from "next-intl/server";
 import { Analytics } from "@vercel/analytics/next";
 
 import { routing } from "@/i18n/routing";
-import { inter } from "@/lib/fonts";
+import { fontVariables } from "@/lib/fonts";
 import { Providers } from "@/components/Providers";
 import { GoogleTagManager } from "@/lib/tracking/gtm";
 
 import "../globals.css";
+import "@/styles/brand.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://bolsaatletausa.com"),
@@ -42,7 +43,7 @@ export const metadata: Metadata = {
     creator: "@BolsaAtletaUSA",
   },
   other: {
-    "theme-color": "#0a1128",
+    "theme-color": "#f5f7fb",
   },
 };
 
@@ -71,7 +72,7 @@ export default async function RootLayout({ children, params }: RootLayoutProps) 
       <head>
         <link rel="preload" as="image" href="/hero-campus.jpg" fetchPriority="high" />
       </head>
-      <body className={inter.variable}>
+      <body className={fontVariables}>
         <Providers locale={locale} messages={messages}>
           {children}
         </Providers>

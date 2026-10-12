@@ -3,7 +3,9 @@
 /* ─── Tailwind 4 Theme — tokens migrados de tailwind.config.ts ──────────────── */
 @theme {
   /* Font Family */
-  --font-sans: var(--font-inter), "Inter", system-ui, sans-serif;
+  --font-sans: var(--font-jakarta), "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-display: var(--font-sora), "Sora", system-ui, sans-serif;
+  --font-serif-accent: var(--font-instrument), Georgia, serif;
 
   /* Breakpoint — replicando tailwind.config.ts */
   --breakpoint-2xl: 1400px;
@@ -268,7 +270,7 @@
 
 body {
   color: hsl(var(--foreground));
-  font-family: var(--font-sans);
+  font-family: var(--font-jakarta), "Plus Jakarta Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background:
