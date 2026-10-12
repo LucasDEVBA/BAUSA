@@ -14,43 +14,47 @@ const MAX_TILT_DEG = 4;
 export function useBrandMotion() {
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const revealAll = (root: ParentNode) =>
-      root.querySelectorAll<HTMLElement>(REVEAL_SELECTOR).forEach((el) => el.classList.add("in"));
+    const seen = new WeakSet<Element>();
+    // data-in (e não className): o React nunca reescreve um atributo que ele não controla
+    const reveal = (el: Element) => el.setAttribute("data-in", "");
+    let revealObserver: IntersectionObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
 
-    if (reduceMotion || !("IntersectionObserver" in window)) {
-      revealAll(document);
-      const lateObserver = new MutationObserver(() => revealAll(document));
-      lateObserver.observe(document.body, { childList: true, subtree: true });
-      return () => lateObserver.disconnect();
-    }
-
-    const revealObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add("in");
-          revealObserver.unobserve(entry.target);
-        });
-      },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.08 },
-    );
-    const observeNew = () =>
-      document.querySelectorAll<HTMLElement>(REVEAL_SELECTOR).forEach((el) => {
-        if (el.classList.contains("in") || el.dataset.baObserved) return;
-        el.dataset.baObserved = "1";
-        revealObserver.observe(el);
+    const scan = () =>
+      document.querySelectorAll(REVEAL_SELECTOR).forEach((el) => {
+        if (seen.has(el)) return;
+        seen.add(el);
+        if (revealObserver) revealObserver.observe(el);
+        else reveal(el);
       });
-    observeNew();
-    const mutationObserver = new MutationObserver(observeNew);
-    mutationObserver.observe(document.body, { childList: true, subtree: true });
+
+    // Só mexe no DOM depois do load: as seções lazy já hidrataram e não há aviso de hidratação
+    const start = () => {
+      if (!reduceMotion && "IntersectionObserver" in window) {
+        revealObserver = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              reveal(entry.target);
+              revealObserver?.unobserve(entry.target);
+            });
+          },
+          { rootMargin: "0px 0px -8% 0px", threshold: 0.08 },
+        );
+      }
+      scan();
+      mutationObserver = new MutationObserver(scan);
+      mutationObserver.observe(document.body, { childList: true, subtree: true });
+    };
+    let startTimer: number | undefined;
+    const scheduleStart = () => {
+      startTimer = window.setTimeout(start, 0);
+    };
+    if (document.readyState === "complete") scheduleStart();
+    else window.addEventListener("load", scheduleStart, { once: true });
 
     const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-    if (!finePointer) {
-      return () => {
-        revealObserver.disconnect();
-        mutationObserver.disconnect();
-      };
-    }
+    const tiltEnabled = finePointer && !reduceMotion;
 
     const handlePointerMove = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
@@ -82,12 +86,16 @@ export function useBrandMotion() {
         stage.querySelectorAll<HTMLElement>("[data-depth]").forEach((layer) => (layer.style.transform = ""));
       }
     };
-    document.addEventListener("pointermove", handlePointerMove, { passive: true });
-    document.addEventListener("pointerout", handlePointerOut, { passive: true });
+    if (tiltEnabled) {
+      document.addEventListener("pointermove", handlePointerMove, { passive: true });
+      document.addEventListener("pointerout", handlePointerOut, { passive: true });
+    }
 
     return () => {
-      revealObserver.disconnect();
-      mutationObserver.disconnect();
+      window.clearTimeout(startTimer);
+      window.removeEventListener("load", scheduleStart);
+      revealObserver?.disconnect();
+      mutationObserver?.disconnect();
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerout", handlePointerOut);
     };

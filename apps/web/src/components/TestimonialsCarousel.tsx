@@ -1,18 +1,19 @@
 "use client";
 
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { useScrollReveal, revealClass } from "@/hooks/useScrollReveal";
-import { Play, X, Users, ChevronRight } from "lucide-react";
+import { Play, X, ChevronRight } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import useEmblaCarousel from "embla-carousel-react";
+
 import { useLanguage } from "@/i18n";
-import logoWhite from "@/assets/logo-white.png";
 import logoSpire from "@/assets/logo-spireAcademy.png";
 import logoMontverde from "@/assets/logo-montverdeAcademy.png";
 import athleteIsadora from "@/assets/athlete-isadora.jpeg";
 import logoBenfica from "@/assets/academys/logoBenficaCard.png";
 import benjamin from "@/assets/benjamin.jpeg";
 import athleteLiz from "@/assets/athlete-liz.jpeg";
+import MeshBackground from "./brand/MeshBackground";
 
 const videoTestimonials = [
   {
@@ -44,8 +45,19 @@ const videoTestimonials = [
   },
 ];
 
+// Vitrine em leque no desktop: as laterais inclinam e o centro sobe, como pôsteres numa parede.
+const DESKTOP_POSE = ["lg:-rotate-[2.5deg] lg:translate-y-6", "lg:-translate-y-4", "lg:rotate-[2.5deg] lg:translate-y-6"];
+
+// Sem chave de tradução para o botão de fechar: rótulo acessível local nos 3 idiomas.
+
+// Moldura de vidro sem backdrop-filter: dentro do trilho transformado do carrossel o desfoque pinta um
+// retângulo claro do tamanho do viewport; a moldura translúcida dá o mesmo vidro sem o artefato.
+const FRAME = "border border-white/80 bg-white/70 shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(31,63,163,0.06),var(--ba-shadow)]";
+
+const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
+
 interface TestimonialCardProps {
-  testimonial: typeof videoTestimonials[0];
+  testimonial: (typeof videoTestimonials)[0];
   isPlaying: boolean;
   onPlay: () => void;
   onClose: () => void;
@@ -53,10 +65,7 @@ interface TestimonialCardProps {
 
 const TestimonialCard = ({ testimonial, isPlaying, onPlay, onClose }: TestimonialCardProps) => {
   const { t } = useLanguage();
-
-  const handlePlayClick = () => {
-    onPlay();
-  };
+  const videoLabel = `${t("landing.testimonials.videoTitle")} ${testimonial.name}`;
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -64,127 +73,89 @@ const TestimonialCard = ({ testimonial, isPlaying, onPlay, onClose }: Testimonia
   };
 
   return (
-    <div className="athlete-testimonial-card flex-shrink-0 w-full max-w-[280px] sm:max-w-[320px] md:max-w-[360px] group flex flex-col mx-auto">
-      {/* Video Container with Fixed Aspect Ratio */}
-      <div className="relative w-full" style={{ aspectRatio: '9/16' }}>
-        <div className="absolute inset-0 rounded-xl sm:rounded-2xl overflow-hidden cursor-pointer bg-[hsl(var(--navy-deep))] shadow-2xl border border-white/5">
-          {!isPlaying ? (
-            <div className="absolute inset-0">
-              {/* Thumbnail Image */}
-              <img
-                src={testimonial.thumbnail.src}
-                alt={testimonial.name}
-                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                loading="lazy"
-                decoding="async"
-              />
+    <div className={`athlete-testimonial-card group mx-auto flex w-full max-w-[280px] flex-col rounded-[28px] p-[7px] transition-[transform,box-shadow] duration-700 [transition-timing-function:var(--ba-ease)] hover:shadow-[var(--ba-shadow-lg)] sm:max-w-[320px] md:max-w-[330px] sm:rounded-[32px] sm:p-2 ${FRAME}`} data-tilt>
+      <div className="relative w-full overflow-hidden rounded-[22px] bg-[var(--ba-navy-2)] sm:rounded-[25px]" style={{ aspectRatio: "9/16" }}>
+        {!isPlaying ? (
+          <button type="button" onClick={onPlay} aria-label={videoLabel} className="absolute inset-0 block h-full w-full cursor-pointer text-left focus-visible:outline-[2.5px] focus-visible:outline-offset-[-4px] focus-visible:outline-white">
+            <Image
+              src={testimonial.thumbnail}
+              alt={testimonial.name}
+              fill
+              sizes="(max-width: 768px) 280px, 360px"
+              className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
+            />
+            <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.35)_0%,rgba(10,26,69,0)_26%,rgba(10,26,69,0)_48%,rgba(6,15,42,0.88)_100%)]" />
 
-              {/* Bottom Gradient Overlay - More Intense */}
-              <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[hsl(var(--navy-deep))] via-[hsl(var(--navy-deep)/0.85)] to-transparent" />
+            {/* Topo: gravação + escola */}
+            <span className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 sm:inset-x-4 sm:top-4">
+              <span className="ba-glass-dark flex items-center gap-1.5 rounded-full px-2.5 py-[5px]">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
+              </span>
+              <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-white/95 p-1.5 shadow-[0_10px_24px_-10px_rgba(0,0,0,0.6),inset_0_0_0_1px_rgba(255,255,255,0.9)] sm:h-12 sm:w-12">
+                <Image src={testimonial.schoolLogo} alt={testimonial.school} className="h-full w-full object-contain" sizes="48px" />
+              </span>
+            </span>
 
-              {/* Video Interface Elements Overlay */}
-              <div
-                className="absolute inset-0 p-3 sm:p-5 pb-[70px] sm:pb-[80px] flex flex-col justify-between cursor-pointer"
-                onClick={handlePlayClick}
-              >
-                {/* Top: REC Indicator */}
-                <div className="flex items-center justify-start">
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/40 backdrop-blur-md border border-white/10">
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-[9px] font-bold text-white tracking-widest uppercase">REC</span>
-                  </div>
-                </div>
+            {/* Play em vidro */}
+            <span aria-hidden="true" className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.3),0_20px_44px_-14px_rgba(0,0,0,0.55)] backdrop-blur-md transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:scale-110">
+              <span className="grid h-[50px] w-[50px] place-items-center rounded-full bg-[linear-gradient(180deg,#fff,#e6ecfb)] shadow-[0_6px_16px_-6px_rgba(10,26,69,0.6)]">
+                <Play className="ml-0.5 h-5 w-5 fill-[var(--ba-navy)] text-[var(--ba-navy)]" />
+              </span>
+            </span>
 
-                {/* Bottom Overlay Info (Just Play Indicator for now, Info is in Footer) */}
-                <div className="flex justify-end p-0.5 sm:p-1">
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] border border-white/20 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-[hsl(var(--burgundy)/0.4)] transition-all duration-300">
-                    <Play className="w-3.5 h-3.5 sm:w-3.5 sm:h-3.5 text-white fill-current ml-0.5" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Video Progress Bar - Sits just above the footer */}
-              <div className="absolute bottom-[66px] sm:bottom-[76px] left-0 right-0 px-3.5 sm:px-4">
-                <div className="relative h-1 w-full bg-white/20 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: "45%" }}
-                    whileHover={{ width: "100%" }}
-                    transition={{ duration: 0.5 }}
-                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-[hsl(var(--navy-light))] to-[hsl(var(--burgundy-glow))] rounded-full"
-                  />
-                </div>
-              </div>
-
-              {/* Footer Info Bar - Restored logic with white background */}
-              <div className="absolute bottom-0 left-0 right-0 p-3.5 sm:p-4 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-lg">
-                <div className="flex items-center justify-between gap-3">
-                  {/* Left: Logo + Athlete Info */}
-                  <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0">
-                    <img
-                      src={logoWhite.src}
-                      alt="BSA"
-                      className="h-8 sm:h-8 w-auto object-contain flex-shrink-0 brightness-0 opacity-90"
-                    />
-                    <div className="w-px h-8 sm:h-8 bg-slate-200 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-[12px] sm:text-[13px] md:text-sm font-bold text-[hsl(var(--navy-deep))] leading-tight truncate">
-                        {testimonial.name}
-                      </h3>
-                      <p className="text-[10px] sm:text-[10px] md:text-xs text-slate-500 leading-tight">
-                        {testimonial.age} {t("landing.testimonials.ageSuffix")}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Right: School Logo */}
-                  <div className="w-10 h-10 sm:w-11 sm:h-11 md:w-11 md:h-11 rounded-lg bg-white p-1.5 flex items-center justify-center flex-shrink-0 shadow-md border border-slate-200/80">
-                    <img
-                      src={testimonial.schoolLogo.src}
-                      alt={testimonial.school}
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="absolute inset-0 bg-black">
-              {/* YouTube Embed */}
-              <iframe
-                src={`https://www.youtube.com/embed/${testimonial.youtubeId}?autoplay=1&rel=0`}
-                title={`${t("landing.testimonials.videoTitle")} ${testimonial.name}`}
-                className="absolute inset-0 w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-
-              {/* Close Button */}
-              <button
-                onClick={handleClose}
-                className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/70 backdrop-blur-sm flex items-center justify-center hover:bg-black/90 transition-colors border border-white/10"
-              >
-                <X className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white" />
-              </button>
-            </div>
-          )}
-
-          {/* Premium Border Glow on Hover - BLUE */}
-          <div className="absolute inset-0 rounded-xl sm:rounded-2xl border border-[hsl(var(--navy-light)/0)] group-hover:border-[hsl(var(--navy-light)/0.5)] transition-colors pointer-events-none" />
-        </div>
+            {/* Rodapé em vidro escuro: atleta + progresso */}
+            <span className="ba-glass-dark absolute inset-x-2.5 bottom-2.5 block rounded-[18px] px-4 pb-3.5 pt-3 sm:inset-x-3 sm:bottom-3 sm:rounded-[20px]">
+              <span className="flex items-end justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block truncate font-[family-name:var(--ba-display)] text-[16px] font-semibold leading-tight tracking-[-0.02em] text-white sm:text-[17px]">
+                    {testimonial.name}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[12px] text-white/75">
+                    {testimonial.age} {t("landing.testimonials.ageSuffix")} · {testimonial.school}
+                  </span>
+                </span>
+              </span>
+              <span className="relative mt-3 block h-[3px] w-full overflow-hidden rounded-full bg-white/20">
+                <motion.span
+                  initial={{ width: "42%" }}
+                  whileHover={{ width: "100%" }}
+                  transition={{ duration: 0.5 }}
+                  className="absolute inset-y-0 left-0 block rounded-full bg-[linear-gradient(90deg,#b8caf7,#f0b1bb)]"
+                />
+              </span>
+            </span>
+          </button>
+        ) : (
+          <div className="absolute inset-0 bg-black">
+            <iframe
+              src={`https://www.youtube.com/embed/${testimonial.youtubeId}?autoplay=1&rel=0`}
+              title={videoLabel}
+              className="absolute inset-0 h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label={t("landing.closeVideo")}
+              className="ba-glass-dark absolute right-3 top-3 z-20 grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/20 focus-visible:outline-[2.5px] focus-visible:outline-white"
+            >
+              <X className="h-[18px] w-[18px]" />
+            </button>
+          </div>
+        )}
       </div>
-    </div >
+    </div>
   );
 };
 
 const CarouselDots = ({ count, active }: { count: number; active: number }) => (
-  <div className="flex justify-center gap-2 mt-6 md:hidden">
+  <div className="mt-6 flex justify-center gap-2 md:hidden" aria-hidden="true">
     {Array.from({ length: count }).map((_, i) => (
       <div
         key={i}
-        className={`h-1.5 rounded-full transition-all duration-300 ${i === active
-          ? "w-6 bg-[hsl(var(--navy-light))]"
-          : "w-1.5 bg-white/20"
-          }`}
+        className={`h-1.5 rounded-full transition-all duration-300 ${i === active ? "w-6 bg-[var(--ba-blue)]" : "w-1.5 bg-[rgba(31,63,163,0.22)]"}`}
       />
     ))}
   </div>
@@ -192,11 +163,12 @@ const CarouselDots = ({ count, active }: { count: number; active: number }) => (
 
 const TestimonialsCarousel = () => {
   const { t } = useLanguage();
-  const headerReveal = useScrollReveal();
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showHint, setShowHint] = useState(true);
-  const [isDesktop, setIsDesktop] = useState(false);
+  // null até montar: o layout depende do viewport, e decidir isso só no cliente evita que a hidratação
+  // reaproveite o DOM do outro ramo (o embla chegou a se prender no elemento errado assim).
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
 
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 768px)");
@@ -235,76 +207,59 @@ const TestimonialsCarousel = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const handlePlay = (id: string) => {
-    setActiveVideoId(id);
-  };
-
-  const handleClose = () => {
-    setActiveVideoId(null);
-  };
+  const handlePlay = (id: string) => setActiveVideoId(id);
+  const handleClose = () => setActiveVideoId(null);
 
   return (
-    <section className="relative py-16 sm:py-24 md:py-32 overflow-hidden touch-pan-y">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--navy-deep))] via-[hsl(var(--navy-medium))] to-[hsl(var(--navy-deep))]" />
-      <div className="absolute inset-0">
-        <div className="absolute top-1/2 left-1/4 w-[400px] h-[400px] bg-[hsl(var(--burgundy)/0.08)] rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] bg-[hsl(var(--navy-light)/0.1)] rounded-full blur-[100px]" />
-      </div>
-      <div className="absolute inset-0 opacity-[0.02]">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
-            backgroundSize: '48px 48px',
-          }}
-        />
-      </div>
+    <section
+      id="depoimentos"
+      className="relative isolate touch-pan-y scroll-mt-24 overflow-hidden py-[clamp(80px,10vw,140px)]"
+      aria-labelledby="depoimentos-title"
+    >
+      <MeshBackground blobs={["b2", "b3"]} className="[&_.ba-b2]:!top-[10%] [&_.ba-b3]:!left-[30vw] [&_.ba-b3]:!top-[45%] [&_.ba-b3]:!opacity-30" />
 
-      <div className="container mx-auto px-4 sm:px-6 relative z-10">
-        {/* Header */}
-        <div
-          ref={headerReveal.ref}
-          className={`${revealClass(headerReveal.isRevealed)} text-center mb-12 sm:mb-16`}
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-white/10 mb-5 sm:mb-6">
-            <Users className="w-4 h-4 text-white/80" />
-            <span className="text-xs sm:text-sm font-semibold text-white/80 tracking-wide">{t("landing.testimonials.badge")}</span>
+      <div className="ba-wrap relative z-[2]">
+        {/* Cabeçalho dividido: título à esquerda, manifesto à direita */}
+        <div className="mb-12 grid items-end gap-6 sm:mb-16 lg:grid-cols-[1.35fr_1fr] lg:gap-16">
+          <div>
+            <span className="ba-eyebrow ba-glass ba-rv">
+              <span className="ba-dot" />
+              {t("landing.testimonials.badge")}
+            </span>
+            <h2 id="depoimentos-title" className="ba-h2 ba-rv mt-5 text-[clamp(32px,4.6vw,60px)] text-[var(--ba-navy)]" style={delay(1)}>
+              {t("landing.testimonials.title")} <span className="ba-grad-text">{t("landing.brandName")}</span>
+            </h2>
           </div>
-
-          <h2 className="text-[1.5rem] sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 sm:mb-6 leading-tight">
-            {t("landing.testimonials.title")}{" "}
-            <span className="text-gradient-on-dark">{t("landing.brandName")}</span>
-          </h2>
-
-          <p className="text-[15px] sm:text-lg text-white/85 max-w-2xl mx-auto leading-relaxed px-2 sm:px-0">
+          <p className="ba-lead ba-rv max-w-[460px] lg:mb-2 lg:border-l lg:border-[var(--ba-stroke)] lg:pl-8" style={delay(2)}>
             {t("landing.testimonials.subtitle")}
           </p>
         </div>
 
-        {/* Combined View: Conditional rendering to prevent duplicate audio bug */}
-        {isDesktop ? (
-          <div className="grid grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {videoTestimonials.map((testimonial) => (
-              <div key={testimonial.id}>
-                <TestimonialCard
-                  testimonial={testimonial}
-                  isPlaying={activeVideoId === testimonial.id}
-                  onPlay={() => handlePlay(testimonial.id)}
-                  onClose={handleClose}
-                />
+        {/* Renderização condicional evita dois players tocando o mesmo áudio */}
+        {isDesktop === null ? (
+          <div className="min-h-[560px] md:min-h-[640px]" aria-hidden="true" />
+        ) : isDesktop ? (
+          <div key="desktop" className="relative mx-auto grid max-w-[1120px] grid-cols-3 gap-5 lg:gap-8 lg:pb-6">
+            <div aria-hidden="true" className="ba-glow left-1/2 top-1/2 h-[420px] w-[70%] -translate-x-1/2 -translate-y-1/2 bg-[rgba(71,107,192,0.28)]" />
+            {videoTestimonials.map((testimonial, index) => (
+              <div key={testimonial.id} className="ba-rv-scale relative z-[1]" style={delay(index + 1)}>
+                <div className={`transition-transform duration-700 [transition-timing-function:var(--ba-ease)] ${DESKTOP_POSE[index]}`}>
+                  <TestimonialCard
+                    testimonial={testimonial}
+                    isPlaying={activeVideoId === testimonial.id}
+                    onPlay={() => handlePlay(testimonial.id)}
+                    onClose={handleClose}
+                  />
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="md:hidden">
-            <div className="overflow-hidden touch-pan-y" ref={emblaRef}>
+          <div key="mobile" className="md:hidden">
+            <div className="-mx-[var(--ba-gutter)] -mb-16 -mt-6 touch-pan-y overflow-hidden pb-16 pt-6" ref={emblaRef}>
               <div className="flex touch-pan-y gap-4">
                 {videoTestimonials.map((testimonial) => (
-                  <div
-                    key={testimonial.id}
-                    className="flex-[0_0_280px] sm:flex-[0_0_320px] min-w-0 touch-pan-y"
-                  >
+                  <div key={testimonial.id} className="min-w-0 flex-[0_0_280px] touch-pan-y sm:flex-[0_0_320px]">
                     <TestimonialCard
                       testimonial={testimonial}
                       isPlaying={activeVideoId === testimonial.id}
@@ -318,21 +273,17 @@ const TestimonialsCarousel = () => {
 
             <CarouselDots count={videoTestimonials.length} active={selectedIndex} />
 
-            {/* Swipe Hint */}
             <AnimatePresence>
               {showHint && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
-                  className="flex items-center justify-center gap-1.5 mt-4 text-white/65 text-xs"
+                  className="mt-4 flex items-center justify-center gap-1.5 text-xs font-medium text-[var(--ba-ink-3)]"
                 >
                   <span>{t("landing.testimonials.swipeHint")}</span>
-                  <motion.div
-                    animate={{ x: [0, 6, 0] }}
-                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
+                  <motion.div animate={{ x: [0, 6, 0] }} transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}>
+                    <ChevronRight className="h-3.5 w-3.5" />
                   </motion.div>
                 </motion.div>
               )}

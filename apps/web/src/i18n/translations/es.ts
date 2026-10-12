@@ -42,11 +42,11 @@ const es: Translations = {
         label: "Grado / Año actual",
         placeholder: "Seleccione su grado",
         opt_before_7th:  "Anterior al 7º Año",
-        opt_8th:         "8º Año — Secundaria",
-        opt_9th:         "9º Año — Secundaria",
-        opt_hs1:         "1º Año — Bachillerato",
-        opt_hs2:         "2º Año — Bachillerato",
-        opt_hs3:         "3º Año — Bachillerato",
+        opt_8th:         "8º Año · Secundaria",
+        opt_9th:         "9º Año · Secundaria",
+        opt_hs1:         "1º Año · Bachillerato",
+        opt_hs2:         "2º Año · Bachillerato",
+        opt_hs3:         "3º Año · Bachillerato",
         opt_grad_last:   "Me gradué el año pasado",
         opt_grad_2plus:  "Me gradué hace más de dos años",
       },
@@ -94,7 +94,7 @@ const es: Translations = {
     },
 
     stage2: {
-      badge: "Etapa 2 — Lectura Estratégica",
+      badge: "Etapa 2 · Lectura Estratégica",
       title1: "Alineamiento",
       title2: "de Perfil",
       line1: "En esta etapa profundizamos en la comprensión del joven y de la estructura familiar que sustenta esta decisión.",
@@ -229,8 +229,8 @@ const es: Translations = {
       "Data de nascimento é obrigatória": "La fecha de nacimiento es obligatoria",
       "Data de nascimento inválida": "Fecha de nacimiento inválida",
       "A data de nascimento não pode ser no futuro": "La fecha de nacimiento no puede ser futura",
-      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Verifique el año de nacimiento del atleta — la fecha elegida es de este año",
-      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "La fecha de nacimiento no coincide con el grado elegido — verifique el año de nacimiento del atleta (no el del responsable)",
+      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Verifique el año de nacimiento del atleta: la fecha elegida es de este año",
+      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "La fecha de nacimiento no coincide con el grado elegido: verifique el año de nacimiento del atleta (no el del responsable)",
       "Confira o ano de nascimento do atleta (não o do responsável)": "Verifique el año de nacimiento del atleta (no el del responsable)",
       "WhatsApp é obrigatório": "El WhatsApp es obligatorio",
       "Série é obrigatória": "El grado es obligatorio",
@@ -259,6 +259,7 @@ const es: Translations = {
 
   landing: {
     brandName: "BAU Global",
+    closeVideo: "Cerrar video",
     eeiName: "Educación Deportiva Inteligente®",
     common: {
       swipeHint: "Desliza para ver más",

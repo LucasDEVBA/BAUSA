@@ -43,10 +43,10 @@ export function CountrySelect({ value, onChange, className }: CountrySelectProps
       <SelectPrimitive.Trigger
         className={cn(
           "w-full flex items-center justify-between gap-2",
-          "bg-transparent border-0 border-b-2 border-white/30",
-          "data-[state=open]:border-white focus:border-white",
+          "bg-transparent border-0 border-b-2 border-[var(--ba-stroke)]",
+          "data-[state=open]:border-[var(--ba-blue-2)] focus:border-[var(--ba-blue-2)]",
           "focus:ring-0 focus:outline-none rounded-none",
-          "px-1 py-3.5 sm:py-4 text-[16px] sm:text-lg text-white",
+          "px-1 py-3.5 sm:py-4 text-[16px] sm:text-lg text-[var(--ba-ink)]",
           "transition-all duration-300 cursor-pointer min-h-[44px]",
           className,
         )}
@@ -55,7 +55,7 @@ export function CountrySelect({ value, onChange, className }: CountrySelectProps
           <span className="text-xl leading-none flex-shrink-0">{selected.flag}</span>
           <span className="truncate">{selected.name}</span>
         </div>
-        <ChevronDown className="h-4 w-4 text-white/50 flex-shrink-0" />
+        <ChevronDown className="h-4 w-4 text-[var(--ba-ink-3)] flex-shrink-0" />
       </SelectPrimitive.Trigger>
 
       {/* ── Dropdown ── */}
@@ -65,15 +65,15 @@ export function CountrySelect({ value, onChange, className }: CountrySelectProps
           sideOffset={4}
           className={cn(
             "z-[9999] w-[var(--radix-select-trigger-width)]",
-            "overflow-hidden rounded-xl border border-white/15",
-            "bg-[hsl(222,70%,13%)] text-white shadow-2xl shadow-black/50",
+            "overflow-hidden rounded-2xl border border-[var(--ba-stroke)]",
+            "bg-white/95 backdrop-blur-xl text-[var(--ba-ink)] shadow-[var(--ba-shadow-lg)]",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
             "data-[side=bottom]:slide-in-from-top-2",
           )}
         >
-          <SelectPrimitive.ScrollUpButton className="flex items-center justify-center py-1.5 text-white/40 hover:text-white">
+          <SelectPrimitive.ScrollUpButton className="flex items-center justify-center py-1.5 text-[var(--ba-ink-3)] hover:text-[var(--ba-navy)]">
             <ChevronDown className="h-4 w-4 rotate-180" />
           </SelectPrimitive.ScrollUpButton>
 
@@ -86,15 +86,15 @@ export function CountrySelect({ value, onChange, className }: CountrySelectProps
                   "relative flex items-center gap-3 px-2.5 rounded-lg",
                   // min 44px — touch target padrão iOS/Android
                   "min-h-[44px] cursor-pointer select-none outline-none",
-                  "text-[15px] text-white/80 transition-colors duration-100",
-                  "data-[highlighted]:bg-white/10 data-[highlighted]:text-white",
-                  "data-[state=checked]:text-white",
+                  "text-[15px] text-[var(--ba-ink-2)] transition-colors duration-100",
+                  "data-[highlighted]:bg-[rgba(31,63,163,0.07)] data-[highlighted]:text-[var(--ba-navy)]",
+                  "data-[state=checked]:font-semibold data-[state=checked]:text-[var(--ba-navy)]",
                 )}
               >
                 {/* Check indicator */}
                 <span className="w-4 flex-shrink-0 flex items-center justify-center">
                   <SelectPrimitive.ItemIndicator>
-                    <Check className="h-3.5 w-3.5 text-[hsl(var(--burgundy-glow))]" />
+                    <Check className="h-3.5 w-3.5 text-[var(--ba-blue)]" />
                   </SelectPrimitive.ItemIndicator>
                 </span>
 
@@ -111,7 +111,7 @@ export function CountrySelect({ value, onChange, className }: CountrySelectProps
             ))}
           </SelectPrimitive.Viewport>
 
-          <SelectPrimitive.ScrollDownButton className="flex items-center justify-center py-1.5 text-white/40 hover:text-white">
+          <SelectPrimitive.ScrollDownButton className="flex items-center justify-center py-1.5 text-[var(--ba-ink-3)] hover:text-[var(--ba-navy)]">
             <ChevronDown className="h-4 w-4" />
           </SelectPrimitive.ScrollDownButton>
         </SelectPrimitive.Content>

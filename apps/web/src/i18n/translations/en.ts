@@ -42,11 +42,11 @@ const en: Translations = {
         label: "Current grade / year",
         placeholder: "Select your grade",
         opt_before_7th:  "Before 7th Grade",
-        opt_8th:         "8th Grade — Middle School",
-        opt_9th:         "9th Grade — Middle School",
-        opt_hs1:         "Freshman — 9th Grade (High School)",
-        opt_hs2:         "Sophomore — 10th Grade (High School)",
-        opt_hs3:         "Junior / Senior — 11th–12th Grade",
+        opt_8th:         "8th Grade · Middle School",
+        opt_9th:         "9th Grade · Middle School",
+        opt_hs1:         "Freshman · 9th Grade (High School)",
+        opt_hs2:         "Sophomore · 10th Grade (High School)",
+        opt_hs3:         "Junior / Senior · 11th-12th Grade",
         opt_grad_last:   "Graduated last year",
         opt_grad_2plus:  "Graduated more than two years ago",
       },
@@ -94,7 +94,7 @@ const en: Translations = {
     },
 
     stage2: {
-      badge: "Stage 2 — Strategic Reading",
+      badge: "Stage 2 · Strategic Reading",
       title1: "Profile",
       title2: "Alignment",
       line1: "In this stage, we deepen our understanding of the young athlete and the family structure that supports this decision.",
@@ -229,8 +229,8 @@ const en: Translations = {
       "Data de nascimento é obrigatória": "Date of birth is required",
       "Data de nascimento inválida": "Invalid date of birth",
       "A data de nascimento não pode ser no futuro": "Date of birth cannot be in the future",
-      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Check the athlete's year of birth — the selected date is in the current year",
-      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "The date of birth doesn't match the selected grade — check the athlete's year of birth (not the parent's)",
+      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Check the athlete's year of birth: the selected date is in the current year",
+      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "The date of birth doesn't match the selected grade: check the athlete's year of birth (not the parent's)",
       "Confira o ano de nascimento do atleta (não o do responsável)": "Check the athlete's year of birth (not the parent's)",
       "WhatsApp é obrigatório": "WhatsApp is required",
       "Série é obrigatória": "Grade is required",
@@ -259,6 +259,7 @@ const en: Translations = {
 
   landing: {
     brandName: "BAU Global",
+    closeVideo: "Close video",
     eeiName: "Smart Sports Education®",
     common: {
       swipeHint: "Swipe to see more",
@@ -322,7 +323,7 @@ const en: Translations = {
     testimonials: {
       badge: "ATHLETE TESTIMONIALS",
       title: "The new global leaders are being formed at",
-      subtitle: "We don't just guide athletes — we develop leaders ready to shape their own destiny.",
+      subtitle: "We don't just guide athletes. We develop leaders ready to shape their own destiny.",
       ageSuffix: "years old",
       swipeHint: "Swipe to see more",
       videoTitle: "Testimonial",

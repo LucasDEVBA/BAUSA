@@ -1,13 +1,15 @@
 "use client";
 
+import Image from "next/image";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useScrollReveal, revealClass } from "@/hooks/useScrollReveal";
-import { Play, X, Building2, MapPin, ChevronLeft, ChevronRight, GraduationCap, School } from "lucide-react";
+import { Play, X, MapPin, ChevronLeft, ChevronRight, GraduationCap, School } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import { useLanguage } from "@/i18n";
 import type { StaticImageData } from "next/image";
+
+import { useLanguage } from "@/i18n";
 import leandroHarvard from "@/assets/leandro-harvard.jpg";
 import thumbTaft from "@/assets/thumb-Taft.jpg";
 import thumbBenfica from "@/assets/thumb-benfica.jpg";
@@ -16,7 +18,6 @@ import thumbRps from "@/assets/thumb-rps.jpg";
 import thumbMiami from "@/assets/thumb-miami.jpg";
 import thumbFlorida from "@/assets/thumb-florida.jpg";
 import thumbFiu from "@/assets/thumb-fiu.jpg";
-import logoWatermark from "@/assets/logo-watermark.png";
 
 interface Institution {
   id: string;
@@ -103,6 +104,13 @@ const universities: Institution[] = [
 
 const allInstitutions = [...schools, ...universities];
 
+// Sem chave de tradução para o botão de fechar: rótulo acessível local nos 3 idiomas.
+
+const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
+
+const arrowButton =
+  "ba-glass-dark grid h-10 w-10 place-items-center rounded-full text-white transition-[background-color,opacity,transform] duration-300 hover:-translate-y-0.5 hover:bg-white/[0.16] focus-visible:outline-[2.5px] focus-visible:outline-offset-2 focus-visible:outline-[#b8caf7] disabled:pointer-events-none disabled:opacity-30 sm:h-11 sm:w-11";
+
 interface InstitutionCardProps {
   institution: Institution;
   onPlay: (id: string) => void;
@@ -110,80 +118,65 @@ interface InstitutionCardProps {
 
 const InstitutionCard = ({ institution, onPlay }: InstitutionCardProps) => {
   const { t } = useLanguage();
+  const isUniversity = institution.type === "university";
+  const typeLabel = isUniversity ? t("landing.institutionalRecognition.typeUniversity") : t("landing.institutionalRecognition.typePrepSchool");
 
   return (
-    <div className="group h-full">
-      <div className="relative h-full rounded-2xl sm:rounded-3xl overflow-hidden bg-white/[0.03] backdrop-blur-sm border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.15] transition-all duration-500 hover:-translate-y-1">
-        {/* Image Container */}
-        <div className="relative aspect-video overflow-hidden">
-          <img
-            src={institution.photo.src}
-            alt={`${t("landing.institutionalRecognition.photoAltPrefix")} ${institution.name}`}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-            style={{ objectPosition: institution.imagePosition ?? "center" }}
-            loading="lazy"
-            decoding="async"
-          />
+    // Vidro sem backdrop-filter: dentro do trilho transformado do embla o desfoque pintava um retângulo
+    // claro do tamanho do viewport atrás dos cartões; sobre o navy o efeito visual é o mesmo.
+    <article className="group h-full rounded-[24px] border border-white/[0.14] bg-white/[0.07] shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_30px_70px_-30px_rgba(0,0,0,0.6)] p-[6px] transition-[transform,background-color] duration-700 [transition-timing-function:var(--ba-ease)] hover:bg-white/[0.1] sm:rounded-[30px] sm:p-2" data-tilt>
+      <button
+        type="button"
+        onClick={() => onPlay(institution.id)}
+        aria-label={`${institution.name}, ${institution.location}. Video tour`}
+        className="relative block aspect-[16/10] w-full cursor-pointer overflow-hidden rounded-[19px] text-left focus-visible:outline-[2.5px] focus-visible:outline-offset-[-4px] focus-visible:outline-white sm:rounded-[23px]"
+      >
+        <Image
+          src={institution.photo}
+          alt={`${t("landing.institutionalRecognition.photoAltPrefix")} ${institution.name}`}
+          fill
+          sizes="(max-width: 640px) 85vw, (max-width: 768px) 55vw, 560px"
+          className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
+          style={{ objectPosition: institution.imagePosition ?? "center" }}
+        />
+        <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,15,42,0.4)_0%,rgba(6,15,42,0)_30%,rgba(6,15,42,0.15)_55%,rgba(6,15,42,0.9)_100%)]" />
 
-          {/* Overlay Gradient */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--navy-deep)/0.95)] via-[hsl(var(--navy-deep)/0.4)] to-transparent" />
-
-          {/* Video Interface Elements Overlay */}
-          <div
-            className="absolute inset-0 cursor-pointer flex flex-col justify-between p-4 sm:p-5"
-            onClick={() => onPlay(institution.id)}
+        {/* Topo: tipo da instituição + gravação */}
+        <span className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 sm:inset-x-4 sm:top-4">
+          <span
+            className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[10.5px] font-bold tracking-[0.12em] text-white sm:text-[11px] ${
+              isUniversity
+                ? "bg-[linear-gradient(150deg,var(--ba-wine-2),var(--ba-wine))] shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_20px_-8px_rgba(144,36,52,0.8)]"
+                : "ba-glass-dark"
+            }`}
           >
-            {/* Top Right: REC Indicator */}
-            <div className="flex justify-end">
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/40 backdrop-blur-md border border-white/10">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-[9px] font-bold text-white tracking-widest uppercase">REC</span>
-              </div>
-            </div>
+            {typeLabel}
+          </span>
+          <span className="ba-glass-dark flex items-center gap-1.5 rounded-full px-2.5 py-[5px]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
+          </span>
+        </span>
 
-            {/* Bottom: Progress + Play Button Integration */}
-            <div className="space-y-3">
-              <div className="flex items-end justify-between">
-                <div className="flex-1 min-w-0 pr-4">
-                  <h4 className="text-lg sm:text-xl md:text-2xl font-bold text-white mb-0.5 leading-tight truncate">
-                    {institution.name}
-                  </h4>
-                  <div className="flex items-center gap-1.5 text-white/80">
-                    <MapPin className="w-3.5 h-3.5" />
-                    <span className="text-xs sm:text-sm">{institution.location}</span>
-                  </div>
-                </div>
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] border border-white/20 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-[hsl(var(--burgundy)/0.4)] transition-all duration-300 shadow-xl">
-                  <Play className="w-4 h-4 text-white fill-current ml-0.5" />
-                </div>
-              </div>
-
-              {/* Video Progress Bar */}
-              <div className="relative h-0.5 w-full bg-white/20 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: "65%" }}
-                  whileHover={{ width: "100%" }}
-                  transition={{ duration: 0.5 }}
-                  className="absolute inset-y-0 left-0 bg-white/80 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)]"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Institution Type Badge */}
-          <div className="absolute top-4 left-4">
-            <div className={`px-3 py-1.5 rounded-full backdrop-blur-md ${institution.type === 'university'
-              ? 'bg-[hsl(var(--burgundy)/0.9)] text-white'
-              : 'bg-white/20 text-white'
-              }`}>
-              <span className="text-[10px] sm:text-xs font-semibold">
-                {institution.type === 'university' ? t("landing.institutionalRecognition.typeUniversity") : t("landing.institutionalRecognition.typePrepSchool")}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+        {/* Base: nome, local e play em vidro */}
+        <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 sm:p-5">
+          <span className="min-w-0">
+            <span className="block truncate font-[family-name:var(--ba-display)] text-[18px] font-semibold leading-tight tracking-[-0.025em] text-white sm:text-[22px] md:text-[24px]">
+              {institution.name}
+            </span>
+            <span className="mt-1 flex items-center gap-1.5 text-[12.5px] text-white/80 sm:text-sm">
+              <MapPin className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
+              {institution.location}
+            </span>
+          </span>
+          <span aria-hidden="true" className="grid h-12 w-12 flex-none place-items-center rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:scale-110 sm:h-14 sm:w-14">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-[linear-gradient(180deg,#fff,#e6ecfb)] sm:h-10 sm:w-10">
+              <Play className="ml-0.5 h-4 w-4 fill-[var(--ba-navy)] text-[var(--ba-navy)]" />
+            </span>
+          </span>
+        </span>
+      </button>
+    </article>
   );
 };
 
@@ -196,8 +189,7 @@ interface InstitutionCarouselProps {
 
 const InstitutionCarousel = ({ title, icon: Icon, institutions, onPlay }: InstitutionCarouselProps) => {
   const { t } = useLanguage();
-  const reveal = useScrollReveal();
-  // Slides a 45% no desktop: 2 cards inteiros + pedaço do próximo visível —
+  // Slides a 45% no desktop: 2 cards inteiros + pedaço do próximo visível:
   // o corte é o affordance de que a fileira é um carrossel.
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "start",
@@ -225,44 +217,29 @@ const InstitutionCarousel = ({ title, icon: Icon, institutions, onPlay }: Instit
   }, [emblaApi, onSelect]);
 
   return (
-    <div ref={reveal.ref} className={`${revealClass(reveal.isRevealed)}`}>
-      {/* Subheader: label + arrows */}
-      <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <div className="flex items-center gap-2 text-white/90">
-          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-          <h3 className="text-sm sm:text-base font-bold tracking-widest uppercase">{title}</h3>
-        </div>
-        <div className="flex-1 h-px bg-white/10" />
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => emblaApi?.scrollPrev()}
-            disabled={!canPrev}
-            aria-label={t("landing.institutionalRecognition.carouselPrev")}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/5 border border-white/10 hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-white/5 flex items-center justify-center text-white transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+    <div className="ba-rv">
+      <div className="mb-5 flex items-center gap-3 sm:mb-7 sm:gap-4">
+        <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-[linear-gradient(150deg,rgba(255,255,255,0.22),rgba(255,255,255,0.06))] shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] sm:h-11 sm:w-11 sm:rounded-[14px]">
+          <Icon className="h-[19px] w-[19px] text-[#dbe5ff]" aria-hidden="true" />
+        </span>
+        <h3 className="ba-h3 whitespace-nowrap text-[20px] text-white sm:text-[24px]">{title}</h3>
+        <span className="text-xs font-semibold tracking-[0.14em] text-white/55">{String(institutions.length).padStart(2, "0")}</span>
+        <span aria-hidden="true" className="h-px flex-1 bg-[linear-gradient(90deg,rgba(255,255,255,0.18),rgba(255,255,255,0))]" />
+        <div className="flex flex-none items-center gap-2">
+          <button type="button" onClick={() => emblaApi?.scrollPrev()} disabled={!canPrev} aria-label={t("landing.institutionalRecognition.carouselPrev")} className={arrowButton}>
+            <ChevronLeft className="h-[18px] w-[18px]" />
           </button>
-          <button
-            type="button"
-            onClick={() => emblaApi?.scrollNext()}
-            disabled={!canNext}
-            aria-label={t("landing.institutionalRecognition.carouselNext")}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/5 border border-white/10 hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-white/5 flex items-center justify-center text-white transition-colors"
-          >
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+          <button type="button" onClick={() => emblaApi?.scrollNext()} disabled={!canNext} aria-label={t("landing.institutionalRecognition.carouselNext")} className={arrowButton}>
+            <ChevronRight className="h-[18px] w-[18px]" />
           </button>
         </div>
       </div>
 
-      {/* Carousel: 2 cards inteiros + pedaço do próximo no desktop */}
-      <div className="overflow-hidden touch-pan-y" ref={emblaRef}>
-        <div className="flex gap-4 sm:gap-6 touch-pan-y">
+      {/* Respiro no viewport (maior embaixo, onde a sombra cai) para a sombra dos cartões não ser cortada em linha reta */}
+      <div className="-mb-20 -mt-5 touch-pan-y overflow-hidden pb-20 pt-5" ref={emblaRef}>
+        <div className="flex touch-pan-y gap-4 sm:gap-6">
           {institutions.map((institution) => (
-            <div
-              key={institution.id}
-              className="flex-[0_0_85%] sm:flex-[0_0_55%] md:flex-[0_0_45%] min-w-0"
-            >
+            <div key={institution.id} className="min-w-0 flex-[0_0_85%] sm:flex-[0_0_55%] md:flex-[0_0_45%]">
               <InstitutionCard institution={institution} onPlay={onPlay} />
             </div>
           ))}
@@ -272,126 +249,121 @@ const InstitutionCarousel = ({ title, icon: Icon, institutions, onPlay }: Instit
   );
 };
 
+interface VideoModalProps {
+  institution: Institution | undefined;
+  onClose: () => void;
+}
+
+// Portal no body: a seção usa `isolate`, e um modal preso no contexto dela ficaria atrás das seções seguintes.
+const VideoModal = ({ institution, onClose }: VideoModalProps) => {
+  const { t } = useLanguage();
+
+  useEffect(() => {
+    if (!institution) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [institution, onClose]);
+
+  return createPortal(
+    <AnimatePresence>
+      {institution && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(4,10,30,0.82)] p-4 backdrop-blur-md"
+          onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+          aria-label={institution.name}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="ba-glass-dark relative w-full max-w-4xl rounded-[28px] p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative aspect-video overflow-hidden rounded-[21px] bg-black">
+              <iframe
+                src={`https://www.youtube.com/embed/${institution.youtubeId}?autoplay=1&rel=0`}
+                title="Video Tour"
+                className="absolute inset-0 h-full w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              autoFocus
+              aria-label={t("landing.closeVideo")}
+              className="ba-glass-dark absolute -top-3 right-3 z-10 grid h-11 w-11 place-items-center rounded-full text-white transition-colors hover:bg-white/20 focus-visible:outline-[2.5px] focus-visible:outline-white sm:-right-3"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+};
+
 const InstitutionalRecognitionSection = () => {
   const { t } = useLanguage();
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
-  const headerReveal = useScrollReveal();
-  const bottomReveal = useScrollReveal();
+  const [mounted, setMounted] = useState(false);
+  const closeVideo = useCallback(() => setActiveVideo(null), []);
+
+  useEffect(() => setMounted(true), []);
 
   return (
-    <section className="relative py-16 sm:py-24 md:py-32 overflow-hidden">
-      {/* Dark Premium Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--navy-deep))] via-[hsl(var(--navy-medium))] to-[hsl(var(--navy-deep))]" />
+    // Emenda com a Autoridade: sobe sobre o padding inferior dela com um degradê transparente→navy, para os halos
+    // dela se dissolverem no navy daqui sem costura; fecha o capítulo escuro com cantos inferiores arredondados.
+    <section
+      id="instituicoes"
+      className="relative isolate -mt-10 overflow-hidden rounded-b-[clamp(28px,4vw,48px)] bg-[linear-gradient(180deg,rgba(10,26,69,0)_0px,var(--ba-navy-2)_40px)] pb-[clamp(80px,10vw,140px)] pt-[clamp(96px,10vw,200px)] text-white sm:-mt-20 sm:bg-[linear-gradient(180deg,rgba(10,26,69,0)_0px,var(--ba-navy-2)_80px)] lg:-mt-[120px] lg:bg-[linear-gradient(180deg,rgba(10,26,69,0)_0px,var(--ba-navy-2)_120px)]"
+      aria-labelledby="instituicoes-title"
+    >
+      <div aria-hidden="true" className="ba-glow left-[38%] top-[220px] h-[520px] w-[520px] bg-[rgba(31,63,163,0.45)]" />
+      <div aria-hidden="true" className="ba-glow right-[-200px] top-[200px] h-[440px] w-[440px] bg-[rgba(144,36,52,0.32)]" />
+      <div aria-hidden="true" className="ba-glow bottom-[-200px] left-[-160px] h-[560px] w-[560px] bg-[rgba(144,36,52,0.42)]" />
+      <div aria-hidden="true" className="ba-glow bottom-[10%] right-[-180px] h-[460px] w-[460px] bg-[rgba(71,107,192,0.4)]" />
+      <div aria-hidden="true" className="ba-lines [mask-image:radial-gradient(ellipse_70%_60%_at_20%_30%,#000,transparent_75%)]" />
 
-      {/* Radial Glow */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[hsl(var(--burgundy)/0.08)] rounded-full blur-[150px]" />
-      </div>
-
-      {/* Watermark Logos */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[8%] left-[5%] w-20 sm:w-28 md:w-36 opacity-[0.03] rotate-[-15deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[12%] right-[8%] w-16 sm:w-24 md:w-32 opacity-[0.025] rotate-[20deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[15%] left-[10%] w-20 sm:w-24 md:w-32 opacity-[0.025] rotate-[25deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[10%] right-[12%] w-20 sm:w-28 md:w-36 opacity-[0.03] rotate-[-10deg]" />
-      </div>
-
-      {/* Subtle Grid Pattern */}
-      <div className="absolute inset-0 opacity-[0.03]">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
-            backgroundSize: '48px 48px',
-          }}
-        />
-      </div>
-
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {/* Section Header */}
-        <div
-          ref={headerReveal.ref}
-          className={`${revealClass(headerReveal.isRevealed)} text-center mb-12 sm:mb-16`}
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-white/10 mb-5 sm:mb-6">
-            <Building2 className="w-4 h-4 text-white/80" />
-            <span className="text-xs sm:text-sm font-semibold text-white/80 tracking-wide">{t("landing.institutionalRecognition.badge")}</span>
-          </div>
-
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 sm:mb-6 leading-tight">
-            {t("landing.institutionalRecognition.title1")}{" "}
-            <span className="text-gradient-on-dark">
-              {t("landing.institutionalRecognition.title2")}
+      <div className="ba-wrap relative z-[2]">
+        <div className="mb-[clamp(44px,6vw,80px)] grid items-end gap-6 border-t border-white/[0.1] pt-[clamp(40px,4.5vw,64px)] lg:grid-cols-[1.3fr_1fr] lg:gap-16">
+          <div>
+            <span className="ba-eyebrow ba-glass-dark ba-rv !text-[#cfdcff]">
+              <span className="ba-dot" />
+              {t("landing.institutionalRecognition.badge")}
             </span>
-          </h2>
-
-          <p className="text-base sm:text-lg text-white/85 max-w-2xl mx-auto leading-relaxed">
+            <h2 id="instituicoes-title" className="ba-h2 ba-rv mt-5 text-[clamp(32px,4.6vw,60px)] text-white" style={delay(1)}>
+              {t("landing.institutionalRecognition.title1")} <span className="ba-grad-text-dark">{t("landing.institutionalRecognition.title2")}</span>
+            </h2>
+          </div>
+          <p className="ba-rv max-w-[440px] text-[clamp(15.5px,1.25vw,18px)] leading-[1.62] text-[rgba(232,238,255,0.84)] lg:mb-2 lg:border-l lg:border-white/[0.14] lg:pl-8" style={delay(2)}>
             {t("landing.institutionalRecognition.subtitle")}
           </p>
         </div>
 
-        {/* Carrosséis: um de escolas, outro de faculdades */}
-        <div className="max-w-6xl mx-auto space-y-12 sm:space-y-16">
-          <InstitutionCarousel
-            title={t("landing.institutionalRecognition.schoolsTitle")}
-            icon={School}
-            institutions={schools}
-            onPlay={setActiveVideo}
-          />
-          <InstitutionCarousel
-            title={t("landing.institutionalRecognition.universitiesTitle")}
-            icon={GraduationCap}
-            institutions={universities}
-            onPlay={setActiveVideo}
-          />
+        <div className="space-y-[clamp(48px,6vw,80px)]">
+          <InstitutionCarousel title={t("landing.institutionalRecognition.schoolsTitle")} icon={School} institutions={schools} onPlay={setActiveVideo} />
+          <InstitutionCarousel title={t("landing.institutionalRecognition.universitiesTitle")} icon={GraduationCap} institutions={universities} onPlay={setActiveVideo} />
         </div>
 
-        {/* Bottom Note */}
-        <div
-          ref={bottomReveal.ref}
-          className={`${revealClass(bottomReveal.isRevealed)} text-center mt-10 sm:mt-14`}
-        >
-          <p className="text-white/70 text-sm sm:text-base">
+        <div className="ba-rv mt-[clamp(44px,5vw,64px)] flex justify-center" style={delay(1)}>
+          <p className="ba-glass-dark inline-flex items-center gap-3 rounded-full px-5 py-3 text-center text-[13.5px] font-medium leading-[1.4] text-[rgba(232,238,255,0.86)] sm:text-[14.5px]">
+            <span className="ba-pulse" aria-hidden="true" />
             {t("landing.institutionalRecognition.bottomNote")}
           </p>
         </div>
       </div>
 
-      {/* Video Modal */}
-      <AnimatePresence>
-        {activeVideo && (
-          <motion.div
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
-            onClick={() => setActiveVideo(null)}
-          >
-            <motion.div
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="relative w-full max-w-4xl aspect-video bg-black rounded-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* YouTube Embed */}
-              <iframe
-                src={`https://www.youtube.com/embed/${allInstitutions.find(i => i.id === activeVideo)?.youtubeId}?autoplay=1&rel=0`}
-                title="Video Tour"
-                className="absolute inset-0 w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-
-              {/* Close button */}
-              <button
-                onClick={() => setActiveVideo(null)}
-                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {mounted && <VideoModal institution={allInstitutions.find((i) => i.id === activeVideo)} onClose={closeVideo} />}
     </section>
   );
 };

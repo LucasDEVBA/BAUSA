@@ -35,14 +35,14 @@ const HeroSection = memo(() => {
 
       <div className="ba-wrap relative z-[2] grid flex-1 items-center gap-[34px] lg:grid-cols-[1.02fr_1fr] lg:gap-[clamp(28px,4vw,64px)]">
         <div className="max-w-[680px] lg:max-w-[620px]">
-          <span className="ba-eyebrow ba-glass ba-rv !text-[11px] sm:!text-[12.5px]" style={{ "--d": 0 } as React.CSSProperties}>
+          <span className="ba-eyebrow ba-glass ba-rise !text-[11px] sm:!text-[12.5px]" style={{ "--d": 0 } as React.CSSProperties}>
             <span className="ba-dot" />
             {t("landing.hero.eyebrow")}
           </span>
 
           <h1
             id="hero-title"
-            className="ba-display ba-rv my-[18px] text-[clamp(40px,11.4vw,50px)] text-[var(--ba-navy)] sm:my-[22px] sm:text-[clamp(46px,6.1vw,92px)]"
+            className="ba-display ba-rise my-[18px] text-[clamp(40px,11.4vw,50px)] text-[var(--ba-navy)] sm:my-[22px] sm:text-[clamp(46px,6.1vw,92px)]"
             style={{ "--d": 1 } as React.CSSProperties}
           >
             {t("landing.hero.headline1")}{" "}
@@ -56,18 +56,18 @@ const HeroSection = memo(() => {
             </span>
           </h1>
 
-          <p className="ba-lead ba-rv max-w-[520px] !text-[15.5px] sm:!text-[clamp(16px,1.35vw,18.5px)]" style={{ "--d": 2 } as React.CSSProperties}>
+          <p className="ba-lead ba-rise max-w-[520px] !text-[15.5px] sm:!text-[clamp(16px,1.35vw,18.5px)]" style={{ "--d": 2 } as React.CSSProperties}>
             {t("landing.hero.sub1")} {t("landing.hero.sub2")} {t("landing.hero.sub3")}
           </p>
 
-          <div className="ba-rv mt-[22px] flex flex-col gap-2 sm:mt-8 sm:flex-row sm:flex-wrap sm:gap-3" style={{ "--d": 3 } as React.CSSProperties}>
+          <div className="ba-rise mt-[22px] flex flex-col gap-2 sm:mt-8 sm:flex-row sm:flex-wrap sm:gap-3" style={{ "--d": 3 } as React.CSSProperties}>
             <BrandCta source="hero">{t("landing.hero.cta")}</BrandCta>
             <BrandCta href="#metodo" variant="ghost">
               {t("landing.hero.secondaryCta")}
             </BrandCta>
           </div>
 
-          <div className="ba-rv mt-[30px] hidden items-center gap-3.5 text-[13.5px] text-[var(--ba-ink-3)] sm:flex" style={{ "--d": 4 } as React.CSSProperties}>
+          <div className="ba-rise mt-[30px] hidden items-center gap-3.5 text-[13.5px] text-[var(--ba-ink-3)] sm:flex" style={{ "--d": 4 } as React.CSSProperties}>
             <div className="flex" aria-hidden="true">
               {TRUST_AVATARS.map((avatar, index) => (
                 <Image
@@ -91,7 +91,7 @@ const HeroSection = memo(() => {
         {/* Composição em camadas: cada [data-depth] reage ao mouse em profundidades diferentes */}
         <div className="relative h-[430px] [perspective:1400px] sm:h-[560px] lg:h-[min(640px,72svh)] lg:min-h-[520px]" data-tilt-stage>
           <figure
-            className="ba-glass ba-rv-scale absolute inset-[0_0_40px_28px] m-0 overflow-hidden rounded-[28px] p-[7px] shadow-[var(--ba-shadow-lg)] sm:inset-[0_0_54px_46px] sm:rounded-[34px] sm:p-2.5"
+            className="ba-glass ba-rise-scale absolute inset-[0_0_40px_28px] m-0 overflow-hidden rounded-[28px] p-[7px] shadow-[var(--ba-shadow-lg)] sm:inset-[0_0_54px_46px] sm:rounded-[34px] sm:p-2.5"
             style={{ "--d": 1 } as React.CSSProperties}
             data-depth="6"
           >
@@ -116,7 +116,7 @@ const HeroSection = memo(() => {
           </figure>
 
           <div
-            className="ba-glass ba-rv-scale ba-float-b absolute -right-3.5 -top-7 z-[1] hidden aspect-[9/16] w-[clamp(110px,10vw,140px)] rounded-[22px] p-1.5 shadow-[var(--ba-shadow-lg)] sm:block"
+            className="ba-glass ba-rise-scale ba-float-b absolute -right-3.5 -top-7 z-[1] hidden aspect-[9/16] w-[clamp(110px,10vw,140px)] rounded-[22px] p-1.5 shadow-[var(--ba-shadow-lg)] sm:block"
             style={{ "--d": 3 } as React.CSSProperties}
             data-depth="18"
           >
@@ -124,7 +124,7 @@ const HeroSection = memo(() => {
           </div>
 
           <div
-            className="ba-glass ba-rv-scale ba-float-a absolute bottom-0 left-0 z-[3] aspect-[9/16] w-[112px] rounded-[18px] p-[5px] shadow-[var(--ba-shadow-lg)] sm:w-[clamp(150px,15vw,206px)] sm:rounded-[22px] sm:p-1.5"
+            className="ba-glass ba-rise-scale ba-float-a absolute bottom-0 left-0 z-[3] aspect-[9/16] w-[112px] rounded-[18px] p-[5px] shadow-[var(--ba-shadow-lg)] sm:w-[clamp(150px,15vw,206px)] sm:rounded-[22px] sm:p-1.5"
             style={{ "--d": 2 } as React.CSSProperties}
             data-depth="22"
           >
@@ -132,7 +132,7 @@ const HeroSection = memo(() => {
           </div>
 
           <div
-            className="ba-glass ba-rv absolute bottom-[62px] right-[-4px] z-[4] flex max-w-[214px] items-center gap-2.5 rounded-2xl px-[13px] py-[11px] sm:bottom-2 sm:right-[-18px] sm:max-w-[290px] sm:gap-3.5 sm:rounded-[20px] sm:px-[18px] sm:py-4"
+            className="ba-glass ba-rise absolute bottom-[62px] right-[-4px] z-[4] flex max-w-[214px] items-center gap-2.5 rounded-2xl px-[13px] py-[11px] sm:bottom-2 sm:right-[-18px] sm:max-w-[290px] sm:gap-3.5 sm:rounded-[20px] sm:px-[18px] sm:py-4"
             style={{ "--d": 4 } as React.CSSProperties}
             data-depth="30"
           >
@@ -148,7 +148,7 @@ const HeroSection = memo(() => {
           </div>
 
           <div
-            className="ba-glass ba-rv absolute bottom-[-6px] right-2.5 z-[4] flex items-center gap-3 rounded-[20px] px-3 py-2.5 sm:bottom-auto sm:left-[-6px] sm:right-auto sm:top-[38px] sm:py-3.5 sm:pl-3.5 sm:pr-4"
+            className="ba-glass ba-rise absolute bottom-[-6px] right-2.5 z-[4] flex items-center gap-3 rounded-[20px] px-3 py-2.5 sm:bottom-auto sm:left-[-6px] sm:right-auto sm:top-[38px] sm:py-3.5 sm:pl-3.5 sm:pr-4"
             style={{ "--d": 5 } as React.CSSProperties}
             data-depth="26"
           >
@@ -174,7 +174,7 @@ const HeroSection = memo(() => {
         </div>
       </div>
 
-      <div className="ba-wrap ba-rv relative z-[2] mt-[clamp(18px,2.5vw,30px)]" style={{ "--d": 5 } as React.CSSProperties}>
+      <div className="ba-wrap ba-rise relative z-[2] mt-[clamp(18px,2.5vw,30px)]" style={{ "--d": 5 } as React.CSSProperties}>
         <InstitutionsMarquee />
       </div>
     </section>

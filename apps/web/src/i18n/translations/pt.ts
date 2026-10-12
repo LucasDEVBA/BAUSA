@@ -40,11 +40,11 @@ export const pt = {
         label: "Série / Ano atual",
         placeholder: "Selecione sua série",
         opt_before_7th:  "Anterior ao 7º Ano",
-        opt_8th:         "8º Ano — Ensino Fundamental",
-        opt_9th:         "9º Ano — Ensino Fundamental",
-        opt_hs1:         "1º Ano — Ensino Médio",
-        opt_hs2:         "2º Ano — Ensino Médio",
-        opt_hs3:         "3º Ano — Ensino Médio",
+        opt_8th:         "8º Ano · Ensino Fundamental",
+        opt_9th:         "9º Ano · Ensino Fundamental",
+        opt_hs1:         "1º Ano · Ensino Médio",
+        opt_hs2:         "2º Ano · Ensino Médio",
+        opt_hs3:         "3º Ano · Ensino Médio",
         opt_grad_last:   "Concluí o Ensino Médio no último ano",
         opt_grad_2plus:  "Concluí o Ensino Médio há mais de dois anos",
       },
@@ -92,7 +92,7 @@ export const pt = {
     },
 
     stage2: {
-      badge: "Etapa 2 — Leitura Estratégica",
+      badge: "Etapa 2 · Leitura Estratégica",
       title1: "Alinhamento",
       title2: "do Perfil",
       line1: "Nesta etapa aprofundamos a compreensão do jovem e da estrutura familiar que sustenta essa decisão.",
@@ -228,8 +228,8 @@ export const pt = {
       "Data de nascimento é obrigatória": "Data de nascimento é obrigatória",
       "Data de nascimento inválida": "Data de nascimento inválida",
       "A data de nascimento não pode ser no futuro": "A data de nascimento não pode ser no futuro",
-      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Confira o ano de nascimento do atleta — a data escolhida é deste ano",
-      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)",
+      "Confira o ano de nascimento do atleta — a data escolhida é deste ano": "Confira o ano de nascimento do atleta: a data escolhida é deste ano",
+      "A data de nascimento não combina com a série escolhida — confira o ano de nascimento do atleta (não o do responsável)": "A data de nascimento não combina com a série escolhida: confira o ano de nascimento do atleta (não o do responsável)",
       "Confira o ano de nascimento do atleta (não o do responsável)": "Confira o ano de nascimento do atleta (não o do responsável)",
       "WhatsApp é obrigatório": "WhatsApp é obrigatório",
       "Série é obrigatória": "Série é obrigatória",
@@ -257,6 +257,7 @@ export const pt = {
   },
   landing: {
     brandName: "Bolsa Atleta USA",
+    closeVideo: "Fechar vídeo",
     eeiName: "Educação Esportiva Inteligente®",
     common: {
       swipeHint: "Deslize para ver mais",
@@ -470,7 +471,7 @@ export const pt = {
     limitedSpots: "Número limitado de famílias por ciclo",
     officialSite: "Site Oficial",
     card1: {
-      label: "Exclusive",
+      label: "Exclusivo",
       title1: "Avaliação",
       title2: "Estratégica",
       description: "Conversa individual com o fundador",

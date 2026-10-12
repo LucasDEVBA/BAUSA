@@ -1,192 +1,132 @@
 "use client";
 
 import { memo } from "react";
-import { Compass, Users, Shield, Clock, Target, Heart } from "lucide-react";
-import logoWatermark from "@/assets/logo-watermark.png";
-import logoBadgeDark from "@/assets/logo-badge-dark.png";
-import { useScrollReveal, revealClass } from "@/hooks/useScrollReveal";
+import { Users, Shield, Clock, Target, Heart } from "lucide-react";
+
 import { useLanguage } from "@/i18n";
+import MeshBackground from "./brand/MeshBackground";
+
+const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
+const FAMILY_ICONS = [Users, Target, Shield] as const;
 
 const HowWeWorkSection = memo(() => {
   const { t } = useLanguage();
-  const headerReveal = useScrollReveal();
-  const highlightReveal = useScrollReveal();
-  const card1Reveal = useScrollReveal();
-  const card2Reveal = useScrollReveal();
 
   return (
-    <section className="relative py-16 sm:py-24 md:py-32 overflow-hidden">
-      {/* Premium Dark Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--navy-deep))] via-[hsl(var(--navy-medium))] to-[hsl(var(--navy-deep))]" />
+    <section className="relative isolate overflow-hidden py-[clamp(80px,10vw,140px)]" aria-labelledby="como-atuamos-title">
+      <MeshBackground blobs={["b2", "b4"]} className="[&_.ba-b2]:!right-auto [&_.ba-b2]:!left-[-12vw] [&_.ba-b2]:!opacity-35 [&_.ba-b4]:!left-auto [&_.ba-b4]:!right-[-10vw] [&_.ba-b4]:!bottom-[-10vw]" />
+      {/* Halo navy no pé da seção: prepara a entrada da Autoridade escura logo abaixo */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-[260px] bg-[radial-gradient(60%_100%_at_50%_100%,rgba(31,63,163,0.14),rgba(31,63,163,0))]" />
 
-      {/* Radial Glow */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[hsl(var(--burgundy)/0.06)] rounded-full blur-[150px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[hsl(var(--navy-light)/0.1)] rounded-full blur-[120px]" />
-      </div>
-
-      {/* Watermark Logos */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[5%] left-[8%] w-20 sm:w-28 opacity-[0.025] rotate-[-12deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute top-[15%] right-[5%] w-24 sm:w-32 opacity-[0.03] rotate-[18deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[20%] left-[3%] w-16 sm:w-24 opacity-[0.02] rotate-[8deg]" />
-        <img src={logoWatermark.src} alt="" loading="lazy" className="absolute bottom-[10%] right-[10%] w-20 sm:w-28 opacity-[0.025] rotate-[-15deg]" />
-      </div>
-
-      {/* Subtle Grid */}
-      <div className="absolute inset-0 opacity-[0.02]">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
-            backgroundSize: '48px 48px',
-          }}
-        />
-      </div>
-
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {/* Section Header */}
-        <div
-          ref={headerReveal.ref}
-          className={`${revealClass(headerReveal.isRevealed)} text-center mb-12 sm:mb-16`}
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-white/10 mb-5 sm:mb-6">
-            <Compass className="w-4 h-4 text-white/80" />
-            <span className="text-xs sm:text-sm font-semibold text-white/80 tracking-wide">{t("landing.howWeWork.badge")}</span>
-          </div>
-
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 sm:mb-6 leading-tight">
+      <div className="ba-wrap relative z-[2]">
+        <header className="mx-auto max-w-[820px] text-center">
+          <span className="ba-eyebrow ba-glass ba-rv" style={delay(0)}>
+            <span className="ba-dot" />
+            {t("landing.howWeWork.badge")}
+          </span>
+          <h2 id="como-atuamos-title" className="ba-h2 ba-rv mt-6 text-[var(--ba-navy)]" style={delay(1)}>
             {t("landing.howWeWork.title")}
           </h2>
-
-          <p className="text-base sm:text-lg text-white/85 max-w-3xl mx-auto leading-relaxed">
-            {t("landing.howWeWork.subtitle1")}
-            <br className="hidden sm:block" />
-            {t("landing.howWeWork.subtitle2")}{" "}<span className="text-white font-medium">{t("landing.howWeWork.methodName")}</span>{t("landing.howWeWork.subtitle3")}
+          <p className="ba-lead ba-rv mx-auto mt-6 max-w-[720px]" style={delay(2)}>
+            {t("landing.howWeWork.subtitle1")} {t("landing.howWeWork.subtitle2")}{" "}
+            <strong className="font-semibold text-[var(--ba-blue)]">{t("landing.howWeWork.methodName")}</strong>
+            {t("landing.howWeWork.subtitle3")}
           </p>
-        </div>
+        </header>
 
-        {/* Highlight Statement — pill fora do overflow-hidden para não ser cortada */}
+        {/* Faixa da filosofia: o momento de impacto da seção */}
         <div
-          ref={highlightReveal.ref}
-          className={`${revealClass(highlightReveal.isRevealed, "scale")} relative max-w-2xl mx-auto mb-12 sm:mb-16 pt-5`}
+          className="ba-rv-scale relative mt-[clamp(44px,5vw,72px)] overflow-hidden rounded-[30px] px-6 pb-14 pt-10 text-white shadow-[0_40px_90px_-34px_rgba(144,36,52,0.6),inset_0_1px_0_rgba(255,255,255,0.25)] [background:linear-gradient(120deg,var(--ba-wine)_0%,#6d2350_36%,#2a3c9c_72%,var(--ba-blue)_100%)] sm:rounded-[36px] sm:px-12 sm:pb-16 sm:pt-14 lg:pb-[150px] lg:pt-16"
+          style={delay(1)}
         >
-          {/* Pill posicionada no wrapper — sem risco de clipping */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 rounded-full bg-[hsl(var(--burgundy))] text-white text-xs font-bold tracking-widest shadow-lg shadow-[hsl(var(--burgundy)/0.35)]">
-            {t("landing.howWeWork.philosophy.pill")}
-          </div>
+          <span aria-hidden="true" className="pointer-events-none absolute inset-[-60%] animate-[spin_18s_linear_infinite] [background:conic-gradient(from_0deg,transparent_0_68%,rgba(255,255,255,0.16)_78%,transparent_88%)]" />
+          <div aria-hidden="true" className="ba-lines opacity-70" />
 
-          <div className="relative p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-white via-white to-[hsl(354_75%_97%)] border border-slate-200/60 shadow-2xl shadow-[hsl(var(--navy-deep)/0.28)] overflow-hidden">
-            {/* Accent stripe topo */}
-            <div className="absolute top-0 left-8 right-8 h-[3px] bg-gradient-to-r from-transparent via-[hsl(var(--burgundy))] to-transparent rounded-b-full" />
+          {/* Dois anéis entrelaçados: "nada é isolado" desenhado */}
+          <svg className="pointer-events-none absolute -right-16 top-1/2 h-[300px] w-[420px] -translate-y-1/2 opacity-30 sm:right-[-20px] sm:opacity-40 lg:right-[4%] lg:opacity-55" viewBox="0 0 420 300" fill="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="ba-ring-a" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#fff" stopOpacity="0.9" />
+                <stop offset="1" stopColor="#fff" stopOpacity="0.1" />
+              </linearGradient>
+              <linearGradient id="ba-ring-b" x1="1" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#f0b1bb" stopOpacity="0.9" />
+                <stop offset="1" stopColor="#b8caf7" stopOpacity="0.15" />
+              </linearGradient>
+            </defs>
+            <circle cx="160" cy="150" r="110" stroke="url(#ba-ring-a)" strokeWidth="2" />
+            <circle cx="260" cy="150" r="110" stroke="url(#ba-ring-b)" strokeWidth="2" />
+            <circle cx="160" cy="150" r="70" stroke="#fff" strokeOpacity="0.18" strokeWidth="1" strokeDasharray="3 7" />
+            <circle cx="260" cy="150" r="70" stroke="#fff" strokeOpacity="0.18" strokeWidth="1" strokeDasharray="3 7" />
+          </svg>
 
-            {/* Marcas d'água — cantos opostos */}
-            <img src={logoBadgeDark.src} alt="" loading="lazy"
-              className="absolute -bottom-2 -right-2 w-16 sm:w-20 opacity-[0.06] rotate-[14deg] pointer-events-none select-none" />
-            <img src={logoBadgeDark.src} alt="" loading="lazy"
-              className="absolute top-2 left-2 w-10 sm:w-14 opacity-[0.04] rotate-[-10deg] pointer-events-none select-none" />
-
-            <p className="relative text-center text-lg sm:text-xl md:text-2xl font-semibold text-[hsl(var(--navy-deep))] mt-1 tracking-tight">
-              {t("landing.howWeWork.philosophy.line1")}<br />
-              <span className="text-[hsl(var(--burgundy))] font-bold">{t("landing.howWeWork.philosophy.line2")}</span>
+          <div className="relative max-w-[760px]">
+            <span className="ba-glass-dark inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold tracking-[0.16em]">
+              <span className="ba-pulse" />
+              {t("landing.howWeWork.philosophy.pill")}
+            </span>
+            <p className="m-0 mt-7 font-[family-name:var(--ba-display)] text-[clamp(40px,6.4vw,92px)] font-bold leading-[0.98] tracking-[-0.045em]">
+              {t("landing.howWeWork.philosophy.line1")}
+              <span className="ba-serif mt-1 block text-[1.08em] font-normal leading-[1] text-white/95">{t("landing.howWeWork.philosophy.line2")}</span>
             </p>
           </div>
         </div>
 
-        {/* Cards Grid */}
-        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto">
-
-          {/* Card 1: Para quem é — glass dark premium + watermarks */}
-          <div
-            ref={card1Reveal.ref}
-            className={`${revealClass(card1Reveal.isRevealed, "left")} group`}
-          >
-            <div className="relative h-full p-6 sm:p-8 rounded-2xl bg-white/[0.06] backdrop-blur-sm border border-white/[0.12] hover:bg-white/[0.09] hover:border-white/[0.18] transition-all duration-500 overflow-hidden">
-
-              {/* Watermarks brancos — card escuro */}
-              <img src={logoWatermark.src} alt="" loading="lazy"
-                className="absolute -bottom-3 -right-2 w-20 sm:w-24 opacity-[0.04] rotate-[12deg] pointer-events-none select-none" />
-              <img src={logoWatermark.src} alt="" loading="lazy"
-                className="absolute top-3 right-3 w-10 sm:w-12 opacity-[0.025] rotate-[-8deg] pointer-events-none select-none" />
-
-              {/* Icon Header */}
-              <div className="flex items-center gap-3 mb-4 sm:mb-5">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] flex items-center justify-center shadow-lg shadow-[hsl(var(--burgundy)/0.3)]">
-                  <Heart className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-                </div>
-                <div>
-                  <span className="text-[hsl(var(--burgundy-bright))] text-xs font-semibold tracking-wider">{t("landing.howWeWork.card1.tagline")}</span>
-                  <h3 className="text-lg sm:text-xl font-bold text-white">{t("landing.howWeWork.card1.title")}</h3>
-                </div>
-              </div>
-
-              <p className="text-white/80 text-sm sm:text-base leading-relaxed">
-                {t("landing.howWeWork.card1.bodyBefore")} <span className="text-white font-medium">{t("landing.howWeWork.card1.bodyBold")}</span>{t("landing.howWeWork.card1.bodyAfter")}
-              </p>
-
-              {/* Visual Accent */}
-              <div className="mt-5 pt-5 border-t border-white/[0.1] flex items-center gap-3">
-                <div className="flex -space-x-2">
-                  <div className="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center">
-                    <Users className="w-4 h-4 text-white/70" />
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center">
-                    <Target className="w-4 h-4 text-white/70" />
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center">
-                    <Shield className="w-4 h-4 text-white/70" />
-                  </div>
-                </div>
-                <span className="text-white/70 text-xs sm:text-sm">{t("landing.howWeWork.card1.footer")}</span>
+        {/* Cartões assimétricos sobrepostos à faixa: profundidade e ponte para a seção escura */}
+        <div className="relative z-[3] mt-4 grid grid-cols-1 gap-4 sm:mt-5 sm:gap-5 lg:-mt-[96px] lg:grid-cols-12 lg:px-[clamp(20px,3vw,48px)]">
+          <article className="ba-glass ba-rv flex flex-col rounded-[26px] !bg-white/[0.88] p-6 sm:rounded-[30px] sm:p-8 lg:col-span-7" style={delay(2)} data-tilt>
+            <div className="flex items-center gap-4">
+              <span className="grid h-14 w-14 flex-none place-items-center rounded-[18px] bg-[linear-gradient(150deg,var(--ba-wine-2),var(--ba-wine)_60%,#5e1621)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_14px_28px_-12px_rgba(144,36,52,0.75)]">
+                <Heart className="h-6 w-6" aria-hidden="true" />
+              </span>
+              <div>
+                <span className="text-xs font-semibold tracking-[0.14em] text-[var(--ba-wine)]">{t("landing.howWeWork.card1.tagline")}</span>
+                <h3 className="ba-h3 mt-1 text-[clamp(22px,2vw,28px)] text-[var(--ba-navy)]">{t("landing.howWeWork.card1.title")}</h3>
               </div>
             </div>
-          </div>
-
-          {/* Card 2: Atuação Seletiva — premium quase-branco + 3 watermarks */}
-          <div
-            ref={card2Reveal.ref}
-            className={`${revealClass(card2Reveal.isRevealed, "right")} group`}
-          >
-            <div className="relative h-full p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-white via-white to-[hsl(354_70%_96%)] border border-[hsl(var(--burgundy)/0.22)] shadow-xl shadow-[hsl(var(--burgundy)/0.14)] hover:shadow-2xl hover:shadow-[hsl(var(--burgundy)/0.2)] hover:-translate-y-0.5 transition-all duration-500 overflow-hidden">
-
-              {/* Accent stripe topo — burgundy */}
-              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-[hsl(var(--burgundy))] via-[hsl(var(--burgundy-glow))] to-[hsl(var(--burgundy))] rounded-t-2xl" />
-
-              {/* Marcas d'água — 3 pontos de profundidade */}
-              <img src={logoBadgeDark.src} alt="" loading="lazy"
-                className="absolute -bottom-2 -right-2 w-20 sm:w-24 opacity-[0.065] rotate-[10deg] pointer-events-none select-none" />
-              <img src={logoBadgeDark.src} alt="" loading="lazy"
-                className="absolute top-2 left-2 w-12 sm:w-16 opacity-[0.04] rotate-[-15deg] pointer-events-none select-none" />
-              <img src={logoBadgeDark.src} alt="" loading="lazy"
-                className="absolute bottom-8 left-5 w-9 sm:w-11 opacity-[0.028] rotate-[6deg] pointer-events-none select-none" />
-
-              {/* Icon Header */}
-              <div className="flex items-center gap-3 mb-4 sm:mb-5 mt-1">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[hsl(var(--burgundy)/0.08)] border border-[hsl(var(--burgundy)/0.2)] flex items-center justify-center">
-                  <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-[hsl(var(--burgundy))]" />
-                </div>
-                <div>
-                  <span className="text-[hsl(var(--burgundy))] text-xs font-semibold tracking-wider">{t("landing.howWeWork.card2.tagline")}</span>
-                  <h3 className="text-lg sm:text-xl font-bold text-[hsl(var(--navy-deep))]">{t("landing.howWeWork.card2.title")}</h3>
-                </div>
+            <p className="mb-0 mt-5 text-[16px] leading-[1.6] text-[var(--ba-ink-2)]">
+              {t("landing.howWeWork.card1.bodyBefore")} <strong className="font-semibold text-[var(--ba-navy)]">{t("landing.howWeWork.card1.bodyBold")}</strong>
+              {t("landing.howWeWork.card1.bodyAfter")}
+            </p>
+            <span className="flex-1" aria-hidden="true" />
+            <div className="mt-6 flex items-center gap-3 border-t border-[var(--ba-stroke)] pt-5">
+              <div className="flex -space-x-2.5" aria-hidden="true">
+                {FAMILY_ICONS.map((Icon, i) => (
+                  <span key={i} className="grid h-9 w-9 place-items-center rounded-full bg-white text-[var(--ba-blue)] shadow-[0_0_0_2px_#fff,0_0_0_3px_var(--ba-stroke),var(--ba-shadow-sm)]">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                ))}
               </div>
-
-              <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
-                {t("landing.howWeWork.card2.bodyBefore")} <span className="text-[hsl(var(--navy-deep))] font-medium">{t("landing.howWeWork.card2.bodyBold")}</span>{t("landing.howWeWork.card2.bodyAfter")}
-              </p>
-
-              {/* Visual Stats */}
-              <div className="mt-5 pt-5 border-t border-[hsl(var(--burgundy)/0.12)] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[hsl(var(--burgundy))]" />
-                  <span className="text-slate-500 text-xs sm:text-sm">{t("landing.howWeWork.card2.footerLabel")}</span>
-                </div>
-                <div className="px-3 py-1 rounded-full bg-[hsl(var(--burgundy)/0.08)] border border-[hsl(var(--burgundy)/0.2)]">
-                  <span className="text-[hsl(var(--burgundy))] text-xs font-semibold">{t("landing.howWeWork.card2.footerBadge")}</span>
-                </div>
-              </div>
+              <span className="text-sm font-semibold text-[var(--ba-ink-2)]">{t("landing.howWeWork.card1.footer")}</span>
             </div>
-          </div>
+          </article>
+
+          <article
+            className="ba-rv relative flex flex-col overflow-hidden rounded-[26px] p-6 text-white shadow-[var(--ba-shadow-lg),inset_0_1px_0_rgba(255,255,255,0.18)] [background:radial-gradient(110%_80%_at_100%_0%,rgba(71,107,192,0.6)_0%,rgba(71,107,192,0)_55%),linear-gradient(165deg,#13296b,var(--ba-navy-2))] sm:rounded-[30px] sm:p-8 lg:col-span-5"
+            style={delay(3)}
+            data-tilt
+          >
+            <div className="ba-glow -right-10 -top-10 h-40 w-40 bg-[rgba(144,36,52,0.45)]" />
+            <div className="relative flex items-start justify-between gap-3">
+              <span className="grid h-14 w-14 flex-none place-items-center rounded-[18px] bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),inset_0_0_0_1px_rgba(255,255,255,0.2)] backdrop-blur-[14px]">
+                <Shield className="h-6 w-6" aria-hidden="true" />
+              </span>
+              <span className="whitespace-nowrap rounded-full bg-[linear-gradient(135deg,var(--ba-wine-2),var(--ba-wine))] px-3 py-1.5 text-[11px] font-bold tracking-[0.14em] shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_18px_-8px_rgba(144,36,52,0.8)]">
+                {t("landing.howWeWork.card2.footerBadge")}
+              </span>
+            </div>
+            <span className="relative mt-5 text-xs font-semibold tracking-[0.14em] text-[#f0b1bb]">{t("landing.howWeWork.card2.tagline")}</span>
+            <h3 className="ba-h3 relative mt-1 text-[clamp(22px,2vw,28px)]">{t("landing.howWeWork.card2.title")}</h3>
+            <p className="relative mb-0 mt-4 text-[16px] leading-[1.6] text-white/[0.84]">
+              {t("landing.howWeWork.card2.bodyBefore")} <strong className="font-semibold text-white">{t("landing.howWeWork.card2.bodyBold")}</strong>
+              {t("landing.howWeWork.card2.bodyAfter")}
+            </p>
+            <span className="flex-1" aria-hidden="true" />
+            <div className="relative mt-6 flex items-center gap-2.5 border-t border-white/[0.12] pt-5">
+              <Clock className="h-4 w-4 text-[#f0b1bb]" aria-hidden="true" />
+              <span className="text-sm font-semibold text-white/[0.86]">{t("landing.howWeWork.card2.footerLabel")}</span>
+            </div>
+          </article>
         </div>
       </div>
     </section>

@@ -1,17 +1,18 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useScrollReveal, revealClass } from "@/hooks/useScrollReveal";
+import Image from "next/image";
+import { motion } from "framer-motion";
 import { Play, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
+
 import { useLanguage } from "@/i18n";
 import paiBento from "@/assets/PAI-BENTO.jpeg";
 import maeIsadora from "@/assets/MAE-ISADORA.jpeg";
 import priscilaMoraes from "@/assets/PRISCILA-MORAES.jpeg";
-import logoBadgeDark from "@/assets/logo-badge-dark.png";
 import GabrielMachado from "@/assets/GABRIEL-MACHADO.jpeg";
 import comperlingo from "@/assets/Comperlingo.jpeg";
 import paiLizValverde from "@/assets/paiLizValverde.jpg";
+import MeshBackground from "./brand/MeshBackground";
 
 const parentTestimonials = [
   {
@@ -46,19 +47,32 @@ const parentTestimonials = [
   },
 ];
 
+// Mosaico em 3 colunas desencontradas (a do meio desce): ritmo de mural, não de grade.
+const MOSAIC_COLUMNS = [
+  { indexes: [0, 3], offset: "" },
+  { indexes: [1, 4], offset: "translate-y-16" },
+  { indexes: [2, 5], offset: "-translate-y-6" },
+];
+
+// Sem chave de tradução para o botão de fechar: rótulo acessível local nos 3 idiomas.
+
+const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
+
+const arrowButton =
+  "ba-glass grid h-11 w-11 place-items-center rounded-full text-[var(--ba-navy)] transition-[transform,opacity,background-color] duration-300 hover:-translate-y-0.5 hover:bg-white/90 focus-visible:outline-[2.5px] focus-visible:outline-offset-2 focus-visible:outline-[var(--ba-blue-2)] disabled:pointer-events-none disabled:opacity-35";
+
 interface ParentVideoCardProps {
-  testimonial: typeof parentTestimonials[0];
+  testimonial: (typeof parentTestimonials)[0];
   isPlaying: boolean;
   onPlay: () => void;
   onClose: () => void;
+  className?: string;
 }
 
-const ParentVideoCard = ({ testimonial, isPlaying, onPlay, onClose }: ParentVideoCardProps) => {
+// Moldura translúcida sem backdrop-filter: no trilho rolável o desfoque pintava um retângulo atrás dos cartões.
+const ParentVideoCard = ({ testimonial, isPlaying, onPlay, onClose, className = "" }: ParentVideoCardProps) => {
   const { t } = useLanguage();
-
-  const handlePlayClick = () => {
-    onPlay();
-  };
+  const videoLabel = `${t("landing.testimonials.videoTitle")} ${testimonial.familyName}`;
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -66,81 +80,67 @@ const ParentVideoCard = ({ testimonial, isPlaying, onPlay, onClose }: ParentVide
   };
 
   return (
-    <div className="parent-testimonial-card flex-shrink-0 w-[200px] sm:w-[260px] md:w-[320px] group">
-      {/* Video Container */}
-      <div className="relative aspect-[9/16] rounded-xl sm:rounded-2xl overflow-hidden cursor-pointer bg-[hsl(var(--navy-medium))] shadow-xl">
+    <div className={`parent-testimonial-card group rounded-[26px] border border-white/80 bg-white/70 shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(31,63,163,0.06),var(--ba-shadow)] p-[6px] transition-shadow duration-700 [transition-timing-function:var(--ba-ease)] hover:shadow-[var(--ba-shadow-lg)] sm:rounded-[28px] sm:p-[7px] ${className}`} data-tilt>
+      <div className="relative aspect-[9/16] overflow-hidden rounded-[21px] bg-[var(--ba-navy-2)] sm:rounded-[22px]">
         {!isPlaying ? (
-          <div className="absolute inset-0">
-            {/* Thumbnail Image */}
-            <img
-              src={testimonial.thumbnail.src}
+          <button type="button" onClick={onPlay} aria-label={videoLabel} className="absolute inset-0 block h-full w-full cursor-pointer text-left focus-visible:outline-[2.5px] focus-visible:outline-offset-[-4px] focus-visible:outline-white">
+            <Image
+              src={testimonial.thumbnail}
               alt={testimonial.familyName}
-              className="absolute inset-0 w-full h-full object-cover"
-              loading="lazy"
-              decoding="async"
+              fill
+              sizes="(max-width: 1024px) 240px, 300px"
+              className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
             />
+            <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.25)_0%,rgba(10,26,69,0)_22%,rgba(10,26,69,0)_55%,rgba(6,15,42,0.9)_100%)]" />
 
-            {/* Bottom Gradient Overlay */}
-            <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
+            <span className="ba-glass-dark absolute left-3 top-3 flex items-center gap-1.5 rounded-full px-2.5 py-[5px]">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
+            </span>
 
-            {/* Video Interface Elements */}
-            <div className="absolute inset-0 p-3 sm:p-5 flex flex-col justify-between" onClick={handlePlayClick}>
-              {/* Top: REC / Status Indicator */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/40 backdrop-blur-md border border-white/10">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-[10px] font-bold text-white tracking-widest uppercase">REC</span>
-                </div>
-              </div>
-
-              {/* Bottom: Info + Progress */}
-              <div className="space-y-3">
-                <div className="flex items-end justify-between gap-3">
-                  <div className="flex-1">
-                    <h4 className="font-bold text-white text-sm sm:text-lg mb-0.5">
-                      {testimonial.familyName}
-                    </h4>
-                  </div>
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))] border border-white/20 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-[hsl(var(--burgundy)/0.4)] transition-all duration-300">
-                    <Play className="w-3.5 h-3.5 sm:w-3.5 sm:h-3.5 text-white fill-current ml-0.5" />
-                  </div>
-                </div>
-
-                {/* Video Progress Bar */}
-                <div className="relative h-1 w-full bg-white/20 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: "30%" }}
-                    whileHover={{ width: "100%" }}
-                    transition={{ duration: 0.5 }}
-                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-[hsl(var(--navy-light))] to-[hsl(var(--burgundy-glow))] rounded-full"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+            <span className="absolute inset-x-0 bottom-0 block p-4 sm:p-5">
+              <span aria-hidden="true" className="ba-serif block text-[54px] leading-[0.55] text-white/55">
+                “
+              </span>
+              <span className="mt-2 flex items-end justify-between gap-3">
+                <span className="min-w-0 font-[family-name:var(--ba-display)] text-[16px] font-semibold leading-[1.15] tracking-[-0.02em] text-white sm:text-[18px]">
+                  {testimonial.familyName}
+                </span>
+                <span aria-hidden="true" className="grid h-11 w-11 flex-none place-items-center rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:scale-110 sm:h-12 sm:w-12">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-[linear-gradient(180deg,#fff,#e6ecfb)] sm:h-9 sm:w-9">
+                    <Play className="ml-0.5 h-3.5 w-3.5 fill-[var(--ba-navy)] text-[var(--ba-navy)]" />
+                  </span>
+                </span>
+              </span>
+              <span className="relative mt-3.5 block h-[3px] w-full overflow-hidden rounded-full bg-white/20">
+                <motion.span
+                  initial={{ width: "30%" }}
+                  whileHover={{ width: "100%" }}
+                  transition={{ duration: 0.5 }}
+                  className="absolute inset-y-0 left-0 block rounded-full bg-[linear-gradient(90deg,#b8caf7,#f0b1bb)]"
+                />
+              </span>
+            </span>
+          </button>
         ) : (
-          <div className="absolute inset-0">
-            {/* YouTube Embed */}
+          <div className="absolute inset-0 bg-black">
             <iframe
               src={`https://www.youtube.com/embed/${testimonial.youtubeId}?autoplay=1&rel=0`}
-              title={`${t("landing.testimonials.videoTitle")} ${testimonial.familyName}`}
-              className="absolute inset-0 w-full h-full"
+              title={videoLabel}
+              className="absolute inset-0 h-full w-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             />
-
-            {/* Close Button */}
             <button
+              type="button"
               onClick={handleClose}
-              className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center hover:bg-black/80 transition-colors"
+              aria-label={t("landing.closeVideo")}
+              className="ba-glass-dark absolute right-2.5 top-2.5 z-20 grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/20 focus-visible:outline-[2.5px] focus-visible:outline-white"
             >
-              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+              <X className="h-[18px] w-[18px]" />
             </button>
           </div>
         )}
-
-        {/* Premium Border Glow on Hover */}
-        <div className="absolute inset-0 rounded-xl sm:rounded-2xl border border-[hsl(var(--burgundy)/0)] group-hover:border-[hsl(var(--burgundy)/0.5)] transition-colors pointer-events-none" />
       </div>
     </div>
   );
@@ -148,14 +148,33 @@ const ParentVideoCard = ({ testimonial, isPlaying, onPlay, onClose }: ParentVide
 
 const ParentTestimonialsSection = () => {
   const { t } = useLanguage();
-  const headerReveal = useScrollReveal();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [activeVideoIndex, setActiveVideoIndex] = useState<number | null>(null);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
 
   const rafRef = useRef<number>(0);
+
+  // Mosaico e trilho nunca coexistem no DOM (dois iframes tocariam áudio em dobro); null até montar
+  // para a hidratação não reaproveitar o DOM do outro ramo.
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)");
+    setIsDesktop(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
+  // Passo = largura real do cartão + gap, medido no DOM (o cartão muda de tamanho por breakpoint).
+  const getCardStep = useCallback(() => {
+    const track = scrollContainerRef.current;
+    const first = track?.firstElementChild as HTMLElement | null;
+    if (!track || !first) return 1;
+    const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+    return first.offsetWidth + gap;
+  }, []);
 
   const checkScrollability = useCallback(() => {
     if (rafRef.current) return;
@@ -164,150 +183,122 @@ const ParentTestimonialsSection = () => {
         const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
         setCanScrollLeft(scrollLeft > 0);
         setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
-        // Calcula índice do card ativo com base na posição do scroll
-        const cardW = window.innerWidth < 640 ? 200 + 12 : 320 + 24;
-        const computed = Math.round(scrollLeft / cardW);
+        const computed = Math.round(scrollLeft / getCardStep());
         setActiveCardIndex(Math.min(Math.max(computed, 0), parentTestimonials.length - 1));
       }
       rafRef.current = 0;
     });
-  }, []);
+  }, [getCardStep]);
 
   useEffect(() => {
     checkScrollability();
-    window.addEventListener('resize', checkScrollability);
+    window.addEventListener("resize", checkScrollability);
     return () => {
-      window.removeEventListener('resize', checkScrollability);
+      window.removeEventListener("resize", checkScrollability);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [checkScrollability]);
+  }, [checkScrollability, isDesktop]);
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (scrollContainerRef.current) {
-      const cardWidth = window.innerWidth < 640 ? 200 + 12 : 320 + 24;
-      const scrollAmount = direction === 'left' ? -cardWidth : cardWidth;
-      scrollContainerRef.current.scrollBy({
-        left: scrollAmount,
-        behavior: 'smooth'
-      });
-    }
+  const scroll = (direction: "left" | "right") => {
+    const step = getCardStep();
+    scrollContainerRef.current?.scrollBy({ left: direction === "left" ? -step : step, behavior: "smooth" });
   };
 
+  const cardProps = (index: number) => ({
+    testimonial: parentTestimonials[index],
+    isPlaying: activeVideoIndex === index,
+    onPlay: () => setActiveVideoIndex(index),
+    onClose: () => setActiveVideoIndex(null),
+  });
+
+  // overflow-clip (não hidden): hidden vira contêiner de rolagem e desliga o sticky do cabeçalho.
   return (
-    <section className="py-16 sm:py-24 md:py-32 overflow-hidden relative">
-      {/* Light Background for contrast with dark sections */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100" />
+    <section className="relative isolate overflow-clip py-[clamp(80px,10vw,140px)]" aria-labelledby="familias-title">
+      {/* Topo esmaecido: os cantos arredondados da seção escura acima revelam o fundo da página sem a malha */}
+      <MeshBackground blobs={["b1", "b2", "b3"]} grid className="[mask-image:linear-gradient(180deg,transparent,#000_12%)] [&_.ba-b1]:!top-[-10vw] [&_.ba-b3]:!left-[55vw] [&_.ba-b3]:!top-[50%] [&_.ba-b3]:!opacity-35" />
 
-      {/* Subtle accent */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-gradient-to-tr from-[hsl(var(--burgundy)/0.03)] to-transparent" />
-      </div>
-
-      {/* Watermark Logos - Light Premium (+50% size, +70% opacity) */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[3%] left-[2%] w-14 sm:w-20 md:w-28 opacity-[0.068] rotate-[-10deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[5%] right-[8%] w-16 sm:w-24 md:w-32 opacity-[0.077] rotate-[15deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[20%] left-[18%] w-12 sm:w-20 md:w-24 opacity-[0.06] rotate-[8deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[28%] right-[15%] w-14 sm:w-20 md:w-28 opacity-[0.068] rotate-[-12deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[45%] left-[5%] w-14 sm:w-20 md:w-28 opacity-[0.077] rotate-[18deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[50%] right-[5%] w-16 sm:w-24 md:w-32 opacity-[0.068] rotate-[-8deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[65%] left-[25%] w-12 sm:w-20 md:w-24 opacity-[0.06] rotate-[-5deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute top-[70%] right-[22%] w-14 sm:w-20 md:w-28 opacity-[0.068] rotate-[10deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute bottom-[15%] left-[8%] w-14 sm:w-20 md:w-28 opacity-[0.077] rotate-[12deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute bottom-[10%] right-[12%] w-16 sm:w-24 md:w-32 opacity-[0.068] rotate-[-12deg]" />
-        <img src={logoBadgeDark.src} alt="" loading="lazy" className="absolute bottom-[5%] left-[45%] w-12 sm:w-20 md:w-24 opacity-[0.06] rotate-[5deg]" />
-      </div>
-
-      <div className="container mx-auto px-4 sm:px-6 mb-8 sm:mb-12 relative z-10">
-        <div
-          ref={headerReveal.ref}
-          className={`${revealClass(headerReveal.isRevealed)} text-center max-w-3xl mx-auto`}
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[hsl(var(--navy-deep)/0.06)] border border-[hsl(var(--navy-deep)/0.1)] mb-4 sm:mb-6">
-            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[hsl(var(--burgundy))]" />
-            <span className="text-xs sm:text-sm font-semibold text-[hsl(var(--navy-deep))]">{t("landing.parentTestimonials.badge")}</span>
-          </div>
-          <h2 className="text-[1.5rem] sm:text-3xl md:text-4xl font-bold mt-4 sm:mt-4 mb-3 sm:mb-4 text-[hsl(var(--navy-deep))] leading-tight">
-            {t("landing.parentTestimonials.title1")}{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(var(--burgundy))] to-[hsl(var(--burgundy-glow))]">{t("landing.parentTestimonials.title2")}</span>
-            .
+      <div className="ba-wrap relative z-[2] grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)] lg:gap-[clamp(40px,5vw,88px)]">
+        {/* Cabeçalho fixo à esquerda enquanto o mural rola no desktop */}
+        <div className="lg:sticky lg:top-32 lg:self-start lg:pt-10">
+          <span className="ba-eyebrow ba-glass ba-rv">
+            <span className="ba-dot" />
+            {t("landing.parentTestimonials.badge")}
+          </span>
+          <h2 id="familias-title" className="ba-h2 ba-rv mt-5 text-[clamp(32px,4.4vw,58px)] text-[var(--ba-navy)]" style={delay(1)}>
+            {t("landing.parentTestimonials.title1")} <span className="ba-serif text-[1.08em] text-[var(--ba-wine)]">{t("landing.parentTestimonials.title2")}</span>.
           </h2>
-          <p className="text-sm sm:text-base text-slate-600 px-2">
+          <p className="ba-lead ba-rv mt-5 max-w-[420px]" style={delay(2)}>
             {t("landing.parentTestimonials.subtitle")}
           </p>
-        </div>
-      </div>
 
-      {/* Mobile Swipe Hint */}
-      <p className="flex items-center justify-center gap-1 text-xs text-slate-400 mb-3 sm:hidden animate-pulse relative z-10">
-        <span>{t("landing.parentTestimonials.swipeHint")}</span>
-        <ChevronRight className="w-3 h-3" />
-      </p>
-
-      {/* Video Cards Container */}
-      <div className="relative px-2 sm:px-4 z-10">
-        {/* Gradient Masks */}
-        <div className="absolute left-0 top-0 bottom-0 w-8 sm:w-20 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
-        <div className="absolute right-0 top-0 bottom-0 w-8 sm:w-20 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
-
-        {/* Left Navigation Arrow */}
-        <motion.button
-          animate={{ opacity: canScrollLeft ? 1 : 0.3 }}
-          whileHover={{ scale: canScrollLeft ? 1.1 : 1 }}
-          whileTap={{ scale: canScrollLeft ? 0.95 : 1 }}
-          onClick={() => scroll('left')}
-          disabled={!canScrollLeft}
-          className="absolute left-1 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-white/80 backdrop-blur-sm border border-slate-200/50 hidden sm:flex items-center justify-center transition-all hover:bg-white hover:border-[hsl(var(--burgundy)/0.5)] disabled:cursor-not-allowed shadow-md"
-        >
-          <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-[hsl(var(--navy-deep))]" />
-        </motion.button>
-
-        {/* Right Navigation Arrow */}
-        <motion.button
-          animate={{ opacity: canScrollRight ? 1 : 0.3 }}
-          whileHover={{ scale: canScrollRight ? 1.1 : 1 }}
-          whileTap={{ scale: canScrollRight ? 0.95 : 1 }}
-          onClick={() => scroll('right')}
-          disabled={!canScrollRight}
-          className="absolute right-1 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-white/80 backdrop-blur-sm border border-slate-200/50 hidden sm:flex items-center justify-center transition-all hover:bg-white hover:border-[hsl(var(--burgundy)/0.5)] disabled:cursor-not-allowed shadow-md"
-        >
-          <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-[hsl(var(--navy-deep))]" />
-        </motion.button>
-
-        {/* Scrollable Track */}
-        <div
-          ref={scrollContainerRef}
-          onScroll={checkScrollability}
-          className="flex gap-3 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory justify-start scroll-smooth touch-pan-x px-4 sm:px-8 scroll-px-4 sm:scroll-px-8"
-          style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}
-        >
-          {parentTestimonials.map((testimonial, index) => (
-            <div
-              key={`${testimonial.familyName}-${index}`}
-              className="snap-center"
-            >
-              <ParentVideoCard
-                testimonial={testimonial}
-                isPlaying={activeVideoIndex === index}
-                onPlay={() => setActiveVideoIndex(index)}
-                onClose={() => setActiveVideoIndex(null)}
-              />
+          {/* Selo das famílias: rostos sobrepostos, atalho visual para o mural */}
+          <div className="ba-glass ba-rv mt-8 inline-flex items-center gap-4 rounded-full py-2 pl-2 pr-5" style={delay(3)} aria-hidden="true">
+            <div className="flex -space-x-3">
+              {parentTestimonials.slice(0, 4).map((item) => (
+                <span key={item.familyName} className="relative h-10 w-10 overflow-hidden rounded-full shadow-[0_0_0_2.5px_#fff,0_6px_14px_-6px_rgba(15,35,87,0.5)]">
+                  <Image src={item.thumbnail} alt="" fill sizes="40px" className="object-cover object-[50%_25%]" />
+                </span>
+              ))}
             </div>
-          ))}
+            <span className="font-[family-name:var(--ba-display)] text-[22px] font-bold tracking-[-0.03em] text-[var(--ba-navy)]">+{parentTestimonials.length}</span>
+          </div>
         </div>
-      </div>
 
-      {/* Scroll Indicator Dots — reflete card ativo */}
-      <div className="flex justify-center mt-4 sm:mt-6 gap-1.5 sm:gap-2 relative z-10">
-        {parentTestimonials.map((_, index) => (
-          <div
-            key={index}
-            className={`rounded-full transition-all duration-300 h-1.5 sm:h-2 ${index === activeCardIndex
-              ? 'w-4 sm:w-5 bg-[hsl(var(--burgundy))]'
-              : 'w-1.5 sm:w-2 bg-slate-300'
-              }`}
-          />
-        ))}
+        {isDesktop === null ? (
+          <div className="min-h-[520px]" aria-hidden="true" />
+        ) : isDesktop ? (
+          <div key="mosaic" className="grid grid-cols-3 gap-5 pb-16 xl:gap-6">
+            {MOSAIC_COLUMNS.map((column, columnIndex) => (
+              <div key={columnIndex} className={`flex flex-col gap-5 xl:gap-6 ${column.offset}`}>
+                {column.indexes.map((index, row) => (
+                  <div key={parentTestimonials[index].familyName} className="ba-rv-scale" style={delay(columnIndex + row * 2)}>
+                    <ParentVideoCard {...cardProps(index)} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div key="track" className="min-w-0">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <p className="flex items-center gap-1 text-xs font-medium text-[var(--ba-ink-3)] sm:hidden">
+                <span>{t("landing.parentTestimonials.swipeHint")}</span>
+                <ChevronRight className="h-3 w-3" aria-hidden="true" />
+              </p>
+              <div className="ml-auto hidden items-center gap-2 sm:flex">
+                <button type="button" onClick={() => scroll("left")} disabled={!canScrollLeft} aria-label={t("landing.institutionalRecognition.carouselPrev")} className={arrowButton}>
+                  <ChevronLeft className="h-[18px] w-[18px]" />
+                </button>
+                <button type="button" onClick={() => scroll("right")} disabled={!canScrollRight} aria-label={t("landing.institutionalRecognition.carouselNext")} className={arrowButton}>
+                  <ChevronRight className="h-[18px] w-[18px]" />
+                </button>
+              </div>
+            </div>
+
+            {/* Trilho com scroll-snap sangrando até a borda da tela */}
+            <div
+              ref={scrollContainerRef}
+              onScroll={checkScrollability}
+              className="scrollbar-hide -mx-[var(--ba-gutter)] -mb-16 -mt-6 flex snap-x snap-mandatory touch-pan-x gap-3 overflow-x-auto scroll-smooth px-[var(--ba-gutter)] pb-16 pt-6 [scroll-padding-inline:var(--ba-gutter)] sm:gap-5"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              {parentTestimonials.map((testimonial, index) => (
+                <div key={testimonial.familyName} className="w-[min(62vw,240px)] flex-none snap-start sm:w-[260px]">
+                  <ParentVideoCard {...cardProps(index)} />
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex justify-center gap-1.5 sm:gap-2" aria-hidden="true">
+              {parentTestimonials.map((testimonial, index) => (
+                <div
+                  key={testimonial.familyName}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${index === activeCardIndex ? "w-5 bg-[var(--ba-wine)]" : "w-1.5 bg-[rgba(31,63,163,0.22)]"}`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
