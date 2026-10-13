@@ -1,6 +1,8 @@
 // ─── Fonte da verdade — Português Brasileiro ──────────────────────
 export const pt = {
   header: {
+    languageSelect: "Selecionar idioma",
+    languageList: "Idioma",
     navHome: "Início",
     navStories: "Histórias",
     navSchools: "Escolas",

@@ -72,6 +72,11 @@ export interface AthleteStory {
   highlight?: boolean;
 }
 
+/** Texto no idioma pedido. Tradução vazia cai para o PT em vez de deixar um buraco na tela. */
+export function pick(text: Localized, lang: Lang): string {
+  return text[lang] || text.pt;
+}
+
 /** URL do pôster do YouTube: hq720 (16:9) para vídeos e oar2 (9:16) para Shorts. */
 export function youtubeThumb(id: string, kind: VideoKind): string {
   return `https://i.ytimg.com/vi/${id}/${kind === "short" ? "oar2" : "hq720"}.jpg`;

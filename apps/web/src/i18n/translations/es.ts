@@ -3,6 +3,8 @@ import type { Translations } from "./pt";
 
 const es: Translations = {
   header: {
+    languageSelect: "Seleccionar idioma",
+    languageList: "Idioma",
     navHome: "Inicio",
     navStories: "Historias",
     navSchools: "Escuelas",

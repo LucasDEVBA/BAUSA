@@ -30,7 +30,7 @@ export function trackFormError(step: number, errorMessage: string): void {
  * sem CHECK). "dock" = barra de navegação mobile; os nomes de página marcam o
  * CTA de cada página de conteúdo do multipage.
  */
-export const CTA_SOURCES = ["hero", "final", "header", "links", "dock", "metodo", "historias", "escolas", "sobre"] as const;
+export const CTA_SOURCES = ["hero", "final", "header", "footer", "links", "dock", "metodo", "historias", "escolas", "sobre"] as const;
 export type CtaSource = (typeof CTA_SOURCES)[number];
 
 export function trackCtaClick(source: CtaSource): void {

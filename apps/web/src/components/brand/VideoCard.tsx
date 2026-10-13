@@ -62,7 +62,7 @@ export default function VideoCard({ id, kind, title, duration, meta, start, post
         </span>
       )}
       <span aria-hidden="true" className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-5">
-        <span className="line-clamp-2 block font-[family-name:var(--ba-display)] text-[15px] font-semibold leading-[1.25] tracking-[-0.015em] sm:text-[16.5px]">
+        <span className="line-clamp-2 font-[family-name:var(--ba-display)] text-[15px] font-semibold leading-[1.25] tracking-[-0.015em] sm:text-[16.5px]">
           {title}
         </span>
         {meta && <span className="mt-1 block truncate text-[12.5px] font-medium text-white/75">{meta}</span>}

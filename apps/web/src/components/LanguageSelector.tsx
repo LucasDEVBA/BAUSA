@@ -24,7 +24,7 @@ interface LanguageSelectorProps {
 }
 
 const LanguageSelector = ({ variant = "light", size = "default" }: LanguageSelectorProps) => {
-  const { lang, setLang } = useLanguage();
+  const { lang, setLang, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -63,7 +63,7 @@ const LanguageSelector = ({ variant = "light", size = "default" }: LanguageSelec
         className={`flex items-center gap-2 ${isLarge ? "px-3 py-2" : "px-2 py-1.5"} rounded-full transition-all duration-200 ${
           isDark ? "hover:bg-white/10" : "hover:bg-black/5"
         }`}
-        aria-label="Selecionar idioma"
+        aria-label={t("header.languageSelect")}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
@@ -82,7 +82,7 @@ const LanguageSelector = ({ variant = "light", size = "default" }: LanguageSelec
           <>
             <motion.div
               role="listbox"
-              aria-label="Idioma"
+              aria-label={t("header.languageList")}
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}

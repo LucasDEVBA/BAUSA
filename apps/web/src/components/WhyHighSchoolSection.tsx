@@ -7,7 +7,9 @@ import { GraduationCap, Eye, TrendingUp, Building2, Check, type LucideIcon } fro
 import athleteLin from "@/assets/athlete-lin.jpeg";
 import athleteLiz from "@/assets/athlete-liz.jpeg";
 import { useLanguage } from "@/i18n";
+import { WHY_HIGH_SCHOOL_CHIPS } from "@/content/metodo";
 import MeshBackground from "./brand/MeshBackground";
+import { MethodVideoChip } from "./pages/metodo/MethodVideoChip";
 
 interface Highlight {
   key: string;
@@ -82,7 +84,8 @@ const WhyHighSchoolSection = memo(() => {
   );
 
   return (
-    <section className="relative isolate overflow-hidden py-[clamp(80px,10vw,140px)]" aria-labelledby="high-school-title">
+    // overflow-clip (não hidden): hidden cria um contêiner de rolagem e a coluna dos pôsteres nunca grudava
+    <section className="relative isolate overflow-hidden py-[clamp(80px,10vw,140px)] supports-[overflow:clip]:overflow-clip" aria-labelledby="high-school-title">
       <MeshBackground blobs={["b1", "b3"]} className="[&_.ba-b1]:!left-[-20vw] [&_.ba-b1]:!top-[20%] [&_.ba-b1]:!opacity-60 [&_.ba-b3]:!left-auto [&_.ba-b3]:!right-[-10vw] [&_.ba-b3]:!top-[55%] [&_.ba-b3]:!opacity-30" />
 
       <div className="ba-wrap relative z-[2]">
@@ -100,9 +103,17 @@ const WhyHighSchoolSection = memo(() => {
               {t("landing.whyHighSchool.title1")} <span className="ba-serif ba-grad-text text-[1.14em]">{t("landing.whyHighSchool.title2")}</span>
             </h2>
           </div>
-          <p className="ba-lead ba-rv lg:col-span-5 lg:pb-2" style={delay(3)}>
-            {t("landing.whyHighSchool.subtitle")}
-          </p>
+          <div className="lg:col-span-5 lg:pb-2">
+            <p className="ba-lead ba-rv m-0" style={delay(3)}>
+              {t("landing.whyHighSchool.subtitle")}
+            </p>
+            {/* Mini-trilha "Assista": as duas dúvidas que mais pesam antes da High School */}
+            <div className="ba-rv mt-6 flex flex-wrap gap-2.5" style={delay(4)}>
+              {WHY_HIGH_SCHOOL_CHIPS.map((chip) => (
+                <MethodVideoChip key={chip.videoId} chip={chip} />
+              ))}
+            </div>
+          </div>
         </header>
 
         <div className="mt-[clamp(48px,6vw,80px)] grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-[clamp(40px,4vw,64px)]">

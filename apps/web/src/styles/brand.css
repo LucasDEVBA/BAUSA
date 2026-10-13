@@ -257,4 +257,154 @@ body {
   .ba-rv, .ba-rv-scale { opacity: 1; transform: none; }
 }
 
+/* ── Dock mobile (tab bar no estilo do Instagram / iOS 26) ─────────────────────
+   Estados vêm do MobileDock (src/lib/dock-state.ts): a escala da pílula é
+   inline (framer-motion); rótulos e ícones reagem a [data-compact] por CSS,
+   sem um motion por item. */
+:root {
+  --ba-dock-h: 62px;
+  /* A dock fica ACIMA do home indicator, nunca dentro da zona de gesto do iOS
+     (inset de 34px no iPhone): o toque perto da borda vira "ir para o início".
+     Sem inset (Android, Safari com barra), 12px de respiro. */
+  --ba-dock-bottom: max(12px, env(safe-area-inset-bottom));
+  /* Recuo que o fim de cada página reserva para a dock não cobrir conteúdo.
+     Vira 0 no desktop, então pode ser usado sem breakpoint. */
+  --ba-dock-space: calc(var(--ba-dock-h) + var(--ba-dock-bottom) + 12px);
+  --ba-dock-side: 20px;
+  --ba-dock-slot: 34px;
+  --ba-dock-icon: 25px;
+}
+@media (min-width: 1024px) {
+  :root { --ba-dock-space: 0px; }
+}
+
+.ba-dock-shell {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--ba-dock-bottom);
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding: 0 max(var(--ba-dock-side), env(safe-area-inset-right)) 0 max(var(--ba-dock-side), env(safe-area-inset-left));
+  pointer-events: none;
+  /* backwards (não both): terminada a entrada, o transform volta a ser só do estado */
+  animation: ba-dock-in 0.7s var(--ba-ease) 0.35s backwards;
+}
+@keyframes ba-dock-in { from { opacity: 0; transform: translate3d(0, 24px, 0); } }
+
+.ba-dock {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 400px;
+  height: var(--ba-dock-h);
+  padding: 0 10px;
+  border-radius: 999px;
+  transform-origin: 50% 50%;
+  /* Blur menor que o .ba-glass: é uma 2ª camada fixa com escala animada sobre
+     a malha viva, e o custo de recomposição pesa em Android de entrada. */
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.55), inset 0 0 0 0.5px rgba(15, 35, 87, 0.06), 0 1px 2px rgba(15, 35, 87, 0.06), 0 10px 30px -8px rgba(15, 35, 87, 0.24);
+}
+.ba-dock[data-compact] { --ba-dock-shift: 7.5px; --ba-dock-orb-scale: 1.15; }
+
+.ba-dock-pill {
+  position: absolute;
+  inset: 0 -5px;
+  border-radius: 999px;
+  background: rgba(15, 35, 87, 0.085);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 0 0 0.5px rgba(255, 255, 255, 0.4);
+}
+
+.ba-dock-link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 100%;
+  min-width: 0;
+  border-radius: 24px;
+  color: var(--ba-ink-2);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.ba-dock-link[aria-current="page"] { color: var(--ba-navy); }
+.ba-dock-link:focus-visible { outline: 2px solid var(--ba-blue-2); outline-offset: -2px; }
+.ba-dock-link:active { --ba-dock-press: 0.9; }
+
+/* Slot único de 34px para ícone e círculo do CTA: os rótulos ficam na mesma linha */
+.ba-dock-icon {
+  display: grid;
+  place-items: center;
+  width: var(--ba-dock-slot);
+  height: var(--ba-dock-slot);
+  transform: translateY(var(--ba-dock-shift, 0px)) scale(var(--ba-dock-press, 1));
+  transition: transform 0.36s var(--ba-ease);
+}
+.ba-dock-icon svg { width: var(--ba-dock-icon); height: var(--ba-dock-icon); }
+
+.ba-dock-orb {
+  display: grid;
+  place-items: center;
+  width: var(--ba-dock-slot);
+  height: var(--ba-dock-slot);
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(180deg, #2b4fbd 0%, var(--ba-blue) 55%, #18348c 100%);
+  box-shadow: 0 0 0 2px #fff, inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -2px 5px rgba(8, 20, 70, 0.35), 0 8px 18px -6px rgba(31, 63, 163, 0.75);
+  transform: translateY(var(--ba-dock-shift, 0px)) scale(calc(var(--ba-dock-orb-scale, 1) * var(--ba-dock-press, 1)));
+  transition: transform 0.36s var(--ba-ease);
+}
+.ba-dock-orb svg { width: 18px; height: 18px; }
+
+.ba-dock-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--ba-body);
+  font-size: 10.5px;
+  line-height: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: opacity 0.16s linear;
+}
+.ba-dock-link[aria-current="page"] .ba-dock-label { font-weight: 700; }
+.ba-dock-cta .ba-dock-label { color: var(--ba-blue); font-weight: 700; }
+/* Compacta: rótulo some só visualmente (continua nome acessível do link) */
+.ba-dock[data-compact] .ba-dock-label { opacity: 0; }
+
+@media (max-width: 359px) {
+  :root { --ba-dock-side: 12px; }
+  .ba-dock-label { font-size: 10px; }
+}
+/* Largura útil < ~290px (zoom de 200% no celular, viewport de ~190px): só
+   ícones. O rótulo sai do fluxo mas segue no DOM como nome acessível. */
+@media (max-width: 299px) {
+  :root { --ba-dock-side: 10px; --ba-dock-h: 54px; }
+  .ba-dock { padding: 0 6px; }
+  .ba-dock-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ba-dock[data-compact] { --ba-dock-shift: 0px; }
+}
+@media (max-width: 239px) {
+  :root { --ba-dock-slot: 28px; --ba-dock-icon: 20px; }
+  .ba-dock-orb svg { width: 15px; height: 15px; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ba-dock { background: rgba(255, 255, 255, 0.96); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (forced-colors: active) {
+  .ba-dock { border: 1px solid CanvasText; }
+  .ba-dock-pill { outline: 2px solid Highlight; }
+}
+
 }

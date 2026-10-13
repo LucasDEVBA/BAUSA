@@ -1,12 +1,18 @@
 "use client";
 
 import Image from "next/image";
-import { Brain, GraduationCap, MapPin, ShieldCheck } from "lucide-react";
+import { ArrowRight, Brain, GraduationCap, MapPin, ShieldCheck } from "lucide-react";
 
 import leandroPhoto from "@/assets/leandro-palestra.jpg";
 import leandroHarvard from "@/assets/leandro-harvard.jpg";
+import { PAGE_PATH } from "@/config/routes";
+import { HOME_TEASERS, SOBRE_VIDEOS, withLanguageTag } from "@/content/sobre";
+import { pick } from "@/content/types";
+import { getVideo } from "@/content/videos";
 import { useLanguage } from "@/i18n";
+import { Link } from "@/i18n/navigation";
 import BrandCta from "./brand/BrandCta";
+import VideoChip from "./brand/VideoChip";
 
 const CREDENTIALS = [
   { key: "safe", icon: ShieldCheck },
@@ -16,8 +22,10 @@ const CREDENTIALS = [
 
 const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 
+const guideVideo = getVideo(SOBRE_VIDEOS.guide);
+
 const FounderSection = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   return (
     <section
@@ -94,6 +102,26 @@ const FounderSection = () => {
               {t("landing.founder.highlightBoxBefore")}
               <strong className="font-semibold text-white">{t("landing.brandName")}</strong>, {t("landing.founder.highlightBoxAfter")}
             </p>
+          </div>
+
+          {/* Teaser da página /sobre: o vídeo do fundador abre aqui mesmo; a história completa fica lá */}
+          <div className="ba-rv mt-7 flex flex-wrap items-center gap-x-5 gap-y-3" style={delay(4)}>
+            {guideVideo && (
+              <VideoChip
+                id={guideVideo.id}
+                label={pick(HOME_TEASERS.founderVideo, lang)}
+                title={pick(guideVideo.title, lang)}
+                duration={withLanguageTag(guideVideo.duration, lang)}
+                tone="dark"
+              />
+            )}
+            <Link
+              href={PAGE_PATH.sobre}
+              className="group inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-1 text-[14.5px] font-semibold text-white underline-offset-4 transition-colors hover:text-[#cfdcff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a9c0f2]"
+            >
+              {pick(HOME_TEASERS.founderStory, lang)}
+              <ArrowRight className="h-4 w-4 transition-transform duration-500 group-hover:translate-x-1" aria-hidden="true" />
+            </Link>
           </div>
 
           <ul className="my-8 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2.5">

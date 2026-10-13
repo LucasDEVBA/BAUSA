@@ -7,6 +7,7 @@ import athleteJulia from "@/assets/athlete-julia.png";
 import athleteMatheus from "@/assets/athlete-matheus.png";
 import athleteHelena from "@/assets/athlete-helena.png";
 import { useLanguage } from "@/i18n";
+import type { CtaSource } from "@/lib/tracking/events";
 import BrandCta from "./brand/BrandCta";
 
 const CAMPUS_IMAGE_URL = "/hero-campus.jpg";
@@ -28,7 +29,12 @@ const PORTRAITS: FloatingPortrait[] = [
 
 const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 
-const FinalCTA = memo(() => {
+interface FinalCTAProps {
+  /** Origem do clique (cta_source); cada página de conteúdo informa a sua. */
+  source?: CtaSource;
+}
+
+const FinalCTA = memo(({ source = "final" }: FinalCTAProps) => {
   const { t } = useLanguage();
 
   return (
@@ -87,7 +93,7 @@ const FinalCTA = memo(() => {
               <div aria-hidden="true" className="ba-glow inset-[-18px] bg-[rgba(169,192,242,0.35)] blur-[34px]" />
               <BrandCta
                 variant="light"
-                source="final"
+                source={source}
                 className="relative min-h-[60px] px-8 text-[16px] sm:min-h-[64px] sm:px-10 sm:text-[17px]"
               >
                 {t("landing.finalCTA.cta")}

@@ -3,6 +3,7 @@
 import { lazy, Suspense } from "react";
 import HeroSection from "@/components/HeroSection";
 
+const StoriesRail = lazy(() => import("@/components/StoriesRail"));
 const WhatIsEEISection = lazy(() => import("@/components/WhatIsEEISection"));
 const SAFEMethodSection = lazy(() => import("@/components/SAFEMethodSection"));
 const TestimonialsCarousel = lazy(() => import("@/components/TestimonialsCarousel"));
@@ -17,7 +18,11 @@ const FinalCTA = lazy(() => import("@/components/FinalCTA"));
 export default function HomeContent() {
   return (
     <>
-      <HeroSection />
+      <HeroSection>
+        <Suspense fallback={null}>
+          <StoriesRail />
+        </Suspense>
+      </HeroSection>
 
       <Suspense fallback={null}>
         <WhatIsEEISection />

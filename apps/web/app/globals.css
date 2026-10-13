@@ -281,8 +281,11 @@ body {
   min-height: 100vh;
 }
 
-html {
-  scroll-behavior: smooth;
+/* Rolagem suave só para quem não pediu movimento reduzido (âncoras, "voltar ao topo" da dock) */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 /* ─── Component Styles ──────────────────────────────────────────────────────── */

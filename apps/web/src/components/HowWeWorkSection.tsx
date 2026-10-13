@@ -1,16 +1,28 @@
 "use client";
 
 import { memo } from "react";
-import { Users, Shield, Clock, Target, Heart } from "lucide-react";
+import { ArrowRight, Users, Shield, Clock, Target, Heart } from "lucide-react";
 
 import { useLanguage } from "@/i18n";
+import { HOW_WE_WORK_FEATURED_VIDEO, HOW_WE_WORK_MOMENTS, METHOD_COPY } from "@/content/metodo";
+import { pick } from "@/content/types";
+import { getVideo } from "@/content/videos";
+import BrandCta from "./brand/BrandCta";
 import MeshBackground from "./brand/MeshBackground";
+import { MethodMomentChip } from "./pages/metodo/MethodVideoChip";
+import MethodVideoTile from "./pages/metodo/MethodVideoTile";
 
 const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 const FAMILY_ICONS = [Users, Target, Shield] as const;
+const featuredVideo = getVideo(HOW_WE_WORK_FEATURED_VIDEO);
 
-const HowWeWorkSection = memo(() => {
-  const { t } = useLanguage();
+interface HowWeWorkSectionProps {
+  /** "page" = dentro de /metodo: sem o link "Ver o método completo" para a própria página. */
+  variant?: "home" | "page";
+}
+
+const HowWeWorkSection = memo(({ variant = "home" }: HowWeWorkSectionProps) => {
+  const { t, lang } = useLanguage();
 
   return (
     <section className="relative isolate overflow-hidden py-[clamp(80px,10vw,140px)]" aria-labelledby="como-atuamos-title">
@@ -60,15 +72,31 @@ const HowWeWorkSection = memo(() => {
             <circle cx="260" cy="150" r="70" stroke="#fff" strokeOpacity="0.18" strokeWidth="1" strokeDasharray="3 7" />
           </svg>
 
-          <div className="relative max-w-[760px]">
-            <span className="ba-glass-dark inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold tracking-[0.16em]">
-              <span className="ba-pulse" />
-              {t("landing.howWeWork.philosophy.pill")}
-            </span>
-            <p className="m-0 mt-7 font-[family-name:var(--ba-display)] text-[clamp(40px,6.4vw,92px)] font-bold leading-[0.98] tracking-[-0.045em]">
-              {t("landing.howWeWork.philosophy.line1")}
-              <span className="ba-serif mt-1 block text-[1.08em] font-normal leading-[1] text-white/95">{t("landing.howWeWork.philosophy.line2")}</span>
-            </p>
+          <div className="relative grid items-center gap-9 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div>
+              <span className="ba-glass-dark inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold tracking-[0.16em]">
+                <span className="ba-pulse" />
+                {t("landing.howWeWork.philosophy.pill")}
+              </span>
+              <p className="m-0 mt-7 font-[family-name:var(--ba-display)] text-[clamp(40px,6.4vw,92px)] font-bold leading-[0.98] tracking-[-0.045em] lg:text-[clamp(48px,5vw,76px)]">
+                {t("landing.howWeWork.philosophy.line1")}
+                <span className="ba-serif mt-1 block text-[1.08em] font-normal leading-[1] text-white/95">{t("landing.howWeWork.philosophy.line2")}</span>
+              </p>
+            </div>
+
+            {/* O manifesto do fundador em vídeo: a filosofia dita por quem a criou */}
+            {featuredVideo && (
+              <div className="ba-glass-dark rounded-[26px] p-2 pb-4 sm:rounded-[28px] sm:p-2.5 sm:pb-5">
+                <MethodVideoTile
+                  id={featuredVideo.id}
+                  kind={featuredVideo.kind}
+                  title={pick(featuredVideo.title, lang)}
+                  duration={featuredVideo.duration}
+                  meta={pick(METHOD_COPY.founderMeta, lang)}
+                  sizes="(max-width: 1024px) 86vw, 420px"
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -128,6 +156,26 @@ const HowWeWorkSection = memo(() => {
             </div>
           </article>
         </div>
+
+        {/* Prova do acompanhamento: atletas da casa no tour da Montverde, no minuto exato. Fica
+            fora dos cartões para não esticar só o escuro e deixar um vazio no cartão claro ao lado */}
+        <div className="ba-rv mt-8 flex flex-col items-start gap-3 sm:mt-10 lg:flex-row lg:items-center lg:justify-center lg:gap-5" style={delay(2)}>
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ba-ink-3)]">{pick(METHOD_COPY.momentsLabel, lang)}</span>
+          <div className="flex flex-wrap gap-2.5">
+            {HOW_WE_WORK_MOMENTS.map((moment) => (
+              <MethodMomentChip key={moment.start} moment={moment} />
+            ))}
+          </div>
+        </div>
+
+        {variant === "home" && (
+          <div className="ba-rv mt-10 flex justify-center sm:mt-12" style={delay(2)}>
+            <BrandCta href="/metodo" variant="ghost">
+              {pick(METHOD_COPY.fullMethodLink, lang)}
+              <ArrowRight aria-hidden="true" />
+            </BrandCta>
+          </div>
+        )}
       </div>
     </section>
   );

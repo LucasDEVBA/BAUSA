@@ -69,8 +69,9 @@ export default async function RootLayout({ children, params }: RootLayoutProps) 
 
   const messages = await getMessages();
 
+  // data-scroll-behavior: o Next 16 só desliga o smooth do <html> na troca de rota com esse atributo
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale} data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={fontVariables}>
         <Providers locale={locale} messages={messages}>
           <AttributionCapture />
