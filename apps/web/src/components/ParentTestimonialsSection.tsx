@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import { motion } from "framer-motion";
-import { Play, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 
 import { useLanguage } from "@/i18n";
@@ -12,40 +12,48 @@ import priscilaMoraes from "@/assets/PRISCILA-MORAES.jpeg";
 import GabrielMachado from "@/assets/GABRIEL-MACHADO.jpeg";
 import comperlingo from "@/assets/Comperlingo.jpeg";
 import paiLizValverde from "@/assets/paiLizValverde.jpg";
+import FocalImage, { type Focus } from "@/components/pages/historias/FocalImage";
+import { PAGE_PATH } from "@/config/routes";
+import { FAMILY_STORIES, HOME_STORIES_TEXT, type FamilyStory } from "@/content/historias";
+import { pick, type YoutubeVideo } from "@/content/types";
+import { FAMILY_TESTIMONIALS } from "@/content/videos";
+import BrandCta from "./brand/BrandCta";
 import MeshBackground from "./brand/MeshBackground";
+import { useVideoPlayer } from "./brand/VideoPlayer";
 
-const parentTestimonials = [
-  {
-    familyName: "Família Valverde",
-    thumbnail: paiLizValverde,
-    youtubeId: "wJUf_efdc8s",
-  },
-  {
-    familyName: "Família Mello",
-    thumbnail: paiBento,
-    youtubeId: "1WDFoyA5p8U",
-  },
-  {
-    familyName: "Família Santiago",
-    thumbnail: maeIsadora,
-    youtubeId: "enS5ZAGRJ0g",
-  },
-  {
-    familyName: "Família Moraes",
-    thumbnail: priscilaMoraes,
-    youtubeId: "KFkoxh4nTHU",
-  },
-  {
-    familyName: "Família Machado",
-    thumbnail: GabrielMachado,
-    youtubeId: "8RtvPgeZ8yI",
-  },
-  {
-    familyName: "Família Comperlingo",
-    thumbnail: comperlingo,
-    youtubeId: "lXzJkGgZkTw",
-  },
-];
+// Artes "Experiência da família" publicadas com cada vídeo: pôster local, sem depender do YouTube
+const POSTERS: Record<string, StaticImageData> = {
+  wJUf_efdc8s: paiLizValverde,
+  "1WDFoyA5p8U": paiBento,
+  enS5ZAGRJ0g: maeIsadora,
+  KFkoxh4nTHU: priscilaMoraes,
+  "8RtvPgeZ8yI": GabrielMachado,
+  lXzJkGgZkTw: comperlingo,
+};
+
+// Rosto de cada arte no selo de avatares: o topo das artes é o título "Experiência da família"
+const AVATAR_FOCUS: Record<string, Focus> = {
+  enS5ZAGRJ0g: { x: 0.46, y: 0.52, zoom: 2 },
+  wJUf_efdc8s: { x: 0.52, y: 0.42, zoom: 2.3 },
+  "1WDFoyA5p8U": { x: 0.58, y: 0.52, zoom: 1.7 },
+  "8RtvPgeZ8yI": { x: 0.5, y: 0.36, zoom: 2.3 },
+  KFkoxh4nTHU: { x: 0.45, y: 0.5, zoom: 1.6 },
+  lXzJkGgZkTw: { x: 0.45, y: 0.5, zoom: 2 },
+};
+const DEFAULT_AVATAR_FOCUS: Focus = { x: 0.5, y: 0.5, zoom: 2 };
+const AVATAR_SIZE = 40;
+
+interface ParentTestimonial {
+  video: YoutubeVideo;
+  story: FamilyStory;
+  thumbnail: StaticImageData;
+}
+
+const parentTestimonials: ParentTestimonial[] = FAMILY_TESTIMONIALS.flatMap((video) => {
+  const story = FAMILY_STORIES[video.id];
+  const thumbnail = POSTERS[video.id];
+  return story && thumbnail ? [{ video, story, thumbnail }] : [];
+});
 
 // Mosaico em 3 colunas desencontradas (a do meio desce): ritmo de mural, não de grade.
 const MOSAIC_COLUMNS = [
@@ -54,110 +62,85 @@ const MOSAIC_COLUMNS = [
   { indexes: [2, 5], offset: "-translate-y-6" },
 ];
 
-// Sem chave de tradução para o botão de fechar: rótulo acessível local nos 3 idiomas.
-
 const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 
 const arrowButton =
   "ba-glass grid h-11 w-11 place-items-center rounded-full text-[var(--ba-navy)] transition-[transform,opacity,background-color] duration-300 hover:-translate-y-0.5 hover:bg-white/90 focus-visible:outline-[2.5px] focus-visible:outline-offset-2 focus-visible:outline-[var(--ba-blue-2)] disabled:pointer-events-none disabled:opacity-35";
 
 interface ParentVideoCardProps {
-  testimonial: (typeof parentTestimonials)[0];
-  isPlaying: boolean;
-  onPlay: () => void;
-  onClose: () => void;
+  testimonial: ParentTestimonial;
   className?: string;
 }
 
 // Moldura translúcida sem backdrop-filter: no trilho rolável o desfoque pintava um retângulo atrás dos cartões.
-const ParentVideoCard = ({ testimonial, isPlaying, onPlay, onClose, className = "" }: ParentVideoCardProps) => {
-  const { t } = useLanguage();
-  const videoLabel = `${t("landing.testimonials.videoTitle")} ${testimonial.familyName}`;
-
-  const handleClose = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onClose();
-  };
+const ParentVideoCard = ({ testimonial, className = "" }: ParentVideoCardProps) => {
+  const { t, lang } = useLanguage();
+  const { open } = useVideoPlayer();
+  const { video, story, thumbnail } = testimonial;
+  const familyName = pick(story.family, lang);
+  const videoLabel = `${t("landing.testimonials.videoTitle")}: ${familyName}, ${pick(story.relation, lang)} (${video.duration})`;
+  // kind do catálogo: o depoimento 16:9 (Comperlingo) abre no player horizontal, sem faixas pretas
+  const play = () => open({ id: video.id, kind: video.kind, title: pick(video.title, lang) });
 
   return (
     <div className={`parent-testimonial-card group rounded-[26px] border border-white/80 bg-white/70 shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(31,63,163,0.06),var(--ba-shadow)] p-[6px] transition-shadow duration-700 [transition-timing-function:var(--ba-ease)] hover:shadow-[var(--ba-shadow-lg)] sm:rounded-[28px] sm:p-[7px] ${className}`} data-tilt>
       <div className="relative aspect-[9/16] overflow-hidden rounded-[21px] bg-[var(--ba-navy-2)] sm:rounded-[22px]">
-        {!isPlaying ? (
-          <button type="button" onClick={onPlay} aria-label={videoLabel} className="absolute inset-0 block h-full w-full cursor-pointer text-left focus-visible:outline-[2.5px] focus-visible:outline-offset-[-4px] focus-visible:outline-white">
-            <Image
-              src={testimonial.thumbnail}
-              alt={testimonial.familyName}
-              fill
-              sizes="(max-width: 1024px) 240px, 300px"
-              className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
-            />
-            <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.25)_0%,rgba(10,26,69,0)_22%,rgba(10,26,69,0)_55%,rgba(6,15,42,0.9)_100%)]" />
+        <button type="button" onClick={play} aria-label={videoLabel} className="absolute inset-0 block h-full w-full cursor-pointer text-left focus-visible:outline-[2.5px] focus-visible:outline-offset-[-4px] focus-visible:outline-white">
+          <Image
+            src={thumbnail}
+            alt=""
+            fill
+            sizes="(max-width: 1024px) 240px, 300px"
+            className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
+          />
+          {/* Base mais fechada: as artes têm "+BAU+ +FAMÍLIA+ +SONHO+" no rodapé, que vazava por baixo do nome */}
+          <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.25)_0%,rgba(10,26,69,0)_22%,rgba(10,26,69,0)_50%,rgba(6,15,42,0.78)_78%,rgba(6,15,42,0.97)_100%)]" />
 
-            <span className="ba-glass-dark absolute left-3 top-3 flex items-center gap-1.5 rounded-full px-2.5 py-[5px]">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
+          <span className="ba-glass-dark absolute left-3 top-3 flex items-center gap-1.5 rounded-full !bg-[rgba(10,26,69,0.55)] px-2.5 py-[5px]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
+          </span>
+
+          <span className="absolute inset-x-0 bottom-0 block p-4 sm:p-5">
+            <span aria-hidden="true" className="ba-serif block text-[54px] leading-[0.55] text-white/55">
+              “
             </span>
-
-            <span className="absolute inset-x-0 bottom-0 block p-4 sm:p-5">
-              <span aria-hidden="true" className="ba-serif block text-[54px] leading-[0.55] text-white/55">
-                “
+            <span className="mt-2 flex items-end justify-between gap-3">
+              <span className="min-w-0 font-[family-name:var(--ba-display)] text-[16px] font-semibold leading-[1.15] tracking-[-0.02em] text-white sm:text-[18px]">
+                {familyName}
               </span>
-              <span className="mt-2 flex items-end justify-between gap-3">
-                <span className="min-w-0 font-[family-name:var(--ba-display)] text-[16px] font-semibold leading-[1.15] tracking-[-0.02em] text-white sm:text-[18px]">
-                  {testimonial.familyName}
+              <span aria-hidden="true" className="grid h-11 w-11 flex-none place-items-center rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:scale-110 sm:h-12 sm:w-12">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-[linear-gradient(180deg,#fff,#e6ecfb)] sm:h-9 sm:w-9">
+                  <Play className="ml-0.5 h-3.5 w-3.5 fill-[var(--ba-navy)] text-[var(--ba-navy)]" />
                 </span>
-                <span aria-hidden="true" className="grid h-11 w-11 flex-none place-items-center rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:scale-110 sm:h-12 sm:w-12">
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-[linear-gradient(180deg,#fff,#e6ecfb)] sm:h-9 sm:w-9">
-                    <Play className="ml-0.5 h-3.5 w-3.5 fill-[var(--ba-navy)] text-[var(--ba-navy)]" />
-                  </span>
-                </span>
-              </span>
-              <span className="relative mt-3.5 block h-[3px] w-full overflow-hidden rounded-full bg-white/20">
-                <motion.span
-                  initial={{ width: "30%" }}
-                  whileHover={{ width: "100%" }}
-                  transition={{ duration: 0.5 }}
-                  className="absolute inset-y-0 left-0 block rounded-full bg-[linear-gradient(90deg,#b8caf7,#f0b1bb)]"
-                />
               </span>
             </span>
-          </button>
-        ) : (
-          <div className="absolute inset-0 bg-black">
-            <iframe
-              src={`https://www.youtube.com/embed/${testimonial.youtubeId}?autoplay=1&rel=0`}
-              title={videoLabel}
-              className="absolute inset-0 h-full w-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-            <button
-              type="button"
-              onClick={handleClose}
-              aria-label={t("landing.closeVideo")}
-              className="ba-glass-dark absolute right-2.5 top-2.5 z-20 grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/20 focus-visible:outline-[2.5px] focus-visible:outline-white"
-            >
-              <X className="h-[18px] w-[18px]" />
-            </button>
-          </div>
-        )}
+            <span className="relative mt-3.5 block h-[3px] w-full overflow-hidden rounded-full bg-white/20">
+              <motion.span
+                initial={{ width: "30%" }}
+                whileHover={{ width: "100%" }}
+                transition={{ duration: 0.5 }}
+                className="absolute inset-y-0 left-0 block rounded-full bg-[linear-gradient(90deg,#b8caf7,#f0b1bb)]"
+              />
+            </span>
+          </span>
+        </button>
       </div>
     </div>
   );
 };
 
 const ParentTestimonialsSection = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
-  const [activeVideoIndex, setActiveVideoIndex] = useState<number | null>(null);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
 
   const rafRef = useRef<number>(0);
 
-  // Mosaico e trilho nunca coexistem no DOM (dois iframes tocariam áudio em dobro); null até montar
+  // Mosaico e trilho nunca coexistem no DOM (o trilho mede os próprios cartões); null até montar
   // para a hidratação não reaproveitar o DOM do outro ramo.
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
@@ -204,12 +187,7 @@ const ParentTestimonialsSection = () => {
     scrollContainerRef.current?.scrollBy({ left: direction === "left" ? -step : step, behavior: "smooth" });
   };
 
-  const cardProps = (index: number) => ({
-    testimonial: parentTestimonials[index],
-    isPlaying: activeVideoIndex === index,
-    onPlay: () => setActiveVideoIndex(index),
-    onClose: () => setActiveVideoIndex(null),
-  });
+  const cardProps = (index: number) => ({ testimonial: parentTestimonials[index] });
 
   // overflow-clip (não hidden): hidden vira contêiner de rolagem e desliga o sticky do cabeçalho.
   return (
@@ -234,13 +212,23 @@ const ParentTestimonialsSection = () => {
           {/* Selo das famílias: rostos sobrepostos, atalho visual para o mural */}
           <div className="ba-glass ba-rv mt-8 inline-flex items-center gap-4 rounded-full py-2 pl-2 pr-5" style={delay(3)} aria-hidden="true">
             <div className="flex -space-x-3">
-              {parentTestimonials.slice(0, 4).map((item) => (
-                <span key={item.familyName} className="relative h-10 w-10 overflow-hidden rounded-full shadow-[0_0_0_2.5px_#fff,0_6px_14px_-6px_rgba(15,35,87,0.5)]">
-                  <Image src={item.thumbnail} alt="" fill sizes="40px" className="object-cover object-[50%_25%]" />
-                </span>
-              ))}
+              {parentTestimonials.slice(0, 4).map((item) => {
+                const focus = AVATAR_FOCUS[item.video.id] ?? DEFAULT_AVATAR_FOCUS;
+                return (
+                  <span key={item.video.id} className="relative h-10 w-10 overflow-hidden rounded-full bg-[var(--ba-navy-2)] shadow-[0_0_0_2.5px_#fff,0_6px_14px_-6px_rgba(15,35,87,0.5)]">
+                    <FocalImage src={item.thumbnail} alt="" focus={focus} frameRatio={1} sizes={`${Math.ceil(AVATAR_SIZE * (focus.zoom ?? 1))}px`} />
+                  </span>
+                );
+              })}
             </div>
             <span className="font-[family-name:var(--ba-display)] text-[22px] font-bold tracking-[-0.03em] text-[var(--ba-navy)]">+{parentTestimonials.length}</span>
+          </div>
+
+          <div className="ba-rv mt-6 hidden lg:block" style={delay(4)}>
+            <BrandCta href={PAGE_PATH.historias} variant="ghost">
+              {pick(HOME_STORIES_TEXT.seeAllStories, lang)}
+              <ArrowRight aria-hidden="true" />
+            </BrandCta>
           </div>
         </div>
 
@@ -251,7 +239,7 @@ const ParentTestimonialsSection = () => {
             {MOSAIC_COLUMNS.map((column, columnIndex) => (
               <div key={columnIndex} className={`flex flex-col gap-5 xl:gap-6 ${column.offset}`}>
                 {column.indexes.map((index, row) => (
-                  <div key={parentTestimonials[index].familyName} className="ba-rv-scale" style={delay(columnIndex + row * 2)}>
+                  <div key={parentTestimonials[index].video.id} className="ba-rv-scale" style={delay(columnIndex + row * 2)}>
                     <ParentVideoCard {...cardProps(index)} />
                   </div>
                 ))}
@@ -283,7 +271,7 @@ const ParentTestimonialsSection = () => {
               style={{ WebkitOverflowScrolling: "touch" }}
             >
               {parentTestimonials.map((testimonial, index) => (
-                <div key={testimonial.familyName} className="w-[min(62vw,240px)] flex-none snap-start sm:w-[260px]">
+                <div key={testimonial.video.id} className="w-[min(62vw,240px)] flex-none snap-start sm:w-[260px]">
                   <ParentVideoCard {...cardProps(index)} />
                 </div>
               ))}
@@ -292,10 +280,17 @@ const ParentTestimonialsSection = () => {
             <div className="mt-5 flex justify-center gap-1.5 sm:gap-2" aria-hidden="true">
               {parentTestimonials.map((testimonial, index) => (
                 <div
-                  key={testimonial.familyName}
+                  key={testimonial.video.id}
                   className={`h-1.5 rounded-full transition-all duration-300 ${index === activeCardIndex ? "w-5 bg-[var(--ba-wine)]" : "w-1.5 bg-[rgba(31,63,163,0.22)]"}`}
                 />
               ))}
+            </div>
+
+            <div className="mt-9 flex justify-center">
+              <BrandCta href={PAGE_PATH.historias} variant="ghost">
+                {pick(HOME_STORIES_TEXT.seeAllStories, lang)}
+                <ArrowRight aria-hidden="true" />
+              </BrandCta>
             </div>
           </div>
         )}

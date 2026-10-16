@@ -1,125 +1,50 @@
 "use client";
 
 import Image from "next/image";
-import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { Play, X, MapPin, ChevronLeft, ChevronRight, GraduationCap, School } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, GraduationCap, MapPin, Play, School } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import type { StaticImageData } from "next/image";
 
+import BrandCta from "@/components/brand/BrandCta";
+import { useVideoPlayer } from "@/components/brand/VideoPlayer";
+import CoachMoments from "@/components/pages/escolas/CoachMoments";
+import { PAGE_PATH } from "@/config/routes";
+import {
+  ESCOLAS_TEXT,
+  HOME_HIGH_SCHOOL_TOURS,
+  HOME_MOMENTS_COUNT,
+  HOME_UNIVERSITY_TOURS,
+  LATEST_TOUR_ID,
+  SCHOOL_TOURS,
+  fill,
+  getTourPoster,
+  toursByType,
+  type SchoolTour,
+} from "@/content/escolas";
+import { pick } from "@/content/types";
+import { COACH_MOMENTS } from "@/content/videos";
 import { useLanguage } from "@/i18n";
-import leandroHarvard from "@/assets/leandro-harvard.jpg";
-import thumbTaft from "@/assets/thumb-Taft.jpg";
-import thumbBenfica from "@/assets/thumb-benfica.jpg";
-import thumbImgAcademy from "@/assets/thumb-imgAcademy.jpg";
-import thumbRps from "@/assets/thumb-rps.jpg";
-import thumbMiami from "@/assets/thumb-miami.jpg";
-import thumbFlorida from "@/assets/thumb-florida.jpg";
-import thumbFiu from "@/assets/thumb-fiu.jpg";
 
-interface Institution {
-  id: string;
-  name: string;
-  location: string;
-  type: "university" | "prep-school";
-  photo: StaticImageData;
-  /** Compensa o crop 16:9 nas fotos verticais (mantém rostos no quadro) */
-  imagePosition?: string;
-  youtubeId: string;
-}
-
-const schools: Institution[] = [
-  {
-    id: "taft",
-    name: "The Taft School",
-    location: "Watertown, CT",
-    type: "prep-school",
-    photo: thumbTaft,
-    imagePosition: "50% 35%",
-    youtubeId: "ZPXd4GKYvQ8",
-  },
-  {
-    id: "benfica",
-    name: "Benfica Residential Academy",
-    location: "Saint Leo, FL",
-    type: "prep-school",
-    photo: thumbBenfica,
-    youtubeId: "Byr7E1W8JSk",
-  },
-  {
-    id: "img-academy",
-    name: "IMG Academy",
-    location: "Bradenton, FL",
-    type: "prep-school",
-    photo: thumbImgAcademy,
-    youtubeId: "zlJ3WUHY_BI",
-  },
-  {
-    id: "rps",
-    name: "RPS Academies",
-    location: "Port St. Lucie, FL",
-    type: "prep-school",
-    photo: thumbRps,
-    youtubeId: "VLnk65O91Pg",
-  },
-];
-
-const universities: Institution[] = [
-  {
-    id: "harvard",
-    name: "Harvard University",
-    location: "Cambridge, MA",
-    type: "university",
-    photo: leandroHarvard,
-    imagePosition: "50% 30%",
-    youtubeId: "qlSNBAQQPUs", // Placeholder video
-  },
-  {
-    id: "miami",
-    name: "University of Miami",
-    location: "Coral Gables, FL",
-    type: "university",
-    photo: thumbMiami,
-    youtubeId: "gvcUVL0j_eQ",
-  },
-  {
-    id: "florida",
-    name: "University of Florida",
-    location: "Gainesville, FL",
-    type: "university",
-    photo: thumbFlorida,
-    youtubeId: "gpT0gG8nK6U",
-  },
-  {
-    id: "fiu",
-    name: "Florida International University",
-    location: "Miami, FL",
-    type: "university",
-    photo: thumbFiu,
-    youtubeId: "t2-hpjOVjNQ",
-  },
-];
-
-const allInstitutions = [...schools, ...universities];
-
-// Sem chave de tradução para o botão de fechar: rótulo acessível local nos 3 idiomas.
+const HOME_MOMENTS = COACH_MOMENTS.slice(0, HOME_MOMENTS_COUNT);
 
 const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 
+// Pílula escura translúcida: o vidro claro (.ba-glass-dark) deixava o texto branco sem contraste sobre pôsteres claros (ex.: a parede amarela do tour de Harvard)
+const darkPill = "bg-[rgba(6,15,42,0.6)] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_0_0_1px_rgba(255,255,255,0.16)]";
+
 const arrowButton =
-  "ba-glass-dark grid h-10 w-10 place-items-center rounded-full text-white transition-[background-color,opacity,transform] duration-300 hover:-translate-y-0.5 hover:bg-white/[0.16] focus-visible:outline-[2.5px] focus-visible:outline-offset-2 focus-visible:outline-[#b8caf7] disabled:pointer-events-none disabled:opacity-30 sm:h-11 sm:w-11";
+  "ba-glass-dark grid h-11 w-11 place-items-center rounded-full text-white transition-[background-color,opacity,transform] duration-300 hover:-translate-y-0.5 hover:bg-white/[0.16] focus-visible:outline-[2.5px] focus-visible:outline-offset-2 focus-visible:outline-[#b8caf7] disabled:pointer-events-none disabled:opacity-30";
 
-interface InstitutionCardProps {
-  institution: Institution;
-  onPlay: (id: string) => void;
-}
-
-const InstitutionCard = ({ institution, onPlay }: InstitutionCardProps) => {
-  const { t } = useLanguage();
-  const isUniversity = institution.type === "university";
+const InstitutionCard = ({ tour }: { tour: SchoolTour }) => {
+  const { t, lang } = useLanguage();
+  const { open } = useVideoPlayer();
+  const { school, video } = tour;
+  const isUniversity = school.type === "universidade";
+  const isLatest = video.id === LATEST_TOUR_ID;
   const typeLabel = isUniversity ? t("landing.institutionalRecognition.typeUniversity") : t("landing.institutionalRecognition.typePrepSchool");
+  const poster = getTourPoster(school.slug);
+  const title = pick(video.title, lang);
 
   return (
     // Vidro sem backdrop-filter: dentro do trilho transformado do embla o desfoque pintava um retângulo
@@ -127,49 +52,64 @@ const InstitutionCard = ({ institution, onPlay }: InstitutionCardProps) => {
     <article className="group h-full rounded-[24px] border border-white/[0.14] bg-white/[0.07] shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_30px_70px_-30px_rgba(0,0,0,0.6)] p-[6px] transition-[transform,background-color] duration-700 [transition-timing-function:var(--ba-ease)] hover:bg-white/[0.1] sm:rounded-[30px] sm:p-2" data-tilt>
       <button
         type="button"
-        onClick={() => onPlay(institution.id)}
-        aria-label={`${institution.name}, ${institution.location}. Video tour`}
+        onClick={() => open({ id: video.id, kind: video.kind, title })}
+        aria-label={`${pick(ESCOLAS_TEXT.watchTour, lang)}: ${school.name}, ${school.location} (${video.duration})`}
         className="relative block aspect-[16/10] w-full cursor-pointer overflow-hidden rounded-[19px] text-left focus-visible:outline-[2.5px] focus-visible:outline-offset-[-4px] focus-visible:outline-white sm:rounded-[23px]"
       >
-        <Image
-          src={institution.photo}
-          alt={`${t("landing.institutionalRecognition.photoAltPrefix")} ${institution.name}`}
-          fill
-          sizes="(max-width: 640px) 85vw, (max-width: 768px) 55vw, 560px"
-          className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
-          style={{ objectPosition: institution.imagePosition ?? "center" }}
-        />
+        {poster && (
+          <Image
+            src={poster.image}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 95vw, (max-width: 768px) 62vw, 620px"
+            className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
+            style={{ objectPosition: poster.position ?? "center" }}
+          />
+        )}
         <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,15,42,0.4)_0%,rgba(6,15,42,0)_30%,rgba(6,15,42,0.15)_55%,rgba(6,15,42,0.9)_100%)]" />
 
-        {/* Topo: tipo da instituição + gravação */}
-        <span className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 sm:inset-x-4 sm:top-4">
+        {/* Topo: tipo da instituição + gravação (o tour mais novo troca o REC pelo selo "Novo") */}
+        <span aria-hidden="true" className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 sm:inset-x-4 sm:top-4">
           <span
             className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[10.5px] font-bold tracking-[0.12em] text-white sm:text-[11px] ${
               isUniversity
                 ? "bg-[linear-gradient(150deg,var(--ba-wine-2),var(--ba-wine))] shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_20px_-8px_rgba(144,36,52,0.8)]"
-                : "ba-glass-dark"
+                : darkPill
             }`}
           >
             {typeLabel}
           </span>
-          <span className="ba-glass-dark flex items-center gap-1.5 rounded-full px-2.5 py-[5px]">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
-          </span>
+          {isLatest ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-[5px] text-[var(--ba-wine)] shadow-[0_8px_20px_-8px_rgba(0,0,0,0.5)]">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--ba-wine-2)]" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em]">{pick(ESCOLAS_TEXT.latestShort, lang)}</span>
+            </span>
+          ) : (
+            <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-[5px] ${darkPill}`}>
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
+            </span>
+          )}
         </span>
 
-        {/* Base: nome, local e play em vidro */}
-        <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 sm:p-5">
+        {/* Base: nome, local, duração e play em vidro */}
+        <span aria-hidden="true" className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 sm:p-5">
           <span className="min-w-0">
             <span className="block truncate font-[family-name:var(--ba-display)] text-[18px] font-semibold leading-tight tracking-[-0.025em] text-white sm:text-[22px] md:text-[24px]">
-              {institution.name}
+              {school.name}
             </span>
-            <span className="mt-1 flex items-center gap-1.5 text-[12.5px] text-white/80 sm:text-sm">
-              <MapPin className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
-              {institution.location}
+            <span className="mt-1 flex items-center gap-3 text-[12.5px] text-white/80 sm:text-sm">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 flex-none" />
+                <span className="truncate">{school.location}</span>
+              </span>
+              <span className="flex flex-none items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" />
+                {video.duration}
+              </span>
             </span>
           </span>
-          <span aria-hidden="true" className="grid h-12 w-12 flex-none place-items-center rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:scale-110 sm:h-14 sm:w-14">
+          <span className="grid h-12 w-12 flex-none place-items-center rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:scale-110 sm:h-14 sm:w-14">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-[linear-gradient(180deg,#fff,#e6ecfb)] sm:h-10 sm:w-10">
               <Play className="ml-0.5 h-4 w-4 fill-[var(--ba-navy)] text-[var(--ba-navy)]" />
             </span>
@@ -183,11 +123,12 @@ const InstitutionCard = ({ institution, onPlay }: InstitutionCardProps) => {
 interface InstitutionCarouselProps {
   title: string;
   icon: LucideIcon;
-  institutions: Institution[];
-  onPlay: (id: string) => void;
+  tours: SchoolTour[];
+  /** Total do tipo no acervo (o carrossel mostra uma seleção). */
+  total: number;
 }
 
-const InstitutionCarousel = ({ title, icon: Icon, institutions, onPlay }: InstitutionCarouselProps) => {
+const InstitutionCarousel = ({ title, icon: Icon, tours, total }: InstitutionCarouselProps) => {
   const { t } = useLanguage();
   // Slides a 45% no desktop: 2 cards inteiros + pedaço do próximo visível:
   // o corte é o affordance de que a fileira é um carrossel.
@@ -223,7 +164,7 @@ const InstitutionCarousel = ({ title, icon: Icon, institutions, onPlay }: Instit
           <Icon className="h-[19px] w-[19px] text-[#dbe5ff]" aria-hidden="true" />
         </span>
         <h3 className="ba-h3 whitespace-nowrap text-[20px] text-white sm:text-[24px]">{title}</h3>
-        <span className="text-xs font-semibold tracking-[0.14em] text-white/55">{String(institutions.length).padStart(2, "0")}</span>
+        <span className="text-xs font-semibold tracking-[0.14em] text-white/[0.62]">{String(total).padStart(2, "0")}</span>
         <span aria-hidden="true" className="h-px flex-1 bg-[linear-gradient(90deg,rgba(255,255,255,0.18),rgba(255,255,255,0))]" />
         <div className="flex flex-none items-center gap-2">
           <button type="button" onClick={() => emblaApi?.scrollPrev()} disabled={!canPrev} aria-label={t("landing.institutionalRecognition.carouselPrev")} className={arrowButton}>
@@ -238,9 +179,9 @@ const InstitutionCarousel = ({ title, icon: Icon, institutions, onPlay }: Instit
       {/* Respiro no viewport (maior embaixo, onde a sombra cai) para a sombra dos cartões não ser cortada em linha reta */}
       <div className="-mb-20 -mt-5 touch-pan-y overflow-hidden pb-20 pt-5" ref={emblaRef}>
         <div className="flex touch-pan-y gap-4 sm:gap-6">
-          {institutions.map((institution) => (
-            <div key={institution.id} className="min-w-0 flex-[0_0_85%] sm:flex-[0_0_55%] md:flex-[0_0_45%]">
-              <InstitutionCard institution={institution} onPlay={onPlay} />
+          {tours.map((tour) => (
+            <div key={tour.school.slug} className="min-w-0 flex-[0_0_85%] sm:flex-[0_0_55%] md:flex-[0_0_45%]">
+              <InstitutionCard tour={tour} />
             </div>
           ))}
         </div>
@@ -249,76 +190,14 @@ const InstitutionCarousel = ({ title, icon: Icon, institutions, onPlay }: Instit
   );
 };
 
-interface VideoModalProps {
-  institution: Institution | undefined;
-  onClose: () => void;
-}
-
-// Portal no body: a seção usa `isolate`, e um modal preso no contexto dela ficaria atrás das seções seguintes.
-const VideoModal = ({ institution, onClose }: VideoModalProps) => {
-  const { t } = useLanguage();
-
-  useEffect(() => {
-    if (!institution) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [institution, onClose]);
-
-  return createPortal(
-    <AnimatePresence>
-      {institution && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(4,10,30,0.82)] p-4 backdrop-blur-md"
-          onClick={onClose}
-          role="dialog"
-          aria-modal="true"
-          aria-label={institution.name}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.94 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="ba-glass-dark relative w-full max-w-4xl rounded-[28px] p-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="relative aspect-video overflow-hidden rounded-[21px] bg-black">
-              <iframe
-                src={`https://www.youtube.com/embed/${institution.youtubeId}?autoplay=1&rel=0`}
-                title="Video Tour"
-                className="absolute inset-0 h-full w-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              autoFocus
-              aria-label={t("landing.closeVideo")}
-              className="ba-glass-dark absolute -top-3 right-3 z-10 grid h-11 w-11 place-items-center rounded-full text-white transition-colors hover:bg-white/20 focus-visible:outline-[2.5px] focus-visible:outline-white sm:-right-3"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body,
-  );
-};
-
+/**
+ * Teaser dos tours na home: seleção de high schools e universidades (dados de
+ * schools.ts/videos.ts), três trechos de treinadores e a porta para /escolas.
+ */
 const InstitutionalRecognitionSection = () => {
-  const { t } = useLanguage();
-  const [activeVideo, setActiveVideo] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const closeVideo = useCallback(() => setActiveVideo(null), []);
-
-  useEffect(() => setMounted(true), []);
+  const { t, lang } = useLanguage();
+  const highSchoolTotal = toursByType("high_school").length;
+  const universityTotal = toursByType("universidade").length;
 
   return (
     // Emenda com a Autoridade: sobe sobre o padding inferior dela com um degradê transparente→navy, para os halos
@@ -351,19 +230,31 @@ const InstitutionalRecognitionSection = () => {
         </div>
 
         <div className="space-y-[clamp(48px,6vw,80px)]">
-          <InstitutionCarousel title={t("landing.institutionalRecognition.schoolsTitle")} icon={School} institutions={schools} onPlay={setActiveVideo} />
-          <InstitutionCarousel title={t("landing.institutionalRecognition.universitiesTitle")} icon={GraduationCap} institutions={universities} onPlay={setActiveVideo} />
+          {/* Mesmos rótulos de /escolas: o dicionário dizia "Faculdades" aqui e a página do acervo diz "Universidades" */}
+          <InstitutionCarousel title={pick(ESCOLAS_TEXT.groupHighSchools, lang)} icon={School} tours={HOME_HIGH_SCHOOL_TOURS} total={highSchoolTotal} />
+          <InstitutionCarousel title={pick(ESCOLAS_TEXT.groupUniversities, lang)} icon={GraduationCap} tours={HOME_UNIVERSITY_TOURS} total={universityTotal} />
         </div>
 
-        <div className="ba-rv mt-[clamp(44px,5vw,64px)] flex justify-center" style={delay(1)}>
-          <p className="ba-glass-dark inline-flex items-center gap-3 rounded-full px-5 py-3 text-center text-[13.5px] font-medium leading-[1.4] text-[rgba(232,238,255,0.86)] sm:text-[14.5px]">
+        <div className="mt-[clamp(56px,7vw,96px)]">
+          <div className="ba-rv mb-1 flex items-center gap-3 sm:gap-4">
             <span className="ba-pulse" aria-hidden="true" />
-            {t("landing.institutionalRecognition.bottomNote")}
+            <h3 className="ba-h3 text-[20px] text-white sm:text-[24px]">{pick(ESCOLAS_TEXT.homeMomentsTitle, lang)}</h3>
+            <span aria-hidden="true" className="h-px flex-1 bg-[linear-gradient(90deg,rgba(255,255,255,0.18),rgba(255,255,255,0))]" />
+          </div>
+          <div className="ba-rv" style={delay(1)}>
+            <CoachMoments moments={HOME_MOMENTS} label={pick(ESCOLAS_TEXT.homeMomentsTitle, lang)} />
+          </div>
+        </div>
+
+        <div className="ba-rv mt-[clamp(36px,5vw,56px)] flex flex-col items-center gap-4 text-center" style={delay(1)}>
+          <BrandCta href={PAGE_PATH.escolas} variant="light">
+            {fill(pick(ESCOLAS_TEXT.homeAllTours, lang), { n: SCHOOL_TOURS.length })}
+          </BrandCta>
+          <p className="text-balance text-[13.5px] font-medium text-[rgba(232,238,255,0.8)] sm:text-[14.5px]">
+            {fill(pick(ESCOLAS_TEXT.homeAllToursNote, lang), { hs: highSchoolTotal, uni: universityTotal })}
           </p>
         </div>
       </div>
-
-      {mounted && <VideoModal institution={allInstitutions.find((i) => i.id === activeVideo)} onClose={closeVideo} />}
     </section>
   );
 };

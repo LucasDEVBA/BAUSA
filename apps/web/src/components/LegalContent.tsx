@@ -1,5 +1,3 @@
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 import MeshBackground from "@/components/brand/MeshBackground";
 import { Link } from "@/i18n/navigation";
 import type { DocumentoLegal } from "@/content/legal";
@@ -20,11 +18,9 @@ interface LegalContentProps {
  */
 export default function LegalContent({ doc, outroDoc }: LegalContentProps) {
   return (
-    <div className="ba-page flex min-h-screen flex-col">
-      <Header />
-
-      {/* O header é uma pílula fixa: o topo generoso evita que o título nasça escondido sob ela */}
-      <main className="relative isolate flex-1 overflow-hidden px-[var(--ba-gutter)] pb-[clamp(64px,8vw,112px)] pt-[clamp(116px,13vw,168px)]">
+    <>
+      {/* Header, Footer e dock vêm do layout (site). O header é uma pílula fixa: o topo generoso evita que o título nasça escondido sob ela */}
+      <div className="relative isolate flex-1 overflow-hidden px-[var(--ba-gutter)] pb-[clamp(64px,8vw,112px)] pt-[clamp(116px,13vw,168px)]">
         <MeshBackground blobs={["b1", "b2", "b4"]} grid className="h-[900px]" />
 
         <article className="ba-glass relative z-[1] mx-auto w-full max-w-[820px] rounded-[26px] px-5 py-9 sm:rounded-[32px] sm:px-[clamp(32px,6vw,72px)] sm:py-[clamp(44px,6vw,72px)]">
@@ -78,9 +74,7 @@ export default function LegalContent({ doc, outroDoc }: LegalContentProps) {
             </Link>
           </nav>
         </article>
-      </main>
-
-      <Footer variant="standalone" />
-    </div>
+      </div>
+    </>
   );
 }

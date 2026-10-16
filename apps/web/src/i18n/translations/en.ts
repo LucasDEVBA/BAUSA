@@ -3,6 +3,14 @@ import type { Translations } from "./pt";
 
 const en: Translations = {
   header: {
+    languageSelect: "Select language",
+    languageList: "Language",
+    navHome: "Home",
+    navStories: "Stories",
+    navSchools: "Schools",
+    navAbout: "About",
+    dockLabel: "Quick navigation",
+    dockApply: "Apply",
     navMethod: "Method",
     navAuthority: "Authority",
     navTestimonials: "Testimonials",
@@ -274,8 +282,8 @@ const en: Translations = {
       sealSub: "From choosing the school to settling in",
       safeSub: "Four decision pillars",
       activeTracking: "Active guidance at every step",
-      headline1: "Sports Education",
-      headline2: "Intelligent®",
+      headline1: "Smart Sports",
+      headline2: "Education®",
       sub1: "Life projects guided from High School to university,",
       sub2: "with criteria, strategy and long-term vision",
       sub3: "within the American sports-education system.",

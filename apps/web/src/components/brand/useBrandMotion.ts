@@ -30,7 +30,10 @@ export function useBrandMotion() {
 
     // Só mexe no DOM depois do load: as seções lazy já hidrataram e não há aviso de hidratação
     const start = () => {
-      if (!reduceMotion && "IntersectionObserver" in window) {
+      // Movimento reduzido: o CSS da marca já deixa tudo visível. Gravar data-in aqui
+      // atingia seção lazy ainda não hidratada e o React acusava atributo divergente
+      if (reduceMotion) return;
+      if ("IntersectionObserver" in window) {
         revealObserver = new IntersectionObserver(
           (entries) => {
             entries.forEach((entry) => {
@@ -45,7 +48,20 @@ export function useBrandMotion() {
       scan();
       mutationObserver = new MutationObserver(scan);
       mutationObserver.observe(document.body, { childList: true, subtree: true });
+      document.addEventListener("focusin", handleFocusIn);
     };
+    // O Tab foca antes da rolagem suave terminar e o observer só revela o que já
+    // entrou na tela: sem isto o anel de foco nascia num bloco ainda invisível
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!(event.target instanceof Element)) return;
+      let block = event.target.closest(REVEAL_SELECTOR);
+      while (block) {
+        reveal(block);
+        revealObserver?.unobserve(block);
+        block = block.parentElement?.closest(REVEAL_SELECTOR) ?? null;
+      }
+    };
+
     let startTimer: number | undefined;
     const scheduleStart = () => {
       startTimer = window.setTimeout(start, 0);
@@ -94,6 +110,7 @@ export function useBrandMotion() {
     return () => {
       window.clearTimeout(startTimer);
       window.removeEventListener("load", scheduleStart);
+      document.removeEventListener("focusin", handleFocusIn);
       revealObserver?.disconnect();
       mutationObserver?.disconnect();
       document.removeEventListener("pointermove", handlePointerMove);

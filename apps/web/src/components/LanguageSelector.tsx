@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Globe } from "lucide-react";
 
@@ -24,8 +24,26 @@ interface LanguageSelectorProps {
 }
 
 const LanguageSelector = ({ variant = "light", size = "default" }: LanguageSelectorProps) => {
-  const { lang, setLang } = useLanguage();
+  const { lang, setLang, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Fecha ao tocar fora ou com Esc. Não usa backdrop fixed: dentro de um ancestral
+  // com backdrop-filter (a pílula de vidro do header) o "fixed inset-0" fica preso
+  // ao tamanho da pílula e o toque fora não fechava o menu.
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setIsOpen(false);
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isOpen]);
 
   const isLarge = size === "lg";
   const isDark = variant === "dark";
@@ -38,13 +56,14 @@ const LanguageSelector = ({ variant = "light", size = "default" }: LanguageSelec
   };
 
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative">
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 ${isLarge ? "px-3 py-2" : "px-2 py-1.5"} rounded-full transition-all duration-200 ${
           isDark ? "hover:bg-white/10" : "hover:bg-black/5"
         }`}
-        aria-label="Selecionar idioma"
+        aria-label={t("header.languageSelect")}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
@@ -61,17 +80,9 @@ const LanguageSelector = ({ variant = "light", size = "default" }: LanguageSelec
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setIsOpen(false)}
-              aria-hidden="true"
-            />
-
-            {/* Dropdown */}
             <motion.div
               role="listbox"
-              aria-label="Idioma"
+              aria-label={t("header.languageList")}
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}

@@ -1,54 +1,45 @@
 "use client";
 
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, X, ChevronRight } from "lucide-react";
+import { ArrowRight, Play, ChevronRight } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 
 import { useLanguage } from "@/i18n";
 import logoSpire from "@/assets/logo-spireAcademy.png";
 import logoMontverde from "@/assets/logo-montverdeAcademy.png";
-import athleteIsadora from "@/assets/athlete-isadora.jpeg";
 import logoBenfica from "@/assets/academys/logoBenficaCard.png";
-import benjamin from "@/assets/benjamin.jpeg";
-import athleteLiz from "@/assets/athlete-liz.jpeg";
+import { PAGE_PATH } from "@/config/routes";
+import { getAthlete } from "@/content/athletes";
+import { HOME_STORIES_TEXT } from "@/content/historias";
+import { pick, type AthleteStory, type YoutubeVideo } from "@/content/types";
+import { getVideo } from "@/content/videos";
+import BrandCta from "./brand/BrandCta";
 import MeshBackground from "./brand/MeshBackground";
+import { useVideoPlayer } from "./brand/VideoPlayer";
 
-const videoTestimonials = [
-  {
-    id: "isadora",
-    name: "Isadora Santiago",
-    age: 16,
-    school: "Montverde Academy",
-    schoolLogo: logoMontverde,
-    thumbnail: athleteIsadora,
-    youtubeId: "P9QiMRW4dII",
-  },
-  {
-    id: "Benjamin",
-    name: "Benjamin Bertolucci",
-    age: 15,
-    school: "Spire Academy",
-    schoolLogo: logoSpire,
-    thumbnail: benjamin,
-    youtubeId: "7iso2Aj0PuQ",
-  },
-  {
-    id: "liz",
-    name: "Liz Valverde",
-    age: 15,
-    school: "Benfica Residential Academy",
-    schoolLogo: logoBenfica,
-    thumbnail: athleteLiz,
-    youtubeId: "arIURGPP828",
-  },
+// Os três depoimentos completos da vitrine da home; os demais ficam em /historias
+const FEATURED: Array<{ slug: string; schoolLogo: StaticImageData }> = [
+  { slug: "isadora-santiago", schoolLogo: logoMontverde },
+  { slug: "benjamin-bertolucci", schoolLogo: logoSpire },
+  { slug: "liz-valverde", schoolLogo: logoBenfica },
 ];
+
+interface VideoTestimonial {
+  athlete: AthleteStory;
+  video: YoutubeVideo;
+  schoolLogo: StaticImageData;
+}
+
+const videoTestimonials: VideoTestimonial[] = FEATURED.flatMap(({ slug, schoolLogo }) => {
+  const athlete = getAthlete(slug);
+  const video = athlete?.videoId ? getVideo(athlete.videoId) : undefined;
+  return athlete && video ? [{ athlete, video, schoolLogo }] : [];
+});
 
 // Vitrine em leque no desktop: as laterais inclinam e o centro sobe, como pôsteres numa parede.
 const DESKTOP_POSE = ["lg:-rotate-[2.5deg] lg:translate-y-6", "lg:-translate-y-4", "lg:rotate-[2.5deg] lg:translate-y-6"];
-
-// Sem chave de tradução para o botão de fechar: rótulo acessível local nos 3 idiomas.
 
 // Moldura de vidro sem backdrop-filter: dentro do trilho transformado do carrossel o desfoque pinta um
 // retângulo claro do tamanho do viewport; a moldura translúcida dá o mesmo vidro sem o artefato.
@@ -57,94 +48,69 @@ const FRAME = "border border-white/80 bg-white/70 shadow-[inset_0_1px_0_#fff,ins
 const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 
 interface TestimonialCardProps {
-  testimonial: (typeof videoTestimonials)[0];
-  isPlaying: boolean;
-  onPlay: () => void;
-  onClose: () => void;
+  testimonial: VideoTestimonial;
 }
 
-const TestimonialCard = ({ testimonial, isPlaying, onPlay, onClose }: TestimonialCardProps) => {
-  const { t } = useLanguage();
-  const videoLabel = `${t("landing.testimonials.videoTitle")} ${testimonial.name}`;
-
-  const handleClose = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onClose();
-  };
+const TestimonialCard = ({ testimonial }: TestimonialCardProps) => {
+  const { t, lang } = useLanguage();
+  const { open } = useVideoPlayer();
+  const { athlete, video, schoolLogo } = testimonial;
+  const videoLabel = `${t("landing.testimonials.videoTitle")}: ${athlete.name} (${video.duration})`;
+  const play = () => open({ id: video.id, kind: video.kind, title: pick(video.title, lang) });
 
   return (
     <div className={`athlete-testimonial-card group mx-auto flex w-full max-w-[280px] flex-col rounded-[28px] p-[7px] transition-[transform,box-shadow] duration-700 [transition-timing-function:var(--ba-ease)] hover:shadow-[var(--ba-shadow-lg)] sm:max-w-[320px] md:max-w-[330px] sm:rounded-[32px] sm:p-2 ${FRAME}`} data-tilt>
       <div className="relative w-full overflow-hidden rounded-[22px] bg-[var(--ba-navy-2)] sm:rounded-[25px]" style={{ aspectRatio: "9/16" }}>
-        {!isPlaying ? (
-          <button type="button" onClick={onPlay} aria-label={videoLabel} className="absolute inset-0 block h-full w-full cursor-pointer text-left focus-visible:outline-[2.5px] focus-visible:outline-offset-[-4px] focus-visible:outline-white">
-            <Image
-              src={testimonial.thumbnail}
-              alt={testimonial.name}
-              fill
-              sizes="(max-width: 768px) 280px, 360px"
-              className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
-            />
-            <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.35)_0%,rgba(10,26,69,0)_26%,rgba(10,26,69,0)_48%,rgba(6,15,42,0.88)_100%)]" />
+        <button type="button" onClick={play} aria-label={videoLabel} className="absolute inset-0 block h-full w-full cursor-pointer text-left focus-visible:outline-[2.5px] focus-visible:outline-offset-[-4px] focus-visible:outline-white">
+          <Image
+            src={athlete.image}
+            alt=""
+            fill
+            sizes="(max-width: 768px) 280px, 360px"
+            className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
+          />
+          <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.35)_0%,rgba(10,26,69,0)_26%,rgba(10,26,69,0)_48%,rgba(6,15,42,0.88)_100%)]" />
 
-            {/* Topo: gravação + escola */}
-            <span className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 sm:inset-x-4 sm:top-4">
-              <span className="ba-glass-dark flex items-center gap-1.5 rounded-full px-2.5 py-[5px]">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
-                <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
-              </span>
-              <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-white/95 p-1.5 shadow-[0_10px_24px_-10px_rgba(0,0,0,0.6),inset_0_0_0_1px_rgba(255,255,255,0.9)] sm:h-12 sm:w-12">
-                <Image src={testimonial.schoolLogo} alt={testimonial.school} className="h-full w-full object-contain" sizes="48px" />
-              </span>
+          {/* Topo: gravação + escola */}
+          <span className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 sm:inset-x-4 sm:top-4">
+            <span className="ba-glass-dark flex items-center gap-1.5 rounded-full !bg-[rgba(10,26,69,0.55)] px-2.5 py-[5px]">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
             </span>
-
-            {/* Play em vidro */}
-            <span aria-hidden="true" className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.3),0_20px_44px_-14px_rgba(0,0,0,0.55)] backdrop-blur-md transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:scale-110">
-              <span className="grid h-[50px] w-[50px] place-items-center rounded-full bg-[linear-gradient(180deg,#fff,#e6ecfb)] shadow-[0_6px_16px_-6px_rgba(10,26,69,0.6)]">
-                <Play className="ml-0.5 h-5 w-5 fill-[var(--ba-navy)] text-[var(--ba-navy)]" />
-              </span>
+            <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-white/95 p-1.5 shadow-[0_10px_24px_-10px_rgba(0,0,0,0.6),inset_0_0_0_1px_rgba(255,255,255,0.9)] sm:h-12 sm:w-12">
+              <Image src={schoolLogo} alt="" className="h-full w-full object-contain" sizes="48px" />
             </span>
+          </span>
 
-            {/* Rodapé em vidro escuro: atleta + progresso */}
-            <span className="ba-glass-dark absolute inset-x-2.5 bottom-2.5 block rounded-[18px] px-4 pb-3.5 pt-3 sm:inset-x-3 sm:bottom-3 sm:rounded-[20px]">
-              <span className="flex items-end justify-between gap-3">
-                <span className="min-w-0">
-                  <span className="block truncate font-[family-name:var(--ba-display)] text-[16px] font-semibold leading-tight tracking-[-0.02em] text-white sm:text-[17px]">
-                    {testimonial.name}
-                  </span>
-                  <span className="mt-0.5 block truncate text-[12px] text-white/75">
-                    {testimonial.age} {t("landing.testimonials.ageSuffix")} · {testimonial.school}
-                  </span>
+          {/* Play em vidro */}
+          <span aria-hidden="true" className="absolute left-1/2 top-1/2 grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.3),0_20px_44px_-14px_rgba(0,0,0,0.55)] backdrop-blur-md transition-transform duration-500 [transition-timing-function:var(--ba-ease)] group-hover:scale-110">
+            <span className="grid h-[50px] w-[50px] place-items-center rounded-full bg-[linear-gradient(180deg,#fff,#e6ecfb)] shadow-[0_6px_16px_-6px_rgba(10,26,69,0.6)]">
+              <Play className="ml-0.5 h-5 w-5 fill-[var(--ba-navy)] text-[var(--ba-navy)]" />
+            </span>
+          </span>
+
+          {/* Rodapé em vidro escuro: atleta + progresso */}
+          <span className="ba-glass-dark absolute inset-x-2.5 bottom-2.5 block rounded-[18px] px-4 pb-3.5 pt-3 sm:inset-x-3 sm:bottom-3 sm:rounded-[20px]">
+            <span className="flex items-end justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block truncate font-[family-name:var(--ba-display)] text-[16px] font-semibold leading-tight tracking-[-0.02em] text-white sm:text-[17px]">
+                  {athlete.name}
+                </span>
+                <span className="mt-0.5 block truncate text-[12px] text-white/75">
+                  {athlete.school} · {video.duration}
                 </span>
               </span>
-              <span className="relative mt-3 block h-[3px] w-full overflow-hidden rounded-full bg-white/20">
-                <motion.span
-                  initial={{ width: "42%" }}
-                  whileHover={{ width: "100%" }}
-                  transition={{ duration: 0.5 }}
-                  className="absolute inset-y-0 left-0 block rounded-full bg-[linear-gradient(90deg,#b8caf7,#f0b1bb)]"
-                />
-              </span>
             </span>
-          </button>
-        ) : (
-          <div className="absolute inset-0 bg-black">
-            <iframe
-              src={`https://www.youtube.com/embed/${testimonial.youtubeId}?autoplay=1&rel=0`}
-              title={videoLabel}
-              className="absolute inset-0 h-full w-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-            <button
-              type="button"
-              onClick={handleClose}
-              aria-label={t("landing.closeVideo")}
-              className="ba-glass-dark absolute right-3 top-3 z-20 grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/20 focus-visible:outline-[2.5px] focus-visible:outline-white"
-            >
-              <X className="h-[18px] w-[18px]" />
-            </button>
-          </div>
-        )}
+            <span className="relative mt-3 block h-[3px] w-full overflow-hidden rounded-full bg-white/20">
+              <motion.span
+                initial={{ width: "42%" }}
+                whileHover={{ width: "100%" }}
+                transition={{ duration: 0.5 }}
+                className="absolute inset-y-0 left-0 block rounded-full bg-[linear-gradient(90deg,#b8caf7,#f0b1bb)]"
+              />
+            </span>
+          </span>
+        </button>
       </div>
     </div>
   );
@@ -162,8 +128,7 @@ const CarouselDots = ({ count, active }: { count: number; active: number }) => (
 );
 
 const TestimonialsCarousel = () => {
-  const { t } = useLanguage();
-  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const { t, lang } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showHint, setShowHint] = useState(true);
   // null até montar: o layout depende do viewport, e decidir isso só no cliente evita que a hidratação
@@ -207,9 +172,6 @@ const TestimonialsCarousel = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const handlePlay = (id: string) => setActiveVideoId(id);
-  const handleClose = () => setActiveVideoId(null);
-
   return (
     <section
       id="depoimentos"
@@ -235,21 +197,16 @@ const TestimonialsCarousel = () => {
           </p>
         </div>
 
-        {/* Renderização condicional evita dois players tocando o mesmo áudio */}
+        {/* Um layout por vez: o embla precisa do trilho mobile montado só quando ele está em uso */}
         {isDesktop === null ? (
           <div className="min-h-[560px] md:min-h-[640px]" aria-hidden="true" />
         ) : isDesktop ? (
           <div key="desktop" className="relative mx-auto grid max-w-[1120px] grid-cols-3 gap-5 lg:gap-8 lg:pb-6">
             <div aria-hidden="true" className="ba-glow left-1/2 top-1/2 h-[420px] w-[70%] -translate-x-1/2 -translate-y-1/2 bg-[rgba(71,107,192,0.28)]" />
             {videoTestimonials.map((testimonial, index) => (
-              <div key={testimonial.id} className="ba-rv-scale relative z-[1]" style={delay(index + 1)}>
+              <div key={testimonial.athlete.slug} className="ba-rv-scale relative z-[1]" style={delay(index + 1)}>
                 <div className={`transition-transform duration-700 [transition-timing-function:var(--ba-ease)] ${DESKTOP_POSE[index]}`}>
-                  <TestimonialCard
-                    testimonial={testimonial}
-                    isPlaying={activeVideoId === testimonial.id}
-                    onPlay={() => handlePlay(testimonial.id)}
-                    onClose={handleClose}
-                  />
+                  <TestimonialCard testimonial={testimonial} />
                 </div>
               </div>
             ))}
@@ -259,13 +216,8 @@ const TestimonialsCarousel = () => {
             <div className="-mx-[var(--ba-gutter)] -mb-16 -mt-6 touch-pan-y overflow-hidden pb-16 pt-6" ref={emblaRef}>
               <div className="flex touch-pan-y gap-4">
                 {videoTestimonials.map((testimonial) => (
-                  <div key={testimonial.id} className="min-w-0 flex-[0_0_280px] touch-pan-y sm:flex-[0_0_320px]">
-                    <TestimonialCard
-                      testimonial={testimonial}
-                      isPlaying={activeVideoId === testimonial.id}
-                      onPlay={() => handlePlay(testimonial.id)}
-                      onClose={handleClose}
-                    />
+                  <div key={testimonial.athlete.slug} className="min-w-0 flex-[0_0_280px] touch-pan-y sm:flex-[0_0_320px]">
+                    <TestimonialCard testimonial={testimonial} />
                   </div>
                 ))}
               </div>
@@ -290,6 +242,14 @@ const TestimonialsCarousel = () => {
             </AnimatePresence>
           </div>
         )}
+
+        {/* Ponte para a vitrine completa: os outros depoimentos e as conquistas ficam em /historias */}
+        <div className="ba-rv mt-10 flex justify-center sm:mt-14" style={delay(2)}>
+          <BrandCta href={PAGE_PATH.historias} variant="ghost">
+            {pick(HOME_STORIES_TEXT.seeAllStories, lang)}
+            <ArrowRight aria-hidden="true" />
+          </BrandCta>
+        </div>
       </div>
     </section>
   );

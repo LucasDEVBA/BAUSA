@@ -1,19 +1,31 @@
 import type { MetadataRoute } from "next";
 
-const BASE_URL = "https://bolsaatletausa.com";
+import { SITE_URL } from "@/config/seo";
+import { SITE_PAGES } from "@/config/routes";
+
+type ChangeFrequency = NonNullable<MetadataRoute.Sitemap[number]["changeFrequency"]>;
+
+interface SitemapPage {
+  path: string;
+  changeFrequency: ChangeFrequency;
+  priority: number;
+}
+
+const LOCALE_PREFIXES = ["", "/en", "/es"];
+
+const PAGES: SitemapPage[] = [
+  { path: "", changeFrequency: "monthly", priority: 1.0 },
+  // Páginas de conteúdo (multipage): fonte única em src/config/routes.ts
+  ...SITE_PAGES.map((page): SitemapPage => ({ path: `/${page}`, changeFrequency: "monthly", priority: 0.8 })),
+  { path: "/acesso", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/privacidade", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/exclusao-de-dados", changeFrequency: "yearly", priority: 0.3 },
+];
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const locales = ["", "/en", "/es"];
-  const pages = [
-    { path: "", changeFrequency: "monthly" as const, priority: 1.0 },
-    { path: "/acesso", changeFrequency: "monthly" as const, priority: 0.7 },
-    { path: "/privacidade", changeFrequency: "yearly" as const, priority: 0.3 },
-    { path: "/exclusao-de-dados", changeFrequency: "yearly" as const, priority: 0.3 },
-  ];
-
-  return pages.flatMap((page) =>
-    locales.map((locale) => ({
-      url: `${BASE_URL}${locale}${page.path}`,
+  return PAGES.flatMap((page) =>
+    LOCALE_PREFIXES.map((prefix) => ({
+      url: `${SITE_URL}${prefix}${page.path}`,
       lastModified: new Date(),
       changeFrequency: page.changeFrequency,
       priority: page.priority,

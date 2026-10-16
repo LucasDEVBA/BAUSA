@@ -8,6 +8,7 @@ import { routing } from "@/i18n/routing";
 import { fontVariables } from "@/lib/fonts";
 import { Providers } from "@/components/Providers";
 import { GoogleTagManager } from "@/lib/tracking/gtm";
+import AttributionCapture from "@/components/site/AttributionCapture";
 
 import "../globals.css";
 import "@/styles/brand.css";
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://bolsaatletausa.com"),
   title: {
     default: "Bolsa Atleta USA | Educação Esportiva Inteligente®",
+    // Títulos do PAGE_SEO vêm SEM a marca; o template acrescenta uma vez só
     template: "%s | Bolsa Atleta USA",
   },
   description:
@@ -67,13 +69,12 @@ export default async function RootLayout({ children, params }: RootLayoutProps) 
 
   const messages = await getMessages();
 
+  // data-scroll-behavior: o Next 16 só desliga o smooth do <html> na troca de rota com esse atributo
   return (
-    <html lang={locale} suppressHydrationWarning>
-      <head>
-        <link rel="preload" as="image" href="/hero-campus.jpg" fetchPriority="high" />
-      </head>
+    <html lang={locale} data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={fontVariables}>
         <Providers locale={locale} messages={messages}>
+          <AttributionCapture />
           {children}
         </Providers>
         <GoogleTagManager />

@@ -54,6 +54,9 @@ function gerarSlug(): string {
 const SLUGS_RESERVADOS = new Set([
   "pt", "en", "es",
   "acesso", "forms", "links", "l", "api", "debug",
+  "privacidade", "exclusao-de-dados", "agendar",
+  // Páginas de conteúdo do site (multipage) — apps/web/src/config/routes.ts
+  "metodo", "historias", "escolas", "sobre",
 ]);
 
 const criarSchema = z.object({

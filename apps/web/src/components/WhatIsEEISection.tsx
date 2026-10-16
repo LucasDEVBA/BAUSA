@@ -5,8 +5,12 @@ import Image from "next/image";
 import { Target, Compass, ArrowUpRight, Sparkles } from "lucide-react";
 
 import logoWhite from "@/assets/logo-white.png";
+import { HOME_TEASERS, SOBRE_VIDEOS, withLanguageTag } from "@/content/sobre";
+import { pick } from "@/content/types";
+import { getVideo } from "@/content/videos";
 import { useLanguage } from "@/i18n";
 import MeshBackground from "./brand/MeshBackground";
+import VideoChip from "./brand/VideoChip";
 
 const CONCEPTS = [
   { key: "criteria", icon: Target, chip: "bg-[linear-gradient(150deg,#4a6dd0,var(--ba-blue)_60%,#172f7d)] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_12px_24px_-10px_rgba(31,63,163,0.7)]", bar: "from-[var(--ba-blue-2)] to-[var(--ba-blue)]" },
@@ -16,16 +20,19 @@ const CONCEPTS = [
 
 const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 
+const eeiVideo = getVideo(SOBRE_VIDEOS.eei);
+
 /** No itálico serifado o ® vira um círculo enorme: reduz a marca a sobrescrito discreto. */
 const withSmallRegistered = (text: string) =>
   text.split("®").flatMap((part, i) => (i === 0 ? [part] : [<sup key={i} className="ml-0.5 align-super font-[family-name:var(--ba-body)] text-[0.32em] not-italic">®</sup>, part]));
 
 const WhatIsEEISection = memo(() => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   return (
     <section id="o-que-e" className="relative isolate overflow-hidden py-[clamp(80px,10vw,140px)]" aria-labelledby="o-que-e-title">
-      <MeshBackground blobs={["b2", "b4"]} className="[&_.ba-b2]:!opacity-40 [&_.ba-b4]:!opacity-70" />
+      {/* O brilho começa esmaecido no topo: sem isso aparecia uma linha na emenda com a seção de cima */}
+      <MeshBackground blobs={["b2", "b4"]} className="[mask-image:linear-gradient(180deg,transparent,#000_12%)] [&_.ba-b2]:!opacity-40 [&_.ba-b4]:!opacity-70" />
 
       <div className="ba-wrap">
         <div className="relative z-[2] grid grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-[clamp(40px,5vw,80px)]">
@@ -50,6 +57,17 @@ const WhatIsEEISection = memo(() => {
               {t("landing.whatIsEEI.p2Before")} <strong className="font-semibold text-[var(--ba-wine)]">{t("landing.whatIsEEI.p2Bold")}</strong>
               {t("landing.whatIsEEI.p2After")}
             </p>
+
+            {eeiVideo && (
+              <div className="ba-rv mt-6" style={delay(3)}>
+                <VideoChip
+                  id={eeiVideo.id}
+                  label={pick(HOME_TEASERS.eeiVideo, lang)}
+                  title={pick(eeiVideo.title, lang)}
+                  duration={withLanguageTag(eeiVideo.duration, lang)}
+                />
+              </div>
+            )}
 
             <ul className="mt-9 grid grid-cols-3 gap-2.5 sm:gap-3.5" role="list">
               {CONCEPTS.map(({ key, icon: Icon, chip, bar }, index) => (

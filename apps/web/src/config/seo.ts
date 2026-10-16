@@ -72,7 +72,7 @@ export const PAGE_SEO: Record<string, PageSeoConfig> = {
   home: {
     title: {
       pt: "Bolsa Atleta USA | Educação Esportiva Inteligente®",
-      en: "Bolsa Atleta USA | Intelligent Sports Education®",
+      en: "Bolsa Atleta USA | Smart Sports Education®",
       es: "Bolsa Atleta USA | Educación Deportiva Inteligente®",
     },
     description: {
@@ -85,9 +85,9 @@ export const PAGE_SEO: Record<string, PageSeoConfig> = {
   },
   links: {
     title: {
-      pt: "Links | Bolsa Atleta USA",
-      en: "Links | Bolsa Atleta USA",
-      es: "Enlaces | Bolsa Atleta USA",
+      pt: "Links",
+      en: "Links",
+      es: "Enlaces",
     },
     description: {
       pt: "Acesse os principais canais e recursos da Bolsa Atleta USA — consultoria elite em bolsas esportivas para o sistema educacional americano.",
@@ -99,9 +99,9 @@ export const PAGE_SEO: Record<string, PageSeoConfig> = {
   },
   forms: {
     title: {
-      pt: "Avaliação Estratégica | Bolsa Atleta USA",
-      en: "Strategic Evaluation | Bolsa Atleta USA",
-      es: "Evaluación Estratégica | Bolsa Atleta USA",
+      pt: "Avaliação Estratégica",
+      en: "Strategic Evaluation",
+      es: "Evaluación Estratégica",
     },
     description: {
       pt: "Inicie sua avaliação estratégica personalizada. Processo seletivo exclusivo do Método S.A.F.E.® — Bolsa Atleta USA.",
@@ -112,11 +112,67 @@ export const PAGE_SEO: Record<string, PageSeoConfig> = {
     ogType: "website",
     noIndex: true,
   },
+  metodo: {
+    title: {
+      pt: "Método S.A.F.E.® e como atuamos",
+      en: "The S.A.F.E. Method® and how we work",
+      es: "Método S.A.F.E.® y cómo trabajamos",
+    },
+    description: {
+      pt: "Como a Bolsa Atleta USA estrutura cada projeto: os quatro pilares do Método S.A.F.E.®, a High School como ponte para a universidade e as respostas às dúvidas mais comuns das famílias.",
+      en: "How Bolsa Atleta USA structures each project: the four pillars of the S.A.F.E. Method®, High School as the bridge to university, and answers to families' most common questions.",
+      es: "Cómo Bolsa Atleta USA estructura cada proyecto: los cuatro pilares del Método S.A.F.E.®, la High School como puente a la universidad y las respuestas a las dudas más comunes de las familias.",
+    },
+    canonicalPath: "/metodo",
+    ogType: "article",
+  },
+  historias: {
+    title: {
+      pt: "Histórias de atletas e famílias",
+      en: "Athlete and family stories",
+      es: "Historias de atletas y familias",
+    },
+    description: {
+      pt: "Atletas brasileiros em high schools e universidades americanas: convocações, conquistas e depoimentos em vídeo de atletas e famílias da Bolsa Atleta USA.",
+      en: "Brazilian athletes at American high schools and universities: national team call-ups, achievements and video testimonials from Bolsa Atleta USA athletes and families.",
+      es: "Atletas brasileños en high schools y universidades estadounidenses: convocatorias, logros y testimonios en video de atletas y familias de Bolsa Atleta USA.",
+    },
+    canonicalPath: "/historias",
+    ogType: "website",
+  },
+  escolas: {
+    title: {
+      pt: "Por dentro das escolas e universidades",
+      en: "Inside the schools and universities",
+      es: "Por dentro de las escuelas y universidades",
+    },
+    description: {
+      pt: "Tours exclusivos em português por high schools e universidades esportivas dos EUA, como IMG Academy, Montverde, Harvard e University of Miami, com treinadores e diretores.",
+      en: "Exclusive tours of U.S. sports high schools and universities such as IMG Academy, Montverde, Harvard and the University of Miami, with coaches and directors.",
+      es: "Tours exclusivos por high schools y universidades deportivas de EE. UU., como IMG Academy, Montverde, Harvard y University of Miami, con entrenadores y directores.",
+    },
+    canonicalPath: "/escolas",
+    ogType: "website",
+  },
+  sobre: {
+    title: {
+      pt: "Sobre a Bolsa Atleta USA e o fundador",
+      en: "About Bolsa Atleta USA and its founder",
+      es: "Sobre Bolsa Atleta USA y su fundador",
+    },
+    description: {
+      pt: "Leandro Ribeiro viveu o sistema educacional esportivo americano como estudante-atleta bolsista e profissional de admissões. Conheça a origem da Educação Esportiva Inteligente®.",
+      en: "Leandro Ribeiro lived the American sports-education system as a scholarship student-athlete and admissions professional. Discover the origin of Smart Sports Education®.",
+      es: "Leandro Ribeiro vivió el sistema educativo deportivo estadounidense como estudiante-atleta becado y profesional de admisiones. Conozca el origen de la Educación Deportiva Inteligente®.",
+    },
+    canonicalPath: "/sobre",
+    ogType: "article",
+  },
   notFound: {
     title: {
-      pt: "Página não encontrada | Bolsa Atleta USA",
-      en: "Page not found | Bolsa Atleta USA",
-      es: "Página no encontrada | Bolsa Atleta USA",
+      pt: "Página não encontrada",
+      en: "Page not found",
+      es: "Página no encontrada",
     },
     description: {
       pt: "A página que você buscou não existe. Volte ao início.",
@@ -134,4 +190,79 @@ export function getSeoText(
   locale: string,
 ): string {
   return field[locale] || field.pt;
+}
+
+const LOCALE_PREFIX: Record<string, string> = { pt: "", en: "/en", es: "/es" };
+const HREFLANG: Record<string, string> = { pt: "pt-BR", en: "en", es: "es" };
+
+/** URL de uma rota no idioma pedido (PT sem prefixo, como no routing "as-needed"). */
+export function localizedPath(path: string, locale: string): string {
+  const prefix = LOCALE_PREFIX[locale] ?? "";
+  if (path === "/") return prefix || "/";
+  return `${prefix}${path}`;
+}
+
+/** URL absoluta no idioma, no mesmo formato do canonical (a home em PT é o domínio, sem barra). */
+export function absoluteLocalizedUrl(path: string, locale: string): string {
+  const localized = localizedPath(path, locale);
+  return localized === "/" ? SITE_URL : `${SITE_URL}${localized}`;
+}
+
+/** Rótulo da home nos breadcrumbs (JSON-LD), igual ao "Início" da navegação. */
+export const BREADCRUMB_HOME: Record<string, string> = { pt: "Início", en: "Home", es: "Inicio" };
+
+/** BreadcrumbList Início → página, com nome e URL no idioma da página (antes /en e /es repetiam o PT). */
+export function buildBreadcrumbSchema(key: keyof typeof PAGE_SEO, locale: string) {
+  const seo: PageSeoConfig = PAGE_SEO[key];
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: getSeoText(BREADCRUMB_HOME, locale), item: absoluteLocalizedUrl("/", locale) },
+      { "@type": "ListItem", position: 2, name: getSeoText(seo.title, locale), item: absoluteLocalizedUrl(seo.canonicalPath, locale) },
+    ],
+  };
+}
+
+/**
+ * Metadata padronizada por página: canonical PRÓPRIO de cada idioma (antes /en
+ * e /es apontavam para a URL em PT e o Google tendia a ignorá-las), hreflang
+ * completo com x-default e Open Graph coerente. Títulos do PAGE_SEO vêm sem a
+ * marca; o template do layout acrescenta "| Bolsa Atleta USA" uma única vez.
+ */
+export function buildPageMetadata(key: keyof typeof PAGE_SEO, locale: string, options: { absoluteTitle?: boolean } = {}) {
+  const seo: PageSeoConfig = PAGE_SEO[key];
+  const title = getSeoText(seo.title, locale);
+  const description = getSeoText(seo.description, locale);
+  const path = seo.canonicalPath;
+  const canonical = localizedPath(path, locale);
+  const languages: Record<string, string> = { "x-default": localizedPath(path, "pt") };
+  for (const lang of Object.keys(LOCALE_PREFIX)) languages[HREFLANG[lang]] = localizedPath(path, lang);
+  // Título que já cita a marca ("Sobre a Bolsa Atleta USA...") não passa pelo template, senão ela sai duas vezes
+  const absoluteTitle = options.absoluteTitle || title.includes(SEO_DEFAULTS.siteName);
+
+  return {
+    title: absoluteTitle ? { absolute: title } : title,
+    description,
+    alternates: { canonical, languages },
+    robots: seo.noIndex ? { index: false, follow: true } : undefined,
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      type: seo.ogType ?? "website",
+      locale: getOgLocale(locale),
+      alternateLocale: getAlternateLocales(locale),
+      images: [{ url: seo.ogImage ?? SEO_DEFAULTS.ogImage, width: 1200, height: 630, alt: SEO_DEFAULTS.ogImageAlt }],
+    },
+    // card/site/creator são repetidos: o Next faz merge raso do objeto twitter
+    twitter: {
+      card: "summary_large_image" as const,
+      site: SEO_DEFAULTS.twitterHandle,
+      creator: SEO_DEFAULTS.twitterHandle,
+      title,
+      description,
+      images: [{ url: seo.ogImage ?? SEO_DEFAULTS.ogImage, alt: SEO_DEFAULTS.ogImageAlt }],
+    },
+  };
 }
