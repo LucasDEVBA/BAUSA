@@ -96,7 +96,7 @@ const SAFEMethodSection = memo(({ variant = "home" }: SAFEMethodSectionProps) =>
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.15)_0%,rgba(10,26,69,0)_30%,rgba(10,26,69,0.82)_100%)]" />
             <div className="absolute inset-x-6 top-6 z-[2] flex items-center justify-between gap-3">
               <span className={letterGlass}>S</span>
-              <span className="ba-glass-dark whitespace-nowrap rounded-full px-3 py-[7px] text-xs font-semibold">01 · {t("landing.safeMethod.humanPillar")}</span>
+              <span className="ba-glass-dark whitespace-nowrap rounded-full !bg-[rgba(10,26,69,0.66)] px-3 py-[7px] text-xs font-semibold">01 · {t("landing.safeMethod.humanPillar")}</span>
             </div>
             {/* lg–xl: card de 3 colunas fica estreito; recuo menor para o chip do vídeo não se espremer */}
             <div className="absolute inset-x-0 bottom-0 z-[2] p-7 lg:px-5 xl:px-7">
@@ -141,7 +141,8 @@ const SAFEMethodSection = memo(({ variant = "home" }: SAFEMethodSectionProps) =>
               </defs>
               <path d="M2 78 C 30 74, 46 60, 70 62 S 110 40, 134 44 S 172 18, 218 10" stroke="url(#ba-spark)" strokeWidth="2.2" strokeLinecap="round" />
             </svg>
-            <div className="flex items-center justify-between gap-3">
+            {/* Número junto da letra, como no E: no canto direito a linha do gráfico cortava o "03" */}
+            <div className="relative flex items-center gap-3.5">
               <span className={letterGlass}>F</span>
               <span className="text-xs font-semibold tracking-[0.14em] opacity-75">03</span>
             </div>
@@ -158,7 +159,7 @@ const SAFEMethodSection = memo(({ variant = "home" }: SAFEMethodSectionProps) =>
           </article>
 
           {/* E: leque de pôsteres dos atletas */}
-          <article id="pilar-e" className={`${cellBase} group ba-rv min-h-[520px] scroll-mt-28 bg-[#0b1a44] text-white shadow-[var(--ba-shadow)] md:col-span-6 md:min-h-[330px] lg:col-span-7`} style={delay(1)} data-tilt>
+          <article id="pilar-e" className={`${cellBase} group ba-rv min-h-[460px] scroll-mt-28 bg-[#0b1a44] text-white shadow-[var(--ba-shadow)] md:col-span-6 md:min-h-[330px] lg:col-span-7`} style={delay(1)} data-tilt>
             <Image src={soccerField} alt="" fill sizes="(max-width: 1024px) 100vw, 60vw" className="object-cover opacity-55" />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.95)_0%,rgba(10,26,69,0.82)_46%,rgba(10,26,69,0.25)_100%)] md:bg-[linear-gradient(90deg,rgba(10,26,69,0.96)_0%,rgba(10,26,69,0.78)_42%,rgba(10,26,69,0.1)_100%)]" />
             <div className="pointer-events-none absolute bottom-[-30px] left-1/2 z-[1] h-[240px] w-[340px] -translate-x-1/2 md:bottom-auto md:left-auto md:right-[4%] md:top-1/2 md:h-[120%] md:w-[52%] md:-translate-y-1/2 md:translate-x-0" aria-hidden="true">

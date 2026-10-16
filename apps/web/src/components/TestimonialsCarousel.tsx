@@ -73,7 +73,7 @@ const TestimonialCard = ({ testimonial }: TestimonialCardProps) => {
 
           {/* Topo: gravação + escola */}
           <span className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 sm:inset-x-4 sm:top-4">
-            <span className="ba-glass-dark flex items-center gap-1.5 rounded-full px-2.5 py-[5px]">
+            <span className="ba-glass-dark flex items-center gap-1.5 rounded-full !bg-[rgba(10,26,69,0.55)] px-2.5 py-[5px]">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
               <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
             </span>

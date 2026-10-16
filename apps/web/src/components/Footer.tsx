@@ -30,7 +30,7 @@ const SOCIAL_BUTTON_CLASS =
   "ba-glass-dark grid h-11 w-11 place-items-center rounded-full text-white/80 transition-[transform,background-color,color] duration-500 hover:-translate-y-0.5 hover:bg-white/[0.14] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a9c0f2]";
 
 const SITEMAP_LINK_CLASS =
-  "inline-flex min-h-[44px] items-center gap-1.5 rounded-sm text-[15px] font-medium text-[rgba(232,238,255,0.82)] transition-colors hover:text-white aria-[current=page]:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a9c0f2] lg:min-h-[36px]";
+  "inline-flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-sm text-[15px] font-medium text-[rgba(232,238,255,0.82)] transition-colors hover:text-white aria-[current=page]:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a9c0f2] lg:min-h-[36px]";
 
 // Alvo de toque de 44px no celular (eram 19px de altura); no desktop, com mouse, fica no tamanho do texto
 const LEGAL_LINK_CLASS =

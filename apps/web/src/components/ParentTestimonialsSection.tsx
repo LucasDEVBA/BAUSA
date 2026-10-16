@@ -12,6 +12,7 @@ import priscilaMoraes from "@/assets/PRISCILA-MORAES.jpeg";
 import GabrielMachado from "@/assets/GABRIEL-MACHADO.jpeg";
 import comperlingo from "@/assets/Comperlingo.jpeg";
 import paiLizValverde from "@/assets/paiLizValverde.jpg";
+import FocalImage, { type Focus } from "@/components/pages/historias/FocalImage";
 import { PAGE_PATH } from "@/config/routes";
 import { FAMILY_STORIES, HOME_STORIES_TEXT, type FamilyStory } from "@/content/historias";
 import { pick, type YoutubeVideo } from "@/content/types";
@@ -29,6 +30,18 @@ const POSTERS: Record<string, StaticImageData> = {
   "8RtvPgeZ8yI": GabrielMachado,
   lXzJkGgZkTw: comperlingo,
 };
+
+// Rosto de cada arte no selo de avatares: o topo das artes é o título "Experiência da família"
+const AVATAR_FOCUS: Record<string, Focus> = {
+  enS5ZAGRJ0g: { x: 0.46, y: 0.52, zoom: 2 },
+  wJUf_efdc8s: { x: 0.52, y: 0.42, zoom: 2.3 },
+  "1WDFoyA5p8U": { x: 0.58, y: 0.52, zoom: 1.7 },
+  "8RtvPgeZ8yI": { x: 0.5, y: 0.36, zoom: 2.3 },
+  KFkoxh4nTHU: { x: 0.45, y: 0.5, zoom: 1.6 },
+  lXzJkGgZkTw: { x: 0.45, y: 0.5, zoom: 2 },
+};
+const DEFAULT_AVATAR_FOCUS: Focus = { x: 0.5, y: 0.5, zoom: 2 };
+const AVATAR_SIZE = 40;
 
 interface ParentTestimonial {
   video: YoutubeVideo;
@@ -83,7 +96,7 @@ const ParentVideoCard = ({ testimonial, className = "" }: ParentVideoCardProps) 
           {/* Base mais fechada: as artes têm "+BAU+ +FAMÍLIA+ +SONHO+" no rodapé, que vazava por baixo do nome */}
           <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0.25)_0%,rgba(10,26,69,0)_22%,rgba(10,26,69,0)_50%,rgba(6,15,42,0.78)_78%,rgba(6,15,42,0.97)_100%)]" />
 
-          <span className="ba-glass-dark absolute left-3 top-3 flex items-center gap-1.5 rounded-full px-2.5 py-[5px]">
+          <span className="ba-glass-dark absolute left-3 top-3 flex items-center gap-1.5 rounded-full !bg-[rgba(10,26,69,0.55)] px-2.5 py-[5px]">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
             <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
           </span>
@@ -199,11 +212,14 @@ const ParentTestimonialsSection = () => {
           {/* Selo das famílias: rostos sobrepostos, atalho visual para o mural */}
           <div className="ba-glass ba-rv mt-8 inline-flex items-center gap-4 rounded-full py-2 pl-2 pr-5" style={delay(3)} aria-hidden="true">
             <div className="flex -space-x-3">
-              {parentTestimonials.slice(0, 4).map((item) => (
-                <span key={item.video.id} className="relative h-10 w-10 overflow-hidden rounded-full shadow-[0_0_0_2.5px_#fff,0_6px_14px_-6px_rgba(15,35,87,0.5)]">
-                  <Image src={item.thumbnail} alt="" fill sizes="40px" className="object-cover object-[50%_25%]" />
-                </span>
-              ))}
+              {parentTestimonials.slice(0, 4).map((item) => {
+                const focus = AVATAR_FOCUS[item.video.id] ?? DEFAULT_AVATAR_FOCUS;
+                return (
+                  <span key={item.video.id} className="relative h-10 w-10 overflow-hidden rounded-full bg-[var(--ba-navy-2)] shadow-[0_0_0_2.5px_#fff,0_6px_14px_-6px_rgba(15,35,87,0.5)]">
+                    <FocalImage src={item.thumbnail} alt="" focus={focus} frameRatio={1} sizes={`${Math.ceil(AVATAR_SIZE * (focus.zoom ?? 1))}px`} />
+                  </span>
+                );
+              })}
             </div>
             <span className="font-[family-name:var(--ba-display)] text-[22px] font-bold tracking-[-0.03em] text-[var(--ba-navy)]">+{parentTestimonials.length}</span>
           </div>

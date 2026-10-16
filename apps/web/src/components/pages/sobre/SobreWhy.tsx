@@ -3,7 +3,7 @@ import { Languages } from "lucide-react";
 import MeshBackground from "@/components/brand/MeshBackground";
 import VideoCard from "@/components/brand/VideoCard";
 import type { Lang } from "@/i18n";
-import { SOBRE_HERO, SOBRE_VIDEOS, SOBRE_WHY, VIDEO_LANGUAGE_NOTE } from "@/content/sobre";
+import { SOBRE_HERO, SOBRE_VIDEOS, SOBRE_WHY, VIDEO_LANGUAGE_NOTE, withLanguageTag } from "@/content/sobre";
 import { pick, type YoutubeVideo } from "@/content/types";
 import { getVideo } from "@/content/videos";
 import SobreVideoTile from "./SobreVideoTile";
@@ -61,7 +61,8 @@ export default function SobreWhy({ lang }: SobreWhyProps) {
             </div>
           )}
 
-          <aside className="ba-rv relative isolate flex flex-col justify-between overflow-hidden rounded-[30px] p-7 text-white shadow-[0_40px_90px_-34px_rgba(144,36,52,0.6),inset_0_1px_0_rgba(255,255,255,0.25)] [background:linear-gradient(140deg,var(--ba-wine)_0%,#6d2350_38%,#2a3c9c_76%,var(--ba-blue)_100%)] sm:rounded-[34px] sm:p-9 lg:col-span-4" style={delay(2)}>
+          {/* div (e não aside): é o fecho da seção, não conteúdo complementar; aside dentro do main vira landmark solto */}
+          <div className="ba-rv relative isolate flex flex-col justify-between overflow-hidden rounded-[30px] p-7 text-white shadow-[0_40px_90px_-34px_rgba(144,36,52,0.6),inset_0_1px_0_rgba(255,255,255,0.25)] [background:linear-gradient(140deg,var(--ba-wine)_0%,#6d2350_38%,#2a3c9c_76%,var(--ba-blue)_100%)] sm:rounded-[34px] sm:p-9 lg:col-span-4" style={delay(2)}>
             <span aria-hidden="true" className="pointer-events-none absolute inset-[-60%] -z-[1] animate-[spin_22s_linear_infinite] [background:conic-gradient(from_0deg,transparent_0_70%,rgba(255,255,255,0.14)_80%,transparent_90%)]" />
             <div aria-hidden="true" className="ba-lines -z-[1] opacity-70" />
             <p className="m-0 font-[family-name:var(--ba-display)] text-[clamp(30px,3.2vw,44px)] font-bold leading-[1.02] tracking-[-0.045em]">
@@ -69,7 +70,7 @@ export default function SobreWhy({ lang }: SobreWhyProps) {
               <span className="ba-serif mt-1 block text-[1.06em] font-normal leading-[1.05] text-white/95">{pick(SOBRE_WHY.manifestoAccent, lang)}</span>
             </p>
             <p className="m-0 mt-8 text-[15px] leading-[1.6] text-white/[0.86] sm:text-[16px]">{pick(SOBRE_WHY.manifestoNote, lang)}</p>
-          </aside>
+          </div>
         </div>
 
         {/* Mobile: trilho com rolagem lateral (o próximo cartão aparece pela borda); sm+: grade de 3.
@@ -84,8 +85,8 @@ export default function SobreWhy({ lang }: SobreWhyProps) {
                 title={pick(video.title, lang)}
                 label={pick(video.title, lang)}
                 eyebrow={`${watch} · ${video.duration}`}
-                duration={video.duration}
-                sizes="(max-width: 640px) 80vw, 33vw"
+                duration={withLanguageTag(video.duration, lang)}
+                sizes="(max-width: 640px) 80vw, (max-width: 1280px) 31vw, 400px"
                 playPosition="corner"
               />
             </li>

@@ -144,10 +144,12 @@ export default async function SobrePage({ params }: PageProps) {
                 id: guide.id,
                 title: pick(guide.title, lang),
                 label: pick(SOBRE_HERO.videoTitle, lang),
-                duration: guide.duration,
+                // Com o aviso de idioma: o rótulo do botão (leitor de tela) também precisa dizer que o vídeo é em português
+                duration: withLanguageTag(guide.duration, lang),
                 poster: GUIDE_POSTER,
               }}
               videoEyebrow={`${pick(SOBRE_HERO.videoEyebrow, lang)} · ${withLanguageTag(guide.duration, lang)}`}
+              palestraAlt={pick(SOBRE_HERO.palestraAlt, lang)}
               harvardCaption={pick(SOBRE_HERO.harvardCaption, lang)}
               harvardAlt={pick(SOBRE_HERO.harvardAlt, lang)}
             />

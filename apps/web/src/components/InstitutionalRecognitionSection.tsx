@@ -30,6 +30,9 @@ const HOME_MOMENTS = COACH_MOMENTS.slice(0, HOME_MOMENTS_COUNT);
 
 const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 
+// Pílula escura translúcida: o vidro claro (.ba-glass-dark) deixava o texto branco sem contraste sobre pôsteres claros (ex.: a parede amarela do tour de Harvard)
+const darkPill = "bg-[rgba(6,15,42,0.6)] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_0_0_1px_rgba(255,255,255,0.16)]";
+
 const arrowButton =
   "ba-glass-dark grid h-11 w-11 place-items-center rounded-full text-white transition-[background-color,opacity,transform] duration-300 hover:-translate-y-0.5 hover:bg-white/[0.16] focus-visible:outline-[2.5px] focus-visible:outline-offset-2 focus-visible:outline-[#b8caf7] disabled:pointer-events-none disabled:opacity-30";
 
@@ -58,7 +61,7 @@ const InstitutionCard = ({ tour }: { tour: SchoolTour }) => {
             src={poster.image}
             alt=""
             fill
-            sizes="(max-width: 640px) 85vw, (max-width: 768px) 55vw, 560px"
+            sizes="(max-width: 640px) 95vw, (max-width: 768px) 62vw, 620px"
             className="object-cover transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.05]"
             style={{ objectPosition: poster.position ?? "center" }}
           />
@@ -71,7 +74,7 @@ const InstitutionCard = ({ tour }: { tour: SchoolTour }) => {
             className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[10.5px] font-bold tracking-[0.12em] text-white sm:text-[11px] ${
               isUniversity
                 ? "bg-[linear-gradient(150deg,var(--ba-wine-2),var(--ba-wine))] shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_20px_-8px_rgba(144,36,52,0.8)]"
-                : "ba-glass-dark"
+                : darkPill
             }`}
           >
             {typeLabel}
@@ -82,7 +85,7 @@ const InstitutionCard = ({ tour }: { tour: SchoolTour }) => {
               <span className="text-[10px] font-bold uppercase tracking-[0.16em]">{pick(ESCOLAS_TEXT.latestShort, lang)}</span>
             </span>
           ) : (
-            <span className="ba-glass-dark flex items-center gap-1.5 rounded-full px-2.5 py-[5px]">
+            <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-[5px] ${darkPill}`}>
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a6e]" />
               <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white">REC</span>
             </span>
@@ -247,7 +250,7 @@ const InstitutionalRecognitionSection = () => {
           <BrandCta href={PAGE_PATH.escolas} variant="light">
             {fill(pick(ESCOLAS_TEXT.homeAllTours, lang), { n: SCHOOL_TOURS.length })}
           </BrandCta>
-          <p className="text-[13.5px] font-medium text-[rgba(232,238,255,0.8)] sm:text-[14.5px]">
+          <p className="text-balance text-[13.5px] font-medium text-[rgba(232,238,255,0.8)] sm:text-[14.5px]">
             {fill(pick(ESCOLAS_TEXT.homeAllToursNote, lang), { hs: highSchoolTotal, uni: universityTotal })}
           </p>
         </div>

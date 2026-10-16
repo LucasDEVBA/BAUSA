@@ -20,6 +20,9 @@ const INSTAGRAM = HISTORIAS_PAGE.conquistas.instagram;
 
 const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
 
+/** 1442 → "24:02", no formato dos capítulos do catálogo (o mesmo dos chips do tour). */
+const clock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+
 /** Recorte 4:5 de cada pôster, centrado no rosto (as artes têm texto e o atleta fora do centro). */
 const FOCUS: Record<string, Focus> = {
   "isadora-santiago": { x: 0.62, y: 0.36, zoom: 1.2 },
@@ -86,13 +89,16 @@ function AthleteActions({ athlete, lang }: { athlete: AthleteStory; lang: Lang }
           kind={tour.video.kind}
           title={pick(tour.video.title, lang)}
           start={tour.start}
-          ariaLabel={`${tourLabel}: ${tour.school.name}`}
+          // Dois atletas da mesma escola tinham o mesmo nome acessível, e só um abre no minuto do atleta
+          ariaLabel={`${tourLabel}: ${tour.school.name}, ${athlete.name}${tour.start ? ` (${pick(TEXT.tourFrom, lang)} ${clock(tour.start)})` : ""}`}
           className={`${ACTION} text-[var(--ba-navy)]`}
         >
           <span aria-hidden="true" className={`${ACTION_ICON} bg-[linear-gradient(140deg,var(--ba-blue-2),var(--ba-navy))]`}>
             <Clapperboard className="h-3 w-3" />
           </span>
           {tourLabel}
+          {/* Só a partir de lg: em duas e três colunas "Tour de la escuela" + minuto estoura o card (ES) */}
+          {tour.start ? <span className="ml-auto hidden font-medium text-[var(--ba-ink-3)] lg:inline">{clock(tour.start)}</span> : null}
         </PlayStoryButton>
       )}
       {athlete.instagram && (
@@ -133,7 +139,7 @@ function AthleteCard({ athlete, lang, index }: { athlete: AthleteStory; lang: La
           frameRatio={1.25}
           sizes="(max-width: 640px) 80vw, (max-width: 1024px) 50vw, 440px"
         />
-        <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0)_38%,rgba(6,15,42,0.62)_70%,rgba(6,15,42,0.94)_100%)]" />
+        <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,26,69,0)_30%,rgba(6,15,42,0.55)_52%,rgba(6,15,42,0.9)_74%,rgba(6,15,42,0.97)_100%)]" />
         {athlete.position && (
           <span className="absolute left-2 top-2 rounded-full bg-[rgba(10,26,69,0.78)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] sm:left-3 sm:top-3 sm:text-[10.5px]">
             {pick(athlete.position, lang)}

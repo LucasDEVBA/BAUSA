@@ -54,11 +54,17 @@ export const SOBRE_HERO = {
     en: "Born inside the system,",
     es: "Nacida dentro del sistema,",
   },
-  titleAccent: { pt: "não fora\u00A0dele.", en: "not outside\u00A0it.", es: "no fuera de\u00A0él." },
+  titleAccent: { pt: "não\u00A0fora\u00A0dele.", en: "not\u00A0outside\u00A0it.", es: "no\u00A0fuera\u00A0de\u00A0él." },
   lead: {
     pt: "A Bolsa Atleta USA nasceu da experiência de Leandro Ribeiro: 7 anos nos Estados Unidos como estudante-atleta, com bolsa de 100% entre a high school e a universidade, além de atuação em admissões e recrutamento universitário.",
     en: "Bolsa Atleta USA was born from Leandro Ribeiro's own experience: 7 years in the United States as a student-athlete on a 100% scholarship, from high school through university, plus hands-on work in admissions and university recruiting.",
     es: "Bolsa Atleta USA nació de la experiencia de Leandro Ribeiro: 7 años en Estados Unidos como estudiante-atleta, con beca del 100% entre la high school y la universidad, además de su trabajo en admisiones y reclutamiento universitario.",
+  },
+  /** A legenda da figura já diz nome e cargo: o alt descreve a cena, sem repetir. */
+  palestraAlt: {
+    pt: "Leandro Ribeiro durante uma palestra",
+    en: "Leandro Ribeiro giving a talk",
+    es: "Leandro Ribeiro durante una charla",
   },
   harvardCaption: { pt: "Em Harvard", en: "At Harvard", es: "En Harvard" },
   harvardAlt: {
@@ -136,7 +142,7 @@ export const SOBRE_JOURNEY_HEADER = {
   titleAccent: { pt: "da mesa.", en: "of the table.", es: "de la mesa." },
   lead: {
     pt: "Antes de conduzir projetos de vida, Leandro viveu cada etapa que uma família vai enfrentar: a saída do Brasil, a rotina de estudante-atleta e as decisões de quem escolhe quem entra.",
-    en: "Before leading life projects, Leandro lived every stage a family will face: leaving Brazil, the routine of a student-athlete, and the decisions of those who choose who gets in.",
+    en: "Before leading life projects, Leandro lived through every stage a family will face: leaving Brazil, the routine of a student-athlete, and the decisions of those who choose who gets in.",
     es: "Antes de conducir proyectos de vida, Leandro vivió cada etapa que una familia va a enfrentar: la salida de Brasil, la rutina de estudiante-atleta y las decisiones de quienes eligen quién entra.",
   },
 } satisfies Record<string, Localized>;
@@ -171,7 +177,7 @@ export const SOBRE_JOURNEY: JourneyStep[] = [
     },
     text: {
       pt: "Estudou e jogou futebol nos EUA com bolsa integral na high school e, depois, na universidade. Só quando o ciclo terminou entendeu o que essa experiência forma em uma pessoa.",
-      en: "He studied and played soccer in the US on a full scholarship in high school and, later, at university. Only when that chapter ended did he understand what the experience shapes in a person.",
+      en: "He studied and played soccer in the US on a full scholarship in high school and, later, at university. Only when that chapter closed did he understand what the experience truly builds in a person.",
       es: "Estudió y jugó fútbol en EE. UU. con beca completa en la high school y, después, en la universidad. Solo cuando el ciclo terminó entendió lo que esa experiencia forma en una persona.",
     },
   },

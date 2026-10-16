@@ -6,7 +6,7 @@ import { ArrowRight, Brain, GraduationCap, MapPin, ShieldCheck } from "lucide-re
 import leandroPhoto from "@/assets/leandro-palestra.jpg";
 import leandroHarvard from "@/assets/leandro-harvard.jpg";
 import { PAGE_PATH } from "@/config/routes";
-import { HOME_TEASERS, SOBRE_VIDEOS, withLanguageTag } from "@/content/sobre";
+import { HOME_TEASERS, SOBRE_HERO, SOBRE_VIDEOS, withLanguageTag } from "@/content/sobre";
 import { pick } from "@/content/types";
 import { getVideo } from "@/content/videos";
 import { useLanguage } from "@/i18n";
@@ -60,7 +60,7 @@ const FounderSection = () => {
 
           <div className="ba-glass-dark ba-rv-scale ba-float-b absolute bottom-0 right-0 z-[3] aspect-[3/4] w-[40%] rounded-[20px] p-[5px] sm:w-[44%] sm:rounded-[26px] sm:p-[7px]" style={delay(2)} data-depth="22">
             <div className="relative h-full overflow-hidden rounded-[15px] sm:rounded-[20px]">
-              <Image src={leandroHarvard} alt="Leandro Ribeiro com treinador da Universidade Harvard" fill sizes="(max-width: 1024px) 40vw, 20vw" className="object-cover object-[50%_30%]" />
+              <Image src={leandroHarvard} alt={pick(SOBRE_HERO.harvardAlt, lang)} fill sizes="(max-width: 1024px) 40vw, 20vw" className="object-cover object-[50%_30%]" />
             </div>
           </div>
 

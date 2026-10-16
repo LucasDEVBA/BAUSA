@@ -21,6 +21,7 @@ interface FeaturedVideo {
 interface SobreHeroStageProps {
   video: FeaturedVideo;
   videoEyebrow: string;
+  palestraAlt: string;
   harvardCaption: string;
   harvardAlt: string;
 }
@@ -32,7 +33,7 @@ const delay = (d: number) => ({ "--d": d }) as React.CSSProperties;
  * reagem ao mouse, mais o vídeo do fundador em destaque. No mobile o vídeo sai
  * da colagem e vira um cartão inteiro logo abaixo, legível com o polegar.
  */
-export default function SobreHeroStage({ video, videoEyebrow, harvardCaption, harvardAlt }: SobreHeroStageProps) {
+export default function SobreHeroStage({ video, videoEyebrow, palestraAlt, harvardCaption, harvardAlt }: SobreHeroStageProps) {
   const { t } = useLanguage();
   const founderTitle = t("landing.founder.founderTitle");
 
@@ -43,7 +44,7 @@ export default function SobreHeroStage({ video, videoEyebrow, harvardCaption, ha
           <div className="relative h-full overflow-hidden rounded-[22px] sm:rounded-[25px]">
             <Image
               src={leandroPalestra}
-              alt={`Leandro Ribeiro, ${founderTitle}`}
+              alt={palestraAlt}
               fill
               preload
               sizes="(max-width: 640px) 66vw, (max-width: 1024px) 400px, 360px"
@@ -60,22 +61,25 @@ export default function SobreHeroStage({ video, videoEyebrow, harvardCaption, ha
         <div className="absolute right-0 top-[7%] z-[2] w-[44%] lg:top-[3%] lg:w-[40%]" data-depth="20">
           <figure className="ba-glass ba-float-b m-0 aspect-[3/4] rounded-[22px] p-[6px] sm:rounded-[26px] sm:p-[7px]">
             <div className="relative h-full overflow-hidden rounded-[17px] sm:rounded-[20px]">
-              <Image src={leandroHarvard} alt={harvardAlt} fill sizes="(max-width: 640px) 44vw, 240px" className="object-cover object-[50%_32%]" />
+              {/* eager: a foto está na primeira tela no mobile (390px) e no desktop; lazy a fazia surgir depois do resto */}
+              <Image src={leandroHarvard} alt={harvardAlt} fill loading="eager" sizes="(max-width: 640px) 44vw, 240px" className="object-cover object-[50%_32%]" />
             </div>
-            <figcaption className="ba-glass-dark absolute bottom-3 left-3 rounded-full px-3 py-1.5 text-[11.5px] font-semibold text-white sm:bottom-4 sm:left-4 sm:text-[12.5px]">
+            {/* Tinta navy por baixo do vidro: a 7% de branco o contraste dependia do trecho da foto atrás da pílula */}
+            <figcaption className="ba-glass-dark absolute bottom-3 left-3 rounded-full !bg-[rgba(10,26,69,0.62)] px-3 py-1.5 text-[11.5px] font-semibold text-white sm:bottom-4 sm:left-4 sm:text-[12.5px]">
               {harvardCaption}
             </figcaption>
           </figure>
         </div>
 
         <div className="absolute bottom-[23%] right-0 z-[3] lg:bottom-auto lg:left-[-5%] lg:right-auto lg:top-[9%]" data-depth="30">
-          <div className="ba-glass ba-float-a ba-rise flex items-center gap-2.5 rounded-[16px] py-2 pl-2 pr-3.5 sm:rounded-[18px] sm:py-2.5 sm:pl-2.5 sm:pr-4" style={delay(5)}>
+          {/* Vidro mais denso que o padrão: o selo fica sobre a foto escura e, a 58% de branco, o subtítulo caía abaixo de 4,5:1 */}
+          <div className="ba-glass ba-float-a ba-rise flex items-center gap-2.5 rounded-[16px] !bg-white/[0.88] py-2 pl-2 pr-3.5 sm:rounded-[18px] sm:py-2.5 sm:pl-2.5 sm:pr-4" style={delay(5)}>
             <span className="grid h-[34px] w-[34px] flex-none place-items-center rounded-[11px] bg-[linear-gradient(150deg,var(--ba-wine-2),var(--ba-wine))] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] sm:h-9 sm:w-9 sm:rounded-xl">
               <GraduationCap className="h-[18px] w-[18px]" aria-hidden="true" />
             </span>
             <span className="block">
               <b className="block whitespace-nowrap text-[12.5px] font-semibold leading-[1.2] text-[var(--ba-navy)] sm:text-[13.5px]">{t("landing.founder.chipTitle")}</b>
-              <small className="block whitespace-nowrap text-[11.5px] text-[var(--ba-ink-3)]">{t("landing.founder.chipSub")}</small>
+              <small className="block whitespace-nowrap text-[11.5px] text-[var(--ba-ink-2)]">{t("landing.founder.chipSub")}</small>
             </span>
           </div>
         </div>

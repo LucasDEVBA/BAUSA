@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import { SITE_URL, SEO_DEFAULTS, buildPageMetadata } from "@/config/seo";
+import { BREADCRUMB_HOME, SITE_URL, SEO_DEFAULTS, absoluteLocalizedUrl, buildPageMetadata, getSeoText } from "@/config/seo";
+import { PAGE_PATH } from "@/config/routes";
 import { JsonLd } from "@/lib/jsonld";
 import HomeContent from "@/components/HomeContent";
 
@@ -20,6 +21,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
+  // Mesmo @id do Organization de /sobre: o Google junta as duas descrições numa entidade só
+  "@id": `${SITE_URL}/#organization`,
   name: SEO_DEFAULTS.siteName,
   url: SITE_URL,
   logo: { "@type": "ImageObject", url: `${SITE_URL}/favicon.ico` },
@@ -46,22 +49,25 @@ const websiteSchema = {
 };
 
 // O FAQPage mudou para /metodo, onde as perguntas estão visíveis (exigência do Google)
-const breadcrumbSchema = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    {
-      "@type": "ListItem",
-      position: 1,
-      name: "Início",
-      item: SITE_URL,
-    },
-  ],
-};
+function buildBreadcrumbSchema(locale: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: getSeoText(BREADCRUMB_HOME, locale),
+        item: absoluteLocalizedUrl(PAGE_PATH.home, locale),
+      },
+    ],
+  };
+}
 
 export default async function HomePage({ params }: PageProps) {
   const { locale } = await params;
   setRequestLocale(locale);
+  const breadcrumbSchema = buildBreadcrumbSchema(locale);
 
   return (
     <>

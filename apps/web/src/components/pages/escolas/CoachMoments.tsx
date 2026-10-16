@@ -13,6 +13,11 @@ import { useLanguage } from "@/i18n";
 
 import SchoolMark from "./SchoolMark";
 
+/** Fecha a frase com ponto só quando ela ainda não termina em pontuação (o nome acessível não fica com "."."). */
+function sentence(text: string): string {
+  return /[.!?]["”]?$/.test(text) ? text : `${text}.`;
+}
+
 const arrowButton =
   "grid h-11 w-11 place-items-center rounded-full border border-white/[0.16] bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] transition-[background-color,opacity,transform] duration-300 hover:-translate-y-0.5 hover:bg-white/[0.16] focus-visible:outline-[2.5px] focus-visible:outline-offset-2 focus-visible:outline-[#b8caf7] disabled:pointer-events-none disabled:opacity-30";
 
@@ -27,15 +32,16 @@ function MomentCard({ moment }: { moment: VideoMoment }) {
   const time = formatTimestamp(moment.start);
   const role = moment.role ? pick(moment.role, lang) : undefined;
   const who = moment.speaker ? `${moment.speaker}${role ? `, ${role}` : ""}` : pick(ESCOLAS_TEXT.momentsFromTour, lang);
-  // Capítulo que já é citação ("Você veio estudar…") vira pull quote; os demais são o assunto do trecho
+  // Capítulo que já é citação ("Você veio estudar…") vira pull quote, com aspas tipográficas; os demais são o assunto do trecho
   const isQuote = label.startsWith('"');
+  const displayLabel = isQuote ? `“${label.replace(/^"|"$/g, "")}”` : label;
   const poster = getMomentPoster(moment.videoId, moment.start) ?? getTourPoster(school.slug);
 
   return (
     <button
       type="button"
       onClick={() => open({ id: video.id, kind: video.kind, title: `${pick(video.title, lang)} (${time})`, start: moment.start })}
-      aria-label={fill(pick(ESCOLAS_TEXT.momentAria, lang), { label, who, school: school.name, time })}
+      aria-label={fill(pick(ESCOLAS_TEXT.momentAria, lang), { label: sentence(label), who: sentence(who), school: school.name, time })}
       // Sem backdrop-filter: dentro do trilho rolável o desfoque recompõe a cada quadro
       className="group relative flex h-[268px] w-[min(80vw,316px)] flex-none flex-col overflow-hidden rounded-[24px] border border-white/[0.14] bg-[#13265e] p-[18px] text-left text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_30px_60px_-30px_rgba(0,0,0,0.7)] transition-[transform,border-color] duration-500 [transition-timing-function:var(--ba-ease)] hover:-translate-y-1 hover:border-white/[0.28] focus-visible:outline-[2.5px] focus-visible:outline-offset-2 focus-visible:outline-[#b8caf7] sm:w-[320px] sm:p-5"
     >
@@ -44,7 +50,8 @@ function MomentCard({ moment }: { moment: VideoMoment }) {
           src={poster.image}
           alt=""
           fill
-          sizes="320px"
+          // Card de 316x268 com object-cover: a foto 16:9 precisa de ~480px de largura para cobrir a altura
+          sizes="480px"
           className="object-cover opacity-75 transition-transform duration-[1200ms] [transition-timing-function:var(--ba-ease)] group-hover:scale-[1.06]"
           style={{ objectPosition: poster.position ?? "center" }}
         />
@@ -64,7 +71,7 @@ function MomentCard({ moment }: { moment: VideoMoment }) {
 
       <span aria-hidden="true" className="relative mt-auto block">
         {isQuote ? (
-          <span className="ba-serif block text-[25px] leading-[1.12] text-white">{label}</span>
+          <span className="ba-serif block text-[25px] leading-[1.12] text-white">{displayLabel}</span>
         ) : (
           <span className="line-clamp-3 font-[family-name:var(--ba-display)] text-[19px] font-semibold leading-[1.22] tracking-[-0.022em]">
             {label}

@@ -32,7 +32,8 @@ export default function SobreHarvard({ lang, recognition }: SobreHarvardProps) {
 
       <div className="ba-wrap relative z-[2] grid grid-cols-1 items-center gap-8 lg:grid-cols-12 lg:gap-x-[clamp(40px,5vw,80px)] lg:gap-y-7">
         {/* Mobile: texto, vídeo e depois os detalhes; desktop: texto e detalhes à esquerda, vídeo à direita.
-            No desktop o cartão fica 5:4: a foto é retrato e o 16:9 deixava um vazio sob o vídeo. */}
+            No desktop o cartão fica 5:4: a foto é retrato e o 16:9 deixava um vazio sob o vídeo.
+            No mobile o cartão 4:5 tem altura de sobra: o título do tour ganha 3 linhas em vez de cortar no meio da frase. */}
         <div className="lg:col-span-5 lg:col-start-1 lg:row-start-1 lg:self-end">
           <span className="ba-eyebrow ba-glass-dark ba-rv !text-[#cfdcff]">
             <span className="ba-dot" />
@@ -56,7 +57,7 @@ export default function SobreHarvard({ lang, recognition }: SobreHarvardProps) {
               meta={`${school.name} · ${school.location}`}
               poster={leandroHarvard}
               sizes="(max-width: 640px) 92vw, (max-width: 1024px) 90vw, 720px"
-              className="!aspect-[4/5] !rounded-[23px] sm:!aspect-video sm:!rounded-[26px] lg:!aspect-[5/4] [&_img]:object-[50%_30%]"
+              className="!aspect-[4/5] !rounded-[23px] sm:!aspect-video sm:!rounded-[26px] lg:!aspect-[5/4] [&_img]:object-[50%_30%] max-sm:[&_.line-clamp-2]:[-webkit-line-clamp:3]"
             />
           </div>
         </div>

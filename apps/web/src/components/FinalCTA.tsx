@@ -72,7 +72,7 @@ const FinalCTA = memo(({ source = "final" }: FinalCTAProps) => {
           <div aria-hidden="true" className="ba-glow left-1/2 top-[-140px] h-[280px] w-[520px] -translate-x-1/2 bg-[rgba(169,192,242,0.22)]" />
 
           <span
-            className="ba-eyebrow ba-glass-dark ba-rv relative !text-[#cfdcff] max-sm:!px-3 max-sm:!text-[10.5px] max-sm:!tracking-[0.1em]"
+            className="ba-eyebrow ba-glass-dark ba-rv relative !bg-[rgba(10,26,69,0.45)] !text-[#cfdcff] max-sm:!px-3 max-sm:!text-[10.5px] max-sm:!tracking-[0.1em]"
             style={delay(1)}
           >
             <span className="ba-dot" />

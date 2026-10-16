@@ -160,7 +160,7 @@ const HowWeWorkSection = memo(({ variant = "home" }: HowWeWorkSectionProps) => {
         {/* Prova do acompanhamento: atletas da casa no tour da Montverde, no minuto exato. Fica
             fora dos cartões para não esticar só o escuro e deixar um vazio no cartão claro ao lado */}
         <div className="ba-rv mt-8 flex flex-col items-start gap-3 sm:mt-10 lg:flex-row lg:items-center lg:justify-center lg:gap-5" style={delay(2)}>
-          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ba-ink-3)]">{pick(METHOD_COPY.momentsLabel, lang)}</span>
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ba-ink-2)]">{pick(METHOD_COPY.momentsLabel, lang)}</span>
           <div className="flex flex-wrap gap-2.5">
             {HOW_WE_WORK_MOMENTS.map((moment) => (
               <MethodMomentChip key={moment.start} moment={moment} />

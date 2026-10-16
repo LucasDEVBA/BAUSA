@@ -49,7 +49,7 @@ export const SAFE_CHIPS = {
   },
   singularidade: {
     videoId: "VfmQ2LGCKpw",
-    label: { pt: "Escola famosa ou certa?", en: "Famous or right school?", es: "¿Escuela famosa o correcta?" },
+    label: { pt: "Escola famosa ou certa?", en: "Famous school or the right one?", es: "¿La escuela famosa o la correcta?" },
   },
   financeiro: {
     videoId: "JJOHwplQ51I",

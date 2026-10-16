@@ -19,8 +19,11 @@ import MeshBackground from "./brand/MeshBackground";
 import { useVideoPlayer } from "./brand/VideoPlayer";
 import InstitutionsMarquee from "./InstitutionsMarquee";
 
-// URL estática (public/) para casar com o preload declarado no layout
 const HERO_IMAGE_URL = "/hero-campus.jpg";
+// É o LCP da home. A foto (16:9) é cortada em object-cover numa moldura quase quadrada, então
+// a largura útil sai da ALTURA da moldura (374/484/564px x 1,76), não da largura: no celular o
+// JPEG cru de 1920px (325 KB) vira AVIF de 1200px (~85 KB) em tela 2x
+const HERO_IMAGE_SIZES = "(max-width: 639px) 560px, (max-width: 1023px) 880px, 1000px";
 const TRUST_AVATARS = [athleteMatheus, athleteJulia, benjamin, athleteRobson];
 const SAFE_LETTERS = ["S", "A", "F", "E"] as const;
 
@@ -46,14 +49,11 @@ const HeroSection = memo(({ children }: HeroSectionProps) => {
 
   return (
     <section className="relative isolate" aria-labelledby="hero-title">
-      {/* Com a faixa de Destaques dentro, a malha some aos poucos no fim: a seção seguinte começa no fundo liso */}
+      {/*
+        Com a faixa de Destaques dentro, a malha (grão incluso) some aos poucos no fim: a seção seguinte
+        também começa no fundo liso e sem grão; qualquer camada a mais aqui vira uma linha entre as duas.
+      */}
       <MeshBackground grid className={children ? "[mask-image:linear-gradient(180deg,#000_calc(100%_-_220px),transparent)]" : ""} />
-      {/* Só o grão volta no rodapé: a seção seguinte começa com grão, e sem ele a borda aparecia como uma linha mais clara */}
-      {children && (
-        <div aria-hidden="true" className="ba-mesh [mask-image:linear-gradient(180deg,transparent_calc(100%_-_220px),#000)]">
-          <div className="ba-grain" />
-        </div>
-      )}
 
       {/* Telas baixas (iPhone SE): tudo um pouco mais junto, para os dois CTAs ficarem acima da dock */}
       <div className="relative flex min-h-[100svh] flex-col pb-5 pt-[88px] [@media(max-width:639px)_and_(max-height:700px)]:pt-[78px] sm:pb-7 lg:pt-[116px]">
@@ -130,14 +130,14 @@ const HeroSection = memo(({ children }: HeroSectionProps) => {
               data-depth="6"
             >
               <div className="relative h-full w-full overflow-hidden rounded-[22px] sm:rounded-[26px]">
-                <img
+                <Image
                   src={HERO_IMAGE_URL}
                   alt={t("landing.hero.imgAlt")}
-                  width={1920}
-                  height={1088}
+                  fill
+                  preload
                   fetchPriority="high"
-                  decoding="async"
-                  className="h-full w-full object-cover"
+                  sizes={HERO_IMAGE_SIZES}
+                  className="object-cover"
                 />
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,35,87,0)_45%,rgba(10,26,69,0.72)_100%),linear-gradient(90deg,rgba(31,63,163,0.18),transparent_40%)]" />
                 {/* O tour mais novo do canal abre no player único (iframe só depois do toque) */}
@@ -146,7 +146,7 @@ const HeroSection = memo(({ children }: HeroSectionProps) => {
                     type="button"
                     onClick={() => open({ id: HERO_TOUR.videoId, kind: "video", title: pick(HERO_TOUR.title, lang) })}
                     aria-label={`${pick(HERO_TOUR.badge, lang)}: ${pick(HERO_TOUR.title, lang)} (${HERO_TOUR.duration})`}
-                    className="group ba-glass-dark inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full py-1.5 pl-1.5 pr-3.5 text-[11.5px] font-semibold text-white transition-[transform,background-color] duration-500 [transition-timing-function:var(--ba-ease)] hover:-translate-y-0.5 hover:bg-white/[0.16] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:gap-2.5 sm:pr-4 sm:text-[12.5px]"
+                    className="group ba-glass-dark inline-flex min-h-11 items-center !bg-[rgba(10,26,69,0.55)] gap-2 whitespace-nowrap rounded-full py-1.5 pl-1.5 pr-3.5 text-[11.5px] font-semibold text-white transition-[transform,background-color] duration-500 [transition-timing-function:var(--ba-ease)] hover:-translate-y-0.5 hover:!bg-[rgba(10,26,69,0.72)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:gap-2.5 sm:pr-4 sm:text-[12.5px]"
                   >
                     <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-[linear-gradient(150deg,#3d61c8,var(--ba-blue))] shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_6px_14px_-6px_rgba(0,0,0,0.6)] transition-transform duration-500 group-hover:scale-110">
                       <Play className="ml-px h-3.5 w-3.5 fill-current" aria-hidden="true" />
@@ -179,7 +179,7 @@ const HeroSection = memo(({ children }: HeroSectionProps) => {
             </div>
 
             <div
-              className="ba-glass ba-rise absolute bottom-[62px] right-[-4px] z-[4] flex max-w-[214px] items-center gap-2.5 rounded-2xl px-[13px] py-[11px] sm:bottom-2 sm:right-[-18px] sm:max-w-[290px] sm:gap-3.5 sm:rounded-[20px] sm:px-[18px] sm:py-4"
+              className="ba-glass ba-rise absolute bottom-[62px] right-[-4px] !bg-white/[0.9] z-[4] flex max-w-[214px] items-center gap-2.5 rounded-2xl px-[13px] py-[11px] sm:bottom-2 sm:right-[-18px] sm:max-w-[290px] sm:gap-3.5 sm:rounded-[20px] sm:px-[18px] sm:py-4"
               style={{ "--d": 4 } as React.CSSProperties}
               data-depth="30"
             >
@@ -195,7 +195,7 @@ const HeroSection = memo(({ children }: HeroSectionProps) => {
             </div>
 
             <div
-              className="ba-glass ba-rise absolute bottom-[-6px] right-2.5 z-[4] flex items-center gap-3 rounded-[20px] px-3 py-2.5 sm:bottom-auto sm:left-[-6px] sm:right-auto sm:top-[38px] sm:py-3.5 sm:pl-3.5 sm:pr-4"
+              className="ba-glass ba-rise absolute bottom-[-6px] right-2.5 !bg-white/[0.9] z-[4] flex items-center gap-3 rounded-[20px] px-3 py-2.5 sm:bottom-auto sm:left-[-6px] sm:right-auto sm:top-[38px] sm:py-3.5 sm:pl-3.5 sm:pr-4"
               style={{ "--d": 5 } as React.CSSProperties}
               data-depth="26"
             >

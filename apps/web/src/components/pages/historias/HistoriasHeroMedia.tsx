@@ -24,9 +24,9 @@ interface BadgeProps {
 
 function Badge({ icon: Icon, tone, title, sub, className, depth, d }: BadgeProps) {
   return (
-    // Fundo mais denso que o vidro padrão: sobre a camisa amarela do Bernardo o saturate do blur tingia o selo de verde
+    // Vidro mais denso e sem o saturate do padrão: sobre a camisa amarela do Bernardo o blur tingia o selo de verde
     <div
-      className={`ba-glass ba-rise absolute z-[4] flex items-center gap-2.5 rounded-[18px] !bg-white/[0.86] py-2.5 pl-2.5 pr-3.5 sm:gap-3 sm:rounded-[20px] sm:py-3 sm:pl-3 sm:pr-4 ${className}`}
+      className={`ba-glass ba-rise absolute z-[4] flex items-center gap-2.5 rounded-[18px] !bg-white/[0.9] ![-webkit-backdrop-filter:blur(22px)_saturate(105%)] ![backdrop-filter:blur(22px)_saturate(105%)] py-2.5 pl-2.5 pr-3.5 sm:gap-3 sm:rounded-[20px] sm:py-3 sm:pl-3 sm:pr-4 ${className}`}
       style={delay(d)}
       data-depth={depth}
     >
@@ -68,7 +68,7 @@ export default function HistoriasHeroMedia({ lang }: { lang: Lang }) {
           />
           <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,35,87,0.18)_0%,rgba(15,35,87,0)_28%),linear-gradient(90deg,rgba(31,63,163,0.14),transparent_45%)]" />
           <figcaption className="absolute right-3 top-3 z-[2] sm:right-4 sm:top-4">
-            <span className="ba-glass-dark inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-[7px] text-[11.5px] font-semibold text-white sm:text-[12.5px]">
+            <span className="ba-glass-dark inline-flex items-center gap-2 whitespace-nowrap rounded-full !bg-[rgba(10,26,69,0.55)] px-3 py-[7px] text-[11.5px] font-semibold text-white sm:text-[12.5px]">
               <span className="ba-pulse" aria-hidden="true" />
               {pick(TEXT.mainPlace, lang)}
             </span>

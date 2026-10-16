@@ -93,8 +93,9 @@ export default function ToursSection({ lang }: { lang: Lang }) {
       <div aria-hidden="true" className="ba-glow right-[-10%] top-[46%] -z-[1] h-[420px] w-[420px] bg-[rgba(184,54,74,0.12)]" />
 
       <div className="ba-wrap">
-        <div className="mb-[clamp(28px,4vw,44px)] flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
-          <div className="max-w-[640px]">
+        {/* Mesmo cabeçalho de duas colunas da faixa "Ouça quem decide": no desktop a metade direita ficava vazia */}
+        <div className="mb-[clamp(28px,4vw,44px)] grid items-end gap-5 lg:grid-cols-[1.2fr_1fr] lg:gap-16">
+          <div>
             <span className="ba-eyebrow ba-glass ba-rv">
               <span className="ba-dot" />
               {pick(ESCOLAS_TEXT.toursEyebrow, lang)}
@@ -102,10 +103,10 @@ export default function ToursSection({ lang }: { lang: Lang }) {
             <h2 id="tours-title" className="ba-h2 ba-rv mt-5 text-[clamp(32px,4.6vw,58px)] text-[var(--ba-navy)]" style={delay(1)}>
               {pick(ESCOLAS_TEXT.toursTitle, lang)} <span className="ba-serif ba-grad-text text-[1.1em]">{pick(ESCOLAS_TEXT.toursTitleAccent, lang)}</span>
             </h2>
-            <p className="ba-lead ba-rv mt-4" style={delay(2)}>
-              {pick(ESCOLAS_TEXT.toursLead, lang)}
-            </p>
           </div>
+          <p className="ba-lead ba-rv max-w-[460px] lg:mb-2 lg:border-l lg:border-[var(--ba-stroke)] lg:pl-8" style={delay(2)}>
+            {pick(ESCOLAS_TEXT.toursLead, lang)}
+          </p>
         </div>
 
         <TourFilter counts={{ all: SCHOOL_TOURS.length, high_school: highSchools.length, universidade: universities.length }}>

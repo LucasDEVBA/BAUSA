@@ -26,11 +26,11 @@ interface TourPosterProps {
   className?: string;
 }
 
-// Até 3 linhas onde o pôster é largo para a altura (card de 1 coluna, destaque); na grade de 2 e 3
-// colunas o pôster fica baixo e 2 linhas mantêm a imagem visível
+// Os títulos do canal são longos (RPS, Jacksonville): com 2 linhas a grade inteira terminava em "...",
+// e 3 (4 no celular, onde a coluna é estreita) ainda deixam a metade de cima do pôster livre
 const SIZE_CLASS: Record<PosterSize, { title: string; ring: string; disc: string; icon: string; pad: string }> = {
   md: {
-    title: "line-clamp-3 text-[15px] sm:line-clamp-2 sm:text-[16px]",
+    title: "line-clamp-4 text-[15px] sm:line-clamp-3 sm:text-[16px]",
     ring: "h-12 w-12",
     disc: "h-9 w-9",
     icon: "h-4 w-4",

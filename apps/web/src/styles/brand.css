@@ -234,6 +234,10 @@ body {
 }
 .ba-track { display: flex; align-items: center; gap: 52px; width: max-content; animation: ba-marquee 46s linear infinite; }
 .ba-marquee:hover .ba-track { animation-play-state: paused; }
+/* Teclado na faixa: o loop desliga e a faixa volta ao início, então o navegador
+   consegue rolar até o logo focado (com o transform andando, o foco caía fora da
+   tela). Só :focus-visible: o toque não faz a faixa saltar sob o dedo. */
+.ba-marquee:has(:focus-visible) .ba-track { animation: none; }
 @keyframes ba-marquee { to { transform: translateX(-50%); } }
 
 /* ── Revelação ao rolar (classe .in vem do useBrandMotion) ─────────────────── */
@@ -276,6 +280,17 @@ body {
 }
 @media (min-width: 1024px) {
   :root { --ba-dock-space: 0px; }
+}
+/* Tab e "rolar até o foco" param ACIMA da dock (WCAG 2.4.11): sem isto o link
+   focado no fim da tela (ex.: rodapé) ficava inteiro atrás da pílula. Só na
+   rolagem vertical do documento e só onde a dock existe. */
+html:has(.ba-dock-shell) { scroll-padding-bottom: var(--ba-dock-space); }
+/* Mesmo cuidado no topo: com Shift+Tab a página sobe, a pílula do header volta e
+   cobria o controle focado. Fica no elemento focado (e não no html) para não
+   somar ao scroll-mt das âncoras de seção. Folga = topo + altura do header + 8px. */
+.ba-page :focus-visible { scroll-margin-top: calc(max(10px, env(safe-area-inset-top)) + 66px); }
+@media (min-width: 640px) {
+  .ba-page :focus-visible { scroll-margin-top: calc(max(14px, env(safe-area-inset-top)) + 74px); }
 }
 
 .ba-dock-shell {
@@ -407,4 +422,30 @@ body {
   .ba-dock-pill { outline: 2px solid Highlight; }
 }
 
+}
+
+/* ── Zoom de 200% no celular (viewport de ~190px) ─────────────────────────────
+   Fora da camada de propósito: precisa vencer o whitespace-nowrap dos
+   utilitários. "Botão não quebra linha" vale para telas reais; abaixo de 300px
+   o rótulo inteiro numa linha empurrava a coluna do grid para fora da tela e
+   cortava o texto vizinho (WCAG 1.4.4/1.4.10). Aqui a quebra volta, e palavra
+   longa ("Acadêmica" a 20px num card com ícone) quebra em vez de sair do card. */
+@media (max-width: 299px) {
+  .ba-page { overflow-wrap: break-word; hyphens: auto; }
+  .ba-page .ba-btn,
+  .ba-page .whitespace-nowrap {
+    white-space: normal;
+  }
+  .ba-page .ba-btn { text-align: center; }
+}
+
+/* Grid de coluna única do mobile (sem grid-cols explícito): a trilha implícita
+   "auto" crescia até o min-content do item mais largo (trilho de vídeos, rótulo
+   truncado) e o texto vizinho saía da tela; em /escolas isso já cortava 11px em
+   320px. min-width 0 só muda algo quando o conteúdo não cabe. Na camada
+   components, então um min-w-* explícito do item continua valendo. */
+@layer components {
+  @media (max-width: 639px) {
+    .ba-page .grid > * { min-width: 0; }
+  }
 }

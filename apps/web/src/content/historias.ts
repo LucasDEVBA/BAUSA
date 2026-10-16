@@ -103,7 +103,7 @@ export const HISTORIAS_PAGE = {
     titleAccent: { pt: "falam por nós", en: "speak for us", es: "hablan por nosotros" },
     lead: {
       pt: "Convocações para a Seleção Brasileira, reconhecimento da Sports Illustrated e depoimentos de quem vive o projeto nos Estados Unidos, contados pelos próprios atletas e por suas famílias.",
-      en: "National team call-ups, recognition from Sports Illustrated and testimonials from those living the project in the United States, told by the athletes themselves and by their families.",
+      en: "Call-ups to Brazil's national team, recognition from Sports Illustrated and testimonials from people living the project in the United States, told by the athletes themselves and their families.",
       es: "Convocatorias a la Selección Brasileña, reconocimiento de Sports Illustrated y testimonios de quienes viven el proyecto en Estados Unidos, contados por los propios atletas y sus familias.",
     },
     cta: { pt: "Iniciar avaliação estratégica", en: "Start strategic assessment", es: "Iniciar evaluación estratégica" },
@@ -145,7 +145,7 @@ export const HISTORIAS_PAGE = {
       kicker: { pt: "Seleção Brasileira Sub-17", en: "Brazil U-17 national team", es: "Selección Brasileña Sub-17" },
       title: {
         pt: "Andressa Macedo e Sara Pedot, convocadas",
-        en: "Andressa Macedo and Sara Pedot, called up",
+        en: "Andressa Macedo and Sara Pedot called up",
         es: "Andressa Macedo y Sara Pedot, convocadas",
       },
       body: {
@@ -203,8 +203,7 @@ export const HISTORIAS_PAGE = {
     },
     testimonial: { pt: "Depoimento", en: "Testimonial", es: "Testimonio" },
     tour: { pt: "Tour da escola", en: "School tour", es: "Tour de la escuela" },
-    tourOf: { pt: "Tour da", en: "Tour of", es: "Tour de" },
-    testimonialOf: { pt: "Depoimento de", en: "Testimonial from", es: "Testimonio de" },
+    tourFrom: { pt: "a partir de", en: "starting at", es: "desde el minuto" },
     ctaTitle: {
       pt: "A próxima história pode começar com uma conversa.",
       en: "The next story can start with a conversation.",
@@ -233,7 +232,7 @@ export const HISTORIAS_PAGE = {
       Leonardo: { pt: "Leonardo, atleta na Montverde", en: "Leonardo, an athlete at Montverde", es: "Leonardo, atleta en Montverde" },
       "Isadora Santiago": { pt: "Isadora conta sua experiência", en: "Isadora shares her experience", es: "Isadora cuenta su experiencia" },
     } as Record<string, Localized>,
-    momentAt: { pt: "Tour Montverde, a partir de", en: "Montverde tour, from", es: "Tour de Montverde, desde" },
+    momentAt: { pt: "Tour da Montverde, a partir de", en: "Montverde tour, starting at", es: "Tour de Montverde, desde el minuto" },
   },
 
   familias: {

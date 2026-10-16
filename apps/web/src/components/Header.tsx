@@ -74,7 +74,7 @@ const Header = memo(() => {
             scrolled ? "!bg-white/80" : ""
           }`}
         >
-          <Link href="/" aria-label="Bolsa Atleta USA" className="relative block h-[42px] w-[88px] flex-none overflow-hidden sm:h-[50px] sm:w-[104px]">
+          <Link href="/" aria-label="Bolsa Atleta USA" className="relative block h-11 w-[88px] flex-none overflow-hidden sm:h-[50px] sm:w-[104px]">
             {/* O arquivo do logo tem margem interna; o recorte por CSS evita redesenhar a marca */}
             <Image
               src={logoHorizontal}
@@ -93,7 +93,7 @@ const Header = memo(() => {
                   <Link
                     href={item.href}
                     aria-current={active ? "page" : undefined}
-                    className={`relative isolate block whitespace-nowrap rounded-full px-[15px] py-[9px] text-[14.5px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ba-blue-2)] ${
+                    className={`relative isolate flex min-h-11 items-center whitespace-nowrap rounded-full px-[15px] py-[9px] text-[14.5px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ba-blue-2)] ${
                       active
                         ? "text-[var(--ba-navy)]"
                         : "text-[var(--ba-ink-2)] hover:bg-[rgba(31,63,163,0.07)] hover:text-[var(--ba-navy)]"

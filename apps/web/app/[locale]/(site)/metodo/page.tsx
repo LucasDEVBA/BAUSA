@@ -12,7 +12,7 @@ import MethodJourney from "@/components/pages/metodo/MethodJourney";
 import MethodVideoRail, { type RailVideo } from "@/components/pages/metodo/MethodVideoRail";
 import { MethodVideoChip } from "@/components/pages/metodo/MethodVideoChip";
 import PageHero from "@/components/site/PageHero";
-import { SITE_URL, buildPageMetadata, localizedPath } from "@/config/seo";
+import { absoluteLocalizedUrl, buildPageMetadata } from "@/config/seo";
 import { PAGE_PATH } from "@/config/routes";
 import { FAQ_ITEMS, METHOD_COPY, METHOD_HERO, SAFE_CHIPS, WATCH, keepTogether, toLang } from "@/content/metodo";
 import { pick } from "@/content/types";
@@ -37,8 +37,8 @@ export default async function MetodoPage({ params }: PageProps) {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: pick(METHOD_HERO.breadcrumbHome, lang), item: `${SITE_URL}${localizedPath(PAGE_PATH.home, lang)}` },
-      { "@type": "ListItem", position: 2, name: pick(METHOD_HERO.breadcrumbCurrent, lang), item: `${SITE_URL}${localizedPath(PAGE_PATH.metodo, lang)}` },
+      { "@type": "ListItem", position: 1, name: pick(METHOD_HERO.breadcrumbHome, lang), item: absoluteLocalizedUrl(PAGE_PATH.home, lang) },
+      { "@type": "ListItem", position: 2, name: pick(METHOD_HERO.breadcrumbCurrent, lang), item: absoluteLocalizedUrl(PAGE_PATH.metodo, lang) },
     ],
   };
 

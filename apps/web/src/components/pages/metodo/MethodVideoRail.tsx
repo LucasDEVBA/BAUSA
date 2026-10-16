@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { VideoKind } from "@/content/types";
@@ -43,23 +43,45 @@ const arrowButton =
  */
 export default function MethodVideoRail({ eyebrow, titleBefore, titleAccent, lead, languageNote, railLabel, prevLabel, nextLabel, videos }: MethodVideoRailProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef(0);
   const [progress, setProgress] = useState(0);
-  const [edges, setEdges] = useState({ start: true, end: false });
+  const [atStart, setAtStart] = useState(true);
+  const [atEnd, setAtEnd] = useState(false);
 
+  // Um cálculo por quadro: o scroll dispara dezenas de eventos por segundo durante o swipe
   const measure = useCallback(() => {
-    const track = trackRef.current;
-    if (!track) return;
-    const max = track.scrollWidth - track.clientWidth;
-    const ratio = max > 0 ? track.scrollLeft / max : 1;
-    setProgress(ratio);
-    setEdges({ start: track.scrollLeft <= 4, end: track.scrollLeft >= max - 4 });
+    if (frameRef.current) return;
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = 0;
+      const track = trackRef.current;
+      if (!track) return;
+      const max = track.scrollWidth - track.clientWidth;
+      setProgress(max > 0 ? track.scrollLeft / max : 1);
+      setAtStart(track.scrollLeft <= 4);
+      setAtEnd(track.scrollLeft >= max - 4);
+    });
   }, []);
 
   useEffect(() => {
     measure();
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
+    };
   }, [measure]);
+
+  // A barra de progresso re-renderiza a seção a cada quadro de rolagem; os cards não precisam
+  const tiles = useMemo(
+    () =>
+      videos.map((video) => (
+        <li key={video.id} className="w-[min(82vw,340px)] flex-none snap-start sm:w-[360px] lg:w-[392px]">
+          <MethodVideoTile id={video.id} kind={video.kind} title={video.title} duration={video.duration} meta={video.meta} sizes="(max-width: 640px) 82vw, 392px" />
+        </li>
+      )),
+    [videos],
+  );
 
   const scrollByPage = (direction: 1 | -1) => {
     const track = trackRef.current;
@@ -96,10 +118,10 @@ export default function MethodVideoRail({ eyebrow, titleBefore, titleAccent, lea
             </p>
           </div>
           <div className="ba-rv hidden gap-2.5 sm:flex" style={delay(3)}>
-            <button type="button" className={arrowButton} onClick={() => scrollByPage(-1)} disabled={edges.start} aria-label={prevLabel}>
+            <button type="button" className={arrowButton} onClick={() => scrollByPage(-1)} disabled={atStart} aria-label={prevLabel}>
               <ChevronLeft className="h-5 w-5" aria-hidden="true" />
             </button>
-            <button type="button" className={arrowButton} onClick={() => scrollByPage(1)} disabled={edges.end} aria-label={nextLabel}>
+            <button type="button" className={arrowButton} onClick={() => scrollByPage(1)} disabled={atEnd} aria-label={nextLabel}>
               <ChevronRight className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
@@ -119,11 +141,7 @@ export default function MethodVideoRail({ eyebrow, titleBefore, titleAccent, lea
         className={`ba-rv scrollbar-hide relative z-[2] mt-[clamp(32px,4vw,52px)] flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-8 pt-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white/60 sm:gap-5 ${RAIL_INSET}`}
       >
         <ul className="flex gap-3 sm:gap-5" role="list">
-          {videos.map((video) => (
-            <li key={video.id} className="w-[min(82vw,340px)] flex-none snap-start sm:w-[360px] lg:w-[392px]">
-              <MethodVideoTile id={video.id} kind={video.kind} title={video.title} duration={video.duration} meta={video.meta} sizes="(max-width: 640px) 82vw, 392px" />
-            </li>
-          ))}
+          {tiles}
         </ul>
       </div>
 

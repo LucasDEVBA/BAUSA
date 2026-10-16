@@ -73,8 +73,9 @@ function logoSizes(item: Institution): string {
   return `${Math.min(box.maxWidth, Math.ceil((box.height * item.logo.width) / item.logo.height))}px`;
 }
 
+// mix-blend-multiply: logos com fundo branco opaco (ex.: Miami) somem no vidro em vez de virar um retângulo cinza
 const LOGO_TONE =
-  "w-auto object-contain opacity-[0.72] [filter:grayscale(1)_contrast(1.1)_brightness(0.55)] transition-[filter,opacity] duration-300";
+  "w-auto object-contain opacity-[0.72] mix-blend-multiply [filter:grayscale(1)_contrast(1.1)_brightness(0.55)] transition-[filter,opacity] duration-300";
 
 interface LogoProps {
   item: Institution;

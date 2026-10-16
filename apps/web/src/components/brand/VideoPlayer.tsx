@@ -33,16 +33,22 @@ function embedUrl(video: PlayableVideo): string {
   return `https://www.youtube-nocookie.com/embed/${video.id}?${params.toString()}`;
 }
 
+// Sentinela invisível nas bordas do diálogo: devolve o foco para dentro (o iframe é
+// cross-origin, então o Tab que sai dele não passa pelo keydown desta página)
+const FOCUS_GUARD_CLASS = "pointer-events-none fixed h-px w-px overflow-hidden opacity-0";
+
 /**
  * Player único (facade): nenhum iframe do YouTube carrega antes do toque.
  * Abre em tela cheia no mobile; vertical para Shorts, 16:9 para vídeos.
  * Foco vai para o botão fechar, Esc fecha, a rolagem da página trava e o foco
- * volta para quem abriu.
+ * volta para quem abriu. O Tab circula entre o fechar e os controles do
+ * YouTube (play, legenda, volume), sem escapar para a página atrás.
  */
 export function VideoPlayerProvider({ children }: { children: ReactNode }) {
   const { t } = useLanguage();
   const [current, setCurrent] = useState<PlayableVideo | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
   const open = useCallback((video: PlayableVideo) => {
@@ -58,10 +64,10 @@ export function VideoPlayerProvider({ children }: { children: ReactNode }) {
     closeRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
-      // Tab fica preso ao botão fechar: o iframe é cross-origin e não recebe foco programático
-      if (event.key === "Tab") {
+      // Shift+Tab no fechar volta para o player (fim do ciclo); o Tab segue o fluxo natural até o iframe
+      if (event.key === "Tab" && event.shiftKey && document.activeElement === closeRef.current) {
         event.preventDefault();
-        closeRef.current?.focus();
+        iframeRef.current?.focus();
       }
     };
     document.addEventListener("keydown", onKey);
@@ -87,6 +93,7 @@ export function VideoPlayerProvider({ children }: { children: ReactNode }) {
             className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(6,13,36,0.88)] p-3 backdrop-blur-md sm:p-8"
             onClick={close}
           >
+            <span tabIndex={0} className={FOCUS_GUARD_CLASS} onFocus={() => iframeRef.current?.focus()} />
             <button
               ref={closeRef}
               type="button"
@@ -105,6 +112,7 @@ export function VideoPlayerProvider({ children }: { children: ReactNode }) {
               onClick={(event) => event.stopPropagation()}
             >
               <iframe
+                ref={iframeRef}
                 src={embedUrl(current)}
                 title={current.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -112,6 +120,7 @@ export function VideoPlayerProvider({ children }: { children: ReactNode }) {
                 className="absolute inset-0 h-full w-full border-0"
               />
             </div>
+            <span tabIndex={0} className={FOCUS_GUARD_CLASS} onFocus={() => closeRef.current?.focus()} />
           </div>,
           document.body,
         )}

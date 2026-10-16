@@ -72,7 +72,7 @@ export const PAGE_SEO: Record<string, PageSeoConfig> = {
   home: {
     title: {
       pt: "Bolsa Atleta USA | Educação Esportiva Inteligente®",
-      en: "Bolsa Atleta USA | Intelligent Sports Education®",
+      en: "Bolsa Atleta USA | Smart Sports Education®",
       es: "Bolsa Atleta USA | Educación Deportiva Inteligente®",
     },
     description: {
@@ -162,7 +162,7 @@ export const PAGE_SEO: Record<string, PageSeoConfig> = {
     },
     description: {
       pt: "Leandro Ribeiro viveu o sistema educacional esportivo americano como estudante-atleta bolsista e profissional de admissões. Conheça a origem da Educação Esportiva Inteligente®.",
-      en: "Leandro Ribeiro lived the American sports-education system as a scholarship student-athlete and admissions professional. Discover the origin of Intelligent Sports Education®.",
+      en: "Leandro Ribeiro lived the American sports-education system as a scholarship student-athlete and admissions professional. Discover the origin of Smart Sports Education®.",
       es: "Leandro Ribeiro vivió el sistema educativo deportivo estadounidense como estudiante-atleta becado y profesional de admisiones. Conozca el origen de la Educación Deportiva Inteligente®.",
     },
     canonicalPath: "/sobre",
@@ -202,6 +202,28 @@ export function localizedPath(path: string, locale: string): string {
   return `${prefix}${path}`;
 }
 
+/** URL absoluta no idioma, no mesmo formato do canonical (a home em PT é o domínio, sem barra). */
+export function absoluteLocalizedUrl(path: string, locale: string): string {
+  const localized = localizedPath(path, locale);
+  return localized === "/" ? SITE_URL : `${SITE_URL}${localized}`;
+}
+
+/** Rótulo da home nos breadcrumbs (JSON-LD), igual ao "Início" da navegação. */
+export const BREADCRUMB_HOME: Record<string, string> = { pt: "Início", en: "Home", es: "Inicio" };
+
+/** BreadcrumbList Início → página, com nome e URL no idioma da página (antes /en e /es repetiam o PT). */
+export function buildBreadcrumbSchema(key: keyof typeof PAGE_SEO, locale: string) {
+  const seo: PageSeoConfig = PAGE_SEO[key];
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: getSeoText(BREADCRUMB_HOME, locale), item: absoluteLocalizedUrl("/", locale) },
+      { "@type": "ListItem", position: 2, name: getSeoText(seo.title, locale), item: absoluteLocalizedUrl(seo.canonicalPath, locale) },
+    ],
+  };
+}
+
 /**
  * Metadata padronizada por página: canonical PRÓPRIO de cada idioma (antes /en
  * e /es apontavam para a URL em PT e o Google tendia a ignorá-las), hreflang
@@ -216,9 +238,11 @@ export function buildPageMetadata(key: keyof typeof PAGE_SEO, locale: string, op
   const canonical = localizedPath(path, locale);
   const languages: Record<string, string> = { "x-default": localizedPath(path, "pt") };
   for (const lang of Object.keys(LOCALE_PREFIX)) languages[HREFLANG[lang]] = localizedPath(path, lang);
+  // Título que já cita a marca ("Sobre a Bolsa Atleta USA...") não passa pelo template, senão ela sai duas vezes
+  const absoluteTitle = options.absoluteTitle || title.includes(SEO_DEFAULTS.siteName);
 
   return {
-    title: options.absoluteTitle ? { absolute: title } : title,
+    title: absoluteTitle ? { absolute: title } : title,
     description,
     alternates: { canonical, languages },
     robots: seo.noIndex ? { index: false, follow: true } : undefined,

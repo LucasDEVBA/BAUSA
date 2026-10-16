@@ -19,21 +19,23 @@ interface TourCardProps {
 }
 
 // Classes literais por breakpoint: o Tailwind só gera o que encontra escrito no código
-// O vídeo do card largo ocupa a altura toda da fileira (sem faixa vazia acima e abaixo do 16:9)
+// O vídeo do card largo ocupa a altura toda da fileira (sem faixa vazia acima e abaixo do 16:9). Com
+// object-cover numa caixa quase quadrada, a imagem precisa de ~altura x 16/9 de largura: daí o sizes maior
+// que a coluna, senão o navegador baixa um arquivo estreito e amplia (pôster borrado)
 const WIDE_LAYOUT: Record<TourCardWide, { card: string; media: string; video: string; body: string; sizes: string }> = {
   sm: {
     card: "sm:flex-row sm:items-stretch",
     media: "sm:w-[54%] sm:flex-none",
     video: "sm:!aspect-auto sm:h-full sm:min-h-[260px]",
     body: "sm:justify-center sm:px-6 sm:py-5 lg:px-8",
-    sizes: "(max-width: 640px) 94vw, (max-width: 1024px) 52vw, 470px",
+    sizes: "(max-width: 640px) 94vw, (max-width: 1024px) 66vw, 820px",
   },
   lg: {
     card: "lg:flex-row lg:items-stretch",
     media: "lg:w-[54%] lg:flex-none",
     video: "lg:!aspect-auto lg:h-full lg:min-h-[260px]",
     body: "lg:justify-center lg:px-8 lg:py-5",
-    sizes: "(max-width: 640px) 94vw, (max-width: 1024px) 46vw, 470px",
+    sizes: "(max-width: 640px) 94vw, (max-width: 1024px) 46vw, 820px",
   },
 };
 
@@ -70,7 +72,8 @@ export default function TourCard({ tour, lang, index, wide }: TourCardProps) {
       </div>
 
       <div className={`flex flex-1 flex-col px-3 pb-4 pt-4 sm:px-3.5 ${layout?.body ?? ""}`}>
-        <div className="flex items-center gap-3.5">
+        {/* Zoom de 200% (<300px): a placa de 92px deixava ~20px para o nome, uma letra por linha */}
+        <div className="flex items-center gap-3.5 max-[299px]:flex-wrap">
           <SchoolMark school={school} />
           <div className="min-w-0">
             <h4 id={`tour-${school.slug}`} className="ba-h3 text-balance text-[18px] text-[var(--ba-navy)] sm:text-[19px]">

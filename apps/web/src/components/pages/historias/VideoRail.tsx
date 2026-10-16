@@ -19,18 +19,19 @@ const DESKTOP_GRID: Record<VideoRailProps["desktopColumns"], string> = {
 /**
  * Trilho de Shorts 9:16: rolagem horizontal com snap sangrando até a borda no mobile
  * (só CSS, sem JS de carrossel) e grade no desktop. O respiro vertical existe para a
- * sombra e o hover dos cards não serem cortados pelo overflow do trilho.
+ * sombra e o hover dos cards não serem cortados pelo overflow do trilho: embaixo ele
+ * cobre os ~66px da --ba-shadow, senão a sombra cortada aparecia como uma linha reta.
  */
 export default function VideoRail({ label, swipeHint, desktopColumns, children }: VideoRailProps) {
   return (
     <>
       <ul
         aria-label={label}
-        className={`scrollbar-hide -mx-[var(--ba-gutter)] -my-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-[var(--ba-gutter)] py-6 [scroll-padding-inline:var(--ba-gutter)] sm:gap-4 lg:mx-0 lg:grid lg:gap-5 lg:overflow-visible lg:px-0 ${DESKTOP_GRID[desktopColumns]}`}
+        className={`scrollbar-hide -mx-[var(--ba-gutter)] -mb-[72px] -mt-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-[var(--ba-gutter)] pb-[72px] pt-6 [scroll-padding-inline:var(--ba-gutter)] sm:gap-4 lg:mx-0 lg:grid lg:gap-5 lg:overflow-visible lg:px-0 ${DESKTOP_GRID[desktopColumns]}`}
       >
         {children}
       </ul>
-      <p className="mt-4 flex items-center justify-center gap-1 text-xs font-medium text-[var(--ba-ink-3)] lg:hidden" aria-hidden="true">
+      <p className="relative mt-4 flex items-center justify-center gap-1 text-xs font-medium text-[var(--ba-ink-3)] lg:hidden" aria-hidden="true">
         {swipeHint}
         <ChevronRight className="h-3.5 w-3.5" />
       </p>

@@ -51,17 +51,18 @@ export default function SobreJourney({ lang }: SobreJourneyProps) {
           </p>
         </header>
 
-        {/* Ficha técnica: só números que o próprio fundador publicou */}
-        <dl className="ba-glass ba-rv mt-10 grid grid-cols-1 divide-y divide-[var(--ba-stroke)] rounded-[26px] !bg-white/[0.66] px-5 sm:mt-14 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:rounded-[30px] sm:px-0" style={delay(3)}>
+        {/* Ficha técnica: só números que o próprio fundador publicou. Número antes do rótulo no DOM:
+            o leitor de tela lê "17 anos de idade quando deixou o Brasil", e não o rótulo seguido do número. */}
+        <ul className="ba-glass ba-rv mt-10 grid grid-cols-1 divide-y divide-[var(--ba-stroke)] rounded-[26px] !bg-white/[0.66] px-5 sm:mt-14 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:rounded-[30px] sm:px-0" role="list" style={delay(3)}>
           {SOBRE_STATS.map((stat) => (
-            <div key={stat.value} className="flex flex-row-reverse items-center justify-end gap-4 py-4 sm:flex-col-reverse sm:items-start sm:justify-start sm:gap-2 sm:px-8 sm:py-8">
-              <dt className="text-[14px] font-medium leading-[1.4] text-[var(--ba-ink-2)] sm:text-[15.5px]">{pick(stat.label, lang)}</dt>
-              <dd className="ba-grad-text m-0 w-[112px] flex-none font-[family-name:var(--ba-display)] text-[38px] font-bold leading-none tracking-[-0.05em] sm:w-auto sm:text-[clamp(52px,5.4vw,80px)]">
+            <li key={stat.value} className="flex items-center gap-4 py-4 sm:flex-col sm:items-start sm:gap-2 sm:px-8 sm:py-8">
+              <span className="ba-grad-text w-[112px] flex-none font-[family-name:var(--ba-display)] text-[38px] font-bold leading-none tracking-[-0.05em] sm:w-auto sm:text-[clamp(52px,5.4vw,80px)]">
                 {stat.value}
-              </dd>
-            </div>
+              </span>
+              <span className="text-[14px] font-medium leading-[1.4] text-[var(--ba-ink-2)] sm:text-[15.5px]">{pick(stat.label, lang)}</span>
+            </li>
           ))}
-        </dl>
+        </ul>
 
         <div className="mt-12 grid grid-cols-1 gap-10 sm:mt-16 lg:grid-cols-12 lg:gap-[clamp(40px,5vw,80px)]">
           <div className="relative order-1 lg:order-2 lg:col-span-7">
