@@ -32,6 +32,8 @@ interface Institution {
   size: LogoSize;
   /** Slug em schools.ts: com tour no canal, o logo vira atalho para o vídeo. */
   tour?: string;
+  /** PNG com fundo branco opaco: sem o escurecimento (que pintaria o fundo de cinza). */
+  opaqueBackground?: boolean;
 }
 
 const INSTITUTIONS: Institution[] = [
@@ -46,7 +48,7 @@ const INSTITUTIONS: Institution[] = [
   { name: "IMG Academy", logo: logoImgAcademy, size: "tall", tour: "img-academy" },
   { name: "USC", logo: logoUsc, size: "tall" },
   { name: "Phillips Andover", logo: logoAndover, size: "xl" },
-  { name: "University of Miami", logo: logoMiami, size: "xl", tour: "miami" },
+  { name: "University of Miami", logo: logoMiami, size: "xl", tour: "miami", opaqueBackground: true },
   { name: "Taft", logo: logoTaft, size: "wide", tour: "taft" },
   { name: "Spire Academy", logo: logoSpire, size: "tall" },
   { name: "Baylor", logo: logoBaylor, size: "tall" },
@@ -73,9 +75,10 @@ function logoSizes(item: Institution): string {
   return `${Math.min(box.maxWidth, Math.ceil((box.height * item.logo.width) / item.logo.height))}px`;
 }
 
-// mix-blend-multiply: logos com fundo branco opaco (ex.: Miami) somem no vidro em vez de virar um retângulo cinza
-const LOGO_TONE =
-  "w-auto object-contain opacity-[0.72] mix-blend-multiply [filter:grayscale(1)_contrast(1.1)_brightness(0.55)] transition-[filter,opacity] duration-300";
+const LOGO_BASE = "w-auto object-contain opacity-[0.72] transition-[filter,opacity] duration-300";
+const LOGO_TONE = `${LOGO_BASE} [filter:grayscale(1)_contrast(1.1)_brightness(0.55)]`;
+// O brightness(0.55) pinta um fundo branco opaco de cinza; aqui o branco continua branco e some no vidro
+const LOGO_TONE_OPAQUE = `${LOGO_BASE} [filter:grayscale(1)_contrast(1.35)]`;
 
 interface LogoProps {
   item: Institution;
@@ -92,7 +95,7 @@ function MarqueeLogo({ item, duplicate }: LogoProps) {
       src={item.logo}
       alt={duplicate || tour ? "" : item.name}
       sizes={logoSizes(item)}
-      className={`${SIZE_CLASS[item.size]} ${LOGO_TONE} ${tour ? "group-hover:opacity-100 group-hover:[filter:none] group-focus-visible:opacity-100 group-focus-visible:[filter:none]" : "hover:opacity-100 hover:[filter:none]"}`}
+      className={`${SIZE_CLASS[item.size]} ${item.opaqueBackground ? LOGO_TONE_OPAQUE : LOGO_TONE} ${tour ? "group-hover:opacity-100 group-hover:[filter:none] group-focus-visible:opacity-100 group-focus-visible:[filter:none]" : "hover:opacity-100 hover:[filter:none]"}`}
     />
   );
 
