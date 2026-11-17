@@ -6,7 +6,8 @@ import { toast } from "sonner";
 
 import { Badge, type BadgeTone } from "@/components/ui";
 import { enviarFrioParaAprovacao, enviarIncompletoParaAprovacao } from "@/lib/actions/leads";
-import { type CadastroEncontrado } from "@/lib/actions/leads-busca";
+import { type CadastroEncontrado, type DiagnosticoQualificacao } from "@/lib/actions/leads-busca";
+import { classificarCadastroAgora } from "@/lib/actions/qualify-retry";
 import { FRIOS_REVISAO_DIAS, type TipoLocalCadastro } from "@/lib/revisao-leads";
 
 import { ReuniaoDetectadaBadge } from "./ReuniaoDetectadaBadge";
@@ -64,6 +65,17 @@ const dataCurta = (iso: string | null): string =>
 const resumir = (texto: string | null, max = 110): string | null =>
   texto ? (texto.length > max ? `${texto.slice(0, max)}…` : texto) : null;
 
+/** Por que um cadastro está sem classe: tentativas, último erro e campos vazios. */
+export function detalharSemClassificacao(d: DiagnosticoQualificacao | undefined): string {
+  if (!d) return "Qualificação pendente ou com falha";
+  const partes: string[] = [];
+  if (d.tentativas > 0) partes.push(d.tentativas === 1 ? "1 tentativa" : `${d.tentativas} tentativas`);
+  if (d.ultimoErro) partes.push(`último erro: ${resumir(d.ultimoErro, 90)}`);
+  if (d.camposFaltando.length > 0) partes.push(`faltam: ${d.camposFaltando.join(", ")}`);
+  if (partes.length === 0) return "Qualificação ainda não rodou — a IA nunca foi chamada para este cadastro";
+  return partes.join(" · ");
+}
+
 /** Onde está + por quê, em português (T13). */
 export function descreverLocal(
   c: CadastroEncontrado,
@@ -97,7 +109,7 @@ export function descreverLocal(
       detalhe: `A revisão mostra só os últimos ${FRIOS_REVISAO_DIAS} dias`,
     },
     fora_aprovado_sem_deal: { titulo: "Aprovado, sem deal ativo", detalhe: "Abra o dossiê para conferir" },
-    fora_sem_classificacao: { titulo: "Ainda sem classificação", detalhe: "Qualificação pendente ou com falha" },
+    fora_sem_classificacao: { titulo: "Ainda sem classificação", detalhe: detalharSemClassificacao(c.diagnostico) },
     fora_sem_decisao: { titulo: `${classe} sem decisão`, detalhe: "Cadastro anterior à fila de aprovação" },
   };
   return textos[c.local.tipo];
@@ -121,6 +133,7 @@ export function ForaDoPipelineFaixa({
   onTentarDeNovo,
 }: ForaDoPipelineFaixaProps) {
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
+  const [classificandoId, setClassificandoId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   const naoVisiveis = estado.status === "ok" ? estado.itens.filter((i) => !estaVisivel(i)) : [];
@@ -147,6 +160,35 @@ export function ForaDoPipelineFaixa({
         toast.error("Falha de rede ao enviar para a fila. Tente de novo.");
       } finally {
         setEnviandoId(null);
+      }
+    });
+  };
+
+  const classificarAgora = (item: CadastroEncontrado) => {
+    setClassificandoId(item.id);
+    startTransition(async () => {
+      try {
+        const r = await classificarCadastroAgora(item.id);
+        if (!r.success) {
+          toast.error(r.error);
+          return;
+        }
+        if (r.classificacao) {
+          toast.success(`${item.athlete_name} classificado como ${r.classificacao}`, {
+            description: "Segue o fluxo normal da qualificação.",
+          });
+        } else {
+          toast.warning(`${item.athlete_name} continua sem classificação`, {
+            description: r.ultimoErro
+              ? `Último erro: ${resumir(r.ultimoErro, 140)}`
+              : "A IA não respondeu agora. A retentativa automática continua.",
+          });
+        }
+        onAtualizado(item);
+      } catch {
+        toast.error("Falha de rede ao classificar. Tente de novo.");
+      } finally {
+        setClassificandoId(null);
       }
     });
   };
@@ -221,6 +263,23 @@ export function ForaDoPipelineFaixa({
             >
               <FileText aria-hidden className="size-3" />
               Abrir dossiê
+            </button>
+          )}
+          {tipo === "fora_sem_classificacao" && (
+            <button
+              type="button"
+              onClick={() => classificarAgora(item)}
+              disabled={classificandoId === item.id}
+              aria-busy={classificandoId === item.id}
+              title="Roda a qualificação da IA neste cadastro agora (leva até 1 minuto)"
+              className="inline-flex h-7 items-center gap-1 rounded-md bg-primary/10 px-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-60"
+            >
+              {classificandoId === item.id ? (
+                <Loader2 aria-hidden className="size-3 animate-spin" />
+              ) : (
+                <RotateCw aria-hidden className="size-3" />
+              )}
+              {classificandoId === item.id ? "Classificando…" : "Classificar agora"}
             </button>
           )}
           {revisavel && (
