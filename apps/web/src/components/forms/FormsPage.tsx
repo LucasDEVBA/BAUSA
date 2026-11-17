@@ -20,10 +20,14 @@ import { isValidPhoneNumber } from "react-phone-number-input";
 import FormPhoneInput from "@/components/ui/phone-input";
 import { CountrySelect } from "@/components/ui/country-select";
 import { captureUTMs, getStoredUTMs } from "@/lib/tracking/utm";
+import { captureFbclid, fetchClientIp, getMetaMatchSignals } from "@/lib/tracking/meta";
 import { getOrCreateSessionId, captureLandingUrl, captureReferrer, getDeviceType } from "@/lib/tracking/session";
 import { trackFormStart, trackFormStep, trackFormSubmit, trackFormError } from "@/lib/tracking/events";
 import { MSG_NASCIMENTO, idadeEmAnos, limitesSeletorNascimento, validarNascimento } from "@/lib/forms/nascimento";
 import MeshBackground from "@/components/brand/MeshBackground";
+
+/** Campos da API de Conversões do Meta — removíveis do envio se o schema ainda não os tiver. */
+const CAMPOS_META_CAPI = ["ip_address", "meta_fbp", "meta_fbc"] as const;
 
 // supabase é importado dinamicamente dentro do onSubmit para evitar
 // que a inicialização do cliente (que exige env vars) quebre o carregamento da página
@@ -250,6 +254,8 @@ const Forms = () => {
   const allFormValues = watch();
 
   const formStartedAtRef = useRef<string | null>(null);
+  // IP para a API de Conversões: pedido ao abrir o form, aguardado só no envio.
+  const clientIpRef = useRef<Promise<string | null> | null>(null);
 
   // min/max do seletor de nascimento — calculados no navegador (fuso do
   // usuário); no SSR ficam ausentes para não divergir na hidratação.
@@ -261,6 +267,8 @@ const Forms = () => {
   // --- Tracking: captura UTMs, referrer e landing URL ---
   useEffect(() => {
     captureUTMs();
+    captureFbclid();
+    clientIpRef.current = fetchClientIp();
     captureLandingUrl();
     captureReferrer();
   }, []);
@@ -486,6 +494,10 @@ const Forms = () => {
     setSubmissionError(null);
     try {
       const birthDateValue = data.birthDate?.trim() || null;
+      // Sinais da API de Conversões do Meta (fail-soft: nunca bloqueia o envio).
+      // O IP foi pedido na abertura do formulário — aqui já está resolvido.
+      const clientIp = await (clientIpRef.current ?? fetchClientIp());
+      const sinaisMeta = getMetaMatchSignals();
 
       const computedAge = birthDateValue ? idadeEmAnos(birthDateValue) : null;
 
@@ -552,6 +564,10 @@ const Forms = () => {
         cta_source: typeof sessionStorage !== "undefined" ? sessionStorage.getItem("bau_cta_source") || null : null,
         device_type: getDeviceType(),
         form_started_at: formStartedAtRef.current,
+        // --- API de Conversões do Meta (evento LeadQualificado, CF meta-capi) ---
+        ip_address: clientIp,
+        meta_fbp: sinaisMeta.meta_fbp,
+        meta_fbc: sinaisMeta.meta_fbc,
       };
 
       // Usa fetch direta para garantir controle total dos headers.
@@ -574,10 +590,27 @@ const Forms = () => {
         requestHeaders['Content-Profile'] = schema;
       }
 
-      const res = await fetch(
-        `${supabaseUrl}/rest/v1/form_submissions?on_conflict=email%2Cathlete_name`,
-        { method: 'POST', headers: requestHeaders, body: JSON.stringify(submissionData) }
-      );
+      const enviar = (corpo: Record<string, unknown>) =>
+        fetch(`${supabaseUrl}/rest/v1/form_submissions?on_conflict=email%2Cathlete_name`, {
+          method: 'POST',
+          headers: requestHeaders,
+          body: JSON.stringify(corpo),
+        });
+
+      let res = await enviar(submissionData);
+
+      // Coluna de tracking ainda inexistente no schema (deploy do site antes da
+      // migration): reenvia SEM os campos da CAPI — o cadastro do lead nunca
+      // pode falhar por causa de um sinal de anúncio.
+      if (!res.ok && res.status === 400) {
+        const corpoErro = await res.clone().text();
+        if (corpoErro.includes('PGRST204') && CAMPOS_META_CAPI.some((c) => corpoErro.includes(c))) {
+          console.warn('[Form] Colunas da CAPI ausentes no schema — reenviando sem elas');
+          const semMeta: Record<string, unknown> = { ...submissionData };
+          for (const c of CAMPOS_META_CAPI) delete semMeta[c];
+          res = await enviar(semMeta);
+        }
+      }
 
       if (!res.ok) {
         const raw = await res.text();

@@ -522,4 +522,35 @@ gcloud scheduler jobs update http "${JOB_EI}" \
 
 echo "✓ ${JOB_EI} configurado"
 
+# ─── API de Conversões do Meta — LeadQualificado (a cada 30 min) ───────
+# CF meta-capi: QUENTE/MORNO dos últimos ~7 dias → evento no Pixel (CAS em
+# meta_capi_lq_sent_at). Sem META_PIXEL_ID + META_CAPI_TOKEN a CF só grava o
+# heartbeat (configurado=false) — o job pode rodar antes da config. Fora de
+# PRD só envia com META_TEST_EVENT_CODE. Minuto 10/40: longe dos schedulers
+# de mensageria (minuto 0) e da automation-engine (minuto 30).
+JOB_MC="meta-capi-job${SUFFIX}"
+META_CAPI_URL="${META_CAPI_URL:-https://meta-capi${SUFFIX}-222577494676.us-central1.run.app}"
+
+gcloud scheduler jobs create http "${JOB_MC}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="10,40 * * * *" \
+  --uri="${META_CAPI_URL}" \
+  --http-method=POST \
+  --headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s \
+  2>/dev/null || \
+gcloud scheduler jobs update http "${JOB_MC}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --schedule="10,40 * * * *" \
+  --uri="${META_CAPI_URL}" \
+  --http-method=POST \
+  --update-headers="x-webhook-secret=${WEBHOOK_SECRET}" \
+  --time-zone="America/Sao_Paulo" \
+  --attempt-deadline=300s
+
+echo "✓ ${JOB_MC} configurado"
+
 echo "Cloud Scheduler [${ENV}] configurado com sucesso"

@@ -19,6 +19,19 @@ const migDir = path.join(__dirname, '..', 'supabase', 'migrations');
 const nome = fs.readdirSync(migDir).find((f) => f.endsWith('_form_submissions_anon_campos_servidor.sql'));
 assert.ok(nome, 'migration da trava de mass-assignment sumiu');
 const SQL = fs.readFileSync(path.join(migDir, nome), 'utf8');
+// A função pode ser REDEFINIDA por migrations posteriores (CREATE OR REPLACE,
+// ex.: colunas da API de Conversões em 17/11/2026). Vale a ÚLTIMA definição:
+// é ela que roda em produção — o guard trava a versão viva, não a original.
+const ASSINATURA_FUNCAO = 'CREATE OR REPLACE FUNCTION public.fs_anon_campos_servidor()';
+const ultimaDefinicao = fs
+  .readdirSync(migDir)
+  .filter((f) => f.endsWith('.sql'))
+  .sort()
+  .filter((f) => fs.readFileSync(path.join(migDir, f), 'utf8').includes(ASSINATURA_FUNCAO))
+  .pop();
+assert.ok(ultimaDefinicao, 'definição da função fs_anon_campos_servidor sumiu');
+const sqlUltima = fs.readFileSync(path.join(migDir, ultimaDefinicao), 'utf8');
+const SQL_FUNCAO = sqlUltima.slice(sqlUltima.indexOf(ASSINATURA_FUNCAO), sqlUltima.indexOf('$$;', sqlUltima.indexOf(ASSINATURA_FUNCAO)));
 
 // Colunas que decidem fila/outreach/gate — o anon NUNCA as define.
 const CRITICAS = [
@@ -28,18 +41,21 @@ const CRITICAS = [
   'scheduled_followup_at', 'scheduled_followup_sent_at', 'timing_status',
   'meeting_scheduled', 'meeting_scheduled_at', 'score_financeiro',
   'sheets_synced_at', 'deleted_at', 'submitted_at',
+  // CAS da API de Conversões (CF meta-capi): o anon marcando "já enviado"
+  // calaria o evento LeadQualificado.
+  'meta_capi_lq_sent_at', 'meta_capi_lq_tentativas', 'meta_capi_lq_erro',
 ];
 
 test('o INSERT anônimo zera as colunas que só o servidor escreve', () => {
   for (const col of CRITICAS) {
-    assert.ok(SQL.includes(`'${col}',`), `coluna ${col} saiu da trava de mass-assignment`);
+    assert.ok(SQL_FUNCAO.includes(`'${col}',`), `coluna ${col} saiu da trava de mass-assignment (${ultimaDefinicao})`);
   }
-  assert.match(SQL, /padrao := jsonb_build_object\(/);
-  assert.match(SQL, /NEW := jsonb_populate_record\(NEW, padrao\);/);
+  assert.match(SQL_FUNCAO, /padrao := jsonb_build_object\(/);
+  assert.match(SQL_FUNCAO, /NEW := jsonb_populate_record\(NEW, padrao\);/);
 });
 
 test('o UPDATE anônimo mantém as colunas de servidor como estavam (uat/dev têm policy de UPDATE)', () => {
-  const ramo = SQL.slice(SQL.indexOf("IF TG_OP = 'UPDATE' THEN"), SQL.indexOf('NEW := jsonb_populate_record'));
+  const ramo = SQL_FUNCAO.slice(SQL_FUNCAO.indexOf("IF TG_OP = 'UPDATE' THEN"), SQL_FUNCAO.indexOf('NEW := jsonb_populate_record'));
   assert.ok(ramo.length > 0, "ramo do UPDATE sumiu — PATCH anônimo voltaria a aprovar lead em uat/dev");
   assert.match(ramo, /antigo := to_jsonb\(OLD\);/, 'o UPDATE tem de restaurar do OLD, não zerar (apagaria a decisão humana)');
   assert.match(ramo, /jsonb_object_agg\(chave, antigo -> chave\)/);
@@ -50,7 +66,7 @@ test('o UPDATE anônimo mantém as colunas de servidor como estavam (uat/dev tê
 });
 
 test('a trava é só para o role anon, BEFORE INSERT OR UPDATE, nos 3 schemas', () => {
-  assert.match(SQL, /IF current_user <> 'anon' THEN\s*\n\s*RETURN NEW;/, 'CFs/Engine não podem perder a escrita dessas colunas');
+  assert.match(SQL_FUNCAO, /IF current_user <> 'anon' THEN\s*\n\s*RETURN NEW;/, 'CFs/Engine não podem perder a escrita dessas colunas');
   for (const schema of ['public', 'uat', 'dev']) {
     assert.match(SQL, new RegExp(`BEFORE INSERT OR UPDATE ON ${schema}\\.form_submissions`), `trigger ausente em ${schema}`);
   }

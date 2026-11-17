@@ -1,0 +1,12 @@
+{
+  "name": "meta-capi",
+  "version": "1.0.0",
+  "description": "API de Conversões do Meta — envia o evento LeadQualificado (QUENTE/MORNO) ao Pixel. Cron a cada 30 min, CAS em meta_capi_lq_sent_at.",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}

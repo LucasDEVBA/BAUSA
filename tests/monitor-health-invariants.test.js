@@ -39,6 +39,8 @@ const CHAVES_CF = [
   "regua_cobranca",
   "experiencia_nps",
   "meta_frescor",
+  // 17/11/2026: API de Conversões (LeadQualificado) parada ou com fila travada
+  "meta_capi_frescor",
   // A3 (2026-08-11): CPL real × alvo dos planos executados — SÓ notifica
   "ads_cpl_alvo",
   "transcricao_faltante",
@@ -140,6 +142,9 @@ test("paridade: os checks novos existem TAMBÉM na tela /observabilidade", () =>
     "sheets_synced_at",
     "weekly_report_state",
     "billing_last_tick_at",
+    "meta_capi_frescor",
+    "meta_capi_last_tick_at",
+    "meta_capi_lq_sent_at",
     "scheduler_jobs",
     "REMARKETING_UNSUBSCRIBE_URL",
   ]) {
@@ -169,6 +174,7 @@ const CHAVES_TELA_GERAL = [
   "regua_cobranca",
   "experiencia_nps",
   "meta_frescor",
+  "meta_capi_frescor",
   "ads_cpl_alvo",
   "transcricao_faltante",
   "runs_presos",
