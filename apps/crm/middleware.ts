@@ -9,13 +9,25 @@ const PUBLIC_ROUTES = [
   "/redefinir-senha",
   // destino dos links de e-mail do Supabase — cria a sessão de recuperação
   "/auth/confirm",
+  // Descoberta OAuth/MCP (RFC 9728/8414): documentos públicos por definição.
+  // Caminho inexistente aqui dá 404 — nunca o HTML do /login.
+  "/.well-known/",
 ];
+
+// Conector do Claude (MCP): a própria rota valida o Bearer OAuth e responde
+// 401 com WWW-Authenticate — redirect para /login quebraria o OAuth. Caminho
+// EXATO: uma rota /api/mcp-algo criada depois não fica pública sem querer.
+const PUBLIC_ROUTES_EXATAS = ["/api/mcp"];
+
+// Telas que precisam VOLTAR para onde estavam depois do login (o consentimento
+// OAuth carrega o authorization_id na query — perdê-lo mata a conexão).
+const VOLTA_APOS_LOGIN = ["/oauth/"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Permitir rotas publicas sem verificacao de auth
-  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
+  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route)) || PUBLIC_ROUTES_EXATAS.includes(pathname)) {
     return NextResponse.next();
   }
 
@@ -54,7 +66,16 @@ export async function middleware(request: NextRequest) {
 
   if (!user) {
     const loginUrl = new URL("/login", request.url);
+    if (VOLTA_APOS_LOGIN.some((prefixo) => pathname.startsWith(prefixo))) {
+      loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+    }
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Consentimento OAuth nunca dentro de iframe (clickjacking do "Permitir").
+  if (VOLTA_APOS_LOGIN.some((prefixo) => pathname.startsWith(prefixo))) {
+    response.headers.set("Content-Security-Policy", "frame-ancestors 'none'");
+    response.headers.set("X-Frame-Options", "DENY");
   }
 
   return response;

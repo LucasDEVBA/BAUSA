@@ -774,6 +774,15 @@ mandaria — tem de sair limpa). `01` (backfill de `entrada_paga`) só se o `02`
 - [ ] Depois de ~1 semana de eventos: Conversão personalizada "Lead Qualificado BAU" (evento `LeadQualificado`) + checar nota de correspondência (≥ 6). Volume atual ~16 QUENTE/MORNO/semana (abaixo dos ~50 do aprendizado) — usar também como público semelhante
 - [ ] Próximo nível (não feito): eventos `ReuniaoRealizada` e `ContratoAssinado`
 
+### Conector do Claude (MCP do Engine) — Config pendente
+O Engine expõe um servidor MCP remoto em `/api/mcp` (só leitura: `buscar_leads`, `dossie_lead`, `resumo_pipeline`, `funil_periodo`, `fila_aprovacao`). O Claude autentica pelo **servidor OAuth 2.1 do próprio Supabase Auth** (registro dinâmico + PKCE): o token é do usuário do Engine, então o **RLS vale** como nas telas. Só **CEO/CTO ativos** passam; o consentimento (`/oauth/consent`) só aprova destino oficial do Claude (claude.ai/claude.com ou loopback do Claude Code) — com registro dinâmico qualquer app pode pedir, a allowlist barra phishing. Guard: `tests/mcp-engine-invariants.test.js`.
+- [ ] Supabase (CEO): **Authentication → OAuth Server** → ligar o servidor OAuth 2.1 + **Allow Dynamic OAuth Apps** + Authorization path **`/oauth/consent`** (o Site URL já é o Engine em PRD). Hoje a descoberta responde `feature_disabled`
+- [ ] Só funciona em PRD (o Site URL aponta para o Engine de produção) → depois do "vai pra prod"
+- [ ] claude.ai → Configurações → **Conectores → Adicionar conector personalizado** → URL `https://bolsa-atleta-crm.vercel.app/api/mcp` → entrar com a conta do Engine → **Permitir acesso**. Claude Code: `claude mcp add --transport http bausa https://bolsa-atleta-crm.vercel.app/api/mcp`
+- [ ] Revisar de tempos em tempos os apps registrados em Authentication → OAuth Apps (o registro dinâmico cria um por conexão)
+- [ ] Recomendado: Authentication → Sessions → limitar a duração da sessão (o refresh token do conector não expira por padrão)
+- **Defesa em profundidade:** o token do conector é um JWT do CEO e funcionaria direto no PostgREST. A migration `20261117193521` põe policy **RESTRICTIVE** em todas as tabelas com RLS de `public`: JWT com `client_id` não faz INSERT/UPDATE/DELETE (provado em Postgres local). **Tabela nova:** chamar `SELECT public.conector_somente_leitura_aplicar();` no fim da migration (o guard cobra). **Limites:** RPCs `SECURITY DEFINER` rodam como dono (não passam pelo RLS) e Storage não está coberto
+
 ### Transcrição do Meet (meeting-transcripts) — Config pendente
 - [ ] Env vars da CF `meeting-transcripts` (por ambiente): `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SCHEMA`, `SERVICE_ACCOUNT_EMAIL`, `SERVICE_ACCOUNT_PRIVATE_KEY`, `GOOGLE_CALENDAR_ID`, `GEMINI_API_KEY` (opcional — habilita o resumo)
 - [ ] **Passo manual (Drive):** compartilhar a pasta **"Meet Recordings"** do Drive do CEO com o e-mail da service account (`SERVICE_ACCOUNT_EMAIL`) como **Leitor** — sem isso a CF loga `transcript_access_denied` e pula (não quebra o tick)
