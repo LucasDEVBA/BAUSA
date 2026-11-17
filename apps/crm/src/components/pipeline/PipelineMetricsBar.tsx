@@ -21,7 +21,10 @@ import { cn } from "@/lib/utils";
 export interface PipelineMetrics {
   totalPipelineBrl: number;
   activeCount: number;
-  conversionRate: number;
+  /** Ganhos ÷ decididos (lib/taxa-conversao); null = nenhum decidido → "—". */
+  conversionRate: number | null;
+  /** Base da taxa em texto ("8 ganhos de 20 decididos") — hint do card. */
+  conversionBase?: string;
   forecast30dBrl: number;
   reunioesMarcadas: number;
   ticketMedioBrl: number;
@@ -126,7 +129,13 @@ export function PipelineMetricsBar({ metrics }: { metrics: PipelineMetrics }) {
     { icon: UserPlus, label: "Leads novos", value: String(metrics.leadsNovos), tone: "blue" },
     { icon: CalendarCheck, label: "Reuniões marcadas", value: String(metrics.reunioesMarcadas), tone: "blue" },
     { icon: FileSignature, label: "Contratos assinados", value: String(metrics.contratosAssinados), tone: "blue" },
-    { icon: Percent, label: "Taxa de conversão", value: `${metrics.conversionRate}%`, tone: "green" },
+    {
+      icon: Percent,
+      label: "Taxa de conversão",
+      value: metrics.conversionRate === null ? "—" : `${metrics.conversionRate}%`,
+      tone: "green",
+      hint: metrics.conversionBase,
+    },
     { icon: Trophy, label: "Ganho (concluído)", value: brl(metrics.ganhoBrl), tone: "green" },
     { icon: Calendar, label: "Previsão 30 dias", value: brl(metrics.forecast30dBrl), tone: "green" },
     { icon: XCircle, label: "Perdidos", value: String(metrics.perdidos), tone: "red" },

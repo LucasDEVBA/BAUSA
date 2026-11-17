@@ -316,3 +316,38 @@ test('C: War Room conta contrato assinado em diante (ganho), nunca enviado/negoc
   const ganhoFixas = fatia(etapasDeal, 'export const ETAPAS_GANHO_FIXAS', '];');
   assert.ok(!/contrato_enviado|negociacao/.test(ganhoFixas), 'pré-assinatura entrou no ganho');
 });
+
+// ─── D. Taxa de conversão = ganhos ÷ decididos (17/11/2026) ──────────────
+// "8 contratos assinados e 0% de conversão": a taxa só contava `concluido`
+// (fim do ciclo, meses depois do contrato). Regra única em lib/taxa-conversao:
+// ganho = etapas de ganho (as MESMAS de "Contratos assinados"), base =
+// ganhos + perdidos SEM timing; sem decididos = "—", nunca 0%.
+test('D: /pipeline e War Room usam a MESMA taxa de conversão (ganhos ÷ decididos)', () => {
+  const lib = lerCrm('lib', 'taxa-conversao.ts');
+  assert.match(lib, /taxa: decididos > 0 \? Math\.round\(\(g \/ decididos\) \* 100\) : null,/);
+  assert.match(lib, /t\.taxa === null \? "—"/, 'sem decididos tem de exibir "—", não 0%');
+
+  const page = lerCrm('app', '(dashboard)', 'pipeline', 'page.tsx');
+  assert.match(page, /const conversao = calcularTaxaConversao\(contratosAssinados, perdidos\);/,
+    'a taxa do /pipeline tem de usar os MESMOS ganhos do card "Contratos assinados"');
+  assert.match(page, /const contratosAssinados = deals\.filter\(\(d\) => signedStages\.includes\(d\.stage\)\)\.length;/);
+  assert.match(page, /return d\.lost_reason_category !== "timing";/, 'perdido por timing voltou para a base da taxa');
+  assert.ok(!/concluidos \/ totalFinalizados/.test(page), 'taxa antiga (só concluído) voltou no /pipeline');
+
+  const war = lerCrm('lib', 'war-room-queries.ts');
+  const taxa = fatia(war, 'export async function fetchTaxaConversaoComercial', 'export async function fetchMetaMensal');
+  assert.match(taxa, /const etapasGanho = await getEtapasGanho\(\);/);
+  assert.match(taxa, /\.in\("etapa", etapasGanho\)/);
+  assert.match(taxa, /\.or\("motivo_perda\.is\.null,motivo_perda\.neq\.timing"\)/, 'perdido por timing contaria como derrota');
+  assert.match(taxa, /return \{ taxa: null, ganhos: 0, decididos: 0 \};/, 'erro de leitura não pode virar 0%');
+  const metricas = fatia(war, 'export async function fetchWarRoomMetrics', 'export async function fetchMetaRevenue');
+  assert.match(metricas, /conversion_rate: conversao\.taxa,/);
+  assert.ok(!/dealsConcluidos \/ dealsTotal/.test(war), 'taxa antiga (concluído ÷ todos os deals) voltou no War Room');
+  assert.ok(!/concluidos \/ totalDeals/.test(war), 'alerta de conversão voltou a usar concluído ÷ todos');
+
+  const warPage = lerCrm('app', '(dashboard)', 'war-room', 'page.tsx');
+  assert.match(warPage, /value=\{m\.conversion_rate === null \? "—" : `\$\{m\.conversion_rate\}%`\}/);
+  const barra = lerCrm('components', 'pipeline', 'PipelineMetricsBar.tsx');
+  assert.match(barra, /value: metrics\.conversionRate === null \? "—" : `\$\{metrics\.conversionRate\}%`,/);
+  assert.match(barra, /hint: metrics\.conversionBase,/, 'a taxa precisa mostrar a base ("8 ganhos de 20 decididos")');
+});
