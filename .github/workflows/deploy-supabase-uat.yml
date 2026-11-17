@@ -14,13 +14,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # CLI FIXADO: a v3 (16/11/2026) passou a mirar o banco LOCAL por padrão
+      # ("Target: local stack") e o `db push` quebrou com ECONNREFUSED. Subir de
+      # versão só de propósito, conferindo o alvo do push.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.122.1
       - name: Link & Deploy
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
-          supabase db push
-          supabase functions deploy form-handler
+          supabase db push --linked
+          supabase functions deploy form-handler --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}

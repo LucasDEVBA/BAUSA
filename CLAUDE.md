@@ -42,7 +42,7 @@ As **skills do Claude Code** em `.claude/skills/` são carregadas automaticament
 | Formulários | React Hook Form + Zod |
 | Estado servidor | TanStack Query |
 | BaaS | Supabase (PostgreSQL + RLS + Webhooks) |
-| Backend | Google Cloud Functions Gen2 (Node.js 20) |
+| Backend | Google Cloud Functions Gen2 (Node.js 22) |
 | IA | Google Gemini 2.5 Flash |
 | WhatsApp | Z-API |
 | E-mail | Resend (primário) + Brevo (fallback) |
@@ -107,7 +107,7 @@ deploy manual         auto-deploy       aprovação manual
 
 ## Arquitetura: Cloud Functions
 
-Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--allow-unauthenticated** (org policy obriga).
+Todas as funções: **Gen2**, **Node.js 22**, **us-central1**, **256Mi**, **--allow-unauthenticated** (org policy obriga).
 
 | Pasta local | Nome PRD | Nome UAT | Trigger | Responsabilidade |
 |-------------|----------|----------|---------|-----------------|
@@ -406,7 +406,7 @@ bash infra/scheduler.sh dev   # DEV (testes)
 
 # Deploy manual de emergência — Cloud Function PRD
 gcloud functions deploy lead-qualifier \
-  --gen2 --runtime=nodejs20 --region=us-central1 \
+  --gen2 --runtime=nodejs22 --region=us-central1 \
   --source=functions/qualify-lead \
   --entry-point=qualifyLead \
   --trigger-http --allow-unauthenticated \
@@ -451,6 +451,8 @@ gcloud scheduler jobs resume process-whatsapp-job --location=us-central1 --proje
 Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test.js`, `node:test` zero-deps) bloqueia o merge se `process-pending-whatsapp` ou `process-followup-whatsapp` deixar de filtrar `qualification_classification IN (QUENTE,MORNO)` ou o `timing_status` correto. Criado após 2 incidentes da mesma classe (filtro de elegibilidade ausente). Rodar local: `node --test tests/*.test.js`.
 
 **IMPORTANTE:** Usar `--update-env-vars` (nunca `--set-env-vars`) para não sobrescrever variáveis existentes na função.
+
+> **Infra de deploy (17/11/2026):** o GCF Gen2 aposentou o `nodejs20` (todo deploy falhava com "nodejs20 is not a supported runtime") → workflows em `--runtime=nodejs22`; funções já no ar seguem rodando até o próximo deploy. O Supabase CLI fica **fixado em 2.122.1** nos workflows: a v3 passou a mirar o banco local por padrão e o `db push` quebrou. Subir de versão só de propósito.
 
 ---
 

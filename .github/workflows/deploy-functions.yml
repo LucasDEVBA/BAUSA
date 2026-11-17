@@ -111,7 +111,7 @@ jobs:
       - name: Deploy
         run: |
           gcloud functions deploy ${{ steps.cfg.outputs.name }} \
-            --gen2 --runtime=nodejs20 --region=us-central1 \
+            --gen2 --runtime=nodejs22 --region=us-central1 \
             --source=functions/${{ matrix.function }} \
             --entry-point=${{ steps.cfg.outputs.entry }} \
             --trigger-http --allow-unauthenticated \
