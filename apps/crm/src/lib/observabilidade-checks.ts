@@ -1059,6 +1059,10 @@ const REGUA_FOLGA_DIAS = 2;
 const NPS_PRAZO_DIAS = 181;
 const META_FRESCOR_DIAS = 3; // idade do GASTO — sinal secundário, atenção SÓ na tela
 const META_TICK_MAX_HORAS = 26; // heartbeat do sync (job diário 06h + folga, padrão billing)
+// API de Conversões (meta-capi, job a cada 30 min) — MESMOS limites do monitor-health.
+const META_CAPI_TICK_MAX_HORAS = 3;
+const META_CAPI_PENDENTE_HORAS = 2;
+const META_CAPI_JANELA_HORAS = 7 * 24 - 12;
 const TRANSCRICAO_FOLGA_HORAS = 24;
 const RUNS_PRESOS_HORAS = 2;
 
@@ -1305,6 +1309,99 @@ async function checkMetaFrescor(supabase: Supabase): Promise<CheckResult> {
     status: gastoDias !== null && gastoDias > META_FRESCOR_DIAS ? "atencao" : "ok",
     resumo: `Sync Meta vivo (último tick há ${horas}h).`,
     detalhes: [detalheGasto],
+  };
+}
+
+// API de Conversões do Meta (evento LeadQualificado). Paridade com o check
+// meta_capi_frescor do monitor-health: pulado só se NUNCA configurada; crítico
+// se a config sumiu, sem tick há 3h+, credencial/Pixel recusados ou lead
+// queimado (5 recusas do Meta); atenção com QUENTE/MORNO esperando 2h+.
+async function checkMetaCapiFrescor(supabase: Supabase): Promise<CheckResult> {
+  const id = "meta_capi_frescor";
+  const titulo = "API de Conversões do Meta (LeadQualificado)";
+  const tick = await lerConfigValor(supabase, "meta_capi_last_tick_at");
+  if (typeof tick.at !== "string" || tick.configurado !== true) {
+    if (tick.ja_configurado === true) {
+      return {
+        id,
+        titulo,
+        status: "critico",
+        resumo: "API de Conversões PERDEU a configuração (Pixel/token sumiram da CF meta-capi).",
+        detalhes: ["Recoloque META_PIXEL_ID + META_CAPI_TOKEN na CF meta-capi (--update-env-vars)."],
+      };
+    }
+    return {
+      id,
+      titulo,
+      status: "info",
+      resumo: "API de Conversões não configurada (Pixel/token pendentes) — check pulado.",
+      detalhes: ["Config manual na CF meta-capi: META_PIXEL_ID + META_CAPI_TOKEN (e META_TEST_EVENT_CODE para validar)."],
+    };
+  }
+  const horas = Math.floor((Date.now() - new Date(tick.at).getTime()) / 3_600_000);
+  if (!Number.isFinite(horas) || horas > META_CAPI_TICK_MAX_HORAS) {
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: Number.isFinite(horas)
+        ? `API de Conversões SEM TICK há ${horas}h — job meta-capi parado.`
+        : "Heartbeat da API de Conversões ILEGÍVEL (meta_capi_last_tick_at.at inválido).",
+      detalhes: [],
+    };
+  }
+  const ultimoErro = typeof tick.ultimo_erro === "string" ? tick.ultimo_erro : null;
+  if (tick.interrompido === "config") {
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: "Meta recusou a credencial/Pixel da API de Conversões — nenhum evento está saindo.",
+      detalhes: ultimoErro ? [ultimoErro] : [],
+    };
+  }
+  const desde = new Date(Date.now() - META_CAPI_JANELA_HORAS * 3_600_000).toISOString();
+  const base = () =>
+    supabase
+      .from("form_submissions")
+      .select("id", { count: "exact", head: true })
+      .in("qualification_classification", ["QUENTE", "MORNO"])
+      .is("deleted_at", null)
+      .gte("qualified_at", desde)
+      .gte("submitted_at", desde);
+  const [pend, queim] = await Promise.all([
+    base()
+      .lt("meta_capi_lq_tentativas", 5)
+      .or("meta_capi_lq_sent_at.is.null,meta_capi_lq_erro.eq.em_envio")
+      .lt("qualified_at", new Date(Date.now() - META_CAPI_PENDENTE_HORAS * 3_600_000).toISOString()),
+    base().gte("meta_capi_lq_tentativas", 5).is("meta_capi_lq_sent_at", null).not("meta_capi_lq_erro", "like", "descartado:*"),
+  ]);
+  if (pend.error) throw new Error(pend.error.message);
+  if (queim.error) throw new Error(queim.error.message);
+  const pendentes = pend.count ?? 0;
+  const queimados = queim.count ?? 0;
+  const modo = tick.teste === true ? " (modo TESTE — eventos só na aba Testar eventos)" : "";
+  const enviados = typeof tick.enviados === "number" ? tick.enviados : 0;
+  const detalhes = ["O Meta descarta evento de site com mais de 7 dias — fila travada perde o sinal."];
+  if (ultimoErro) detalhes.push(`Último erro: ${ultimoErro}`);
+  if (queimados > 0) {
+    return {
+      id,
+      titulo,
+      status: "critico",
+      resumo: `${queimados} lead(s) recusado(s) 5x pelo Meta — o evento deles não vai sair.`,
+      detalhes,
+    };
+  }
+  return {
+    id,
+    titulo,
+    status: pendentes > 0 ? "atencao" : "ok",
+    resumo:
+      pendentes > 0
+        ? `${pendentes} lead(s) QUENTE/MORNO há ${META_CAPI_PENDENTE_HORAS}h+ sem LeadQualificado no Meta${modo}.`
+        : `API de Conversões viva (último tick há ${horas}h, ${enviados} enviado(s) no tick)${modo}.`,
+    detalhes,
   };
 }
 
@@ -1620,6 +1717,7 @@ export async function runChecksGeral(): Promise<ObservabilidadeGeral> {
     seguro("regua_cobranca", "Régua de cobrança", () => checkReguaCobranca(supabase)),
     seguro("experiencia_nps", "NPS pós-venda", () => checkExperienciaNps(supabase)),
     seguro("meta_frescor", "CAC Meta (frescor do sync)", () => checkMetaFrescor(supabase)),
+    seguro("meta_capi_frescor", "API de Conversões do Meta", () => checkMetaCapiFrescor(supabase)),
     seguro("ads_cpl_alvo", "Ads: CPL real × alvo dos planos", () => checkAdsCplAlvo(supabase)),
     seguro("transcricao_faltante", "Transcrições do Meet", () => checkTranscricaoFaltante(supabase)),
     seguro("runs_presos", "Engine de automações (runs presos)", () => checkRunsPresos(supabase)),

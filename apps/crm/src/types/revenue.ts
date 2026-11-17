@@ -86,7 +86,10 @@ export interface WarRoomMetrics {
   arr_brl: number;
   pipeline_total_brl: number;
   avg_ticket_brl: number;
-  conversion_rate: number;
+  /** Ganhos ÷ decididos (lib/taxa-conversao); null = sem decididos → "—". */
+  conversion_rate: number | null;
+  /** Base da taxa em texto ("8 ganhos de 20 decididos"). */
+  conversion_base: string;
   active_families: number;
   at_risk_families: number;
   nps_average: number;

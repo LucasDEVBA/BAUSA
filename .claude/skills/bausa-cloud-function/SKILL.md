@@ -7,7 +7,7 @@ description: Use ao criar ou editar qualquer Google Cloud Function em functions/
 
 ## Contexto
 
-Todas as funções: **Gen2, Node.js 20, us-central1, 256Mi, `--allow-unauthenticated`** (org policy obriga). Trigger HTTP (schedulers são acionados por Cloud Scheduler chamando a URL). Auth entre serviços: header `x-webhook-secret`.
+Todas as funções: **Gen2, Node.js 22, us-central1, 256Mi, `--allow-unauthenticated`** (org policy obriga). Trigger HTTP (schedulers são acionados por Cloud Scheduler chamando a URL). Auth entre serviços: header `x-webhook-secret`.
 
 JS puro (não TypeScript). Validar SEMPRE com `node --check index.js` antes de commit — não há `tsc` para pegar erros.
 
@@ -89,7 +89,7 @@ Para adicionar função NOVA, editar **ambos** os workflows `.github/workflows/d
 3. Cron: adicionar job em `infra/scheduler.sh` (aceita prd/uat/dev) com `--time-zone="America/Sao_Paulo"`
 4. Secrets: via GitHub Secrets + `--update-env-vars` no deploy. **NUNCA `--set-env-vars`** (apaga as existentes). Versões `_UAT` e `_DEV` dos secrets.
 
-Emergência PRD (só se CI indisponível): `gcloud functions deploy <name> --gen2 --runtime=nodejs20 --region=us-central1 --source=functions/<pasta> --entry-point=<entry> --trigger-http --allow-unauthenticated --timeout=<t> --memory=256Mi --update-env-vars KEY=VAL --project=elite-portal-forms`
+Emergência PRD (só se CI indisponível): `gcloud functions deploy <name> --gen2 --runtime=nodejs22 --region=us-central1 --source=functions/<pasta> --entry-point=<entry> --trigger-http --allow-unauthenticated --timeout=<t> --memory=256Mi --update-env-vars KEY=VAL --project=elite-portal-forms`
 
 ## Validação antes de commit
 ```bash

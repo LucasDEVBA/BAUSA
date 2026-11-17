@@ -9,6 +9,16 @@ import { createBrowserClient } from "@/lib/supabase-browser";
 import { AuthShell } from "@/components/auth/AuthShell";
 
 const BAU_GRADIENT = "linear-gradient(150deg, var(--bau-burgundy) 0%, var(--bau-blue) 100%)";
+const DESTINO_PADRAO = "/war-room";
+// Só o consentimento do conector do Claude volta para onde estava (o
+// middleware só põe `next` nele); qualquer outro valor cai no padrão.
+const PREFIXOS_NEXT_PERMITIDOS = ["/oauth/consent"];
+
+function destinoAposLogin(): string {
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return DESTINO_PADRAO;
+  return PREFIXOS_NEXT_PERMITIDOS.some((p) => next.startsWith(p)) ? next : DESTINO_PADRAO;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,7 +48,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/war-room");
+      router.push(destinoAposLogin());
       router.refresh();
     } catch {
       setError("Erro inesperado. Tente novamente.");

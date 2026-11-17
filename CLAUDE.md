@@ -42,7 +42,7 @@ As **skills do Claude Code** em `.claude/skills/` são carregadas automaticament
 | Formulários | React Hook Form + Zod |
 | Estado servidor | TanStack Query |
 | BaaS | Supabase (PostgreSQL + RLS + Webhooks) |
-| Backend | Google Cloud Functions Gen2 (Node.js 20) |
+| Backend | Google Cloud Functions Gen2 (Node.js 22) |
 | IA | Google Gemini 2.5 Flash |
 | WhatsApp | Z-API |
 | E-mail | Resend (primário) + Brevo (fallback) |
@@ -107,7 +107,7 @@ deploy manual         auto-deploy       aprovação manual
 
 ## Arquitetura: Cloud Functions
 
-Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--allow-unauthenticated** (org policy obriga).
+Todas as funções: **Gen2**, **Node.js 22**, **us-central1**, **256Mi**, **--allow-unauthenticated** (org policy obriga).
 
 | Pasta local | Nome PRD | Nome UAT | Trigger | Responsabilidade |
 |-------------|----------|----------|---------|-----------------|
@@ -124,6 +124,7 @@ Todas as funções: **Gen2**, **Node.js 20**, **us-central1**, **256Mi**, **--al
 | `functions/automation-engine/` | `automation-engine` | `automation-engine-uat` | Cloud Scheduler (1x/hora, min 30) | Engine das automações do BAU Engine (`/automacoes`): materializa gatilhos de tempo + executa runs (tarefa/notificação/WhatsApp/deal/IA) com CAS e retry. Ação `ia_prompt` (Gemini resiliente, teto 10/tick, resultado SÓ interno — notificação/tarefa) requer `GEMINI_API_KEY` (config manual). Guards CI: `tests/automation-engine-eligibility.test.js` + `tests/automation-engine-ia.test.js` |
 | `functions/meeting-transcripts/` | `meeting-transcripts` | `meeting-transcripts-uat` | Cloud Scheduler (a cada 2h, min 15) | Captura a transcrição nativa do Google Meet: acha o Doc anexado ao evento do Calendar (`deals.google_calendar_event_id`), exporta via Drive API (`drive.readonly`), resume via Gemini (opcional) e grava em `reunioes_transcricoes` (idempotente por `UNIQUE(google_event_id)`). Exibida no detalhe do lead/deal no Engine |
 | `functions/sync-meta-spend/` | `sync-meta-spend` | `sync-meta-spend-uat` | Cloud Scheduler (diário 06:00 BRT) | Ingestão do gasto de Meta Ads (Marketing API, `level=campaign` + `time_increment=1`, com paginação). Grava **detalhe por campanha/dia** em `meta_ads_campanha` (UNIQUE data,campanha_id) + **rollup mensal** em `investimentos_marketing` (canal=meta, source=meta_api) — fonte única dos TOTAIS do CAC/DRE. `campanha_id` cruza com `form_submissions.utm_id` p/ ROI exato. Env vars: `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`, `META_GRAPH_VERSION`, `META_SYNC_MESES`, `SUPABASE_*`. **Config manual** (credenciais Meta não estão em secrets). Assume conta BRL. |
+| `functions/meta-capi/` | `meta-capi` | `meta-capi-uat` | Cloud Scheduler (a cada 30 min, min 10/40) | **API de Conversões do Meta**: manda o evento `LeadQualificado` ao Pixel para cada cadastro **QUENTE/MORNO** qualificado nos últimos ~7 dias (o Meta recusa evento de site mais velho). Valor QUENTE=300 / MORNO=100 BRL. CAS em `form_submissions.meta_capi_lq_sent_at` (marca antes de enviar; falha volta à fila, teto 5 tentativas em `meta_capi_lq_tentativas`), dedup no Meta por `event_id=lq_<id>`. **Só dados do RESPONSÁVEL** (e-mail/telefone/nome/cidade/UF/CEP/país com SHA-256 + `_fbp`/`_fbc`/IP/navegador sem hash) — **nunca do atleta (menor)**. Sinais capturados no envio do form (`meta_fbp`, `meta_fbc`, `ip_address` via `/api/client-context`). **Duas travas:** sem `META_PIXEL_ID`+`META_CAPI_TOKEN` não envia nada (heartbeat `configurado=false`); fora de PRD só envia com `META_TEST_EVENT_CODE`. Heartbeat `meta_capi_last_tick_at` + check `meta_capi_frescor`. `{dry_run:true}` monta sem enviar. Guard CI: `tests/meta-capi-invariants.test.js`. **Config manual** (token gerado no Gerenciador de Eventos). |
 | `functions/billing-reminders/` | `billing-reminders` | `billing-reminders-uat` | Cloud Scheduler (diário 09:00 BRT) | Régua de cobrança (D-3 a D+15) sobre `parcelas` previsto/atrasado de contrato ativo. 1 marco por parcela/tick, CAS por coluna `regua_<marco>_at` (idempotente). **NÃO é outreach de lead** — não usa classe Gemini; elegibilidade = parcela em aberto + contrato ativo + marco não enviado. Texto editável em `regua_mensagens`. Envia via `send-whatsapp` (custom) + `send-messages` (customEmail); notifica CEO no D+7/D+15. Guard CI: `tests/billing-reminders-invariants.test.js`. **Nasce pausada.** |
 | `functions/calendar-lead-events/` | `calendar-lead-events` | `calendar-lead-events-uat` | HTTP POST (Engine, `x-webhook-secret` obrigatório) | **Read-only** (`calendar.readonly`): lista os eventos do Calendar do CEO que casam com UM lead (attendee por e-mail OU telefone tail-10 na descrição — mesmo matching do `calendar-webhook`), janela −180d/+120d, flag `temTranscricaoAnexada`. Usado pela UI de **relink** da aba Reunião (`reunioes-relink.ts`): CEO enxerga todas as reuniões do lead e religa o deal ao evento correto pós-remarcação. Env vars Google = **config manual pós-1º deploy** (copiar da `calendar-webhook`). Engine: `CALENDAR_LEAD_EVENTS_URL` no Vercel. |
 | `functions/fluxo-engine/` | `fluxo-engine` | `fluxo-engine-uat` | HTTP POST (borda: `zapi-inbox`/`instagram-webhook`) + Cloud Scheduler (1x/hora) | Motor dos **Fluxos** (`/fluxos` — o "ManyChat próprio"). Canal-agnóstico: o mesmo fluxo roda WhatsApp e Instagram. Casa o gatilho, cria/retoma execução com CAS (`lock_until` + `UNIQUE(fluxo_id, contato_id, dedupe_key)`), executa a cadeia de blocos e grava tudo em `fluxo_eventos` (fonte única das métricas). **Duas travas independentes de envio:** (1) `CANAIS_ENVIO` derivado da presença das env vars — sem `INSTAGRAM_TOKEN` o canal IG não envia; (2) gate `fluxos_escopo` em `configuracoes_sistema` (`desligado`/`lista`/`global`), **fail-closed** — erro de leitura = desligado. Guard CI: `tests/fluxo-engine-invariants.test.js` |
@@ -405,7 +406,7 @@ bash infra/scheduler.sh dev   # DEV (testes)
 
 # Deploy manual de emergência — Cloud Function PRD
 gcloud functions deploy lead-qualifier \
-  --gen2 --runtime=nodejs20 --region=us-central1 \
+  --gen2 --runtime=nodejs22 --region=us-central1 \
   --source=functions/qualify-lead \
   --entry-point=qualifyLead \
   --trigger-http --allow-unauthenticated \
@@ -451,6 +452,8 @@ Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test
 
 **IMPORTANTE:** Usar `--update-env-vars` (nunca `--set-env-vars`) para não sobrescrever variáveis existentes na função.
 
+> **Infra de deploy (17/11/2026):** o GCF Gen2 aposentou o `nodejs20` (todo deploy falhava com "nodejs20 is not a supported runtime") → workflows em `--runtime=nodejs22`; funções já no ar seguem rodando até o próximo deploy. O Supabase CLI fica **fixado em 2.122.1** nos workflows: a v3 passou a mirar o banco local por padrão e o `db push` quebrou. Subir de versão só de propósito.
+
 ---
 
 ## Variáveis de Ambiente — Referência Rápida
@@ -480,6 +483,7 @@ Job CI **`Scheduler Eligibility Invariants`** (`tests/scheduler-eligibility.test
 - `CEO_WHATSAPP` — calendar-webhook (notificação ao CEO)
 - `CALENDAR_WEBHOOK_URL` — renew-calendar-watch (URL do webhook para registrar no Google)
 - `FLUXO_ENGINE_URL` — zapi-inbox, instagram-webhook (borda → motor de fluxos)
+- `META_PIXEL_ID` + `META_CAPI_TOKEN` (+ `META_TEST_EVENT_CODE` para validar, `META_GRAPH_VERSION` opcional) — meta-capi. **Config manual.** O token é o da API de Conversões gerado no Gerenciador de Eventos (Pixel → Configurações), **diferente** do `META_ACCESS_TOKEN` (ads_read) do sync-meta-spend. Em UAT o `META_TEST_EVENT_CODE` é obrigatório (sem ele a CF recusa enviar).
 - `INSTAGRAM_TOKEN` + `INSTAGRAM_APP_SECRET` + `IG_USER_ID` + `INSTAGRAM_VERIFY_TOKEN` — instagram-webhook, fluxo-engine. **Config manual** (dependem do App Review + geração de token no console da Meta). **Ausentes = canal IG não envia** — é o gate de canal, não um bug.
   - `IG_USER_ID` aceita **lista separada por vírgula** e deve conter os **dois** ids da conta: o profissional (`user_id`, ex. `17841453972885804`) e o de escopo de app (`id`, ex. `28151758617769310`). Pegue os dois de uma vez: `GET graph.instagram.com/v23.0/me?fields=id,user_id`. A doc da Meta se contradiz sobre qual chega em `entry.id` — por isso aceitamos os dois.
   - ⚠️ **Sem `IG_USER_ID` o webhook descarta todo evento** (fail-closed do anti-loop, log `ig_user_id_ausente`). É proposital: sem saber quem somos, qualquer evento pode ser o eco da nossa própria mensagem e a conta passa a conversar sozinha. Mas **é config obrigatória em PRD** — o CI não injeta essa env var.
@@ -762,6 +766,22 @@ mandaria — tem de sair limpa). `01` (backfill de `entrada_paga`) só se o `02`
 ### Configuração externa CRM — Deploy pendente
 - [ ] Deploy qualify-lead com auto-promoção (nova versão com autoPromoteToCRM)
 - [ ] Deploy process-followup-whatsapp com atualização de deals
+
+### API de Conversões do Meta (meta-capi) — Config pendente
+- [ ] CEO: Gerenciador de Eventos → Pixel `1521863919289394` → Configurações → API de Conversões → **Gerar token**; aba **Testar eventos** → copiar o código de teste. Salvar em arquivo local (padrão `~/bausa-meta-creds.txt`), nunca no chat
+- [ ] Env vars em `meta-capi-uat` (pós-1º deploy; o workflow só injeta `WEBHOOK_SECRET` + `SUPABASE_SCHEMA`): `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` (copiar da `sync-meta-spend-uat`), `META_PIXEL_ID`, `META_CAPI_TOKEN`, `META_TEST_EVENT_CODE` → `bash infra/scheduler.sh uat` → conferir o evento na aba Testar eventos. Sem as `SUPABASE_*` a CF responde 500 — por isso o job só nasce junto com a config
+- [ ] PRD: mesmas env vars em `meta-capi` **com** `META_TEST_EVENT_CODE` primeiro (valida com lead real) → remover o código de teste (`--remove-env-vars`) → `bash infra/scheduler.sh prd`
+- [ ] Depois de ~1 semana de eventos: Conversão personalizada "Lead Qualificado BAU" (evento `LeadQualificado`) + checar nota de correspondência (≥ 6). Volume atual ~16 QUENTE/MORNO/semana (abaixo dos ~50 do aprendizado) — usar também como público semelhante
+- [ ] Próximo nível (não feito): eventos `ReuniaoRealizada` e `ContratoAssinado`
+
+### Conector do Claude (MCP do Engine) — Config pendente
+O Engine expõe um servidor MCP remoto em `/api/mcp` (só leitura: `buscar_leads`, `dossie_lead`, `resumo_pipeline`, `funil_periodo`, `fila_aprovacao`). O Claude autentica pelo **servidor OAuth 2.1 do próprio Supabase Auth** (registro dinâmico + PKCE): o token é do usuário do Engine, então o **RLS vale** como nas telas. Só **CEO/CTO ativos** passam; o consentimento (`/oauth/consent`) só aprova destino oficial do Claude (claude.ai/claude.com ou loopback do Claude Code) — com registro dinâmico qualquer app pode pedir, a allowlist barra phishing. Guard: `tests/mcp-engine-invariants.test.js`.
+- [ ] Supabase (CEO): **Authentication → OAuth Server** → ligar o servidor OAuth 2.1 + **Allow Dynamic OAuth Apps** + Authorization path **`/oauth/consent`** (o Site URL já é o Engine em PRD). Hoje a descoberta responde `feature_disabled`
+- [ ] Só funciona em PRD (o Site URL aponta para o Engine de produção) → depois do "vai pra prod"
+- [ ] claude.ai → Configurações → **Conectores → Adicionar conector personalizado** → URL `https://bolsa-atleta-crm.vercel.app/api/mcp` → entrar com a conta do Engine → **Permitir acesso**. Claude Code: `claude mcp add --transport http bausa https://bolsa-atleta-crm.vercel.app/api/mcp`
+- [ ] Revisar de tempos em tempos os apps registrados em Authentication → OAuth Apps (o registro dinâmico cria um por conexão)
+- [ ] Recomendado: Authentication → Sessions → limitar a duração da sessão (o refresh token do conector não expira por padrão)
+- **Defesa em profundidade:** o token do conector é um JWT do CEO e funcionaria direto no PostgREST. A migration `20261117193521` põe policy **RESTRICTIVE** em todas as tabelas com RLS de `public`: JWT com `client_id` não faz INSERT/UPDATE/DELETE (provado em Postgres local). **Tabela nova:** chamar `SELECT public.conector_somente_leitura_aplicar();` no fim da migration (o guard cobra). **Limites:** RPCs `SECURITY DEFINER` rodam como dono (não passam pelo RLS) e Storage não está coberto
 
 ### Transcrição do Meet (meeting-transcripts) — Config pendente
 - [ ] Env vars da CF `meeting-transcripts` (por ambiente): `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SCHEMA`, `SERVICE_ACCOUNT_EMAIL`, `SERVICE_ACCOUNT_PRIVATE_KEY`, `GOOGLE_CALENDAR_ID`, `GEMINI_API_KEY` (opcional — habilita o resumo)
