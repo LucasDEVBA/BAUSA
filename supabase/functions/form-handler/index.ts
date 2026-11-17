@@ -31,6 +31,8 @@ const CAMPOS_PERMITIDOS = new Set([
   'user_agent', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
   'utm_id', 'referrer_url', 'landing_url', 'session_id', 'cta_source', 'device_type',
   'form_started_at',
+  // Sinais da API de Conversões do Meta (dados do cliente, como user_agent)
+  'ip_address', 'meta_fbp', 'meta_fbc',
 ])
 
 // Mesmas mensagens (PT) do front e do trigger do banco, por motivo da RPC.

@@ -217,6 +217,7 @@ jobs:
           - send-remarketing
           - remarketing-unsubscribe
           - sync-meta-spend
+          - meta-capi
           - automation-engine
           - meeting-transcripts
           - billing-reminders

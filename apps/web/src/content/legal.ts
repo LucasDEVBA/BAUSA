@@ -46,7 +46,7 @@ const CONTATO = "contato@bolsaatletausa.com";
 export const PRIVACIDADE: Record<LocaleLegal, DocumentoLegal> = {
   pt: {
     titulo: "Política de Privacidade",
-    atualizadoEm: "Atualizada em 15 de agosto de 2026",
+    atualizadoEm: "Atualizada em 17 de novembro de 2026",
     intro: [
       `Esta política explica quais dados a ${EMPRESA_PT} coleta, por que coleta, com quem compartilha e o que você pode exigir a respeito.`,
       "Escrevemos em linguagem direta de propósito. Se algo aqui não estiver claro, escreva para " +
@@ -100,6 +100,7 @@ export const PRIVACIDADE: Record<LocaleLegal, DocumentoLegal> = {
           "Resend e Brevo — envio dos e-mails transacionais.",
           "Google Gemini — a triagem e os resumos descritos no item 3.",
           "Google Analytics, Google Tag Manager e Meta Pixel — medição de audiência e desempenho de campanhas.",
+          "Meta (API de Conversões) — quando o cadastro é qualificado, enviamos à Meta o e-mail, o telefone, o nome, a cidade, o estado, o CEP e o país do responsável, além de um identificador interno do cadastro, todos pseudonimizados por hash (SHA-256), junto com identificadores do navegador usado no cadastro (cookies do Pixel, endereço IP e tipo de navegador), para medir e otimizar as nossas próprias campanhas. Nome, data de nascimento, telefone e e-mail do atleta não são enviados.",
         ],
       },
       {
@@ -162,7 +163,7 @@ export const PRIVACIDADE: Record<LocaleLegal, DocumentoLegal> = {
 
   en: {
     titulo: "Privacy Policy",
-    atualizadoEm: "Last updated on August 15, 2026",
+    atualizadoEm: "Last updated on November 17, 2026",
     intro: [
       `This policy explains what data ${EMPRESA_EN} collects, why we collect it, who we share it with, and what you can require from us.`,
       `We wrote it in plain language on purpose. If anything is unclear, write to ${CONTATO} and we will explain.`,
@@ -215,6 +216,7 @@ export const PRIVACIDADE: Record<LocaleLegal, DocumentoLegal> = {
           "Resend and Brevo — sending transactional e-mails.",
           "Google Gemini — the assessment and summaries described in item 3.",
           "Google Analytics, Google Tag Manager and Meta Pixel — audience measurement and campaign performance.",
+          "Meta (Conversions API) — when a submission is qualified, we send Meta the guardian's email, phone number, name, city, state, postal code and country, plus an internal submission identifier, all pseudonymized with a SHA-256 hash, together with identifiers of the browser used to submit the form (Pixel cookies, IP address and browser type), to measure and optimize our own campaigns. The athlete's name, date of birth, phone number and email are not sent.",
         ],
       },
       {
@@ -275,7 +277,7 @@ export const PRIVACIDADE: Record<LocaleLegal, DocumentoLegal> = {
 
   es: {
     titulo: "Política de Privacidad",
-    atualizadoEm: "Actualizada el 15 de agosto de 2026",
+    atualizadoEm: "Actualizada el 17 de noviembre de 2026",
     intro: [
       `Esta política explica qué datos recopila ${EMPRESA_ES}, por qué los recopila, con quién los comparte y qué puede exigir usted al respecto.`,
       `La escribimos en lenguaje directo a propósito. Si algo no queda claro, escriba a ${CONTATO} y se lo explicamos.`,
@@ -328,6 +330,7 @@ export const PRIVACIDADE: Record<LocaleLegal, DocumentoLegal> = {
           "Resend y Brevo — envío de los correos transaccionales.",
           "Google Gemini — la evaluación y los resúmenes descritos en el punto 3.",
           "Google Analytics, Google Tag Manager y Meta Pixel — medición de audiencia y desempeño de campañas.",
+          "Meta (API de Conversiones) — cuando el registro es calificado, enviamos a Meta el correo electrónico, el teléfono, el nombre, la ciudad, el estado, el código postal y el país del responsable, además de un identificador interno del registro, todos seudonimizados con hash (SHA-256), junto con identificadores del navegador usado en el registro (cookies del Píxel, dirección IP y tipo de navegador), para medir y optimizar nuestras propias campañas. No se envían el nombre, la fecha de nacimiento, el teléfono ni el correo del atleta.",
         ],
       },
       {
