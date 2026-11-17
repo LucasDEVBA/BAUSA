@@ -14,6 +14,7 @@ const https = require('https');
 //   regua_cobranca       — parcela atrasada sem nenhum marco da régua
 //   experiencia_nps      — NPS elegível sem envio além do prazo
 //   meta_frescor         — heartbeat do sync Meta parado (não é idade do gasto)
+//   meta_capi_frescor    — API de Conversões parada ou com fila travada
 //   transcricao_faltante — reunião realizada sem transcrição capturada
 //   runs_presos          — runs pendentes/retry vencido (engine parada)
 // Alertas: WhatsApp (Z-API) + notificação in-app + E-MAIL (Resend→Brevo, canal
@@ -67,6 +68,12 @@ const REMARKETING_PRESA_HORAS = 2;
 const REGUA_FOLGA_DIAS = 2;
 const NPS_PRAZO_DIAS = 181;        // 180d de jornada + 24h de folga
 const META_TICK_MAX_HORAS = 26; // job diário 06h BRT + folga (padrão billing)
+// API de Conversões (meta-capi, job a cada 30 min): 3h sem tick = job parado;
+// lead QUENTE/MORNO qualificado há 2h+ e ainda não enviado = fila travada
+// (token inválido, Pixel errado) — o Meta descarta evento com mais de 7 dias.
+const META_CAPI_TICK_MAX_HORAS = 3;
+const META_CAPI_PENDENTE_HORAS = 2;
+const META_CAPI_JANELA_HORAS = 7 * 24 - 12;
 const TRANSCRICAO_FOLGA_HORAS = 24;
 const RUNS_PRESOS_HORAS = 2;       // engine roda 1x/h — 2h sem consumir = parada
 // Sinais criados na F2 (fluxos que antes não deixavam rastro)
@@ -989,6 +996,49 @@ const runChecks = async () => {
         ok: horas <= META_TICK_MAX_HORAS,
         valor: horas,
         detalhe: `último sync Meta há ${horas}h${horas > META_TICK_MAX_HORAS ? ' — job parado ou token inválido (CAC/DRE congelados)' : ''}`,
+      };
+    }),
+
+    // ── API de Conversões do Meta (meta-capi): heartbeat + fila ──
+    // Pulado enquanto a CAPI nunca foi configurada. Falha quando: a config
+    // SUMIU depois de ativa; o job parou; o Meta recusou credencial/Pixel; há
+    // lead esperando 2h+; ou há lead QUEIMADO (5 recusas do Meta — fora os
+    // descartes permanentes 'descartado:'). O Meta descarta evento de 7d+.
+    checkSeguro('meta_capi_frescor', async () => {
+      const tick = await lerConfig('meta_capi_last_tick_at');
+      if (!tick.at || tick.configurado !== true) {
+        if (tick.ja_configurado === true) {
+          return { ok: false, valor: 0, detalhe: 'API de Conversões PERDEU a configuração (Pixel/token sumiram da CF meta-capi)' };
+        }
+        return { ok: true, valor: 0, detalhe: 'API de Conversões não configurada (Pixel/token pendentes) — check pulado' };
+      }
+      const horas = Math.floor((Date.now() - Date.parse(tick.at)) / 3600000);
+      if (!(horas <= META_CAPI_TICK_MAX_HORAS)) {
+        return { ok: false, valor: horas, detalhe: `último tick da API de Conversões há ${horas}h — job meta-capi parado` };
+      }
+      if (tick.interrompido === 'config') {
+        return { ok: false, valor: 1, detalhe: `Meta recusou a credencial/Pixel da API de Conversões: ${String(tick.ultimo_erro || '').slice(0, 160)}` };
+      }
+      const janela = (col) => `&${col}=gte.${encodeURIComponent(isoAtras(META_CAPI_JANELA_HORAS))}`;
+      const base =
+        `form_submissions?select=id&qualification_classification=in.(QUENTE,MORNO)&deleted_at=is.null` +
+        janela('qualified_at') + janela('submitted_at');
+      const [pendentes, queimados] = await Promise.all([
+        contar(
+          `${base}&meta_capi_lq_tentativas=lt.5` +
+            `&or=(meta_capi_lq_sent_at.is.null,meta_capi_lq_erro.eq.em_envio)` +
+            `&qualified_at=lt.${encodeURIComponent(isoAtras(META_CAPI_PENDENTE_HORAS))}`,
+        ),
+        contar(`${base}&meta_capi_lq_tentativas=gte.5&meta_capi_lq_sent_at=is.null&meta_capi_lq_erro=not.like.descartado:*`),
+      ]);
+      const modoTeste = tick.teste === true ? ' (modo TESTE ligado — tire o META_TEST_EVENT_CODE)' : '';
+      return {
+        ok: pendentes === 0 && queimados === 0,
+        valor: pendentes + queimados,
+        detalhe:
+          `${pendentes} lead(s) QUENTE/MORNO há ${META_CAPI_PENDENTE_HORAS}h+ sem LeadQualificado` +
+          (queimados > 0 ? ` · ${queimados} recusado(s) 5x pelo Meta` : '') +
+          modoTeste,
       };
     }),
 
