@@ -13,6 +13,7 @@ import { ETAPAS_POS_PROPOSTA, etapasGanho, mergeDealStageConfig } from "@/lib/et
 import { hojeIsoUtc, isAcaoAtrasadaDaEtapa, isAcaoDeOutraEtapa } from "@/lib/proxima-acao";
 import { paginaRevisaoDe } from "@/lib/revisao-leads";
 import { buscarTodasAsPaginas } from "@/lib/supabase-paginacao";
+import { calcularTaxaConversao, descreverBaseConversao } from "@/lib/taxa-conversao";
 import {
   CHAVE_CONFIG_PLANOS,
   EMBED_CONTRATO_VALOR,
@@ -395,9 +396,6 @@ export default async function PipelinePage() {
     (d) => d.stage !== "concluido" && d.stage !== "perdido"
   );
   const totalPipelineBrl = activeDeals.reduce((sum, d) => sum + d.deal_value_brl, 0);
-  const concluidos = deals.filter((d) => d.stage === "concluido").length;
-  const totalFinalizados = concluidos + deals.filter((d) => d.stage === "perdido").length;
-  const conversionRate = totalFinalizados > 0 ? Math.round((concluidos / totalFinalizados) * 100) : 0;
 
   // Previsao 30 dias: etapa >= proposta_enviada (pós-proposta + ganho ativo)
   const advancedStages: DealStage[] = [
@@ -416,7 +414,9 @@ export default async function PipelinePage() {
   const ganhoBrl = deals
     .filter((d) => d.stage === "concluido")
     .reduce((sum, d) => sum + d.deal_value_brl, 0);
+  // `deals` já exclui perdido por timing (filtro acima) — base certa da taxa.
   const perdidos = deals.filter((d) => d.stage === "perdido").length;
+  const conversao = calcularTaxaConversao(contratosAssinados, perdidos);
   const leadsNovos = deals.filter((d) => d.stage === "lead").length;
   // T21: só ação da etapa ATUAL (ou manual) vencida — a herdada de etapa
   // anterior não é atraso desta coluna (mesma regra do card/Visão Executiva).
@@ -443,7 +443,8 @@ export default async function PipelinePage() {
         metrics={{
           totalPipelineBrl,
           activeCount: activeDeals.length,
-          conversionRate,
+          conversionRate: conversao.taxa,
+          conversionBase: descreverBaseConversao(conversao),
           forecast30dBrl,
           reunioesMarcadas,
           ticketMedioBrl,

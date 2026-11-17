@@ -23,6 +23,7 @@ import {
 } from "@/lib/etapas-deal";
 import { etapaDaAcao, hojeIsoUtc, isAcaoAtrasadaDaEtapa, isAcaoDeOutraEtapa } from "@/lib/proxima-acao";
 import { EMBED_CONTRATO_VALOR_LEVE, valorExibidoDeal } from "@/lib/valor-deal";
+import { calcularTaxaConversao, descreverBaseConversao, type TaxaConversao } from "@/lib/taxa-conversao";
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -108,13 +109,38 @@ export async function fetchDealsConcluidos() {
   return count || 0;
 }
 
-export async function fetchDealsTotal() {
+/**
+ * Taxa de conversão comercial do War Room — MESMA regra do /pipeline
+ * (`lib/taxa-conversao`): ganhos (etapas de ganho) ÷ decididos (ganhos +
+ * perdidos que NÃO são por timing). Erro de leitura = taxa null ("—"),
+ * nunca um 0% enganoso.
+ */
+export async function fetchTaxaConversaoComercial(): Promise<TaxaConversao> {
   const supabase = await createServerSupabaseClient();
-  const { count } = await supabase
-    .from("deals")
-    .select("*", { count: "exact", head: true })
-    .is("deleted_at", null);
-  return count || 0;
+  const etapasGanho = await getEtapasGanho();
+  const contarGanhos = async (): Promise<{ count: number | null; error: { message: string } | null }> => {
+    if (etapasGanho.length === 0) return { count: 0, error: null };
+    return supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .in("etapa", etapasGanho);
+  };
+  const [ganhos, perdidos] = await Promise.all([
+    contarGanhos(),
+    supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .eq("etapa", "perdido")
+      .or("motivo_perda.is.null,motivo_perda.neq.timing"),
+  ]);
+  const erro = ganhos.error ?? perdidos.error;
+  if (erro) {
+    console.error({ level: "error", action: "war_room_taxa_conversao", message: erro.message });
+    return { taxa: null, ganhos: 0, decididos: 0 };
+  }
+  return calcularTaxaConversao(ganhos.count ?? 0, perdidos.count ?? 0);
 }
 
 export async function fetchMetaMensal(): Promise<number> {
@@ -175,18 +201,17 @@ export async function fetchWarRoomMetrics(): Promise<WarRoomMetrics> {
     receitaMes,
     dealsAtivos,
     dealsConcluidos,
-    dealsTotal,
+    conversao,
     expStats,
   ] = await Promise.all([
     fetchReceitaRecebidaMes(),
     fetchDealsAtivos(),
     fetchDealsConcluidos(),
-    fetchDealsTotal(),
+    fetchTaxaConversaoComercial(),
     fetchExperienciaStats(),
   ]);
 
   const pipelineTotal = dealsAtivos.reduce((s, d) => s + d.valor, 0);
-  const taxaConversao = dealsTotal > 0 ? Math.round((dealsConcluidos / dealsTotal) * 100) : 0;
   const avgTicket = dealsConcluidos > 0 ? Math.round(pipelineTotal / dealsAtivos.length) : 0;
   const expTotal = expStats.length;
   const expCrise = expStats.filter((e) => e.status === "crise").length;
@@ -259,7 +284,8 @@ export async function fetchWarRoomMetrics(): Promise<WarRoomMetrics> {
     arr_brl: receitaMes * 12,
     pipeline_total_brl: pipelineTotal,
     avg_ticket_brl: avgTicket,
-    conversion_rate: taxaConversao,
+    conversion_rate: conversao.taxa,
+    conversion_base: descreverBaseConversao(conversao),
     active_families: expTotal,
     at_risk_families: expCrise,
     nps_average: npsAverage,
@@ -771,14 +797,13 @@ export async function fetchBottlenecks(): Promise<Bottleneck[]> {
     });
   }
 
-  // Low conversion rate check
-  const [concluidos, totalDeals] = await Promise.all([fetchDealsConcluidos(), fetchDealsTotal()]);
-  const taxa = totalDeals > 0 ? (concluidos / totalDeals) * 100 : 0;
-  if (taxa < 40 && totalDeals > 5) {
+  // Low conversion rate check — mesma regra do card (ganhos ÷ decididos).
+  const conversao = await fetchTaxaConversaoComercial();
+  if (conversao.taxa !== null && conversao.taxa < 40 && conversao.decididos > 5) {
     bottlenecks.push({
       id: "b-conversao",
       title: "Taxa de conversao abaixo do target",
-      description: `Conversao atual de ${Math.round(taxa)}% contra target de 40%.`,
+      description: `Conversao atual de ${conversao.taxa}% (${descreverBaseConversao(conversao)}) contra target de 40%.`,
       impact: "alto",
       suggestion: "Revisar o roteiro de reuniao e incluir cases de sucesso.",
     });

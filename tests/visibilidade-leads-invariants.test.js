@@ -373,3 +373,34 @@ test('CSV: datas no fuso de Brasília', () => {
   assert.match(buscaSrc, /toLocaleDateString\("pt-BR", \{ timeZone: "America\/Sao_Paulo" \}\)/,
     'CSV gerado no servidor (UTC) troca a data de leads das 21h–24h');
 });
+
+// ─── Classificar agora (17/11/2026) ──────────────────────────────────────
+// Lead "Ainda sem classificação" na faixa não tinha como ser reprocessado: o
+// botão do War Room só vê qualification_pending=true (o órfão de webhook da
+// pane de set/2026 tinha pending=false). A action roda a qualificação de UM
+// cadastro e SÓ se ele estiver sem classe — reclassificar quem já tem classe
+// muda faixa/fluxo (isso é a requalificação em massa, com outras travas).
+test('Classificar agora: só CEO, só cadastro sem classe, resultado relido do banco', () => {
+  const retry = crm('lib', 'actions', 'qualify-retry.ts');
+  const acao = retry.slice(retry.indexOf('export async function classificarCadastroAgora'));
+  assert.ok(acao.length > 0, 'classificarCadastroAgora sumiu');
+  assert.match(acao.slice(0, 300), /getUserPapel\(\)\) !== "ceo"/, 'sem gate CEO (use server = endpoint público)');
+  assert.match(acao, /z\.uuid\(\)\.safeParse\(formSubmissionId\)/);
+  assert.match(acao, /if \(antes\.data\.qualification_classification !== null\) \{/,
+    'a action não pode reclassificar cadastro que JÁ tem classe');
+  assert.match(acao, /\.is\("deleted_at", null\)/, 'cadastro excluído não pode ser reclassificado');
+  assert.ok(acao.indexOf('qualification_classification !== null') < acao.indexOf('chamarRetryQualificacao('),
+    'a checagem da classe tem de vir ANTES da chamada à CF');
+  assert.match(acao, /\.select\("qualification_classification, qualification_pending, last_qualification_error"\)/,
+    'o resultado mostrado tem de ser relido do banco');
+  assert.ok(!/\.(update|insert|upsert|delete)\(/.test(acao), 'a action não escreve direto — quem grava é o qualify-lead');
+
+  const faixa = crm('components', 'pipeline', 'ForaDoPipelineFaixa.tsx');
+  assert.match(faixa, /\{tipo === "fora_sem_classificacao" && \(/, 'botão só para quem está sem classificação');
+  assert.match(faixa, /disabled=\{classificandoId === item\.id\}/, 'clique duplo dispararia 2 qualificações');
+  assert.match(faixa, /detalhe: detalharSemClassificacao\(c\.diagnostico\)/, 'a faixa voltou ao texto genérico sem diagnóstico');
+
+  // Diagnóstico é leitura sem PII (busca continua sem e-mail/telefone).
+  const diag = buscaSrc.slice(buscaSrc.indexOf('const CAMPOS_QUALIFICACAO'), buscaSrc.indexOf('/** Dossiê completo'));
+  assert.ok(!/email|whatsapp|phone|telefone/.test(diag), 'diagnóstico devolveria PII ao navegador');
+});

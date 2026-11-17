@@ -279,7 +279,13 @@ export default async function WarRoomPage({ searchParams }: PageProps) {
             accent={isPipelineHealthy ? "blue" : "orange"}
             context={pipelineRatio === "—" ? "meta mensal nao definida" : `${pipelineRatio}x a meta`}
           />
-          <StatCard label="Conversão" value={`${m.conversion_rate}%`} icon={BarChart2} accent="brand" />
+          <StatCard
+            label="Conversão"
+            value={m.conversion_rate === null ? "—" : `${m.conversion_rate}%`}
+            icon={BarChart2}
+            accent="brand"
+            context={m.conversion_base}
+          />
           <StatCard
             label="Famílias ativas"
             value={familyMetrics.total}

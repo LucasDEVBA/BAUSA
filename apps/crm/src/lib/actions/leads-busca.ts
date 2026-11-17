@@ -53,6 +53,17 @@ export interface CadastroEncontrado {
   deal_etapa: string | null;
   deal_motivo_perda: string | null;
   local: LocalCadastro;
+  /** Só para cadastro SEM classificação: por que travou (faixa "Fora do pipeline"). */
+  diagnostico?: DiagnosticoQualificacao;
+}
+
+/** Retrato da qualificação de um cadastro sem classe — sem PII. */
+export interface DiagnosticoQualificacao {
+  tentativas: number;
+  ultimoErro: string | null;
+  ultimaTentativaEm: string | null;
+  /** Campos que o classificador usa e que vieram vazios do formulário. */
+  camposFaltando: string[];
 }
 
 export type ResultadoBuscaCadastros =
@@ -101,9 +112,15 @@ export async function buscarCadastrosPipeline(termo: string): Promise<ResultadoB
   }
 
   const agora = Date.now();
-  const itens = ((data ?? []) as unknown as Omit<CadastroEncontrado, "local">[]).map((r) => ({
+  const linhas = (data ?? []) as unknown as Omit<CadastroEncontrado, "local" | "diagnostico">[];
+  const diagnosticos = await diagnosticarSemClasse(
+    supabase,
+    linhas.filter((r) => r.qualification_classification === null).map((r) => r.id),
+  );
+  const itens: CadastroEncontrado[] = linhas.map((r) => ({
     ...r,
     local: localizarCadastroCore(r, agora, FRIOS_REVISAO_DIAS, INCOMPLETOS_REVISAO_DIAS),
+    diagnostico: diagnosticos.get(r.id),
   }));
   // Trilha sem PII: nunca o termo (pode ser e-mail/telefone).
   console.log({
@@ -115,6 +132,59 @@ export async function buscarCadastrosPipeline(termo: string): Promise<ResultadoB
     total: count ?? itens.length,
   });
   return { success: true, itens, total: count ?? itens.length };
+}
+
+/** Campos do formulário que o classificador v2 exige (sem eles = INCOMPLETO / sem timing). */
+const CAMPOS_QUALIFICACAO: readonly { coluna: string; rotulo: string }[] = [
+  { coluna: "guardian_profession", rotulo: "profissão do responsável" },
+  { coluna: "investment_range", rotulo: "faixa de investimento" },
+  { coluna: "school_year", rotulo: "série escolar" },
+];
+const ERRO_DIAGNOSTICO_MAX = 160;
+
+type LinhaDiagnostico = {
+  id: string;
+  qualification_attempts: number | null;
+  last_qualification_error: string | null;
+  last_qualification_attempt_at: string | null;
+} & Record<string, unknown>;
+
+/**
+ * Diagnóstico dos cadastros SEM classificação (raros — no máximo os 20 da
+ * busca). Falha de leitura não derruba a busca: o item segue sem diagnóstico
+ * e a faixa mostra o texto genérico.
+ */
+async function diagnosticarSemClasse(
+  supabase: Awaited<ReturnType<typeof createAuditedSupabaseClient>>,
+  ids: string[],
+): Promise<Map<string, DiagnosticoQualificacao>> {
+  const mapa = new Map<string, DiagnosticoQualificacao>();
+  if (ids.length === 0) return mapa;
+  const colunas = [
+    "id",
+    "qualification_attempts",
+    "last_qualification_error",
+    "last_qualification_attempt_at",
+    ...CAMPOS_QUALIFICACAO.map((c) => c.coluna),
+  ].join(", ");
+  const { data, error } = await supabase.from("form_submissions").select(colunas).in("id", ids);
+  if (error) {
+    console.error({ level: "error", action: "diagnosticar_sem_classe", ids: ids.length, message: error.message });
+    return mapa;
+  }
+  for (const linha of (data ?? []) as unknown as LinhaDiagnostico[]) {
+    const erro = linha.last_qualification_error?.trim() || null;
+    mapa.set(linha.id, {
+      tentativas: linha.qualification_attempts ?? 0,
+      ultimoErro: erro && erro.length > ERRO_DIAGNOSTICO_MAX ? `${erro.slice(0, ERRO_DIAGNOSTICO_MAX)}…` : erro,
+      ultimaTentativaEm: linha.last_qualification_attempt_at,
+      camposFaltando: CAMPOS_QUALIFICACAO.filter((c) => {
+        const valor = linha[c.coluna];
+        return typeof valor !== "string" || valor.trim() === "";
+      }).map((c) => c.rotulo),
+    });
+  }
+  return mapa;
 }
 
 /** Dossiê completo de 1 cadastro (clique na tabela /leads e na faixa do Pipeline). */
