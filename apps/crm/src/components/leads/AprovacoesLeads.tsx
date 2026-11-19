@@ -110,7 +110,7 @@ function classeTone(cls: string | null): "green" | "orange" | "neutral" {
 }
 
 const TIMING_LABEL: Record<string, string> = {
-  muito_cedo: "Muito cedo — retoma em novembro",
+  muito_cedo: "Muito cedo — aprovar coloca no funil, contato manual",
   tarde_demais: "Tarde demais — vira perdido (timing)",
 };
 
@@ -974,9 +974,19 @@ export function AprovacaoLeadsModal({
                       ) : (
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <p className="text-xs text-muted-foreground lg:max-w-md">
-                            Aprovar cria atleta + deal e libera o WhatsApp automático.{" "}
-                            <span className="font-semibold text-foreground">Sem mensagem</span> aprova sem disparar nada
-                            (para quem você já conversou). Reprovar encerra: sem pipeline, sem mensagens.
+                            {selecionado.timing_status === "muito_cedo" ? (
+                              <>
+                                Lead <span className="font-semibold text-foreground">Cedo</span>: aprovar coloca no funil
+                                (coluna Lead, ou Reunião marcada se já houver reunião). Nenhuma mensagem automática sai —
+                                o contato é seu. Reprovar encerra: sem pipeline, sem mensagens.
+                              </>
+                            ) : (
+                              <>
+                                Aprovar cria atleta + deal e libera o WhatsApp automático.{" "}
+                                <span className="font-semibold text-foreground">Sem mensagem</span> aprova sem disparar
+                                nada (para quem você já conversou). Reprovar encerra: sem pipeline, sem mensagens.
+                              </>
+                            )}
                           </p>
                           <div className="flex flex-wrap items-center justify-end gap-2">
                             <Button variant="secondary" size="md" disabled={pending} onClick={() => setReprovando(true)}>
