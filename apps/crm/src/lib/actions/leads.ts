@@ -740,8 +740,10 @@ export async function listarLeadsPendentesAprovacao(): Promise<
  * o disparo automático mandava convite de reunião a quem já tinha reunião.
  *
  * Etapa final do deal:
- * - deal ativo fora de 'perdido' → mantido (muito_cedo em lead/contato_feito
- *   é estacionado em aguardando_timing — regra do CEO de 2026-09-08);
+ * - deal ativo fora de 'perdido' → mantido; muito_cedo estacionado em
+ *   aguardando_timing SAI para o funil (Lead, ou Reunião marcada com reunião)
+ *   — ordem do CEO de 2026-11-19: lead "Cedo" aprovado entra no funil como os
+ *   outros (antes ficava estacionado, regra de 2026-09-08);
  * - deal 'perdido' → reaberto: se já houve reunião no histórico, volta para
  *   a etapa anterior à perda; senão, para o ramo de timing (ou Reunião
  *   marcada, se o formulário já tem reunião detectada). tarde_demais fica
@@ -779,6 +781,10 @@ async function garantirDealAtivoNaAprovacao(
 
   const timingStatus = (fs.timing_status as string | null) ?? "ideal";
   const timingIdeal = timingStatus === "ideal";
+  // ETAPA: muito_cedo aprovado segue o caminho do ideal (Lead / Reunião
+  // marcada — ordem do CEO de 2026-11-19). MENSAGEM: continua exclusiva do
+  // timing ideal — rearmavel/semConviteInicial usam `timingIdeal`, nunca isto.
+  const etapaComoIdeal = timingIdeal || timingStatus === "muito_cedo";
   const reuniaoNoFormulario = fs.meeting_scheduled === true;
   const resultado = (
     dealId: string,
@@ -811,6 +817,13 @@ async function garantirDealAtivoNaAprovacao(
   const hoje = new Date().toISOString().split("T")[0];
   const probabilidadePorEtapa = await getProbabilidadePorEtapa();
 
+  // Lead "Cedo" aprovado: contato é manual (mensagens de timing desligadas
+  // por config) — a próxima ação já diz isso, em vez do "retomar em novembro"
+  // que o deal estacionado carregava.
+  const ACAO_CEDO_APROVADO = "Lead muito cedo aprovado — fazer o primeiro contato (manual)";
+  const comAcaoCedo = (campos: Record<string, unknown>): Record<string, unknown> =>
+    timingStatus === "muito_cedo" ? { ...campos, next_action: ACAO_CEDO_APROVADO, data_proxima_acao: hoje } : campos;
+
   const camposReuniao = (motivo: string): Record<string, unknown> => ({
     etapa: "reuniao_marcada",
     probabilidade_fechamento: probabilidadePorEtapa["reuniao_marcada"] ?? 20,
@@ -820,14 +833,11 @@ async function garantirDealAtivoNaAprovacao(
   const MOTIVO_REUNIAO_FORM = "Reunião detectada antes da aprovação — confirmar se aconteceu";
 
   // Etapa de destino para um deal sem histórico de reunião no DEAL.
-  // Reunião no formulário: ideal → Reunião marcada; muito_cedo → Lead
-  // (visível, nunca estacionado — recorte da regra de 2026-09-08).
+  // Reunião no formulário → Reunião marcada; sem reunião → Lead. Vale para
+  // ideal E muito_cedo (nunca estacionado). tarde_demais → perdido/timing.
   const camposSemHistorico = (): Record<string, unknown> => {
-    if (reuniaoNoFormulario && timingIdeal) return camposReuniao(MOTIVO_REUNIAO_FORM);
-    if (reuniaoNoFormulario && timingStatus === "muito_cedo") {
-      return dealCamposPorTiming("ideal", probabilidadePorEtapa);
-    }
-    return dealCamposPorTiming(timingStatus, probabilidadePorEtapa);
+    if (reuniaoNoFormulario && etapaComoIdeal) return camposReuniao(MOTIVO_REUNIAO_FORM);
+    return comAcaoCedo(dealCamposPorTiming(etapaComoIdeal ? "ideal" : timingStatus, probabilidadePorEtapa));
   };
 
   const visivel = ativos.find((d) => d.etapa !== "perdido");
@@ -847,10 +857,11 @@ async function garantirDealAtivoNaAprovacao(
       return { erro: null, moveu: Boolean(casRows && casRows.length > 0) };
     };
 
-    // Timing ideal com reunião e deal ainda pré-reunião (inclui o deal que o
-    // promoverLeadCore acabou de criar em 'lead' — caso Samuel Santana): o
-    // card vai para Reunião marcada. Avanço 2/3→4, sem falso retrocesso.
-    if (timingIdeal && sinalReuniao && ETAPAS_PRE_REUNIAO.includes(visivel.etapa)) {
+    // Com reunião e deal ainda pré-reunião (inclui o deal que o
+    // promoverLeadCore acabou de criar em 'lead' — caso Samuel Santana — e o
+    // muito_cedo estacionado): o card vai para Reunião marcada. Avanço, sem
+    // falso retrocesso.
+    if (etapaComoIdeal && sinalReuniao && ETAPAS_PRE_REUNIAO.includes(visivel.etapa)) {
       const r = await transicionar(
         camposReuniao(
           reuniaoNoFormulario ? MOTIVO_REUNIAO_FORM : "Reunião no histórico do deal — confirmar o próximo passo",
@@ -860,20 +871,13 @@ async function garantirDealAtivoNaAprovacao(
       if (r.erro) return { ok: false, error: `Erro ao mover deal para Reunião marcada: ${r.erro}` };
       if (r.moveu) return resultado(visivel.id, "reuniao_marcada", false, true);
     }
-    if (timingStatus === "muito_cedo") {
-      // Com reunião: visível em Lead (nunca estacionado — recorte da regra de
-      // 2026-09-08). aguardando_timing→lead é isento de retrocesso no trigger.
-      if (sinalReuniao && visivel.etapa === "aguardando_timing") {
-        const r = await transicionar(dealCamposPorTiming("ideal", probabilidadePorEtapa), ["aguardando_timing"]);
-        if (r.erro) return { ok: false, error: `Erro ao tirar deal do estacionamento: ${r.erro}` };
-        if (r.moveu) return resultado(visivel.id, "lead", false, true);
-      }
-      // Sem reunião: estacionado em aguardando_timing (não mora na coluna Lead).
-      if (!sinalReuniao && ETAPAS_REARMAVEIS.includes(visivel.etapa)) {
-        const r = await transicionar(dealCamposPorTiming("muito_cedo", probabilidadePorEtapa), ETAPAS_REARMAVEIS);
-        if (r.erro) return { ok: false, error: `Erro ao estacionar deal: ${r.erro}` };
-        if (r.moveu) return resultado(visivel.id, "aguardando_timing", false);
-      }
+    // muito_cedo estacionado (o promoverLeadCore cria em aguardando_timing —
+    // paridade com a CF) → Lead. aguardando_timing→lead é isento de
+    // retrocesso no trigger. Deal em outra etapa nunca é mexido aqui.
+    if (timingStatus === "muito_cedo" && visivel.etapa === "aguardando_timing") {
+      const r = await transicionar(comAcaoCedo(dealCamposPorTiming("ideal", probabilidadePorEtapa)), ["aguardando_timing"]);
+      if (r.erro) return { ok: false, error: `Erro ao tirar deal do estacionamento: ${r.erro}` };
+      if (r.moveu) return resultado(visivel.id, "lead", false, sinalReuniao);
     }
     return resultado(visivel.id, visivel.etapa, false, sinalReuniao);
   }
