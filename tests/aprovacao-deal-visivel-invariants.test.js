@@ -72,8 +72,11 @@ test('reabertura com CAS; flag de retrocesso limpo só na transição perdido→
 });
 
 test('criar e reabrir usam a mesma ramificação por timing', () => {
-  assert.match(helper, /dealCamposPorTiming\(timingStatus, probabilidadePorEtapa\)/,
+  // Lead Cedo usa a etapa do ideal (2026-11-19); tarde_demais segue a
+  // ramificação por timing (perdido/timing) — nunca a coluna Lead.
+  assert.match(helper, /dealCamposPorTiming\(etapaComoIdeal \? "ideal" : timingStatus, probabilidadePorEtapa\)/,
     'helper divergiu da ramificação por timing (tarde_demais cairia na coluna Lead)');
+  assert.ok(!/etapaComoIdeal = [^;]*tarde_demais/.test(helper), 'tarde_demais não pode seguir a etapa do ideal');
   const core = src.slice(src.indexOf('async function promoverLeadCore'), src.indexOf('export async function promoverLead'));
   assert.match(core, /\.\.\.dealCamposPorTiming\(timingStatus, probabilidadePorEtapa\)/,
     'promoverLeadCore deixou de usar a fonte única de campos por timing');
@@ -103,12 +106,20 @@ test('rearmavel exige ausência de reunião (formulário ou histórico do deal)'
     'histórico de reunião do deal perdido deixou de ser considerado');
 });
 
-test('muito_cedo: estacionado SÓ sem reunião (mesmo recorte da migration 2026-09-08)', () => {
+test('muito_cedo aprovado entra no FUNIL — nunca estacionado (ordem do CEO 2026-11-19)', () => {
+  // Antes (regra de 2026-09-08) o lead "Cedo" aprovado ia para Aguardando
+  // timing (coluna oculta) e precisava de um 2º clique ("Ativar agora").
   const ramoVisivel = helper.slice(helper.indexOf('const visivel = ativos.find'), helper.indexOf('const perdido = ativos[0]'));
-  assert.match(ramoVisivel, /if \(!sinalReuniao && ETAPAS_REARMAVEIS\.includes\(visivel\.etapa\)\)/,
-    'estacionamento de muito_cedo deixou de exigir ausência de reunião (Jade/Arthur/Miguel seriam estacionados)');
-  assert.match(ramoVisivel, /sinalReuniao && visivel\.etapa === "aguardando_timing"/,
-    'muito_cedo com reunião deve sair do estacionamento (visível em Lead)');
+  assert.ok(!/dealCamposPorTiming\("muito_cedo"/.test(helper), 'a aprovação voltou a estacionar lead Cedo em Aguardando timing');
+  assert.match(helper, /const etapaComoIdeal = timingIdeal \|\| timingStatus === "muito_cedo";/);
+  assert.match(ramoVisivel, /if \(timingStatus === "muito_cedo" && visivel\.etapa === "aguardando_timing"\) \{/,
+    'o deal que o promoverLeadCore cria estacionado tem de sair para Lead na aprovação');
+  assert.match(ramoVisivel, /\["aguardando_timing"\]\);/, 'a saída do estacionamento tem de ser CAS a partir de aguardando_timing');
+  assert.match(helper, /comAcaoCedo\(dealCamposPorTiming\(etapaComoIdeal \? "ideal" : timingStatus, probabilidadePorEtapa\)\)/,
+    'deal novo/reaberto de lead Cedo tem de nascer em Lead');
+  // ETAPA como ideal, MENSAGEM não: convite/reativação seguem só para timing ideal.
+  assert.match(helper, /rearmavel:\s*\n\s*timingIdeal && !reuniaoNoFormulario/, 'lead Cedo receberia reativação automática');
+  assert.match(helper, /semConviteInicial:\s*\n\s*timingIdeal && /);
   assert.match(helper, /reuniaoNoFormulario \|\| dealTeveReuniao\(visivel\)/,
     'sinal de reunião deve somar formulário e histórico do deal');
   assert.match(helper, /reuniao_realizada_at \|\| d\.reuniao_data \|\| d\.reuniao_agendada_at/,
@@ -117,7 +128,7 @@ test('muito_cedo: estacionado SÓ sem reunião (mesmo recorte da migration 2026-
 
 test('timing ideal + reunião + deal pré-reunião (inclusive recém-criado) → Reunião marcada', () => {
   const ramoVisivel = helper.slice(helper.indexOf('const visivel = ativos.find'), helper.indexOf('const perdido = ativos[0]'));
-  assert.match(ramoVisivel, /if \(timingIdeal && sinalReuniao && ETAPAS_PRE_REUNIAO\.includes\(visivel\.etapa\)\)/,
+  assert.match(ramoVisivel, /if \(etapaComoIdeal && sinalReuniao && ETAPAS_PRE_REUNIAO\.includes\(visivel\.etapa\)\)/,
     'o deal criado pelo promoverLeadCore em lead ficaria em Lead mesmo com reunião (caso Samuel)');
   assert.match(ramoVisivel, /camposReuniao\(/, 'transição para Reunião marcada sumiu do ramo visível');
 });
