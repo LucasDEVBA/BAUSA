@@ -149,3 +149,20 @@ test('reversão confirmada: nunca diz "desfeita" sem ter desfeito', () => {
   assert.match(ramo, /await reverter\.select\("id"\)/, 'reversão sem conferência de linhas');
   assert.match(ramo, /NÃO pôde ser desfeita/, 'falha da reversão precisa ser reportada como tal');
 });
+
+// ─── 23/11/2026: responsável já cadastrado com o mesmo e-mail ─────────────
+// Os dois índices de responsaveis são UNIQUE (whatsapp e email). A promoção
+// só procurava por WhatsApp: família com cadastro anterior (irmão) com o
+// mesmo e-mail e outro número travava a aprovação em
+// "duplicate key value violates unique constraint idx_responsaveis_email".
+test('promoção reaproveita responsável existente por WhatsApp OU e-mail', () => {
+  const core = src.slice(src.indexOf('async function promoverLeadCore'), src.indexOf('export async function promoverLead'));
+  const iWhats = core.indexOf('.eq("whatsapp", guardianWhatsapp)');
+  const iEmail = core.indexOf('.eq("email", guardianEmail)');
+  const iInsert = core.indexOf('const { data: newResp, error: respError }');
+  assert.ok(iWhats > 0, 'busca do responsável por WhatsApp sumiu');
+  assert.ok(iEmail > iWhats, 'sem busca por e-mail a aprovação trava em idx_responsaveis_email');
+  assert.ok(iInsert > iEmail, 'o insert tem de vir DEPOIS das duas buscas');
+  assert.match(core, /if \(!existingResp && guardianEmail\) \{/);
+  assert.match(core, /email: guardianEmail,/, 'o e-mail gravado tem de ser o mesmo da busca');
+});

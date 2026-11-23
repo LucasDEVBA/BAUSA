@@ -136,19 +136,41 @@ async function promoverLeadCore(
     };
   }
 
-  // Responsável (dedup por whatsapp)
+  // Responsável: dedup por WhatsApp e, se não achar, por e-mail. Os DOIS são
+  // únicos no banco (idx_responsaveis_whatsapp / idx_responsaveis_email):
+  // família que já tem cadastro (irmão, envio anterior) com o mesmo e-mail e
+  // outro WhatsApp travava a aprovação em "duplicate key ... idx_responsaveis_email"
+  // (Carlos Henrique de Carvalho Barros, 23/11/2026). Reaproveitar = mesma
+  // família, irmãos ligados ao mesmo responsável; nada é sobrescrito.
   const guardianWhatsapp = (fs.guardian_whatsapp as string | null) || (fs.email as string | null);
   if (!guardianWhatsapp) {
     return { success: false, error: "Lead sem WhatsApp ou email do responsavel." };
   }
+  const guardianEmail = (fs.guardian_email as string | null) || (fs.email as string | null);
 
   let responsavelId: string;
-  const { data: existingResp } = await supabase
+  const porWhatsapp = await supabase
     .from("responsaveis")
     .select("id")
     .eq("whatsapp", guardianWhatsapp)
     .is("deleted_at", null)
     .maybeSingle();
+  if (porWhatsapp.error) {
+    return { success: false, error: `Erro ao buscar responsavel: ${porWhatsapp.error.message}` };
+  }
+  let existingResp = porWhatsapp.data;
+  if (!existingResp && guardianEmail) {
+    const porEmail = await supabase
+      .from("responsaveis")
+      .select("id")
+      .eq("email", guardianEmail)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (porEmail.error) {
+      return { success: false, error: `Erro ao buscar responsavel: ${porEmail.error.message}` };
+    }
+    existingResp = porEmail.data;
+  }
 
   if (existingResp) {
     responsavelId = String((existingResp as { id: string }).id);
@@ -157,7 +179,7 @@ async function promoverLeadCore(
       .from("responsaveis")
       .insert({
         nome: (fs.guardian_name as string | null) || "Responsavel",
-        email: (fs.guardian_email as string | null) || (fs.email as string | null),
+        email: guardianEmail,
         whatsapp: guardianWhatsapp,
         profissao: fs.guardian_profession as string | null,
         consentimento_lgpd: true,
